@@ -1,0 +1,3 @@
+hardstatus alwayslastline "%{=b}%{B} Screen(s): %{b}%w %=%{kG}%C%A  %D, %M/%d/%Y "
+startup_message off
+termcapinfo xterm* ti@:te@
