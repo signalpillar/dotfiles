@@ -129,3 +129,8 @@ function showResourcesForProcess {
         ps -o pid -o pcpu -o rss -o vsz -o cmd ${i};
     done
 }
+
+# monitor memory usage
+function monitorMemoryUsage {
+    watch vmstat -sSM
+}
