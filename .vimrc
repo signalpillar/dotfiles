@@ -1,26 +1,14 @@
 " disable compatibility mode with VI
 " Use Vim settings, rather then Vi settings (much better!).
 set nocompatible
+filetype off
 
-"====================================="
-" Vundle configuration "
-set rtp+=~/.vim/bundle/vundle/
-call vundle#rc()
-" let Vundle manage Vundle
-" required! 
-Bundle 'gmarik/vundle'
-" Plugins " {{{
-" Git integration
-Bundle "git.zip"
-Bundle "tpope/vim-fugitive"
-"Syntax highlight"
-Bundle "cucumber.zip"
-"====================================="
-
+"{{{ General section
 
 " Allow backgrounding buffers without writing them, and remember marks/undo
 " for backgrounded buffers
 set hidden
+filetype plugin indent on
 
 " Make tab completion for files/buffers act like bash
 set wildmenu
@@ -33,7 +21,42 @@ set t_vb=
 set novisualbell
 
 " Turn on the verboseness to see everything vim is doing.
-"set verbose=9
+" set verbose=9
+
+" select when using the mouse
+set selectmode=mouse
+
+" set the commandheight
+set cmdheight=2
+
+" do not keep a backup files 
+set nobackup
+set nowritebackup
+
+set noswapfile
+"}}}
+
+"====================================="
+" Vundle configuration "
+set rtp+=~/.vim/bundle/vundle/
+call vundle#rc()
+
+" let Vundle manage Vundle " required! 
+Bundle 'gmarik/vundle'
+" Plugins " {{{
+" Git integration
+Bundle "git.zip"
+Bundle "tpope/vim-fugitive"
+"Syntax highlight"
+Bundle "cucumber.zip"
+"Nerd tree
+Bundle "The-NERD-tree"
+map <F2> :NERDTreeToggle<CR>
+"Nerd commenter
+Bundle "The-NERD-Commenter"
+"Color schemes
+Bundle 'mayansmoke'
+"====================================="
 
 " allow backspacing over everything in insert mode
 set backspace=indent,eol,start
@@ -47,17 +70,6 @@ set tabstop=4
 " Replace tabs with spaces
 set expandtab
 
-" select when using the mouse
-set selectmode=mouse
-
-" set the commandheight
-set cmdheight=2
-
-" do not keep a backup files 
-set nobackup
-set nowritebackup
-
-set noswapfile
 
 " *****************************************************
 " //buffer
@@ -250,7 +262,6 @@ imap <c-z> <c-o>u
 " 'cindent' is on in C files, etc.
 " Also load indent files, to automatically do language-dependent indenting.
 
-filetype plugin indent on
 
 " When editing a file, always jump to the last known cursor position.
 " Don't do it when the position is invalid or when inside an event handler
@@ -530,7 +541,6 @@ let Tlist_Use_Right_Window = 1
 
 map <F8> :TlistToggle<CR>
 
-map <F2> :NERDTreeToggle<CR>
 
 augr class
 au!
