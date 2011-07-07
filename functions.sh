@@ -134,3 +134,7 @@ function showResourcesForProcess {
 function monitorMemoryUsage {
     watch vmstat -sSM
 }
+
+function file_charset {
+    file -i $0
+}

@@ -469,10 +469,10 @@ function! ShowPydoc(module, ...)
 endfunction
 
 " GRB: Always source python.vim for Python files
-au FileType python source ~/.vim/scripts/python.vim
+"au FileType python source ~/.vim/scripts/python.vim
 
 " GRB: Use custom python.vim syntax file
-au! Syntax python source ~/.vim/syntax/python.vim
+"au! Syntax python source ~/.vim/syntax/python.vim
 let python_highlight_all = 1
 let python_slow_sync = 1
 
