@@ -2,6 +2,22 @@
 " Use Vim settings, rather then Vi settings (much better!).
 set nocompatible
 
+"====================================="
+" Vundle configuration "
+set rtp+=~/.vim/bundle/vundle/
+call vundle#rc()
+" let Vundle manage Vundle
+" required! 
+Bundle 'gmarik/vundle'
+" Plugins " {{{
+" Git integration
+Bundle "git.zip"
+Bundle "tpope/vim-fugitive"
+"Syntax highlight"
+Bundle "cucumber.zip"
+"====================================="
+
+
 " Allow backgrounding buffers without writing them, and remember marks/undo
 " for backgrounded buffers
 set hidden
@@ -538,4 +554,5 @@ vnoremap <silent> # :<C-U>
   \gvy?<C-R><C-R>=substitute(
   \escape(@", '?\.*$^~['), '\_s\+', '\\_s\\+', 'g')<CR><CR>
   \gV:call setreg('"', old_reg, old_regtype)<CR>
+
 
