@@ -56,6 +56,8 @@ map <F2> :NERDTreeToggle<CR>
 Bundle "The-NERD-Commenter"
 "Color schemes
 Bundle 'mayansmoke'
+" Project plugin
+Bundle 'project.tar.gz'
 "====================================="
 
 " allow backspacing over everything in insert mode
