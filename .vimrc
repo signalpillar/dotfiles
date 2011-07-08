@@ -58,6 +58,7 @@ Bundle "The-NERD-Commenter"
 Bundle 'mayansmoke'
 " Project plugin
 Bundle 'project.tar.gz'
+let loaded_project = 1
 "====================================="
 
 " allow backspacing over everything in insert mode
