@@ -138,3 +138,7 @@ function monitorMemoryUsage {
 function file_charset {
     file -i $0
 }
+
+function grepMp3Links {
+    grep -o "http://[^[:space:]]*.mp3"
+}
