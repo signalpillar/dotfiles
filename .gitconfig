@@ -1,0 +1,25 @@
+[alias]
+    co = checkout
+	ci = commit
+	df = diff --ignore-all-space --color
+	st = status
+    stu = status --untracked-files=no
+[help]
+	autocorrect = 10
+[color]
+	branch = auto
+	diff = auto
+	interactive = auto
+	status = auto
+[diff]
+	tool = diffuse
+[core]
+	excludesfile = $HOME/.gitignore
+	editor = gvim
+[svn]
+	rmdir = true
+[gui]
+    ;fontgui = -family \"Lucida Sans\" -size 13 -weight normal -slant roman -underline 0 -overstrike 0
+    fontdiff = -family Monaco -size 11 -weight normal -slant roman -underline 0 -overstrike 0 
+    fontui = -family fixed -size 9 -weight bold -slant roman -underline 0 -overstrike 0
+	;fontdiff = -family fixed -size 10 -weight normal -slant roman -underline 0 -overstrike 0
