@@ -1,0 +1,8 @@
+*.svn/
+*.class
+src/main/resources/
+.settings/
+.project
+.classpath
+target/
+bin/
