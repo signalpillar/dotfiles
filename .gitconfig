@@ -14,7 +14,7 @@
 [diff]
 	tool = diffuse
 [core]
-	excludesfile = $HOME/.gitignore
+	excludesfile = ~/.gitignore
 	editor = gvim
 [svn]
 	rmdir = true
