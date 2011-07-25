@@ -59,6 +59,9 @@ Bundle 'mayansmoke'
 " Project plugin
 Bundle 'project.tar.gz'
 let loaded_project = 1
+
+Bundle 'minibufexpl.vim'
+
 "====================================="
 
 " allow backspacing over everything in insert mode
