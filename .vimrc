@@ -64,6 +64,10 @@ Bundle 'minibufexpl.vim'
 
 Bundle 'Conque-Shell'
 
+" Scala {{{
+Bundle 'rosstimson/scala-vim-support'
+" }}}
+
 "====================================="
 
 " allow backspacing over everything in insert mode
