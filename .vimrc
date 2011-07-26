@@ -62,6 +62,8 @@ let loaded_project = 1
 
 Bundle 'minibufexpl.vim'
 
+Bundle 'Conque-Shell'
+
 "====================================="
 
 " allow backspacing over everything in insert mode
@@ -321,6 +323,8 @@ if has("gui")
   "set guifont=Lucida_Console:h9:cANSI
   "set guifont=Monospace\ 9
   set guifont=Monaco\ 10
+else
+  colorscheme slate
 endif
 
 " ************************************************************************
