@@ -108,3 +108,4 @@ export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven-3.0.3/bin
 export PATH=$PATH:$MAVEN/bin
+export PATH=$PATH:$dt/scala/bin

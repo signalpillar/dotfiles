@@ -142,3 +142,7 @@ function file_charset {
 function grepMp3Links {
     grep -o "http://[^[:space:]]*.mp3"
 }
+
+function generateRandomPassword {
+    openssl rand -base64 12
+}
