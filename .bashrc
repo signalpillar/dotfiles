@@ -101,10 +101,9 @@ fi
 if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
-. ~/functions.sh
-
-export r=$HOME
+source ~/.env
+source ~/functions.sh
 export proj=$r/proj
 export dt=$r/dt
-export MAVEN=$dt/apache-maven-3.0.3/bin
+export MAVEN=$dt/apache-maven
 export PATH=$PATH:$MAVEN/bin
