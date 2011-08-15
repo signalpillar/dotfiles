@@ -1,7 +1,6 @@
 " disable compatibility mode with VI
 " Use Vim settings, rather then Vi settings (much better!).
 set nocompatible
-filetype off
 
 "{{{ General section
 
@@ -133,7 +132,7 @@ set incsearch
 " Show  tab characters. Visual Whitespace.
 "set list
 "set listchars=tab:>.
-set listchars=tab:>-,trail:~,extends:>,precedes:<,eol:$
+set listchars=nbsp:-,tab:>-,trail:~,extends:>,precedes:<,eol:$
 
 " Make searches case-sensitive only if they contain upper-case characters
 set ignorecase
@@ -520,6 +519,9 @@ let python_slow_sync = 1
 " support highlighting
 let python_highlight_all = 1
 autocmd FileType python set omnifunc=pythoncomplete#Complete
+au FileType py set autoindent
+au FileType py set smartindent
+
 " Tab autocompletion
 imap <S-Tab> <c-r>=InsertTabWrapper("backward")<cr>
 imap <Tab> <c-r>=InsertTabWrapper("forward")<cr>
