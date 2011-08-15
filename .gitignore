@@ -5,5 +5,4 @@ src/main/resources/
 .project
 .classpath
 target/
-bin
 runtime
