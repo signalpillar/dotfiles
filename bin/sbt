@@ -1,2 +1,1 @@
-#echo my_list=$my_list
-java -Xmx512M -jar `dirname $0`/sbt-launch.jar "$@"
+java -Xmx512M -jar /home/vvitvitskiy/bin/sbt-launch-0.7.7.jar
