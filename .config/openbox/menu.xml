@@ -1,0 +1,828 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openbox_menu xmlns="http://openbox.org/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://openbox.org/                 file:///usr/share/openbox/menu.xsd">
+    <menu id="root-menu" label="Openbox 3">
+        <item label="Terminal emulator">
+            <action name="Execute">
+                <execute>
+                    x-terminal-emulator
+                </execute>
+            </action>
+        </item>
+        <item label="nautilus fm">
+            <action name="Execute">
+                <execute>
+                    nautilus --browser --no-desktop
+                </execute>
+            </action>
+        </item>
+        <item label="scala-idE">
+            <action name="Execute">
+                <execute>
+                    /media/repos/dt/scala-helios/eclipse 
+                </execute>
+            </action>
+        </item>
+        <item label="helios">
+            <action name="Execute">
+                <execute>
+                    /media/repos/dt/helios/eclipse
+                </execute>
+            </action>
+        </item>
+        <item label="indigo">
+            <action name="Execute">
+                <execute>
+                    /media/repos/dt/indigo/eclipse
+                </execute>
+            </action>
+        </item>
+        <item label="yoono">
+            <action name="Execute">
+                <execute>
+                    /media/repos/dt/yoono-desktop/yoono-desktop
+                </execute>
+            </action>
+        </item>
+        <item label="Ubuntu Software Center"> <action name="Execute">
+                <execute>software-center</execute>
+        </action> </item>
+        <!-- This requires the presence of the 'menu' package to work -->
+        <item label="ObConf">
+            <action name="Execute">
+                <execute>
+                    obconf
+                </execute>
+            </action>
+        </item>
+        <item label="Reconfigure">
+            <action name="Reconfigure"/>
+        </item>
+        <item label="Lock screen">
+            <action name="Execute">
+                <execute>
+                    gnome-screensaver-command -l
+                </execute>
+            </action>
+        </item>
+        <menu id="apps" label="apps">
+            <menu id="1" label="Development">
+                <item label="Erlang Shell"> <action name="Execute">
+                        <execute>xterm -e erl</execute>
+                </action> </item>
+                <item label="GDB"> <action name="Execute">
+                        <execute>xterm -e gdb</execute>
+                </action> </item>
+                <item label="gitg"> <action name="Execute">
+                        <execute>gitg</execute>
+                </action> </item>
+                <item label="GNU Emacs 23"> <action name="Execute">
+                        <execute>emacs23</execute>
+                </action> </item>
+                <item label="Jython"> <action name="Execute">
+                        <execute>xterm -e jython</execute>
+                </action> </item>
+                <item label="Meld Diff Viewer"> <action name="Execute">
+                        <execute>meld</execute>
+                </action> </item>
+                <item label="NetBeans IDE 6.9.1"> <action name="Execute">
+                        <execute>sh "/media/repos/dt/netbeans-6.9.1/bin/netbeans"</execute>
+                </action> </item>
+                <item label="Python (v2.6)"> <action name="Execute">
+                        <execute>xterm -e python2.6</execute>
+                </action> </item>
+                <item label="Tclsh8.4"> <action name="Execute">
+                        <execute>xterm -e tclsh8.4</execute>
+                </action> </item>
+                <item label="Tclsh8.5"> <action name="Execute">
+                        <execute>xterm -e tclsh8.5</execute>
+                </action> </item>
+                <item label="TeamViewer 6"> <action name="Execute">
+                        <execute>teamviewer</execute>
+                </action> </item>
+                <item label="TkWish8.4"> <action name="Execute">
+                        <execute>x-terminal-emulator -e /usr/bin/wish8.4</execute>
+                </action> </item>
+                <item label="TkWish8.5"> <action name="Execute">
+                        <execute>x-terminal-emulator -e /usr/bin/wish8.5</execute>
+                </action> </item>
+            </menu>
+            <menu id="2" label="Editors">
+                <item label="Emacs"> <action name="Execute">
+                        <execute>xterm -e emacs</execute>
+                </action> </item>
+                <item label="Emacs 23 (text)"> <action name="Execute">
+                        <execute>xterm -e emacs23 -nw</execute>
+                </action> </item>
+                <item label="gedit"> <action name="Execute">
+                        <execute>gedit</execute>
+                </action> </item>
+                <item label="GVim"> <action name="Execute">
+                        <execute>gvim</execute>
+                </action> </item>
+                <item label="Nano"> <action name="Execute">
+                        <execute>xterm -e nano</execute>
+                </action> </item>
+                <item label="Pico"> <action name="Execute">
+                        <execute>xterm -e pico</execute>
+                </action> </item>
+                <item label="Vim"> <action name="Execute">
+                        <execute>xterm -e vim</execute>
+                </action> </item>
+                <item label="Xedit"> <action name="Execute">
+                        <execute>xedit</execute>
+                </action> </item>
+            </menu>
+            <menu id="18" label="Games">
+                <menu id="17" label="Amusement">
+                    <item label="Oclock"> <action name="Execute">
+                            <execute>oclock</execute>
+                    </action> </item>
+                    <item label="Xclock (analog)"> <action name="Execute">
+                            <execute>xclock -analog</execute>
+                    </action> </item>
+                    <item label="Xclock (digital)"> <action name="Execute">
+                            <execute>xclock -digital -update 1</execute>
+                    </action> </item>
+                    <item label="Xeyes"> <action name="Execute">
+                            <execute>xeyes</execute>
+                    </action> </item>
+                    <item label="Xlogo"> <action name="Execute">
+                            <execute>xlogo</execute>
+                    </action> </item>
+                </menu>
+                <menu id="10" label="Arcade">
+                    <item label="Nibbles"> <action name="Execute">
+                            <execute>gnibbles</execute>
+                    </action> </item>
+                    <item label="Robots"> <action name="Execute">
+                            <execute>gnobots2</execute>
+                    </action> </item>
+                </menu>
+                <menu id="11" label="Board">
+                    <item label="Chess"> <action name="Execute">
+                            <execute>glchess</execute>
+                    </action> </item>
+                    <item label="Iagno"> <action name="Execute">
+                            <execute>iagno</execute>
+                    </action> </item>
+                    <item label="Mahjongg"> <action name="Execute">
+                            <execute>mahjongg</execute>
+                    </action> </item>
+                </menu>
+                <menu id="12" label="Card">
+                    <item label="AisleRiot Solitaire"> <action name="Execute">
+                            <execute>sol</execute>
+                    </action> </item>
+                    <item label="Gnome FreeCell"> <action name="Execute">
+                            <execute>sol --variation freecell</execute>
+                    </action> </item>
+                    <item label="Tali"> <action name="Execute">
+                            <execute>gtali</execute>
+                    </action> </item>
+                </menu>
+                <menu id="13" label="Puzzle">
+                    <item label="Five or More"> <action name="Execute">
+                            <execute>glines</execute>
+                    </action> </item>
+                    <item label="Four-in-a-Row"> <action name="Execute">
+                            <execute>gnect</execute>
+                    </action> </item>
+                    <item label="gbrainy"> <action name="Execute">
+                            <execute>gbrainy</execute>
+                    </action> </item>
+                    <item label="Klotski"> <action name="Execute">
+                            <execute>gnotski</execute>
+                    </action> </item>
+                    <item label="Lights Off"> <action name="Execute">
+                            <execute>lightsoff</execute>
+                    </action> </item>
+                    <item label="Mines"> <action name="Execute">
+                            <execute>gnomine</execute>
+                    </action> </item>
+                    <item label="Quadrapassel"> <action name="Execute">
+                            <execute>quadrapassel</execute>
+                    </action> </item>
+                    <item label="Sudoku"> <action name="Execute">
+                            <execute>gnome-sudoku</execute>
+                    </action> </item>
+                    <item label="Swell Foop"> <action name="Execute">
+                            <execute>swell-foop</execute>
+                    </action> </item>
+                    <item label="Tetravex"> <action name="Execute">
+                            <execute>gnotravex</execute>
+                    </action> </item>
+                </menu>
+            </menu>
+            <menu id="6" label="Graphics">
+                <item label="Dia"> <action name="Execute">
+                        <execute>dia-normal</execute>
+                </action> </item>
+                <item label="Dia Diagram Editor"> <action name="Execute">
+                        <execute>dia</execute>
+                </action> </item>
+                <item label="dotty"> <action name="Execute">
+                        <execute>dotty</execute>
+                </action> </item>
+                <item label="Eye of GNOME"> <action name="Execute">
+                        <execute>eog</execute>
+                </action> </item>
+                <item label="F-Spot"> <action name="Execute">
+                        <execute>f-spot</execute>
+                </action> </item>
+                <item label="GIMP Image Editor"> <action name="Execute">
+                        <execute>gimp-2.6</execute>
+                </action> </item>
+                <item label="GNOME Screenshot Tool"> <action name="Execute">
+                        <execute>gnome-panel-screenshot</execute>
+                </action> </item>
+                <item label="ImageMagick"> <action name="Execute">
+                        <execute>display logo:</execute>
+                </action> </item>
+                <item label="lefty"> <action name="Execute">
+                        <execute>lefty</execute>
+                </action> </item>
+                <item label="LRF Viewer"> <action name="Execute">
+                        <execute>lrfviewer</execute>
+                </action> </item>
+                <item label="OpenOffice.org Draw"> <action name="Execute">
+                        <execute>oodraw</execute>
+                </action> </item>
+                <item label="Pinta"> <action name="Execute">
+                        <execute>pinta</execute>
+                </action> </item>
+                <item label="Simple Scan"> <action name="Execute">
+                        <execute>simple-scan</execute>
+                </action> </item>
+                <item label="The GIMP"> <action name="Execute">
+                        <execute>gimp</execute>
+                </action> </item>
+                <item label="Xditview"> <action name="Execute">
+                        <execute>xditview</execute>
+                </action> </item>
+                <item label="XSane Image Scanner"> <action name="Execute">
+                        <execute>xsane</execute>
+                </action> </item>
+            </menu>
+            <menu id="7" label="Multimedia">
+                <item label="ALSA mixer"> <action name="Execute">
+                        <execute>xterm -e alsamixer</execute>
+                </action> </item>
+                <item label="Brasero"> <action name="Execute">
+                        <execute>brasero</execute>
+                </action> </item>
+                <item label="FreetuxTV"> <action name="Execute">
+                        <execute>freetuxtv</execute>
+                </action> </item>
+                <item label="Movie Player"> <action name="Execute">
+                        <execute>totem</execute>
+                </action> </item>
+                <item label="Pitivi Video Editor"> <action name="Execute">
+                        <execute>pitivi</execute>
+                </action> </item>
+                <item label="Rhythmbox"> <action name="Execute">
+                        <execute>rhythmbox</execute>
+                </action> </item>
+                <item label="Sound Recorder"> <action name="Execute">
+                        <execute>gnome-sound-recorder</execute>
+                </action> </item>
+                <item label="VLC media player"> <action name="Execute">
+                        <execute>vlc</execute>
+                </action> </item>
+                <item label="VLC media player"> <action name="Execute">
+                        <execute>qvlc</execute>
+                </action> </item>
+            </menu>
+            <menu id="5" label="Network">
+                <item label="Chromium Web Browser"> <action name="Execute">
+                        <execute>chromium-browser</execute>
+                </action> </item>
+                <item label="Dropbox"> <action name="Execute">
+                        <execute>dropbox start -i</execute>
+                </action> </item>
+                <item label="ELinks"> <action name="Execute">
+                        <execute>xterm -e elinks</execute>
+                </action> </item>
+                <item label="Empathy"> <action name="Execute">
+                        <execute>empathy</execute>
+                </action> </item>
+                <item label="Epiphany"> <action name="Execute">
+                        <execute>epiphany-browser</execute>
+                </action> </item>
+                <item label="FireFox"> <action name="Execute">
+                        <execute>firefox</execute>
+                </action> </item>
+                <item label="FTP"> <action name="Execute">
+                        <execute>xterm -e ftp</execute>
+                </action> </item>
+                <item label="Gnome-RDP"> <action name="Execute">
+                        <execute>gnome-rdp</execute>
+                </action> </item>
+                <item label="gPodder Podcast Client"> <action name="Execute">
+                        <execute>gpodder</execute>
+                </action> </item>
+                <item label="Gwibber"> <action name="Execute">
+                        <execute>gwibber</execute>
+                </action> </item>
+                <item label="LFTP"> <action name="Execute">
+                        <execute>xterm -e lftp</execute>
+                </action> </item>
+                <item label="Links"> <action name="Execute">
+                        <execute>xterm -e links</execute>
+                </action> </item>
+                <item label="Miro Internet TV"> <action name="Execute">
+                        <execute>miro</execute>
+                </action> </item>
+                <item label="Opera"> <action name="Execute">
+                        <execute>opera</execute>
+                </action> </item>
+                <item label="Remmina Remote Desktop Client"> <action name="Execute">
+                        <execute>remmina</execute>
+                </action> </item>
+                <item label="Remote Desktop Viewer"> <action name="Execute">
+                        <execute>vinagre</execute>
+                </action> </item>
+                <item label="Skype"> <action name="Execute">
+                        <execute>skype-wrapper</execute>
+                </action> </item>
+                <item label="Telnet"> <action name="Execute">
+                        <execute>xterm -e telnet</execute>
+                </action> </item>
+                <item label="Terminal Server Client"> <action name="Execute">
+                        <execute>tsclient</execute>
+                </action> </item>
+                <item label="Thunderbird"> <action name="Execute">
+                        <execute>thunderbird</execute>
+                </action> </item>
+                <item label="Transmission"> <action name="Execute">
+                        <execute>transmission</execute>
+                </action> </item>
+                <item label="W3m"> <action name="Execute">
+                        <execute>xterm -e w3m</execute>
+                </action> </item>
+                <item label="w3m"> <action name="Execute">
+                        <execute>xterm -e w3m /usr/share/doc/w3m/MANUAL.html</execute>
+                </action> </item>
+                <item label="XChat-GNOME IRC Chat"> <action name="Execute">
+                        <execute>xchat-gnome</execute>
+                </action> </item>
+                <item label="Zenmap"> <action name="Execute">
+                        <execute>zenmap</execute>
+                </action> </item>
+            </menu>
+            <menu id="3" label="Office">
+                <item label="calibre"> <action name="Execute">
+                        <execute>calibre</execute>
+                </action> </item>
+                <item label="Dictionary"> <action name="Execute">
+                        <execute>gnome-dictionary</execute>
+                </action> </item>
+                <item label="Evince"> <action name="Execute">
+                        <execute>evince</execute>
+                </action> </item>
+                <item label="Evolution"> <action name="Execute">
+                        <execute>evolution</execute>
+                </action> </item>
+                <item label="FreeMind"> <action name="Execute">
+                        <execute>freemind</execute>
+                </action> </item>
+                <item label="GoldenDict"> <action name="Execute">
+                        <execute>goldendict</execute>
+                </action> </item>
+                <item label="OpenOffice.org Calc"> <action name="Execute">
+                        <execute>oocalc</execute>
+                </action> </item>
+                <item label="OpenOffice.org Impress"> <action name="Execute">
+                        <execute>ooimpress</execute>
+                </action> </item>
+                <item label="OpenOffice.org Math"> <action name="Execute">
+                        <execute>oomath</execute>
+                </action> </item>
+                <item label="OpenOffice.org Word Processor"> <action name="Execute">
+                        <execute>ooffice</execute>
+                </action> </item>
+                <item label="OpenOffice.org Writer"> <action name="Execute">
+                        <execute>oowriter</execute>
+                </action> </item>
+                <item label="StarDict"> <action name="Execute">
+                        <execute>stardict</execute>
+                </action> </item>
+                <item label="Xbiff"> <action name="Execute">
+                        <execute>xbiff</execute>
+                </action> </item>
+                <item label="XDvi"> <action name="Execute">
+                        <execute>xdvi</execute>
+                </action> </item>
+            </menu>
+            <menu id="39" label="Other">
+                <item label="About Ubuntu"> <action name="Execute">
+                        <execute>yelp ghelp:about-ubuntu</execute>
+                </action> </item>
+                <item label="AntSpotlight"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/antspotlight -root</execute>
+                </action> </item>
+                <item label="Computer"> <action name="Execute">
+                        <execute>nautilus --no-desktop computer:</execute>
+                </action> </item>
+                <item label="Fiberlamp"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/fiberlamp -root</execute>
+                </action> </item>
+                <item label="FuzzyFlakes"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/fuzzyflakes -root</execute>
+                </action> </item>
+                <item label="GLBlur"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/glblur -root</execute>
+                </action> </item>
+                <item label="GLCells"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/glcells -root</execute>
+                </action> </item>
+                <item label="GLMatrix"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/glmatrix -root</execute>
+                </action> </item>
+                <item label="GLSchool"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/glschool -root</execute>
+                </action> </item>
+                <item label="GLSlideshow"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/glslideshow -root</execute>
+                </action> </item>
+                <item label="GLText"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/gltext -root</execute>
+                </action> </item>
+                <item label="Help"> <action name="Execute">
+                        <execute>yelp</execute>
+                </action> </item>
+                <item label="Home Folder"> <action name="Execute">
+                        <execute>nautilus --no-desktop</execute>
+                </action> </item>
+                <item label="Hypertorus"> <action name="Execute">
+                        <execute>/usr/lib/xscreensaver/hypertorus -root</execute>
+                </action> </item>
+                <item label="IBus Preferences"> <action name="Execute">
+                        <execute>ibus-setup</execute>
+                </action> </item>
+                <item label="Kiki"> <action name="Execute">
+                        <execute>kiki</execute>
+                </action> </item>
+                <item label="Network"> <action name="Execute">
+                        <execute>nautilus --no-desktop network:</execute>
+                </action> </item>
+                <item label="OpenJDK Java 6 Policy Tool"> <action name="Execute">
+                        <execute>/usr/lib/jvm/java-6-openjdk/bin/policytool</execute>
+                </action> </item>
+                <item label="RapidSVN"> <action name="Execute">
+                        <execute>rapidsvn</execute>
+                </action> </item>
+                <item label="streamtuner2"> <action name="Execute">
+                        <execute>streamtuner2</execute>
+                </action> </item>
+                <item label="Timeline"> <action name="Execute">
+                        <execute>timeline</execute>
+                </action> </item>
+                <item label="XMind"> <action name="Execute">
+                        <execute>/usr/local/xmind/xmind</execute>
+                </action> </item>
+            </menu>
+            <menu id="19" label="Shells">
+                <item label="4Pane"> <action name="Execute">
+                        <execute>4Pane</execute>
+                </action> </item>
+                <item label="Bash"> <action name="Execute">
+                        <execute>xterm -e bash --login</execute>
+                </action> </item>
+                <item label="Dash"> <action name="Execute">
+                        <execute>xterm -e dash -i</execute>
+                </action> </item>
+                <item label="GIT"> <action name="Execute">
+                        <execute>xterm -e git</execute>
+                </action> </item>
+                <item label="GNOME Commander"> <action name="Execute">
+                        <execute>gnome-commander</execute>
+                </action> </item>
+                <item label="Guake Terminal"> <action name="Execute">
+                        <execute>guake</execute>
+                </action> </item>
+                <item label="MC"> <action name="Execute">
+                        <execute>xterm -e mc</execute>
+                </action> </item>
+                <item label="Rdesktop"> <action name="Execute">
+                        <execute>rdesktop</execute>
+                </action> </item>
+                <item label="Sh"> <action name="Execute">
+                        <execute>xterm -e sh --login</execute>
+                </action> </item>
+                <item label="Terminal"> <action name="Execute">
+                        <execute>gnome-terminal</execute>
+                </action> </item>
+                <item label="VirtualBox OSE"> <action name="Execute">
+                        <execute>virtualbox</execute>
+                </action> </item>
+                <item label="Xterm"> <action name="Execute">
+                        <execute>xterm</execute>
+                </action> </item>
+            </menu>
+            <menu id="37" label="System">
+                <menu id="36" label="Settings">
+                    <menu id="21" label="GNOME">
+                        <item label="About Me"> <action name="Execute">
+                                <execute>gnome-about-me</execute>
+                        </action> </item>
+                        <item label="Appearance"> <action name="Execute">
+                                <execute>gnome-appearance-properties</execute>
+                        </action> </item>
+                        <item label="Art Manager"> <action name="Execute">
+                                <execute>gnome-art</execute>
+                        </action> </item>
+                        <item label="Assistive Technologies"> <action name="Execute">
+                                <execute>gnome-at-properties</execute>
+                        </action> </item>
+                        <item label="Bluetooth"> <action name="Execute">
+                                <execute>bluetooth-properties</execute>
+                        </action> </item>
+                        <item label="Broadcast Preferences"> <action name="Execute">
+                                <execute>gwibber-preferences</execute>
+                        </action> </item>
+                        <item label="Disk Utility"> <action name="Execute">
+                                <execute>palimpsest</execute>
+                        </action> </item>
+                        <item label="Guake Preferences"> <action name="Execute">
+                                <execute>guake-prefs</execute>
+                        </action> </item>
+                        <item label="Keyboard"> <action name="Execute">
+                                <execute>gnome-keyboard-properties</execute>
+                        </action> </item>
+                        <item label="Keyboard Shortcuts"> <action name="Execute">
+                                <execute>gnome-keybinding-properties</execute>
+                        </action> </item>
+                        <item label="Log File Viewer"> <action name="Execute">
+                                <execute>gnome-system-log</execute>
+                        </action> </item>
+                        <item label="Login Screen"> <action name="Execute">
+                                <execute>gdmsetup</execute>
+                        </action> </item>
+                        <item label="Main Menu"> <action name="Execute">
+                                <execute>alacarte</execute>
+                        </action> </item>
+                        <item label="Messaging and VoIP Accounts"> <action name="Execute">
+                                <execute>empathy-accounts</execute>
+                        </action> </item>
+                        <item label="Monitors"> <action name="Execute">
+                                <execute>gnome-display-properties</execute>
+                        </action> </item>
+                        <item label="Mouse"> <action name="Execute">
+                                <execute>gnome-mouse-properties</execute>
+                        </action> </item>
+                        <item label="Network"> <action name="Execute">
+                                <execute>network-admin</execute>
+                        </action> </item>
+                        <item label="Network Connections"> <action name="Execute">
+                                <execute>nm-connection-editor</execute>
+                        </action> </item>
+                        <item label="Network Proxy"> <action name="Execute">
+                                <execute>gnome-network-properties</execute>
+                        </action> </item>
+                        <item label="Network Tools"> <action name="Execute">
+                                <execute>gnome-nettool</execute>
+                        </action> </item>
+                        <item label="PalmOS Devices"> <action name="Execute">
+                                <execute>gpilotd-control-applet</execute>
+                        </action> </item>
+                        <item label="Personal File Sharing"> <action name="Execute">
+                                <execute>gnome-file-share-properties</execute>
+                        </action> </item>
+                        <item label="Preferred Applications"> <action name="Execute">
+                                <execute>gnome-default-applications-properties</execute>
+                        </action> </item>
+                        <item label="Remote Desktop"> <action name="Execute">
+                                <execute>vino-preferences</execute>
+                        </action> </item>
+                        <item label="Screensaver"> <action name="Execute">
+                                <execute>gnome-screensaver-preferences</execute>
+                        </action> </item>
+                        <item label="Sound"> <action name="Execute">
+                                <execute>gnome-volume-control</execute>
+                        </action> </item>
+                        <item label="Splash Screen"> <action name="Execute">
+                                <execute>gnome-splashscreen-manager</execute>
+                        </action> </item>
+                        <item label="Startup Applications"> <action name="Execute">
+                                <execute>gnome-session-properties</execute>
+                        </action> </item>
+                        <item label="System Monitor"> <action name="Execute">
+                                <execute>gnome-system-monitor</execute>
+                        </action> </item>
+                        <item label="System Testing"> <action name="Execute">
+                                <execute>checkbox-gtk</execute>
+                        </action> </item>
+                        <item label="Time and Date"> <action name="Execute">
+                                <execute>time-admin</execute>
+                        </action> </item>
+                        <item label="Ubuntu One"> <action name="Execute">
+                                <execute>ubuntuone-preferences</execute>
+                        </action> </item>
+                        <item label="Users and Groups"> <action name="Execute">
+                                <execute>users-admin</execute>
+                        </action> </item>
+                        <item label="Windows"> <action name="Execute">
+                                <execute>gnome-window-properties</execute>
+                        </action> </item>
+                    </menu>
+                    <item label="Active Directory membership"> <action name="Execute">
+                            <execute>gksu /usr/bin/domainjoin-gui</execute>
+                    </action> </item>
+                    <item label="Computer Janitor"> <action name="Execute">
+                            <execute>gksu --desktop /usr/share/applications/computer-janitor-gtk.desktop computer-janitor-gtk</execute>
+                    </action> </item>
+                    <item label="Floating Feet"> <action name="Execute">
+                            <execute>/usr/lib/gnome-screensaver/gnome-screensaver/floaters /usr/share/pixmaps/gnome-logo-white.svg</execute>
+                    </action> </item>
+                    <item label="Hardware Drivers"> <action name="Execute">
+                            <execute>jockey-gtk</execute>
+                    </action> </item>
+                    <item label="Language Support"> <action name="Execute">
+                            <execute>gnome-language-selector</execute>
+                    </action> </item>
+                    <item label="Openbox Configuration Manager"> <action name="Execute">
+                            <execute>obconf</execute>
+                    </action> </item>
+                    <item label="Opera Widget Manager"> <action name="Execute">
+                            <execute>opera-widget-manager</execute>
+                    </action> </item>
+                    <item label="Orta Settings Manager"> <action name="Execute">
+                            <execute>orta-settings-manager</execute>
+                    </action> </item>
+                    <item label="Pictures folder"> <action name="Execute">
+                            <execute>/usr/lib/gnome-screensaver/gnome-screensaver/slideshow</execute>
+                    </action> </item>
+                    <item label="Power Management"> <action name="Execute">
+                            <execute>gnome-power-preferences</execute>
+                    </action> </item>
+                    <item label="Printing"> <action name="Execute">
+                            <execute>system-config-printer</execute>
+                    </action> </item>
+                    <item label="Software Sources"> <action name="Execute">
+                            <execute>gksu --desktop /usr/share/applications/software-properties-gtk.desktop /usr/bin/software-properties-gtk</execute>
+                    </action> </item>
+                    <item label="Startup Disk Creator"> <action name="Execute">
+                            <execute>usb-creator-gtk</execute>
+                    </action> </item>
+                    <item label="Synaptic Package Manager"> <action name="Execute">
+                            <execute>gksu --description /usr/share/applications/synaptic.desktop /usr/sbin/synaptic</execute>
+                    </action> </item>
+                    <item label="Ubuntu Software Center"> <action name="Execute">
+                            <execute>software-center</execute>
+                    </action> </item>
+                    <item label="Update Manager"> <action name="Execute">
+                            <execute>update-manager</execute>
+                    </action> </item>
+                    <item label="Xfontsel"> <action name="Execute">
+                            <execute>xfontsel</execute>
+                    </action> </item>
+                    <item label="Xvidtune"> <action name="Execute">
+                            <execute>xvidtune</execute>
+                    </action> </item>
+                </menu>
+                <item label="Aptitude"> <action name="Execute">
+                        <execute>xterm -e aptitude</execute>
+                </action> </item>
+                <item label="DSL/PPPoE configuration tool"> <action name="Execute">
+                        <execute>xterm -e pppoeconf</execute>
+                </action> </item>
+                <item label="Editres"> <action name="Execute">
+                        <execute>editres</execute>
+                </action> </item>
+                <item label="Gnome Control Center"> <action name="Execute">
+                        <execute>gnome-control-center</execute>
+                </action> </item>
+                <item label="Htop"> <action name="Execute">
+                        <execute>xterm -e htop</execute>
+                </action> </item>
+                <item label="im-switch"> <action name="Execute">
+                        <execute>xterm -e im-switch</execute>
+                </action> </item>
+                <item label="Manage Print Jobs"> <action name="Execute">
+                        <execute>system-config-printer-applet --no-tray-icon</execute>
+                </action> </item>
+                <item label="Openbox Menu Editor"> <action name="Execute">
+                        <execute>obmenu</execute>
+                </action> </item>
+                <item label="OpenJDK Java 6 Console"> <action name="Execute">
+                        <execute>/usr/lib/jvm/java-6-openjdk/bin/jconsole</execute>
+                </action> </item>
+                <item label="Passwords and Encryption Keys"> <action name="Execute">
+                        <execute>seahorse</execute>
+                </action> </item>
+                <item label="Pstree"> <action name="Execute">
+                        <execute>xterm -e pstree.x11</execute>
+                </action> </item>
+                <item label="Shares Admin"> <action name="Execute">
+                        <execute>shares-admin</execute>
+                </action> </item>
+                <item label="Synaptic Package Manager"> <action name="Execute">
+                        <execute>synaptic</execute>
+                </action> </item>
+                <item label="Synaptic Package Manager"> <action name="Execute">
+                        <execute>gksu /usr/sbin/synaptic</execute>
+                </action> </item>
+                <item label="TeXconfig"> <action name="Execute">
+                        <execute>xterm -e texconfig</execute>
+                </action> </item>
+                <item label="Top"> <action name="Execute">
+                        <execute>xterm -e top</execute>
+                </action> </item>
+                <item label="Xclipboard"> <action name="Execute">
+                        <execute>xclipboard</execute>
+                </action> </item>
+                <item label="Xev"> <action name="Execute">
+                        <execute>x-terminal-emulator -e xev</execute>
+                </action> </item>
+                <item label="Xkill"> <action name="Execute">
+                        <execute>xkill</execute>
+                </action> </item>
+                <item label="Xload"> <action name="Execute">
+                        <execute>xload</execute>
+                </action> </item>
+                <item label="Xrefresh"> <action name="Execute">
+                        <execute>xrefresh</execute>
+                </action> </item>
+            </menu>
+            <menu id="38" label="Utilities">
+                <item label="Bc"> <action name="Execute">
+                        <execute>xterm -e bc</execute>
+                </action> </item>
+                <item label="Calculator"> <action name="Execute">
+                        <execute>gcalctool</execute>
+                </action> </item>
+                <item label="CD/DVD Creator"> <action name="Execute">
+                        <execute>nautilus --no-default-window --no-desktop burn:///</execute>
+                </action> </item>
+                <item label="Character Map"> <action name="Execute">
+                        <execute>gucharmap</execute>
+                </action> </item>
+                <item label="Conduit Synchronizer"> <action name="Execute">
+                        <execute>conduit</execute>
+                </action> </item>
+                <item label="Dc"> <action name="Execute">
+                        <execute>xterm -e dc</execute>
+                </action> </item>
+                <item label="Disk Usage Analyzer"> <action name="Execute">
+                        <execute>baobab</execute>
+                </action> </item>
+                <item label="Google Docs Connection"> <action name="Execute">
+                        <execute>gdocs-mount-gtk</execute>
+                </action> </item>
+                <item label="Gscriptor"> <action name="Execute">
+                        <execute>gscriptor</execute>
+                </action> </item>
+                <item label="Info"> <action name="Execute">
+                        <execute>xterm -e info</execute>
+                </action> </item>
+                <item label="Multisync"> <action name="Execute">
+                        <execute>multisync</execute>
+                </action> </item>
+                <item label="Parcellite"> <action name="Execute">
+                        <execute>parcellite</execute>
+                </action> </item>
+                <item label="Search for Files..."> <action name="Execute">
+                        <execute>gnome-search-tool</execute>
+                </action> </item>
+                <item label="Shutter"> <action name="Execute">
+                        <execute>shutter</execute>
+                </action> </item>
+                <item label="Take Screenshot"> <action name="Execute">
+                        <execute>gnome-screenshot --interactive</execute>
+                </action> </item>
+                <item label="TeXdoctk"> <action name="Execute">
+                        <execute>texdoctk</execute>
+                </action> </item>
+                <item label="Time Tracker"> <action name="Execute">
+                        <execute>gnome-time-tracker</execute>
+                </action> </item>
+                <item label="Tomboy Notes"> <action name="Execute">
+                        <execute>tomboy --search</execute>
+                </action> </item>
+                <item label="X Tile"> <action name="Execute">
+                        <execute>x-tile --without-panel</execute>
+                </action> </item>
+                <item label="Xcalc"> <action name="Execute">
+                        <execute>xcalc</execute>
+                </action> </item>
+                <item label="Xman"> <action name="Execute">
+                        <execute>xman</execute>
+                </action> </item>
+            </menu>
+            <separator/>
+            <menu id="40" label="OpenBox">
+                <menu id="client-list-menu"/>
+                <item label="Reconfigure"> <action name="Reconfigure"/> </item>
+                <separator/>
+                <item label="Exit"> <action name="Exit"/> </item>
+            </menu>
+        </menu>
+        <item label="Restart">
+            <action name="Restart"/>
+        </item>
+        <separator/>
+        <item label="Exit">
+            <action name="Exit"/>
+        </item>
+    </menu>
+</openbox_menu>
