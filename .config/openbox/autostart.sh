@@ -1,3 +1,5 @@
+gnome-settings-daemon &
+pytyle &
 tint2 &
 guake &
 tomboy &

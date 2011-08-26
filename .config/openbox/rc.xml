@@ -144,7 +144,7 @@
      Many programs reserve space automatically, but you can use this in other
      cases. -->
   <margins>
-    <top>0</top>
+    <top>30</top>
     <bottom>0</bottom>
     <left>0</left>
     <right>0</right>
@@ -171,7 +171,7 @@
     <!-- user keybindings -->
     <keybind key="W-e">
       <action name="Execute">
-        <execute>emelfm2</execute>
+        <execute>nautilus --browser --no-desktop</execute>
       </action>
     </keybind>
     <!--<keybind key="C-A-e">-->
@@ -263,9 +263,9 @@
         <desktop>4</desktop>
       </action>
     </keybind>
-    <keybind key="W-d">
-      <action name="ToggleShowDesktop"/>
-    </keybind>
+    <!--<keybind key="W-d">-->
+      <!--<action name="ToggleShowDesktop"/>-->
+    <!--</keybind>-->
     <!-- Keybindings for windows -->
     <keybind key="A-F4">
       <action name="Close"/>

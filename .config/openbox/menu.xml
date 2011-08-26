@@ -8,13 +8,6 @@
                 </execute>
             </action>
         </item>
-        <item label="file explorer">
-            <action name="Execute">
-                <execute>
-                    emelfm2
-                </execute>
-            </action>
-        </item>
         <item label="nautilus fm">
             <action name="Execute">
                 <execute>
@@ -36,10 +29,17 @@
                 </execute>
             </action>
         </item>
-        <item label="Opera">
+        <item label="indigo">
             <action name="Execute">
                 <execute>
-                    opera
+                    /media/repos/dt/indigo/eclipse
+                </execute>
+            </action>
+        </item>
+        <item label="yoono">
+            <action name="Execute">
+                <execute>
+                    /media/repos/dt/yoono-desktop/yoono-desktop
                 </execute>
             </action>
         </item>
