@@ -142,3 +142,10 @@ function file_charset {
 function grepMp3Links {
     grep -o "http://[^[:space:]]*.mp3"
 }
+
+function reloadXdefaults {
+    xrdb ~/.Xdefaults
+}
+
+# siege - stress testing for the web site
+# ngrep - light-weight wireshark
