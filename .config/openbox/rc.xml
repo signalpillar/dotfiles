@@ -30,7 +30,7 @@
     <center>yes</center>
     <!-- whether to place windows in the center of the free area found or
        the top left corner -->
-    <monitor>Active</monitor>
+    <monitor>Mouse</monitor>
     <!-- with Smart placement on a multi-monitor system, try to place new windows
        on: 'Any' - any monitor, 'Mouse' - where the mouse is, 'Active' - where
        the active window is -->
@@ -144,7 +144,7 @@
      Many programs reserve space automatically, but you can use this in other
      cases. -->
   <margins>
-    <top>30</top>
+    <top>0</top>
     <bottom>0</bottom>
     <left>0</left>
     <right>0</right>
@@ -175,8 +175,8 @@
       </action>
     </keybind>
     <!--<keybind key="C-A-e">-->
-      <!--<action name="Execute">-->
-      <!--</action>-->
+    <!--<action name="Execute">-->
+    <!--</action>-->
     <!--</keybind>-->
     <keybind key="A-F3">
       <action name="ShowMenu">
@@ -264,7 +264,7 @@
       </action>
     </keybind>
     <!--<keybind key="W-d">-->
-      <!--<action name="ToggleShowDesktop"/>-->
+    <!--<action name="ToggleShowDesktop"/>-->
     <!--</keybind>-->
     <!-- Keybindings for windows -->
     <keybind key="A-F4">
