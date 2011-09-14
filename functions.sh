@@ -146,3 +146,7 @@ function grepMp3Links {
 function generateRandomPassword {
     openssl rand -base64 12
 }
+
+function makeSnapshotOfPipe {
+    ipconfig | convert label:@- ip.png
+}
