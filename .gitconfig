@@ -20,6 +20,8 @@
 	rmdir = true
 [gui]
     ;fontgui = -family \"Lucida Sans\" -size 13 -weight normal -slant roman -underline 0 -overstrike 0
-    fontdiff = -family Monaco -size 11 -weight normal -slant roman -underline 0 -overstrike 0 
+	fontdiff = -family Monaco -size 9 -weight normal -slant roman -underline 0 -overstrike 0
     fontui = -family fixed -size 9 -weight bold -slant roman -underline 0 -overstrike 0
 	;fontdiff = -family fixed -size 10 -weight normal -slant roman -underline 0 -overstrike 0
+[merge]
+	tool = diffuse
