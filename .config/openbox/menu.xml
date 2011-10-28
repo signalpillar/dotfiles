@@ -8,25 +8,9 @@
                 </execute>
             </action>
         </item>
-        <item label="nautilus fm">
+        <item label="pcman fm">
             <action name="Execute">
-                <execute>
-                    nautilus --browser --no-desktop
-                </execute>
-            </action>
-        </item>
-        <item label="scala-idE">
-            <action name="Execute">
-                <execute>
-                    /media/repos/dt/scala-helios/eclipse 
-                </execute>
-            </action>
-        </item>
-        <item label="helios">
-            <action name="Execute">
-                <execute>
-                    /media/repos/dt/helios/eclipse
-                </execute>
+                <execute> pcmanfm </execute>
             </action>
         </item>
         <item label="indigo">

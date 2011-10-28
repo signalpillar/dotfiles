@@ -42,7 +42,7 @@
                   'Active' - where the active window is -->
   </placement>
   <theme>
-    <name>Greenz</name>
+    <name>Neo</name>
     <titleLayout>NDLIMC</titleLayout>
     <!--
       available characters are NDSLIMC, each can occur at most once.
@@ -92,14 +92,14 @@
       <slant>normal</slant>
       <!-- 'italic' or 'normal' -->
     </font>
-    <font place="OnScreenDisplay">
-      <name>sans</name>
-      <size>9</size>
-      <!-- font size in points -->
-      <weight>bold</weight>
-      <!-- 'bold' or 'normal' -->
-      <slant>normal</slant>
-      <!-- 'italic' or 'normal' -->
+    <font place="ActiveOnScreenDisplay">
+      <name/>
+    </font>
+    <font place="InactiveOnScreenDisplay">
+      <name>Sans</name>
+      <size>8</size>
+      <weight/>
+      <slant/>
     </font>
   </theme>
   <desktops>
@@ -168,6 +168,21 @@
     <!-- 'Left', 'Middle', 'Right' -->
   </dock>
   <keyboard>
+    <keybind key="C-A-0">
+      <action name="Execute">
+          <execute>setxkbmap ru</execute>
+      </action>
+    </keybind>
+    <keybind key="C-A-9">
+      <action name="Execute">
+          <execute>setxkbmap ua</execute>
+      </action>
+    </keybind>
+    <keybind key="C-A-8">
+      <action name="Execute">
+          <execute>setxkbmap us</execute>
+      </action>
+    </keybind>
     <!-- user keybindings -->
     <keybind key="W-e">
       <action name="Execute">
@@ -178,6 +193,9 @@
     <!--<action name="Execute">-->
     <!--</action>-->
     <!--</keybind>-->
+    <keybind key="A-F4">
+        <action name="Close"/>
+    </keybind>
     <keybind key="A-F3">
       <action name="ShowMenu">
         <menu>client-list-combined-menu</menu>
@@ -268,7 +286,6 @@
     <!--</keybind>-->
     <!-- Keybindings for windows -->
     <keybind key="A-F4">
-      <action name="Close"/>
     </keybind>
     <keybind key="A-Escape">
       <action name="Lower"/>
@@ -663,9 +680,11 @@
   <!-- show the manage desktops section in the client-list-(combined-)menu -->
 </menu>
   <applications>
+    <!--
       <application class="*">
             <decor>no</decor>
       </application>
+      -->
     <!--
   # this is an example with comments through out. use these to make your
   # own rules, but without the comments of course.
