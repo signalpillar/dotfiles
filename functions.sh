@@ -147,5 +147,9 @@ function reloadXdefaults {
     xrdb ~/.Xdefaults
 }
 
+function showInternetActivityAtTheMoment {
+    lsof -P -i -n
+}
+
 # siege - stress testing for the web site
 # ngrep - light-weight wireshark
