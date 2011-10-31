@@ -153,3 +153,10 @@ function showInternetActivityAtTheMoment {
 
 # siege - stress testing for the web site
 # ngrep - light-weight wireshark
+function makeSnapshotOfPipe {
+    ipconfig | convert label:@- ip.png
+}
+
+function trueuniq {
+    awk '{ if (!h[$0]) { print $0; h[$0]=1 } }'
+}
