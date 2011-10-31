@@ -1,11 +1,10 @@
-gnome-settings-daemon &
-pytyle &
 tint2 &
 guake &
-tomboy &
+#tomboy &
 parcellite &
 nm-applet &
-skype &
+#skype &
 xmodmap ~/.xmodmap &
+setxkbmap -layout "us,ua,ru" -option "grp:alt_shift_toggle" &
 
 

@@ -78,7 +78,8 @@ if [ -x /usr/bin/dircolors ]; then
 fi
 
 # some more ls aliases
-alias ll='ls -alF'
+# t - sort by time
+alias ll='ls -altF'
 alias la='ls -A'
 alias l='ls -CF'
 
