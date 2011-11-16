@@ -2,4 +2,4 @@
 if test -f ~/.sbtconfig; then
   . ~/.sbtconfig
 fi
-exec java -Xmx512M ${SBT_OPTS} -jar ~/bin/sbt-launch-0.10.1.jar "$@"
+exec java -Xmx512M ${SBT_OPTS} -jar ~/bin/sbt-launch.jar "$@"
