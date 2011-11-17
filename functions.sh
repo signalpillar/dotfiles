@@ -143,10 +143,16 @@ function grepMp3Links {
     grep -o "http://[^[:space:]]*.mp3"
 }
 
-function generateRandomPassword {
-    openssl rand -base64 12
+function reloadXdefaults {
+    xrdb ~/.Xdefaults
 }
 
+function showInternetActivityAtTheMoment {
+    lsof -P -i -n
+}
+
+# siege - stress testing for the web site
+# ngrep - light-weight wireshark
 function makeSnapshotOfPipe {
     ipconfig | convert label:@- ip.png
 }

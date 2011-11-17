@@ -107,4 +107,5 @@ source ~/functions.sh
 export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
-export PATH=$PATH:$MAVEN/bin
+export PATH=$PATH:$MAVEN/bin:$dt/scala
+alias chromium-browser=chromium-browser  --allow-outdated-plugins
