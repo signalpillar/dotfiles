@@ -282,6 +282,7 @@ imap <c-z> <c-o>u
 
 " with comments, at 79 characters.
 au BufNewFile,BufEnter *.c,*.h,*.java,*.jsp set formatoptions-=t tw=79
+au BufNewFile,BufEnter,BufRead *.scala set ft=scala
 
 
 " GUI ONLY type stuff.
@@ -322,12 +323,13 @@ if has("gui")
   "   t: enable tearoff menus on Win32
   "   T: enable toolbar on Win32
   set go=gmr
-  colorscheme mayansmoke
+  " colorscheme mayansmoke
+  colorscheme default
   "set guifont=Lucida_Console:h9:cANSI
   "set guifont=Monospace\ 9
   set guifont=Monaco\ 10
 else
-  colorscheme slate
+  colorscheme default
 endif
 
 " ************************************************************************
@@ -583,3 +585,7 @@ vnoremap <silent> # :<C-U>
 
 " Set ACK to be grep within vim
 set grepprg=ack-grep
+
+" Mark text width indication to 80 chars left
+highlight OverLength ctermbg=red ctermfg=white guibg=#ffd9d9
+match OverLength /\%81v.\+/
