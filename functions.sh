@@ -154,3 +154,7 @@ function makeSnapshotOfPipe {
 function trueuniq {
     awk '{ if (!h[$0]) { print $0; h[$0]=1 } }'
 }
+
+function playPianoramaRadio {
+    mplayer http://188.127.226.185:80/
+}
