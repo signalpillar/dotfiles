@@ -10,13 +10,16 @@ require("naughty")
 -- Load Debian menu entries
 require("debian.menu")
 
+-- {{{ User modules
 -- Vicious widget library
 require("vicious")
+require("scratch")
 
 -- {{{ Vicious Battery widget
 batwidget = widget({type = "textbox", name = "batwidget"})
 vicious.register(batwidget, vicious.widgets.bat, "bat($1|$2%|$3)", 5, "BAT0")
 -- }}}
+
 -- {{{ Keyboard layout switch
 -- Keyboard map indicator and changer
 kbdcfg = {}
@@ -36,6 +39,9 @@ kbdcfg.widget:buttons(awful.util.table.join(
     awful.button({ }, 1, function () kbdcfg.switch() end)
 ))
 -- @note: See globalkeys keyboard binds for the swith function call
+-- }}}
+
+-- {{{ Scratch pad configuration
 -- }}}
 
 -- {{{ Variable definitions
@@ -90,7 +96,12 @@ myawesomemenu = {
    { "quit", awesome.quit }
 }
 
-mymainmenu = awful.menu({ items = { { "awesome", myawesomemenu, beautiful.awesome_icon },
+privatemenu = {
+    {"indigo-eclipse", "/media/repos/dt/indigo/eclipse"}
+}
+
+mymainmenu = awful.menu({ items = { { "private", privatemenu },
+                                    { "system", myawesomemenu, beautiful.awesome_icon },
                                     { "Debian", debian.menu.Debian_menu.Debian },
                                     { "open terminal", terminal }
                                   }
@@ -203,8 +214,11 @@ root.buttons(awful.util.table.join(
 
 -- {{{ Key bindings
 globalkeys = awful.util.table.join(
+    -- {{{ Apps
+    awful.key({  }, "F12", function () scratch.drop("urxvt", "top", "center", 1, 0.70, false) end),
+
     -- Alt + Right Shift switches the current keyboard layout
-    awful.key({"Mod1"}, "Shift_R", function () kbdcfg.switch() end),
+    awful.key({"Mod1"            }, "Shift_R", function () kbdcfg.switch() end),
     --
     awful.key({ modkey,           }, "Left",   awful.tag.viewprev       ),
     awful.key({ modkey,           }, "Right",  awful.tag.viewnext       ),
