@@ -26,3 +26,10 @@
 ;; Display line and column numbers
 (setq line-number-mode t)
 (setq column-number-mode t)
+
+;; show line numbers
+(autoload 'linum-mode "linum" "toggle line numbers on/off" t)
+(global-set-key (kbd "C-<f5>") 'linum-mode)
+
+; shortcuts
+; M-g g => go to line
