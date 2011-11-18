@@ -61,7 +61,7 @@ let loaded_project = 1
 
 Bundle 'minibufexpl.vim'
 
-Bundle 'Conque-Shell'
+Bundle 'scala'
 
 " Scala {{{
 Bundle 'rosstimson/scala-vim-support'
