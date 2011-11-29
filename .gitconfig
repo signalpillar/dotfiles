@@ -4,6 +4,7 @@
 	df = diff --ignore-all-space --color
 	st = status
     stu = status --untracked-files=no
+    hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
 [help]
 	autocorrect = 10
 [color]
