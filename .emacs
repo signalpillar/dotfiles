@@ -33,3 +33,17 @@
 
 ; shortcuts
 ; M-g g => go to line
+
+;; whitespace-mode
+;; free of trailing whitespace and to use 80-column width, standard indentation
+(setq whitespace-style '(trailing lines space-before-tab
+                                  indentation space-after-tab)
+      whitespace-line-column 80)
+
+;; {{{ ==================== Insert mode 
+
+;; In order to set emacs to delete the selected text when you press DEL, Ctrl-d,
+;;  or Backspace
+(delete-selection-mode t)
+
+;;; }}}
