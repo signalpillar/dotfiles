@@ -57,7 +57,9 @@
      (color-theme-initialize)
      (color-theme-hober)))
 (require 'color-theme-solarized)
-;; }}}
+; enable light solarized theme
+(color-theme-solarized-light)
+;;  ==================================== }}}
 
 (custom-set-faces
   ;; custom-set-faces was added by Custom.
