@@ -1,3 +1,5 @@
+;; turn text-wrap off
+(setq-default truncate-lines nil)
 ;;; Emacs load path
 (setq load-path (cons "~/.emacs.d" load-path))
 (require 'dirtree)
@@ -46,8 +48,6 @@
 ;;  or Backspace
 (delete-selection-mode t)
 
-;;; }}}
-
 ;; {{{ ==================== Color scheme 
 (add-to-list 'load-path "~/.emacs.d/emacs-colors-solarized")
 (add-to-list 'load-path "~/.emacs.d/color-theme")
@@ -59,7 +59,7 @@
 (require 'color-theme-solarized)
 ; enable light solarized theme
 (color-theme-solarized-light)
-;;  ==================================== }}}
+;;========================== }}}
 
 (custom-set-faces
   ;; custom-set-faces was added by Custom.
