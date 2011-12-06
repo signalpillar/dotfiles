@@ -1,3 +1,5 @@
+;; turn text-wrap off
+(setq-default truncate-lines nil)
 ;;; Emacs load path
 (setq load-path (cons "~/.emacs.d" load-path))
 (require 'dirtree)
@@ -33,3 +35,35 @@
 
 ; shortcuts
 ; M-g g => go to line
+
+;; whitespace-mode
+;; free of trailing whitespace and to use 80-column width, standard indentation
+(setq whitespace-style '(trailing lines space-before-tab
+                                  indentation space-after-tab)
+      whitespace-line-column 80)
+
+;; {{{ ==================== Insert mode 
+
+;; In order to set emacs to delete the selected text when you press DEL, Ctrl-d,
+;;  or Backspace
+(delete-selection-mode t)
+
+;; {{{ ==================== Color scheme 
+(add-to-list 'load-path "~/.emacs.d/emacs-colors-solarized")
+(add-to-list 'load-path "~/.emacs.d/color-theme")
+(require 'color-theme)
+(eval-after-load "color-theme"
+  '(progn
+     (color-theme-initialize)
+     (color-theme-hober)))
+(require 'color-theme-solarized)
+; enable light solarized theme
+(color-theme-solarized-light)
+;;========================== }}}
+
+(custom-set-faces
+  ;; custom-set-faces was added by Custom.
+  ;; If you edit it by hand, you could mess it up, so be careful.
+  ;; Your init file should contain only one such instance.
+  ;; If there is more than one, they won't work right.
+ '(default ((t (:stipple nil :background "#fdf6e3" :foreground "#657b83" :inverse-video nil :box nil :strike-through nil :overline nil :underline nil :slant normal :weight normal :height 98 :width normal :foundry "unknown" :family "Monaco")))))
