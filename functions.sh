@@ -164,3 +164,12 @@ function trueuniq {
 function playPianoramaRadio {
     mplayer http://188.127.226.185:80/
 }
+
+# youtube-dl has this functionality built in. If you're running an older version
+# of youtube-dl, you can update it using `youtube-dl -U`
+function convertUtubeVideoToMp3 {
+    youtube-dl -t --extract-audio --audio-format mp3 $0
+}
+
+# start command and kill it if still running after 5 secs
+# > timeout 5s <command>
