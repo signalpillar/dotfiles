@@ -107,7 +107,7 @@ set autoindent
 if has('gui_running')
     " i like about 80 character width lines
 
-  set textwidth=78
+  set textwidth=78 " disabled
   "  2 for the command line
   set lines=52
   " add columns for the Project plugin
@@ -587,5 +587,5 @@ vnoremap <silent> # :<C-U>
 set grepprg=ack-grep
 
 " Mark text width indication to 80 chars left
-highlight OverLength ctermbg=red ctermfg=white guibg=#ffd9d9
-match OverLength /\%81v.\+/
+" highlight OverLength ctermbg=red ctermfg=white guibg=#ffd9d9
+" match OverLength /\%81v.\+/
