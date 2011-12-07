@@ -47,6 +47,8 @@
 ;; In order to set emacs to delete the selected text when you press DEL, Ctrl-d,
 ;;  or Backspace
 (delete-selection-mode t)
+;; Indent always (like C-j)
+(define-key global-map (kbd "RET") 'newline-and-indent)
 
 ;; {{{ ==================== Color scheme 
 (add-to-list 'load-path "~/.emacs.d/emacs-colors-solarized")
