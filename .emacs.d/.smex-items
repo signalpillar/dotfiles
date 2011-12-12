@@ -1,0 +1,19 @@
+
+;; ----- smex-history -----
+(
+ cd
+ package-install
+ 5x5
+ arp
+ dbx
+ dig
+ erc
+)
+
+;; ----- smex-data -----
+(
+ (package-install . 2)
+ (icicle-download-wizard . 3)
+ (auto-install-batch . 2)
+ (cd . 1)
+)
