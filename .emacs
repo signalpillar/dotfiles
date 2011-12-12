@@ -79,3 +79,6 @@
 (require 'anything-match-plugin)
 (require 'anything-config)
 (global-set-key (kbd "C-x C-g") 'anything-for-files)
+
+;; deleted files will go to the system Trash
+(delete-by-moving-to-trash t)
