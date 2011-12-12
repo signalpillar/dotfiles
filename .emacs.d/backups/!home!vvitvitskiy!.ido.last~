@@ -1,0 +1,33 @@
+;;; -*- coding: utf-8 -*-
+
+;; ----- ido-last-directory-list -----
+(
+ ("/home/vvitvitskiy/.emacs.d/elpa/" . "starter-kit-2.0.3/")
+)
+
+;; ----- ido-work-directory-list -----
+(
+ "/home/vvitvitskiy/.emacs.d/"
+ "/home/vvitvitskiy/.emacs.d/elpa/starter-kit-2.0.3/"
+)
+
+;; ----- ido-work-file-list -----
+(
+ "init.el"
+ "starter-kit-misc.el"
+ "starter-kit.el"
+)
+
+;; ----- ido-dir-file-cache -----
+(
+ ("/home/vvitvitskiy/.emacs.d/" (20198 28350) "./" "auto-save-list/" "places" "auto-install.el" "../" "backups/" "init.el" ".smex-items" "elpa/" "init.el~")
+
+ ("/home/vvitvitskiy/" (20198 28350) "icicles/" ".profile" ".gitignore" "./" "test.trace.db" ".subversion_IDEA/" ".h2.server.properties" ".lesshst" ".ICEauthority" ".ssh/" ".gnupg/" ".emacs_files/" ".subversion/" ".emacs.d/" ".compiz/" ".cache/" "qemWRToNYJY-45.webm" ".byobu/" ".bzr.log" ".esd_auth" ".remmina/" ".hp/" ".gksu.lock" "Public/" ".tunesviewerprefs" ".adobe/" ".netbeans-registration/" ".selected_editor" "hs_err_pid11838.log" ".mplayer/" ".IdeaIC10/" ".Skype/" ".thumbnails/" ".xchat2/" ".shotwell/" ".aptitude/" ".config/" ".my-data" ".dropbox-dist/" ".githash" "qemWRToNYJY-5.flv.part" ".icons/" ".htoprc" ".pulse/" ".wine/" "Templates/" ".Xauthority" ".pulse-cookie" ".mission-control/" ".csmashrc" ".goutputstream-TITI6V" ".swt/" ".gnome2_private/" "gnome-shell/" "qemWRToNYJY-35.flv" "staph.txt" "test.h2.db" "functions.sh" ".recentf~" ".dbshell" ".goutputstream-WMOW3V" ".yoono/" ".tsclient/" ".emacs.d.backup/" ".sbt/" ".gvfs/" ".scala_history" ".dotfiles.git/" "qemWRToNYJY-43.webm" "Music/" ".xmodmap" ".nbi/" "../" ".google/" ".pip/" ".gitk" ".bash_logout" ".macromedia/" ".compiz-1/" ".vim/" ".dmrc" ".gconfd/" ".vimrc" ".smartgit/" ".gstreamer-0.10/" ".fontconfig/" "config/" ".purple/" ".VirtualBox/" ".java/" ".mc/" ".gtk-bookmarks" "Documents/" ".shutter/" ".webex/" "qemWRToNYJY-34.flv" ".vim-vundle/" ".netx/" ".mozilla/" ".local/" ".dbus/" ".ido.last" ".m2/" ".screenrc" ".goldendict/" ".gmrun_history" ".elinks/" ".libreoffice/" "bin/" ".kiki/" ".dosemu/" "Jboss_with_oracle.record" ".cmus/" ".astah/" ".sudo_as_admin_successful" ".orta/" ".emacs~" ".themes/" ".bashrc" "gnome-config/" ".emacs.backup" ".xsession-errors.old" "Desktop/" "Jboss_here_always_was_brought_atabase.record" ".ivy2/" ".env" ".gl-117/" ".vimperator/" ".rpmdb/" "Videos/" "Downloads/" "#.emacs#" ".fonts/" ".openoffice.org/" ".bash_history" "Ubuntu One/" ".appdata/" ".gnome2/" ".nvidia-settings-rc" ".dropbox/" ".bash_profile" ".pki/" "ddmcontent/" ".gitconfig" ".Xdefaults" ".sbt.cache.lock" ".gsthemer/" ".thunderbird/" "README.md" "qemWRToNYJY.webm" ".xchm" ".xsession-errors" ".gconf/" ".thunderbird.last-version" ".links2/" ".recentf" ".vimperatorrc" ".viminfo" "Pictures/")
+
+ ("/home/vvitvitskiy/.emacs.d/elpa/starter-kit-2.0.3/" (20198 26559) "starter-kit.el" "./" "starter-kit-misc.elc" "starter-kit-misc.el" "starter-kit-autoloads.el" "starter-kit-pkg.elc" "starter-kit-defuns.elc" "../" "starter-kit.elc" "starter-kit-defuns.el" "starter-kit-autoloads.el~" "starter-kit-pkg.el")
+
+ ("/home/vvitvitskiy/.emacs.d/elpa/" (20198 26559) "./" "magit-1.0.0/" "starter-kit-2.0.3/" "../" "idle-highlight-mode-1.1.2/" "archives/" "smex-1.1.2/" "paredit-22/" "ido-ubiquitous-0.8/" "find-file-in-project-3.0/")
+)
+
+;; ----- ido-unc-hosts-cache -----
+t
