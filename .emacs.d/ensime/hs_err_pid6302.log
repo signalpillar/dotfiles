@@ -1,0 +1,742 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0xb4c08b6b, pid=6302, tid=1268730736
+#
+# JRE version: 7.0_01-b08
+# Java VM: Java HotSpot(TM) Server VM (21.1-b02 mixed mode linux-x86 )
+# Problematic frame:
+# J  scala.tools.nsc.symtab.Types$TypeMap.mapOver(Lscala/tools/nsc/symtab/Types$Type;)Lscala/tools/nsc/symtab/Types$Type;
+#
+# Failed to write core dump. Core dumps have been disabled. To enable core dumping, try "ulimit -c unlimited" before starting Java again
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.sun.com/bugreport/crash.jsp
+#
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x4b319000):  JavaThread "Thread-14" [_thread_in_Java, id=6506, stack(0x4b8f4000,0x4b9f5000)]
+
+siginfo:si_signo=SIGSEGV: si_errno=0, si_code=128 (), si_addr=0x00000000
+
+Registers:
+EAX=0x99f9cff8, EBX=0x4e7cc178, ECX=0x00000000, EDX=0x99ed1eb8
+ESP=0x4b9f2aa0, EBP=0x4e7cc178, ESI=0x9876d3b0, EDI=0x96a0f308
+EIP=0xb4c08b6b, EFLAGS=0x00010287, CR2=0x00000004
+
+Top of Stack: (sp=0x4b9f2aa0)
+0x4b9f2aa0:   fff80000 00000000 fff80000 00000000
+0x4b9f2ab0:   a253c880 99ed1eb8 4e7cc178 4b319000
+0x4b9f2ac0:   fff80000 00000000 fff80000 00000000
+0x4b9f2ad0:   fff80000 00630024 0061006c 9f000040
+0x4b9f2ae0:   0800094b 6461246e 77654e64 6978694d
+0x4b9f2af0:   6172546e 66736e61 4e7cc178 b49cd134
+0x4b9f2b00:   997800b6 123a0b01 0c00c759 b612191e
+0x4b9f2b10:   a253c880 00000246 99ed1eb8 9876d3b0 
+
+Instructions: (pc=0xb4c08b6b)
+0xb4c08b4b:   ff e9 57 fa ff ff e9 33 03 00 00 66 66 0f 1f 84
+0xb4c08b5b:   00 00 00 00 00 e9 e2 01 00 00 81 fb 78 5c 8c 4e
+0xb4c08b6b:   0f 85 2b 0a 00 00 8b ca 33 ed 8b 5c 24 10 2b 6b
+0xb4c08b7b:   08 89 6b 08 8b 69 1c 89 6c 24 20 8b 49 18 89 4c 
+
+Register to memory mapping:
+
+EAX=0x99f9cff8 is an oop
+scala.tools.nsc.symtab.Symbols$ModuleClassSymbol 
+ - klass: 'scala/tools/nsc/symtab/Symbols$ModuleClassSymbol'
+EBX=0x4e7cc178 is an oop
+{instance class} 
+ - klass: {other class}
+ECX=0x00000000 is an unknown value
+EDX=0x99ed1eb8 is an oop
+scala.tools.nsc.symtab.Types$NoPrefix$ 
+ - klass: 'scala/tools/nsc/symtab/Types$NoPrefix$'
+ESP=0x4b9f2aa0 is pointing into the stack for thread: 0x4b319000
+EBP=0x4e7cc178 is an oop
+{instance class} 
+ - klass: {other class}
+ESI=0x9876d3b0 is an oop
+scala.tools.nsc.symtab.Symbols$ModuleClassSymbol 
+ - klass: 'scala/tools/nsc/symtab/Symbols$ModuleClassSymbol'
+EDI=0x96a0f308 is an oop
+scala.tools.nsc.interactive.RefinedBuildManager$BuilderGlobal 
+ - klass: 'scala/tools/nsc/interactive/RefinedBuildManager$BuilderGlobal'
+
+
+Stack: [0x4b8f4000,0x4b9f5000],  sp=0x4b9f2aa0,  free space=1018k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+J  scala.tools.nsc.symtab.Types$TypeMap.mapOver(Lscala/tools/nsc/symtab/Types$Type;)Lscala/tools/nsc/symtab/Types$Type;
+
+
+---------------  P R O C E S S  ---------------
+
+Java Threads: ( => current thread )
+=>0x4b319000 JavaThread "Thread-14" [_thread_in_Java, id=6506, stack(0x4b8f4000,0x4b9f5000)]
+  0x4b5a9800 JavaThread "Scala Presentation Compiler []" [_thread_blocked, id=6505, stack(0x4b9f5000,0x4baf6000)]
+  0x085e3000 JavaThread "Thread-10" [_thread_blocked, id=6326, stack(0x4bbf7000,0x4bcf8000)]
+  0x085e6400 JavaThread "Thread-9" [_thread_blocked, id=6325, stack(0x4bcf8000,0x4bdf9000)]
+  0x4c5e8800 JavaThread "Thread-8" [_thread_blocked, id=6324, stack(0x4bdf9000,0x4befa000)]
+  0x4c5d2400 JavaThread "Thread-7" [_thread_blocked, id=6323, stack(0x4befa000,0x4bffb000)]
+  0x08462c00 JavaThread "Thread-6" [_thread_in_native, id=6322, stack(0x4bffb000,0x4c0fc000)]
+  0x4c5cdc00 JavaThread "Thread-5" [_thread_blocked, id=6321, stack(0x4c0fc000,0x4c1fd000)]
+  0x4c59a400 JavaThread "Thread-4" [_thread_blocked, id=6320, stack(0x4c2fe000,0x4c3ff000)]
+  0x4c5a7000 JavaThread "Thread-3" [_thread_blocked, id=6319, stack(0x4c1fd000,0x4c2fe000)]
+  0x4c579400 JavaThread "Timer-0" daemon [_thread_blocked, id=6316, stack(0x4c3ff000,0x4c500000)]
+  0x4cc00c00 JavaThread "Service Thread" daemon [_thread_blocked, id=6314, stack(0x4caff000,0x4cc00000)]
+  0x0835c400 JavaThread "C2 CompilerThread1" daemon [_thread_in_vm, id=6313, stack(0x4cd0f000,0x4cd90000)]
+  0x08359c00 JavaThread "C2 CompilerThread0" daemon [_thread_in_native, id=6312, stack(0x4cd90000,0x4ce11000)]
+  0x08358000 JavaThread "Signal Dispatcher" daemon [_thread_blocked, id=6311, stack(0x4ce11000,0x4cf12000)]
+  0x0831f000 JavaThread "Finalizer" daemon [_thread_blocked, id=6310, stack(0x4d282000,0x4d383000)]
+  0x0831a400 JavaThread "Reference Handler" daemon [_thread_blocked, id=6309, stack(0x4d383000,0x4d484000)]
+  0x0824c800 JavaThread "main" [_thread_in_native, id=6303, stack(0xb7749000,0xb784a000)]
+
+Other Threads:
+  0x08314800 VMThread [stack: 0x4d484000,0x4d505000] [id=6308]
+  0x4cc0ac00 WatcherThread [stack: 0x4ca7e000,0x4caff000] [id=6315]
+
+VM state:not at safepoint (normal execution)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+Heap
+ PSYoungGen      total 341120K, used 309133K [0x94e80000, 0xb4680000, 0xb4680000)
+  eden space 252032K, 87% used [0x94e80000,0xa2563828,0xa44a0000)
+  from space 89088K, 99% used [0xaef80000,0xb467fd90,0xb4680000)
+  to   space 132032K, 0% used [0xa44a0000,0xa44a0000,0xac590000)
+ PSOldGen        total 305280K, used 185946K [0x55e80000, 0x688a0000, 0x94e80000)
+  object space 305280K, 60% used [0x55e80000,0x61416b80,0x688a0000)
+ PSPermGen       total 131072K, used 24988K [0x4de80000, 0x55e80000, 0x55e80000)
+  object space 131072K, 19% used [0x4de80000,0x4f6e7198,0x55e80000)
+
+Code Cache  [0xb4749000, 0xb4c39000, 0xb7749000)
+ total_blobs=2033 nmethods=1882 adapters=101 free_code_cache=44417Kb largest_free_block=45173184
+
+Dynamic libraries:
+00110000-00286000 r-xp 00000000 08:03 1749       /lib/i386-linux-gnu/libc-2.13.so
+00286000-00288000 r--p 00176000 08:03 1749       /lib/i386-linux-gnu/libc-2.13.so
+00288000-00289000 rw-p 00178000 08:03 1749       /lib/i386-linux-gnu/libc-2.13.so
+00289000-0028c000 rw-p 00000000 00:00 0 
+0028c000-00293000 r-xp 00000000 08:03 1824       /lib/i386-linux-gnu/librt-2.13.so
+00293000-00294000 r--p 00006000 08:03 1824       /lib/i386-linux-gnu/librt-2.13.so
+00294000-00295000 rw-p 00007000 08:03 1824       /lib/i386-linux-gnu/librt-2.13.so
+00295000-002aa000 r-xp 00000000 08:03 1761       /lib/i386-linux-gnu/libnsl-2.13.so
+002aa000-002ab000 r--p 00015000 08:03 1761       /lib/i386-linux-gnu/libnsl-2.13.so
+002ab000-002ac000 rw-p 00016000 08:03 1761       /lib/i386-linux-gnu/libnsl-2.13.so
+002ac000-002ae000 rw-p 00000000 00:00 0 
+002ae000-002b8000 r-xp 00000000 08:03 1801       /lib/i386-linux-gnu/libnss_nis-2.13.so
+002b8000-002b9000 r--p 00009000 08:03 1801       /lib/i386-linux-gnu/libnss_nis-2.13.so
+002b9000-002ba000 rw-p 0000a000 08:03 1801       /lib/i386-linux-gnu/libnss_nis-2.13.so
+002d4000-002e0000 r-xp 00000000 08:05 6057373    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libverify.so
+002e0000-002e1000 rw-p 0000c000 08:05 6057373    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libverify.so
+00384000-00392000 r-xp 00000000 08:05 6057406    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libnio.so
+00392000-00393000 rw-p 0000e000 08:05 6057406    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libnio.so
+003a6000-003c9000 r-xp 00000000 08:05 6057389    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libjava.so
+003c9000-003ca000 rw-p 00022000 08:05 6057389    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libjava.so
+003d3000-003e7000 r-xp 00000000 08:05 6057401    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libnet.so
+003e7000-003e8000 rw-p 00014000 08:05 6057401    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libnet.so
+005be000-005d1000 r-xp 00000000 08:05 6057392    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/jli/libjli.so
+005d1000-005d2000 rw-p 00012000 08:05 6057392    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/jli/libjli.so
+00753000-00756000 r-xp 00000000 08:03 1754       /lib/i386-linux-gnu/libdl-2.13.so
+00756000-00757000 r--p 00002000 08:03 1754       /lib/i386-linux-gnu/libdl-2.13.so
+00757000-00758000 rw-p 00003000 08:03 1754       /lib/i386-linux-gnu/libdl-2.13.so
+008a5000-008cd000 r-xp 00000000 08:03 1755       /lib/i386-linux-gnu/libm-2.13.so
+008cd000-008ce000 r--p 00028000 08:03 1755       /lib/i386-linux-gnu/libm-2.13.so
+008ce000-008cf000 rw-p 00029000 08:03 1755       /lib/i386-linux-gnu/libm-2.13.so
+00972000-00989000 r-xp 00000000 08:05 6057417    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libzip.so
+00989000-0098a000 rw-p 00017000 08:05 6057417    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/libzip.so
+00a22000-00a40000 r-xp 00000000 08:03 1733       /lib/i386-linux-gnu/ld-2.13.so
+00a40000-00a41000 r--p 0001d000 08:03 1733       /lib/i386-linux-gnu/ld-2.13.so
+00a41000-00a42000 rw-p 0001e000 08:03 1733       /lib/i386-linux-gnu/ld-2.13.so
+00b12000-00b13000 r-xp 00000000 00:00 0          [vdso]
+00d8d000-00d98000 r-xp 00000000 08:03 1769       /lib/i386-linux-gnu/libnss_files-2.13.so
+00d98000-00d99000 r--p 0000a000 08:03 1769       /lib/i386-linux-gnu/libnss_files-2.13.so
+00d99000-00d9a000 rw-p 0000b000 08:03 1769       /lib/i386-linux-gnu/libnss_files-2.13.so
+00f1d000-00f25000 r-xp 00000000 08:03 1765       /lib/i386-linux-gnu/libnss_compat-2.13.so
+00f25000-00f26000 r--p 00007000 08:03 1765       /lib/i386-linux-gnu/libnss_compat-2.13.so
+00f26000-00f27000 rw-p 00008000 08:03 1765       /lib/i386-linux-gnu/libnss_compat-2.13.so
+00f40000-00f57000 r-xp 00000000 08:03 1822       /lib/i386-linux-gnu/libpthread-2.13.so
+00f57000-00f58000 r--p 00016000 08:03 1822       /lib/i386-linux-gnu/libpthread-2.13.so
+00f58000-00f59000 rw-p 00017000 08:03 1822       /lib/i386-linux-gnu/libpthread-2.13.so
+00f59000-00f5b000 rw-p 00000000 00:00 0 
+00f5b000-016bf000 r-xp 00000000 08:05 6057416    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/server/libjvm.so
+016bf000-0170a000 rw-p 00763000 08:05 6057416    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/i386/server/libjvm.so
+0170a000-01b29000 rw-p 00000000 00:00 0 
+08048000-08049000 r-xp 00000000 08:05 6056611    /media/_mnt_repos/dt/jdk1.7.0_01/bin/java
+08049000-0804a000 rw-p 00000000 08:05 6056611    /media/_mnt_repos/dt/jdk1.7.0_01/bin/java
+08246000-0c30e000 rw-p 00000000 00:00 0          [heap]
+41300000-413e6000 rw-p 00000000 00:00 0 
+413e6000-41400000 ---p 00000000 00:00 0 
+41500000-415fd000 rw-p 00000000 00:00 0 
+415fd000-41600000 ---p 00000000 00:00 0 
+41700000-417fd000 rw-p 00000000 00:00 0 
+417fd000-41800000 ---p 00000000 00:00 0 
+41900000-419fd000 rw-p 00000000 00:00 0 
+419fd000-41a00000 ---p 00000000 00:00 0 
+41b00000-41cf7000 rw-p 00000000 00:00 0 
+41cf7000-41d00000 ---p 00000000 00:00 0 
+41d00000-41eff000 rw-p 00000000 00:00 0 
+41eff000-41f00000 ---p 00000000 00:00 0 
+41f00000-420fd000 rw-p 00000000 00:00 0 
+420fd000-42100000 ---p 00000000 00:00 0 
+42100000-421ff000 rw-p 00000000 00:00 0 
+421ff000-42200000 ---p 00000000 00:00 0 
+42200000-422fa000 rw-p 00000000 00:00 0 
+422fa000-42300000 ---p 00000000 00:00 0 
+42300000-424ff000 rw-p 00000000 00:00 0 
+424ff000-42500000 ---p 00000000 00:00 0 
+42500000-425ff000 rw-p 00000000 00:00 0 
+425ff000-42600000 ---p 00000000 00:00 0 
+42600000-426ff000 rw-p 00000000 00:00 0 
+426ff000-42700000 ---p 00000000 00:00 0 
+42700000-427ff000 rw-p 00000000 00:00 0 
+427ff000-42800000 ---p 00000000 00:00 0 
+42800000-42900000 rw-p 00000000 00:00 0 
+42900000-42b00000 rw-p 00000000 00:00 0 
+42b00000-42bff000 rw-p 00000000 00:00 0 
+42bff000-42c00000 ---p 00000000 00:00 0 
+42c00000-42d00000 rw-p 00000000 00:00 0 
+42d00000-42dff000 rw-p 00000000 00:00 0 
+42dff000-42e00000 ---p 00000000 00:00 0 
+42e00000-42f00000 rw-p 00000000 00:00 0 
+42f00000-42fff000 rw-p 00000000 00:00 0 
+42fff000-43000000 ---p 00000000 00:00 0 
+43000000-430ff000 rw-p 00000000 00:00 0 
+430ff000-43100000 ---p 00000000 00:00 0 
+43100000-431ff000 rw-p 00000000 00:00 0 
+431ff000-43200000 ---p 00000000 00:00 0 
+43200000-43300000 rw-p 00000000 00:00 0 
+43300000-433ff000 rw-p 00000000 00:00 0 
+433ff000-43400000 ---p 00000000 00:00 0 
+43400000-43500000 rw-p 00000000 00:00 0 
+43500000-43700000 rw-p 00000000 00:00 0 
+43700000-437fe000 rw-p 00000000 00:00 0 
+437fe000-43800000 ---p 00000000 00:00 0 
+43800000-4385d000 rw-p 00000000 00:00 0 
+4385d000-43900000 ---p 00000000 00:00 0 
+43900000-439ff000 rw-p 00000000 00:00 0 
+439ff000-43a00000 ---p 00000000 00:00 0 
+43a00000-43b00000 rw-p 00000000 00:00 0 
+43b00000-43bfc000 rw-p 00000000 00:00 0 
+43bfc000-43c00000 ---p 00000000 00:00 0 
+43c00000-43cf9000 rw-p 00000000 00:00 0 
+43cf9000-43d00000 ---p 00000000 00:00 0 
+43d00000-43eff000 rw-p 00000000 00:00 0 
+43eff000-43f00000 ---p 00000000 00:00 0 
+43f00000-43fff000 rw-p 00000000 00:00 0 
+43fff000-44000000 ---p 00000000 00:00 0 
+44000000-44100000 rw-p 00000000 00:00 0 
+44100000-442fe000 rw-p 00000000 00:00 0 
+442fe000-44300000 ---p 00000000 00:00 0 
+44300000-444ff000 rw-p 00000000 00:00 0 
+444ff000-44500000 ---p 00000000 00:00 0 
+44500000-446ff000 rw-p 00000000 00:00 0 
+446ff000-44700000 ---p 00000000 00:00 0 
+44700000-44900000 rw-p 00000000 00:00 0 
+44900000-44b00000 rw-p 00000000 00:00 0 
+44b00000-44bff000 rw-p 00000000 00:00 0 
+44bff000-44c00000 ---p 00000000 00:00 0 
+44c00000-44d00000 rw-p 00000000 00:00 0 
+44d00000-44f00000 rw-p 00000000 00:00 0 
+44f00000-44ffe000 rw-p 00000000 00:00 0 
+44ffe000-45000000 ---p 00000000 00:00 0 
+45000000-45100000 rw-p 00000000 00:00 0 
+45100000-451ff000 rw-p 00000000 00:00 0 
+451ff000-45200000 ---p 00000000 00:00 0 
+45200000-452fe000 rw-p 00000000 00:00 0 
+452fe000-45300000 ---p 00000000 00:00 0 
+45300000-453ff000 rw-p 00000000 00:00 0 
+453ff000-45400000 ---p 00000000 00:00 0 
+45400000-454ff000 rw-p 00000000 00:00 0 
+454ff000-45500000 ---p 00000000 00:00 0 
+45500000-455ff000 rw-p 00000000 00:00 0 
+455ff000-45600000 ---p 00000000 00:00 0 
+45600000-456fe000 rw-p 00000000 00:00 0 
+456fe000-45700000 ---p 00000000 00:00 0 
+45700000-457ff000 rw-p 00000000 00:00 0 
+457ff000-45800000 ---p 00000000 00:00 0 
+45800000-45900000 rw-p 00000000 00:00 0 
+45900000-459ff000 rw-p 00000000 00:00 0 
+459ff000-45a00000 ---p 00000000 00:00 0 
+45a00000-45b00000 rw-p 00000000 00:00 0 
+45b00000-45bfe000 rw-p 00000000 00:00 0 
+45bfe000-45c00000 ---p 00000000 00:00 0 
+45c00000-45cff000 rw-p 00000000 00:00 0 
+45cff000-45d00000 ---p 00000000 00:00 0 
+45d00000-45dfe000 rw-p 00000000 00:00 0 
+45dfe000-45e00000 ---p 00000000 00:00 0 
+45e00000-45f00000 rw-p 00000000 00:00 0 
+45f00000-45fff000 rw-p 00000000 00:00 0 
+45fff000-46000000 ---p 00000000 00:00 0 
+46000000-46100000 rw-p 00000000 00:00 0 
+46100000-46300000 rw-p 00000000 00:00 0 
+46300000-464fe000 rw-p 00000000 00:00 0 
+464fe000-46500000 ---p 00000000 00:00 0 
+46500000-465ff000 rw-p 00000000 00:00 0 
+465ff000-46600000 ---p 00000000 00:00 0 
+46600000-466ff000 rw-p 00000000 00:00 0 
+466ff000-46700000 ---p 00000000 00:00 0 
+46700000-46900000 rw-p 00000000 00:00 0 
+46900000-469ff000 rw-p 00000000 00:00 0 
+469ff000-46a00000 ---p 00000000 00:00 0 
+46a00000-46aff000 rw-p 00000000 00:00 0 
+46aff000-46b00000 ---p 00000000 00:00 0 
+46b00000-46bfe000 rw-p 00000000 00:00 0 
+46bfe000-46c00000 ---p 00000000 00:00 0 
+46c00000-46cff000 rw-p 00000000 00:00 0 
+46cff000-46d00000 ---p 00000000 00:00 0 
+46d00000-46f00000 rw-p 00000000 00:00 0 
+46f00000-47100000 rw-p 00000000 00:00 0 
+47100000-471ff000 rw-p 00000000 00:00 0 
+471ff000-47200000 ---p 00000000 00:00 0 
+47200000-47300000 rw-p 00000000 00:00 0 
+47300000-473ff000 rw-p 00000000 00:00 0 
+473ff000-47400000 ---p 00000000 00:00 0 
+47400000-474ff000 rw-p 00000000 00:00 0 
+474ff000-47500000 ---p 00000000 00:00 0 
+47500000-47700000 rw-p 00000000 00:00 0 
+47700000-478ff000 rw-p 00000000 00:00 0 
+478ff000-47900000 ---p 00000000 00:00 0 
+47900000-47aff000 rw-p 00000000 00:00 0 
+47aff000-47b00000 ---p 00000000 00:00 0 
+47b00000-47cff000 rw-p 00000000 00:00 0 
+47cff000-47d00000 ---p 00000000 00:00 0 
+47d00000-47dff000 rw-p 00000000 00:00 0 
+47dff000-47e00000 ---p 00000000 00:00 0 
+47e00000-47eff000 rw-p 00000000 00:00 0 
+47eff000-47f00000 ---p 00000000 00:00 0 
+47f00000-47fff000 rw-p 00000000 00:00 0 
+47fff000-48000000 ---p 00000000 00:00 0 
+48000000-480ff000 rw-p 00000000 00:00 0 
+480ff000-48100000 ---p 00000000 00:00 0 
+48100000-481ff000 rw-p 00000000 00:00 0 
+481ff000-48200000 ---p 00000000 00:00 0 
+48200000-48300000 rw-p 00000000 00:00 0 
+48300000-483ff000 rw-p 00000000 00:00 0 
+483ff000-48400000 ---p 00000000 00:00 0 
+48400000-48500000 rw-p 00000000 00:00 0 
+48500000-485ff000 rw-p 00000000 00:00 0 
+485ff000-48600000 ---p 00000000 00:00 0 
+48600000-48700000 rw-p 00000000 00:00 0 
+48700000-488ff000 rw-p 00000000 00:00 0 
+488ff000-48900000 ---p 00000000 00:00 0 
+48900000-48b00000 rw-p 00000000 00:00 0 
+48b00000-48d00000 rw-p 00000000 00:00 0 
+48d00000-48dff000 rw-p 00000000 00:00 0 
+48dff000-48e00000 ---p 00000000 00:00 0 
+48e00000-48f00000 rw-p 00000000 00:00 0 
+48f00000-48fff000 rw-p 00000000 00:00 0 
+48fff000-49000000 ---p 00000000 00:00 0 
+49000000-490ff000 rw-p 00000000 00:00 0 
+490ff000-49100000 ---p 00000000 00:00 0 
+49100000-49300000 rw-p 00000000 00:00 0 
+49300000-49500000 rw-p 00000000 00:00 0 
+49500000-495ff000 rw-p 00000000 00:00 0 
+495ff000-49600000 ---p 00000000 00:00 0 
+49600000-496ff000 rw-p 00000000 00:00 0 
+496ff000-49700000 ---p 00000000 00:00 0 
+49700000-497ff000 rw-p 00000000 00:00 0 
+497ff000-49800000 ---p 00000000 00:00 0 
+49900000-499bf000 rw-p 00000000 00:00 0 
+499bf000-49a00000 ---p 00000000 00:00 0 
+49a00000-49afc000 rw-p 00000000 00:00 0 
+49afc000-49b00000 ---p 00000000 00:00 0 
+49b00000-49c00000 rw-p 00000000 00:00 0 
+49c00000-49cff000 rw-p 00000000 00:00 0 
+49cff000-49d00000 ---p 00000000 00:00 0 
+49d00000-49dfa000 rw-p 00000000 00:00 0 
+49dfa000-49e00000 ---p 00000000 00:00 0 
+49f00000-49ffd000 rw-p 00000000 00:00 0 
+49ffd000-4a000000 ---p 00000000 00:00 0 
+4a000000-4a100000 rw-p 00000000 00:00 0 
+4a100000-4a1f5000 rw-p 00000000 00:00 0 
+4a1f5000-4a200000 ---p 00000000 00:00 0 
+4a200000-4a2e8000 rw-p 00000000 00:00 0 
+4a2e8000-4a300000 ---p 00000000 00:00 0 
+4a300000-4a3d9000 rw-p 00000000 00:00 0 
+4a3d9000-4a400000 ---p 00000000 00:00 0 
+4a500000-4a5ee000 rw-p 00000000 00:00 0 
+4a5ee000-4a600000 ---p 00000000 00:00 0 
+4a600000-4a6ea000 rw-p 00000000 00:00 0 
+4a6ea000-4a700000 ---p 00000000 00:00 0 
+4a700000-4a7f2000 rw-p 00000000 00:00 0 
+4a7f2000-4a800000 ---p 00000000 00:00 0 
+4a900000-4a9fe000 rw-p 00000000 00:00 0 
+4a9fe000-4aa00000 ---p 00000000 00:00 0 
+4ab00000-4abfb000 rw-p 00000000 00:00 0 
+4abfb000-4ac00000 ---p 00000000 00:00 0 
+4ac00000-4acf8000 rw-p 00000000 00:00 0 
+4acf8000-4ad00000 ---p 00000000 00:00 0 
+4ae00000-4aee0000 rw-p 00000000 00:00 0 
+4aee0000-4af00000 ---p 00000000 00:00 0 
+4af00000-4affd000 rw-p 00000000 00:00 0 
+4affd000-4b000000 ---p 00000000 00:00 0 
+4b000000-4b0f1000 rw-p 00000000 00:00 0 
+4b0f1000-4b100000 ---p 00000000 00:00 0 
+4b100000-4b1fa000 rw-p 00000000 00:00 0 
+4b1fa000-4b200000 ---p 00000000 00:00 0 
+4b300000-4b400000 rw-p 00000000 00:00 0 
+4b500000-4b5fd000 rw-p 00000000 00:00 0 
+4b5fd000-4b600000 ---p 00000000 00:00 0 
+4b600000-4b6ff000 rw-p 00000000 00:00 0 
+4b6ff000-4b700000 ---p 00000000 00:00 0 
+4b700000-4b7f9000 rw-p 00000000 00:00 0 
+4b7f9000-4b800000 ---p 00000000 00:00 0 
+4b827000-4b829000 r--s 0001d000 08:05 6057368    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/alt-rt.jar
+4b829000-4b83c000 r--s 0018b000 08:05 6057456    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/plugin.jar
+4b83c000-4b850000 r--s 00361000 08:05 6057455    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/deploy.jar
+4b850000-4b859000 r--s 000c9000 08:05 6057426    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/javaws.jar
+4b859000-4b85d000 r--s 00088000 08:05 6057424    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/jsse.jar
+4b85d000-4b8da000 r--s 007f2000 08:06 28336      /home/vvitvitskiy/.sbt/boot/scala-2.9.1/lib/scala-library.jar
+4b8da000-4b8dd000 r--s 00026000 08:06 28307      /home/vvitvitskiy/.ivy2/cache/org.scalaj/scalaj-collection_2.9.1/jars/scalaj-collection_2.9.1-1.2.jar
+4b8dd000-4b8ec000 r--s 00076000 08:06 28308      /home/vvitvitskiy/.ivy2/cache/joda-time/joda-time/jars/joda-time-1.6.2.jar
+4b8ec000-4b8ef000 r--s 00016000 08:06 28305      /home/vvitvitskiy/.ivy2/cache/org.scala-tools.time/time_2.9.1/jars/time_2.9.1-0.5.jar
+4b8ef000-4b8f4000 r--s 00037000 08:06 28300      /home/vvitvitskiy/.ivy2/cache/com.mongodb.casbah/casbah-query_2.9.1/jars/casbah-query_2.9.1-2.1.5-1.jar
+4b8f4000-4b8f7000 ---p 00000000 00:00 0 
+4b8f7000-4b9f5000 rw-p 00000000 00:00 0 
+4b9f5000-4b9f8000 ---p 00000000 00:00 0 
+4b9f8000-4baf6000 rw-p 00000000 00:00 0 
+4baf6000-4baf9000 ---p 00000000 00:00 0 
+4baf9000-4bbf7000 rw-p 00000000 00:00 0 
+4bbf7000-4bbfa000 ---p 00000000 00:00 0 
+4bbfa000-4bcf8000 rw-p 00000000 00:00 0 
+4bcf8000-4bcfb000 ---p 00000000 00:00 0 
+4bcfb000-4bdf9000 rw-p 00000000 00:00 0 
+4bdf9000-4bdfc000 ---p 00000000 00:00 0 
+4bdfc000-4befa000 rw-p 00000000 00:00 0 
+4befa000-4befd000 ---p 00000000 00:00 0 
+4befd000-4bffb000 rw-p 00000000 00:00 0 
+4bffb000-4bffe000 ---p 00000000 00:00 0 
+4bffe000-4c0fc000 rw-p 00000000 00:00 0 
+4c0fc000-4c0ff000 ---p 00000000 00:00 0 
+4c0ff000-4c1fd000 rw-p 00000000 00:00 0 
+4c1fd000-4c200000 ---p 00000000 00:00 0 
+4c200000-4c2fe000 rw-p 00000000 00:00 0 
+4c2fe000-4c301000 ---p 00000000 00:00 0 
+4c301000-4c3ff000 rw-p 00000000 00:00 0 
+4c3ff000-4c402000 ---p 00000000 00:00 0 
+4c402000-4c500000 rw-p 00000000 00:00 0 
+4c500000-4c5fc000 rw-p 00000000 00:00 0 
+4c5fc000-4c600000 ---p 00000000 00:00 0 
+4c600000-4c700000 rw-p 00000000 00:00 0 
+4c700000-4c7fd000 rw-p 00000000 00:00 0 
+4c7fd000-4c800000 ---p 00000000 00:00 0 
+4c800000-4c801000 r--s 00000000 08:05 6057425    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/management-agent.jar
+4c801000-4c803000 r--s 00013000 08:06 28303      /home/vvitvitskiy/.ivy2/cache/com.mongodb.casbah/casbah-gridfs_2.9.1/jars/casbah-gridfs_2.9.1-2.1.5-1.jar
+4c803000-4c807000 r--s 00038000 08:06 28306      /home/vvitvitskiy/.ivy2/cache/org.mongodb/mongo-java-driver/jars/mongo-java-driver-2.5.3.jar
+4c807000-4c809000 r--s 00005000 08:06 28304      /home/vvitvitskiy/.ivy2/cache/org.slf4j/slf4j-api/jars/slf4j-api-1.6.0.jar
+4c809000-4c80d000 r--s 00029000 08:06 28302      /home/vvitvitskiy/.ivy2/cache/com.mongodb.casbah/casbah-commons_2.9.1/jars/casbah-commons_2.9.1-2.1.5-1.jar
+4c80d000-4c810000 r--s 00031000 08:06 28301      /home/vvitvitskiy/.ivy2/cache/com.mongodb.casbah/casbah-core_2.9.1/jars/casbah-core_2.9.1-2.1.5-1.jar
+4c810000-4c814000 r--s 00037000 08:05 6057367    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/ext/sunpkcs11.jar
+4c814000-4c815000 r--s 00003000 08:05 6057365    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/ext/sunec.jar
+4c815000-4c819000 r--s 000f6000 08:05 6057364    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/ext/localedata.jar
+4c819000-4c81b000 r--s 00001000 08:05 6057362    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/ext/dnsns.jar
+4c81b000-4c81f000 r--s 0002d000 08:05 6057363    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/ext/sunjce_provider.jar
+4c81f000-4c821000 r--s 0000f000 08:05 6057366    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/ext/zipfs.jar
+4c821000-4c82c000 r--s 00370000 08:05 6057524    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/charsets.jar
+4c82c000-4c82f000 r--s 00018000 08:05 6057562    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/jce.jar
+4c82f000-4c833000 r--s 00088000 08:05 6057424    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/jsse.jar
+4c833000-4c83c000 r--s 00254000 08:05 6057358    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/resources.jar
+4c83c000-4c83f000 ---p 00000000 00:00 0 
+4c83f000-4c84b000 rw-p 00000000 00:00 0 
+4c84b000-4c874000 r--s 00423000 08:06 13943      /home/vvitvitskiy/.emacs.d/ensime/lib/org.eclipse.jdt.core-3.6.0.v_A58.jar
+4c874000-4c876000 r--s 00002000 08:06 13938      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-error-diagnostics-2.2.1.jar
+4c876000-4c877000 r--s 0000a000 08:06 13928      /home/vvitvitskiy/.emacs.d/ensime/lib/asm-3.2.jar
+4c877000-4c879000 r--s 00004000 08:06 13923      /home/vvitvitskiy/.emacs.d/ensime/lib/asm-tree-3.2.jar
+4c879000-4c87b000 r--s 0000b000 08:06 13922      /home/vvitvitskiy/.emacs.d/ensime/lib/wagon-provider-api-1.0-beta-6.jar
+4c87b000-4c88a000 r--s 000d0000 08:06 13921      /home/vvitvitskiy/.emacs.d/ensime/lib/ivy-2.1.0.jar
+4c88a000-4c88d000 r--s 00011000 08:06 13919      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-artifact-2.2.1.jar
+4c88d000-4c894000 r--s 00029000 08:06 13918      /home/vvitvitskiy/.emacs.d/ensime/lib/plexus-container-default-1.0-alpha-9-stable-1.jar
+4c894000-4c896000 r--s 0000b000 08:06 13912      /home/vvitvitskiy/.emacs.d/ensime/lib/plexus-interpolation-1.11.jar
+4c896000-4c897000 r--s 00007000 08:06 13907      /home/vvitvitskiy/.emacs.d/ensime/lib/expectj-2.0.1.jar
+4c897000-4c899000 r--s 00006000 08:06 13902      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-plugin-registry-2.2.1.jar
+4c899000-4c89b000 r--s 00005000 08:06 13900      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-repository-metadata-2.2.1.jar
+4c89b000-4c918000 r--s 007f2000 08:06 13899      /home/vvitvitskiy/.emacs.d/ensime/lib/scala-library.jar
+4c918000-4c91a000 r--s 00007000 08:06 13896      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-profile-2.2.1.jar
+4c91a000-4c922000 r--s 00049000 08:06 13893      /home/vvitvitskiy/.emacs.d/ensime/lib/backport-util-concurrent-3.1.jar
+4c922000-4c939000 r--s 0015b000 08:06 13890      /home/vvitvitskiy/.emacs.d/ensime/lib/ant-1.8.1.jar
+4c939000-4c957000 r--s 0014b000 08:06 13888      /home/vvitvitskiy/.emacs.d/ensime/lib/org.scala-refactoring_2.9.2-SNAPSHOT-0.3.0-SNAPSHOT.jar
+4c957000-4c959000 r--s 00014000 08:06 13887      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-model-2.2.1.jar
+4c959000-4c95d000 r--s 00023000 08:06 13883      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-project-2.2.1.jar
+4c95d000-4c95e000 r--s 00003000 08:06 13881      /home/vvitvitskiy/.emacs.d/ensime/lib/wagon-http-lightweight-1.0-beta-6.jar
+4c95e000-4c97f000 r--s 00172000 08:06 13880      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-ant-tasks-2.1.0.jar
+4c97f000-4c981000 r--s 00005000 08:06 13875      /home/vvitvitskiy/.emacs.d/ensime/lib/wagon-http-shared-1.0-beta-6.jar
+4c981000-4ca48000 r--s 00a09000 08:06 13872      /home/vvitvitskiy/.emacs.d/ensime/lib/scala-compiler.jar
+4ca48000-4ca4a000 r--s 00002000 08:06 13870      /home/vvitvitskiy/.emacs.d/ensime/lib/ant-launcher-1.8.1.jar
+4ca4a000-4ca6d000 r--s 0019a000 08:06 13863      /home/vvitvitskiy/.emacs.d/ensime/lib/scalariform_2.9.1-0.1.1.jar
+4ca6d000-4ca7e000 r--s 000dc000 08:06 13847      /home/vvitvitskiy/.emacs.d/ensime/lib/ensime_2.9.2-SNAPSHOT-0.8.0.RC3.jar
+4ca7e000-4ca7f000 ---p 00000000 00:00 0 
+4ca7f000-4caff000 rw-p 00000000 00:00 0 
+4caff000-4cb02000 ---p 00000000 00:00 0 
+4cb02000-4cc00000 rw-p 00000000 00:00 0 
+4cc00000-4ccff000 rw-p 00000000 00:00 0 
+4ccff000-4cd00000 ---p 00000000 00:00 0 
+4cd00000-4cd0f000 r--s 000ee000 08:06 13864      /home/vvitvitskiy/.emacs.d/ensime/lib/ant-1.6.5.jar
+4cd0f000-4cd12000 ---p 00000000 00:00 0 
+4cd12000-4cd90000 rw-p 00000000 00:00 0 
+4cd90000-4cd93000 ---p 00000000 00:00 0 
+4cd93000-4ce11000 rw-p 00000000 00:00 0 
+4ce11000-4ce14000 ---p 00000000 00:00 0 
+4ce14000-4cf12000 rw-p 00000000 00:00 0 
+4cf12000-4d082000 r--p 0051c000 08:07 389704     /usr/lib/locale/locale-archive
+4d082000-4d282000 r--p 00000000 08:07 389704     /usr/lib/locale/locale-archive
+4d282000-4d285000 ---p 00000000 00:00 0 
+4d285000-4d383000 rw-p 00000000 00:00 0 
+4d383000-4d386000 ---p 00000000 00:00 0 
+4d386000-4d484000 rw-p 00000000 00:00 0 
+4d484000-4d485000 ---p 00000000 00:00 0 
+4d485000-4d550000 rw-p 00000000 00:00 0 
+4d550000-4d70f000 r--s 039fc000 08:05 6056896    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/rt.jar
+4d70f000-4d710000 ---p 00000000 00:00 0 
+4d710000-4d790000 rw-p 00000000 00:00 0 
+4d790000-4d791000 ---p 00000000 00:00 0 
+4d791000-4d811000 rw-p 00000000 00:00 0 
+4d811000-4d812000 ---p 00000000 00:00 0 
+4d812000-4d892000 rw-p 00000000 00:00 0 
+4d892000-4d893000 ---p 00000000 00:00 0 
+4d893000-4d9e9000 rw-p 00000000 00:00 0 
+4d9e9000-4db4b000 rw-p 00000000 00:00 0 
+4db4b000-4dc21000 rw-p 00000000 00:00 0 
+4dc21000-4dd83000 rw-p 00000000 00:00 0 
+4dd83000-4de7f000 rw-p 00000000 00:00 0 
+4de7f000-688a0000 rw-p 00000000 00:00 0 
+688a0000-94e80000 rw-p 00000000 00:00 0 
+94e80000-b4680000 rw-p 00000000 00:00 0 
+b4680000-b4681000 r--s 00000000 08:05 6057450    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/security/US_export_policy.jar
+b4681000-b4683000 r--s 0000d000 08:06 13869      /home/vvitvitskiy/.emacs.d/ensime/lib/critbit-0.0.4.jar
+b4683000-b4685000 r--s 00007000 08:06 13860      /home/vvitvitskiy/.emacs.d/ensime/lib/asm-commons-3.2.jar
+b4685000-b4687000 r--s 0000d000 08:06 13843      /home/vvitvitskiy/.emacs.d/ensime/lib/commons-logging-1.1.1.jar
+b4687000-b4689000 r--s 00008000 08:06 13841      /home/vvitvitskiy/.emacs.d/ensime/lib/classworlds-1.1-alpha-2.jar
+b4689000-b469d000 rw-p 00000000 00:00 0 
+b469d000-b4749000 rw-p 00000000 00:00 0 
+b4749000-b4c39000 rwxp 00000000 00:00 0 
+b4c39000-b7749000 rw-p 00000000 00:00 0 
+b7749000-b774c000 ---p 00000000 00:00 0 
+b774c000-b784c000 rw-p 00000000 00:00 0 
+b784c000-b784d000 r--s 00000000 08:05 6057446    /media/_mnt_repos/dt/jdk1.7.0_01/jre/lib/security/local_policy.jar
+b784d000-b784e000 r--s 00002000 08:06 13839      /home/vvitvitskiy/.emacs.d/ensime/lib/wagon-file-1.0-beta-6.jar
+b784e000-b784f000 r--s 0000b000 08:06 13833      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-settings-2.2.1.jar
+b784f000-b7853000 r--s 00034000 08:06 13831      /home/vvitvitskiy/.emacs.d/ensime/lib/plexus-utils-1.5.15.jar
+b7853000-b7855000 r--s 00008000 08:06 13824      /home/vvitvitskiy/.emacs.d/ensime/lib/xercesMinimal-1.9.6.2.jar
+b7855000-b7858000 r--s 00019000 08:06 13823      /home/vvitvitskiy/.emacs.d/ensime/lib/nekohtml-1.9.6.2.jar
+b7858000-b785a000 r--s 0000f000 08:06 13820      /home/vvitvitskiy/.emacs.d/ensime/lib/maven-artifact-manager-2.2.1.jar
+b785a000-b785b000 r--p 002a1000 08:07 389704     /usr/lib/locale/locale-archive
+b785b000-b7863000 rw-s 00000000 08:03 128862     /tmp/hsperfdata_vvitvitskiy/6302
+b7863000-b7864000 rw-p 00000000 00:00 0 
+b7864000-b7865000 r--p 00000000 00:00 0 
+b7865000-b7867000 rw-p 00000000 00:00 0 
+bf86d000-bf88f000 rw-p 00000000 00:00 0          [stack]
+
+VM Arguments:
+jvm_args: -XX:+DoEscapeAnalysis -Xms256M -Xmx1512M -XX:PermSize=128m -Xss1M -Dfile.encoding=UTF-8 
+java_command: org.ensime.server.Server /tmp/ensime_port.6295
+Launcher Type: SUN_STANDARD
+
+Environment Variables:
+PATH=/home/vvitvitskiy/bin:/usr/lib/lightdm/lightdm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/media/_mnt_repos/dt/jdk1.7.0_01/bin:/media/_mnt_repos/dt/apache-maven/bin:/media/_mnt_repos/dt/scala:/media/_mnt_repos/dt/jdk1.7.0_01/bin:/media/_mnt_repos/dt/apache-maven/bin:/media/_mnt_repos/dt/scala
+USERNAME=vvitvitskiy
+SHELL=/bin/bash
+DISPLAY=:0
+
+Signal Handlers:
+SIGSEGV: [libjvm.so+0x6dd4d0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGBUS: [libjvm.so+0x6dd4d0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGFPE: [libjvm.so+0x59dae0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGPIPE: [libjvm.so+0x59dae0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGXFSZ: [libjvm.so+0x59dae0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGILL: [libjvm.so+0x59dae0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGUSR1: SIG_DFL, sa_mask[0]=0x00000000, sa_flags=0x00000000
+SIGUSR2: [libjvm.so+0x59d3e0], sa_mask[0]=0x00000000, sa_flags=0x10000004
+SIGHUP: [libjvm.so+0x59faf0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGINT: [libjvm.so+0x59faf0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGTERM: [libjvm.so+0x59faf0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+SIGQUIT: [libjvm.so+0x59faf0], sa_mask[0]=0x7ffbfeff, sa_flags=0x10000004
+
+
+---------------  S Y S T E M  ---------------
+
+OS:wheezy/sid
+
+uname:Linux 3.0.0-12-generic #20-Ubuntu SMP Fri Oct 7 14:50:42 UTC 2011 i686
+libc:glibc 2.13 NPTL 2.13 
+rlimit: STACK 8192k, CORE 0k, NPROC 23520, NOFILE 4096, AS infinity
+load average:0.19 0.20 0.16
+
+/proc/meminfo:
+MemTotal:        3024608 kB
+MemFree:          275012 kB
+Buffers:           46184 kB
+Cached:           987092 kB
+SwapCached:         2172 kB
+Active:          1607700 kB
+Inactive:        1017916 kB
+Active(anon):    1225616 kB
+Inactive(anon):   370852 kB
+Active(file):     382084 kB
+Inactive(file):   647064 kB
+Unevictable:          20 kB
+Mlocked:              20 kB
+HighTotal:       2161668 kB
+HighFree:          27080 kB
+LowTotal:         862940 kB
+LowFree:          247932 kB
+SwapTotal:       1023996 kB
+SwapFree:        1018024 kB
+Dirty:              3804 kB
+Writeback:             0 kB
+AnonPages:       1590732 kB
+Mapped:           121204 kB
+Shmem:              4076 kB
+Slab:              51968 kB
+SReclaimable:      37116 kB
+SUnreclaim:        14852 kB
+KernelStack:        3048 kB
+PageTables:         8592 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:     2536300 kB
+Committed_AS:    3196416 kB
+VmallocTotal:     122880 kB
+VmallocUsed:       80556 kB
+VmallocChunk:      33788 kB
+HardwareCorrupted:     0 kB
+AnonHugePages:         0 kB
+HugePages_Total:       0
+HugePages_Free:        0
+HugePages_Rsvd:        0
+HugePages_Surp:        0
+Hugepagesize:       4096 kB
+DirectMap4k:       53240 kB
+DirectMap4M:      856064 kB
+
+
+CPU:total 4 (2 cores per cpu, 2 threads per core) family 6 model 37 stepping 2, cmov, cx8, fxsr, mmx, sse, sse2, sse3, ssse3, sse4.1, sse4.2, popcnt, ht
+
+/proc/cpuinfo:
+processor	: 0
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 37
+model name	: Intel(R) Core(TM) i5 CPU       M 430  @ 2.27GHz
+stepping	: 2
+cpu MHz		: 2262.000
+cache size	: 3072 KB
+physical id	: 0
+siblings	: 4
+core id		: 0
+cpu cores	: 2
+apicid		: 0
+initial apicid	: 0
+fdiv_bug	: no
+hlt_bug		: no
+f00f_bug	: no
+coma_bug	: no
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 11
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe rdtscp lm constant_tsc arch_perfmon pebs bts xtopology nonstop_tsc aperfmperf pni dtes64 monitor ds_cpl vmx est tm2 ssse3 cx16 xtpr pdcm sse4_1 sse4_2 popcnt lahf_lm ida arat dts tpr_shadow vnmi flexpriority ept vpid
+bogomips	: 4522.36
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 36 bits physical, 48 bits virtual
+power management:
+
+processor	: 1
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 37
+model name	: Intel(R) Core(TM) i5 CPU       M 430  @ 2.27GHz
+stepping	: 2
+cpu MHz		: 2262.000
+cache size	: 3072 KB
+physical id	: 0
+siblings	: 4
+core id		: 2
+cpu cores	: 2
+apicid		: 4
+initial apicid	: 4
+fdiv_bug	: no
+hlt_bug		: no
+f00f_bug	: no
+coma_bug	: no
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 11
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe rdtscp lm constant_tsc arch_perfmon pebs bts xtopology nonstop_tsc aperfmperf pni dtes64 monitor ds_cpl vmx est tm2 ssse3 cx16 xtpr pdcm sse4_1 sse4_2 popcnt lahf_lm ida arat dts tpr_shadow vnmi flexpriority ept vpid
+bogomips	: 4522.03
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 36 bits physical, 48 bits virtual
+power management:
+
+processor	: 2
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 37
+model name	: Intel(R) Core(TM) i5 CPU       M 430  @ 2.27GHz
+stepping	: 2
+cpu MHz		: 2262.000
+cache size	: 3072 KB
+physical id	: 0
+siblings	: 4
+core id		: 0
+cpu cores	: 2
+apicid		: 1
+initial apicid	: 1
+fdiv_bug	: no
+hlt_bug		: no
+f00f_bug	: no
+coma_bug	: no
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 11
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe rdtscp lm constant_tsc arch_perfmon pebs bts xtopology nonstop_tsc aperfmperf pni dtes64 monitor ds_cpl vmx est tm2 ssse3 cx16 xtpr pdcm sse4_1 sse4_2 popcnt lahf_lm ida arat dts tpr_shadow vnmi flexpriority ept vpid
+bogomips	: 4522.02
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 36 bits physical, 48 bits virtual
+power management:
+
+processor	: 3
+vendor_id	: GenuineIntel
+cpu family	: 6
+model		: 37
+model name	: Intel(R) Core(TM) i5 CPU       M 430  @ 2.27GHz
+stepping	: 2
+cpu MHz		: 2262.000
+cache size	: 3072 KB
+physical id	: 0
+siblings	: 4
+core id		: 2
+cpu cores	: 2
+apicid		: 5
+initial apicid	: 5
+fdiv_bug	: no
+hlt_bug		: no
+f00f_bug	: no
+coma_bug	: no
+fpu		: yes
+fpu_exception	: yes
+cpuid level	: 11
+wp		: yes
+flags		: fpu vme de pse tsc msr pae mce cx8 apic mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe rdtscp lm constant_tsc arch_perfmon pebs bts xtopology nonstop_tsc aperfmperf pni dtes64 monitor ds_cpl vmx est tm2 ssse3 cx16 xtpr pdcm sse4_1 sse4_2 popcnt lahf_lm ida arat dts tpr_shadow vnmi flexpriority ept vpid
+bogomips	: 4503.18
+clflush size	: 64
+cache_alignment	: 64
+address sizes	: 36 bits physical, 48 bits virtual
+power management:
+
+
+
+Memory: 4k page, physical 3024608k(275012k free), swap 1023996k(1018024k free)
+
+vm_info: Java HotSpot(TM) Server VM (21.1-b02) for linux-x86 JRE (1.7.0_01-b08), built on Oct  3 2011 01:17:58 by "java_re" with gcc 4.3.0 20080428 (Red Hat 4.3.0-8)
+
+time: Sat Nov 19 00:40:07 2011
+elapsed time: 231 seconds
+
