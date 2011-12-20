@@ -1,8 +1,10 @@
 [alias]
     co = checkout
-	ci = commit
-	df = diff --ignore-all-space --color
-	st = status
+    coo = checkout --ours
+    cot = checkout --theirs
+    ci = commit
+    df = diff --ignore-all-space --color
+    st = status
     stu = status --untracked-files=no
     hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
 [help]
