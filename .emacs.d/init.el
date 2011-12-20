@@ -8,3 +8,11 @@
 
 ;; allow selection deletion
 (delete-selection-mode t)
+
+;;; extensible vi layer
+(add-to-list 'load-path "~/.emacs.d/evil-evil")
+(require 'evil)
+(evil-mode 1)
+
+
+(hl-line-mode)
