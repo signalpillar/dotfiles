@@ -9,16 +9,16 @@
 ;; allow selection deletion
 (delete-selection-mode t)
 
-;;; {{{ Scala mode
-(add-to-list 'load-path "~/.emacs.d/scala-mode")
-(require 'scala-mode-auto)
-(add-to-list 'auto-mode-alist '("\\.scala\\'" . scala-mode))
-;;; }}}
-;;; {{{ Ensime
-(add-to-list 'load-path "~/.emacs.d/ensime/elisp")
-(require 'ensime)
+;;; extensible vi layer
+(add-to-list 'load-path "~/.emacs.d/evil-evil")
+(require 'evil)
+(evil-mode 1)
 
-;; free of trailing whitespace and to use 80-column width, standard indentation
-(setq whitespace-style '(trailing lines space-before-tab
-                                  indentation space-after-tab)
-      whitespace-line-column 80)
+
+(hl-line-mode)
+
+;; auto-complete configuration
+(add-to-list 'load-path "~/.emacs.d/auto-complete/")
+(require 'auto-complete-config)
+(add-to-list 'ac-dictionary-directories "~/.emacs.d/auto-complete//ac-dict")
+(ac-config-default)
