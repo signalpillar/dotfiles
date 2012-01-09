@@ -173,3 +173,6 @@ function convertUtubeVideoToMp3 {
 
 # start command and kill it if still running after 5 secs
 # > timeout 5s <command>
+
+# fc opens the last command in $EDITOR and runs the altered version afterwards)
+# parralel
