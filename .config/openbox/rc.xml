@@ -42,7 +42,7 @@
                   'Active' - where the active window is -->
   </placement>
   <theme>
-    <name>Neo</name>
+    <name>Operation</name>
     <titleLayout>NDLIMC</titleLayout>
     <!--
       available characters are NDSLIMC, each can occur at most once.
@@ -66,12 +66,12 @@
       <!-- 'italic' or 'normal' -->
     </font>
     <font place="InactiveWindow">
-      <name>sans</name>
-      <size>8</size>
+      <name>Sans</name>
+      <size>9</size>
       <!-- font size in points -->
-      <weight>bold</weight>
+      <weight>Bold</weight>
       <!-- 'bold' or 'normal' -->
-      <slant>normal</slant>
+      <slant>Normal</slant>
       <!-- 'italic' or 'normal' -->
     </font>
     <font place="MenuHeader">
@@ -170,17 +170,17 @@
   <keyboard>
     <keybind key="C-A-0">
       <action name="Execute">
-          <execute>setxkbmap ru</execute>
+        <execute>setxkbmap ru</execute>
       </action>
     </keybind>
     <keybind key="C-A-9">
       <action name="Execute">
-          <execute>setxkbmap ua</execute>
+        <execute>setxkbmap ua</execute>
       </action>
     </keybind>
     <keybind key="C-A-8">
       <action name="Execute">
-          <execute>setxkbmap us</execute>
+        <execute>setxkbmap us</execute>
       </action>
     </keybind>
     <!-- user keybindings -->
@@ -194,7 +194,7 @@
     <!--</action>-->
     <!--</keybind>-->
     <keybind key="A-F4">
-        <action name="Close"/>
+      <action name="Close"/>
     </keybind>
     <keybind key="A-F3">
       <action name="ShowMenu">
