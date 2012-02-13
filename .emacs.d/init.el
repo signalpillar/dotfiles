@@ -9,6 +9,10 @@
 ;; allow selection deletion
 (delete-selection-mode t)
 
+;; load jython mode
+(add-to-list 'load-path "~/.emacs.d/jython-mode")
+(require 'jython)
+
 ;;; extensible vi layer
 (add-to-list 'load-path "~/.emacs.d/evil-evil")
 (require 'evil)
