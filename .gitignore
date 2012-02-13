@@ -8,3 +8,5 @@ src/main/resources/
 target/
 runtime
 *.dat
+.emacs.d/backups/
+.emacs.d/auto-save-list/
