@@ -28,6 +28,7 @@
 (ac-config-default)
 
 ;; scala-mode
+(add-to-list 'load-path "~/.emacs.d/scala-mode/")
 (require 'scala-mode)
 (add-hook 'scala-mode-hook
           '(lambda ()
