@@ -176,3 +176,23 @@ function convertUtubeVideoToMp3 {
 
 # fc opens the last command in $EDITOR and runs the altered version afterwards)
 # parralel
+
+function monitorPortConnections {
+    while true ; do sleep 1 ; clear ; (netstat -tn | grep -P ':22s+d') ; done
+}
+
+function transmitFileLikeHttpServer {
+    # Allow to launch nc like a daemon, in background until you still
+    # stop it.
+    # You can stop it with kill %1 (jobs method) or kill PID.
+    # The -k option can force nc to listen another connection, but if
+    # you use redirection, it will work only one time.
+    # The loop's inside doesn't do anything, but we can imagine to
+    # send a message to screen when a connection is established
+
+    while ( nc -l 80 < $1 > : ) ; do : ; done &
+}
+
+function printTcpConnectionStatistic {
+    netstat -npat|grep ESTABLISHED | awk 'BEGIN{counter=0;} {split($5,a,":");ip=a[1];if(ip in ips)ips[ip]+=1;else ips[ip]=1;counter++;} END{for(i in ips)print i" = "ips[i]"\n"}'| sort | grep -vP '^\s*$'
+}
