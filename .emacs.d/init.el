@@ -36,7 +36,7 @@
              ))
 
 ;; enable color theme solarized
-(color-theme-solarized-light)
+;;(color-theme-solarized-light)
 
 
 ;; recent mode
