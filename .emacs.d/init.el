@@ -49,3 +49,6 @@
 (column-number-mode t)
 ;; font configuration
 (set-default-font "DejaVu Sans Mono-11")
+
+;; togle long lines truncation
+(set-default 'truncate-lines nil)
