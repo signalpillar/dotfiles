@@ -8,9 +8,9 @@
                 </execute>
             </action>
         </item>
-        <item label="pcman fm">
+        <item label="thunar fm">
             <action name="Execute">
-                <execute> pcmanfm </execute>
+                <execute> thunar </execute>
             </action>
         </item>
         <item label="indigo">
