@@ -48,22 +48,8 @@ if [ -n "$force_color_prompt" ]; then
 	color_prompt=
     fi
 fi
-
-if [ "$color_prompt" = yes ]; then
-    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-else
-    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
-fi
+PS1='\[\e[0;32m\]\u\[\e[m\] \[\e[1;34m\]\w\[\e[m\] \[\e[1;32m\]\$\[\e[m\] '
 unset color_prompt force_color_prompt
-
-# If this is an xterm set the title to user@host:dir
-case "$TERM" in
-xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-*)
-    ;;
-esac
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -107,4 +93,5 @@ source ~/functions.sh
 export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
-export PATH=$PATH:$MAVEN/bin:$dt/scala
+export SCALA_HOME=$dt/scala
+export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin
