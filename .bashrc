@@ -48,12 +48,7 @@ if [ -n "$force_color_prompt" ]; then
 	color_prompt=
     fi
 fi
-
-if [ "$color_prompt" = yes ]; then
-    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-else
-    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
-fi
+export PS1=":\W \`if [ \$? == 0 ]; then echo \:\); else echo \:\(; fi\` "
 unset color_prompt force_color_prompt
 
 # If this is an xterm set the title to user@host:dir
@@ -108,3 +103,18 @@ export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
 export PATH=$PATH:$MAVEN/bin:$dt/scala
+
+# aliases
+
+alias cemacs="emacs -nw"
+alias pidgin="NSS_SSL_CBC_RANDOM_IV=0 pidgin"
+
+## Colorize the grep command output for ease of use (good for log files)##
+alias grep='grep --color=auto'
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+
+## make mount command output pretty 
+alias mount='mount |column -t'
+## show open ports
+alias ports='netstat -tulanp'
