@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 if test -f ~/.sbtconfig; then
   . ~/.sbtconfig
 fi
