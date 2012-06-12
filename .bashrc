@@ -48,17 +48,8 @@ if [ -n "$force_color_prompt" ]; then
 	color_prompt=
     fi
 fi
-export PS1=":\W \`if [ \$? == 0 ]; then echo \:\); else echo \:\(; fi\` "
+PS1='\[\e[0;32m\]\u\[\e[m\] \[\e[1;34m\]\w\[\e[m\] \[\e[1;32m\]\$\[\e[m\] '
 unset color_prompt force_color_prompt
-
-# If this is an xterm set the title to user@host:dir
-case "$TERM" in
-xterm*|rxvt*)
-    PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-*)
-    ;;
-esac
 
 # enable color support of ls and also add handy aliases
 if [ -x /usr/bin/dircolors ]; then
@@ -102,19 +93,5 @@ source ~/functions.sh
 export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
-export PATH=$PATH:$MAVEN/bin:$dt/scala
-
-# aliases
-
-alias cemacs="emacs -nw"
-alias pidgin="NSS_SSL_CBC_RANDOM_IV=0 pidgin"
-
-## Colorize the grep command output for ease of use (good for log files)##
-alias grep='grep --color=auto'
-alias egrep='egrep --color=auto'
-alias fgrep='fgrep --color=auto'
-
-## make mount command output pretty 
-alias mount='mount |column -t'
-## show open ports
-alias ports='netstat -tulanp'
+export SCALA_HOME=$dt/scala
+export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin
