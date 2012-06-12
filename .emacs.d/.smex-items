@@ -1,0 +1,37 @@
+
+;; ----- smex-history -----
+(
+ tabbar-mode
+ toggle-truncate-lines
+ global-linum-mode
+ what-line
+ shell
+ eval-buffer
+ package-install
+)
+
+;; ----- smex-data -----
+(
+ (package-install . 11)
+ (icicle-download-wizard . 3)
+ (auto-install-batch . 2)
+ (cd . 1)
+ (eval-buffer . 17)
+ (flymake-mode . 2)
+ (flymake-compile . 1)
+ (flymake-start-syntax-check . 1)
+ (dirtree-in-buffer . 1)
+ (dirtree . 1)
+ (nav . 2)
+ (speedbar . 2)
+ (speedbar-add-localized-speedbar-support . 1)
+ (menu-bar-mode . 1)
+ (load-theme . 2)
+ (clojure-mode . 2)
+ (clojure-jack-in . 4)
+ (shell . 1)
+ (what-line . 1)
+ (global-linum-mode . 1)
+ (toggle-truncate-lines . 2)
+ (tabbar-mode . 1)
+)

@@ -9,5 +9,8 @@ target/
 runtime
 *.dat
 .emacs.d/backups/
+.emacs.d/places
 .emacs.d/auto-save-list/
+.emacs.d/url/cookies
 *.elc
+*.*~
