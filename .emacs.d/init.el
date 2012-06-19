@@ -21,7 +21,12 @@
 
 ;; clojure-mode
 (defun turn-on-paredit () (paredit-mode 1))
-(add-hook 'clojure-mode-hook 'turn-on-paredit)
+(add-hook 'clojure-mode-hook
+          (lambda ()
+            (turn-on-paredit)
+            (turn-on-eldoc-mode)
+            (show-paren-mode t)
+            (set-up-slime-ac)))
 
 ;; render line numbers
 (global-linum-mode)
@@ -33,3 +38,14 @@
 
 ;;tabbar mode
 (tabbar-mode 1)
+
+
+;; auto-complete
+(require 'auto-complete-config)
+(ac-config-default)
+
+(require 'ac-slime)
+(add-hook 'slime-mode-hook 'set-up-slime-ac)
+(add-hook 'slime-repl-mode-hook 'set-up-slime-ac)
+(eval-after-load "auto-complete"
+  '(add-to-list 'ac-modes 'slime-repl-mode))
