@@ -18,15 +18,22 @@
 (require 'evil)
 (evil-mode 1)
 
+(defun turn-on-paredit () (paredit-mode 1))
+
+;; -----------------------------------------------------
+;; draw fill-column line
+(add-to-list 'load-path "/path/to/highlight-80+")
+(require 'highlight-80+)
+;; -----------------------------------------------------
 
 ;; clojure-mode
-(defun turn-on-paredit () (paredit-mode 1))
 (add-hook 'clojure-mode-hook
           (lambda ()
             (turn-on-paredit)
             (turn-on-eldoc-mode)
             (show-paren-mode t)
-            (set-up-slime-ac)))
+            (set-up-slime-ac)
+            (fci-mode)))
 
 ;; render line numbers
 (global-linum-mode)
@@ -49,3 +56,21 @@
 (add-hook 'slime-repl-mode-hook 'set-up-slime-ac)
 (eval-after-load "auto-complete"
   '(add-to-list 'ac-modes 'slime-repl-mode))
+
+
+;; comment-or-uncomment
+;; (global-set-key (kbd "C-S /") 'comment-or-uncomment-region)
+
+                                        ; python-mode
+(autoload 'python-mode "python-mode" "Python Mode" t)
+(add-to-list 'auto-mode-alist '("\\.py\\'" . python-mode))
+(add-to-list 'interpreter-mode-alist '("python" . python-mode))
+
+(add-hook 'python-mode-hook
+       '(lambda () (eldoc-mode 1)) t)
+
+                                        ; yasnippet configuration
+(require 'yasnippet)
+(yas/initialize)
+(yas/load-directory "~/.emacs.d/snippets")
+
