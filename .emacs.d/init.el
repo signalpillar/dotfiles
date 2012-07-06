@@ -78,14 +78,14 @@
 	))
 ;; pymacs
 (autoload 'pymacs-apply "pymacs")
-(autoload 'pymacs-call "pymacs")
-(autoload 'pymacs-eval "pymacs" nil t)
-(autoload 'pymacs-exec "pymacs" nil t)
-(autoload 'pymacs-load "pymacs" nil t)
+        ;; (autoload 'pymacs-call "pymacs")
+        ;; (autoload 'pymacs-eval "pymacs" nil t)
+        ;; (autoload 'pymacs-exec "pymacs" nil t)
+        ;; (autoload 'pymacs-load "pymacs" nil t)
 ;;(eval-after-load "pymacs"
 ;;  '(add-to-list 'pymacs-load-path YOUR-PYMACS-DIRECTORY"))
-(pymacs-load "ropemacs" "rope-")
-(setq ropemacs-enable-autoimport t)
+        ;; (pymacs-load "ropemacs" "rope-")
+        ;; (setq ropemacs-enable-autoimport t)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Auto-completion
 ;;;  Integrates:
@@ -177,3 +177,22 @@
 (yas/initialize)
 (yas/load-directory "~/.emacs.d/snippets")
 
+(set-default 'indicate-empty-lines t)
+
+(defun cleanup-buffer-safe ()
+  "Perform a bunch of safe operations on the whitespace content of a buffer.
+Does not indent buffer, because it is used for a before-save-hook, and that
+might be bad."
+  (interactive)
+  (untabify-buffer)
+  (delete-trailing-whitespace)
+  (set-buffer-file-coding-system 'utf-8))
+
+(defun cleanup-buffer ()
+  "Perform a bunch of operations on the whitespace content of a buffer.
+Including indent-buffer, which should not be called automatically on save."
+  (interactive)
+  (cleanup-buffer-safe)
+  (indent-buffer))
+
+(global-set-key (kbd "C-c n") 'cleanup-buffer)
