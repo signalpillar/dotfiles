@@ -91,6 +91,8 @@ fi
 if [ -f /etc/bash_completion ] && ! shopt -oq posix; then
     . /etc/bash_completion
 fi
+complete -cf sudo 
+
 source ~/.env
 source ~/functions.sh
 export proj=$r/proj
@@ -98,3 +100,6 @@ export dt=$r/dt
 export MAVEN=$dt/apache-maven
 export SCALA_HOME=$dt/scala
 export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin
+
+# git 
+source /usr/share/git/completion/git-completion.bash
