@@ -1,11 +1,11 @@
 tint2 &
-guake &
+tilda &
 #tomboy &
 parcellite &
-nm-applet &
+(sleep 3 && /usr/bin/nm-applet --sm-disable) &
 #skype &
 xmodmap ~/.xmodmap &
 setxkbmap -layout "us,ua,ru" -option "grp:alt_shift_toggle" &
 feh --bg-tile ~/.config/openbox/wall/ubuntubokehfull1280x960.png &
-gnome-settings-daemon &
+#gnome-settings-daemon &
 
