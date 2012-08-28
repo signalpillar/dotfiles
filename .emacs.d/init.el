@@ -3,6 +3,23 @@
              '("marmalade" . "http://marmalade-repo.org/packages/") t)
 (package-initialize)
 
+                                        ; ELSCREEN
+
+(add-to-list 'load-path "~/.emacs.d/escreen/")
+(load "escreen")
+(escreen-install)
+(setq escreen-prefix-char "\C-a") ;; http://www.macs.hw.ac.uk/~hwloidl/cool-el.html
+(global-set-key escreen-prefix-char 'escreen-prefix)
+;; add C-\ l to list screens with emphase for current one
+
+                                        ; EDITOR CONFIGURATION
+                                        ; disable wordwrap by default
+(setq-default truncate-lines nil)
+
+
+
+
+
 (setq lisp-indent-offset 2)
 ;; Use only spaces (no tabs at all).
 (setq-default indent-tabs-mode nil)
@@ -60,7 +77,7 @@
 ;;tabbar mode
 (tabbar-mode 1)
 
-(load-theme 'tango-dark)
+(load-theme 'tango)
 
 
 ;; auto-complete
@@ -222,6 +239,7 @@ Including indent-buffer, which should not be called automatically on save."
  '(custom-safe-themes (quote ("71efabb175ea1cf5c9768f10dad62bb2606f41d110152f4ace675325d28df8bd" default)))
  '(show-paren-mode t)
  '(tool-bar-mode nil))
+
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
