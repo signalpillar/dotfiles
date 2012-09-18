@@ -10,6 +10,7 @@ runtime
 .config/*
 *.dat
 .emacs.d/backups/
+.emacs.d/elpa/
 .emacs.d/places
 .emacs.d/auto-save-list/
 .emacs.d/url/cookies
