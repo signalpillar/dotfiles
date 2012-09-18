@@ -17,11 +17,6 @@
                                         ; EDITOR CONFIGURATION
                                         ; disable wordwrap by default
 (setq-default truncate-lines nil)
-
-
-
-
-
 (setq lisp-indent-offset 2)
 ;; Use only spaces (no tabs at all).
 (setq-default indent-tabs-mode nil)
@@ -130,3 +125,27 @@ Including indent-buffer, which should not be called automatically on save."
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(default ((t (:family "DejaVu Sans Mono" :foundry "unknown" :slant normal :weight normal :height 98 :width normal)))))
+
+
+                                        ; eproject
+(add-to-list 'load-path "~/.emacs.d/eproject")
+(require 'eproject)
+(require 'eproject-extras)
+
+(define-project-type pydevproject (generic)
+  (look-for ".pydevproject")
+  :relevant-files ("\.py$" "\.xml$" "\.md$" "\.properties$"))
+
+(defun run-jython-tests ()
+  "Execute jython tests in currect buffer"
+  (interactive)
+  ; take project root folder and read .pydevproject file 
+  (let ((project-file (concat (eproject-root) "/.pydevproject"))
+         content
+         python-path)
+    (with-temp-buffer
+      (insert-file-contents-literally project-file)
+      (setq content (read (current-buffer))))
+    ; compose PYTHONPATH
+    (message (format "found %s" project-file))))
+
