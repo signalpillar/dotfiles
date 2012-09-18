@@ -131,10 +131,23 @@ Including indent-buffer, which should not be called automatically on save."
 (add-to-list 'load-path "~/.emacs.d/eproject")
 (require 'eproject)
 (require 'eproject-extras)
+                                        ; projects type configuration
+
+(define-project-type java-based (generic)
+  :common-key "value")
+
+(define-project-type clojure (java-based)
+  (look-for ".scalaproject")
+  :relevant-files ("\.java$" "\.scala$"))
+
+(define-project-type scala (java-based)
+  (look-for ".scalaproject")
+  :relevant-files ("\.java$" "\.scala$"))
 
 (define-project-type pydevproject (generic)
   (look-for ".pydevproject")
   :relevant-files ("\.py$" "\.xml$" "\.md$" "\.properties$"))
+
 
 (defun run-jython-tests ()
   "Execute jython tests in currect buffer"
