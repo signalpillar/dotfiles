@@ -3,6 +3,8 @@
              '("marmalade" . "http://marmalade-repo.org/packages/") t)
 (package-initialize)
 
+                                        ; TOOLBAR
+(menu-bar-mode 1)
                                         ; ELSCREEN
 
 (add-to-list 'load-path "~/.emacs.d/escreen/")
