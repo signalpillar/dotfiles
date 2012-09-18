@@ -76,18 +76,18 @@
 (require 'multi-scratch)
 (global-set-key (kbd "C-<f11>") 'multi-scratch-new)
 
-(load-theme 'tango)
+(load-theme 'tsdh-dark)
 
 
 ;; auto-complete
-; (require 'auto-complete-config)
-; (ac-config-default)
+(require 'auto-complete-config)
+(ac-config-default)
 
-;(require 'ac-slime)
-;(add-hook 'slime-mode-hook 'set-up-slime-ac)
-;(add-hook 'slime-repl-mode-hook 'set-up-slime-ac)
-;(eval-after-load "auto-complete"
-;  '(add-to-list 'ac-modes 'slime-repl-mode))
+(require 'ac-slime)
+(add-hook 'slime-mode-hook 'set-up-slime-ac)
+(add-hook 'slime-repl-mode-hook 'set-up-slime-ac)
+(eval-after-load "auto-complete"
+  '(add-to-list 'ac-modes 'slime-repl-mode))
 
 
 ;; comment-or-uncomment
