@@ -1,3 +1,6 @@
+                                        ; run in server mode
+(server-start)
+                                        ; package managment
 (require 'package)
 (add-to-list 'package-archives
              '("marmalade" . "http://marmalade-repo.org/packages/") t)
@@ -157,7 +160,7 @@ Including indent-buffer, which should not be called automatically on save."
 
 (defun parse-pydevproject (content))
 
-(defun run-jython-tests ()
+(defun jj-run-jython ()
   "Execute jython tests in currect buffer"
   (interactive)
   ; take project root folder and read .pydevproject file 
@@ -219,4 +222,3 @@ Including indent-buffer, which should not be called automatically on save."
 
 
 (global-set-key (kbd "M-p") 'any-eproject)
-
