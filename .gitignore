@@ -1,4 +1,5 @@
-bin/
+bin/*
+!bin/ec
 *.svn/
 *.class
 src/main/resources/

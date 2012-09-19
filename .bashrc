@@ -101,5 +101,8 @@ export MAVEN=$dt/apache-maven
 export SCALA_HOME=$dt/scala
 export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin
 
+# editor
+export EDITOR=~/bin/ec
+
 # git 
 source /usr/share/git/completion/git-completion.bash
