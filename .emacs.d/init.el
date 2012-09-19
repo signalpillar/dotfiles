@@ -15,7 +15,7 @@
 ;; add C-\ l to list screens with emphase for current one
 
                                         ; EDITOR CONFIGURATION
-                                        ; disable wordwrap by default
+; disable wordwrap by default
 (setq-default truncate-lines nil)
 (setq lisp-indent-offset 2)
 ;; Use only spaces (no tabs at all).
@@ -72,7 +72,6 @@
 (global-set-key (kbd "C-<f11>") 'multi-scratch-new)
 
 (load-theme 'tsdh-dark)
-
 
 ;; auto-complete
 (require 'auto-complete-config)
@@ -133,14 +132,11 @@ Including indent-buffer, which should not be called automatically on save."
 (require 'eproject-extras)
                                         ; projects type configuration
 
-(define-project-type java-based (generic)
-  :common-key "value")
-
-(define-project-type clojure (java-based)
+(define-project-type clojure (generic)
   (look-for ".scalaproject")
   :relevant-files ("\.java$" "\.scala$"))
 
-(define-project-type scala (java-based)
+(define-project-type scala (generic)
   (look-for ".scalaproject")
   :relevant-files ("\.java$" "\.scala$"))
 
@@ -161,4 +157,32 @@ Including indent-buffer, which should not be called automatically on save."
       (setq content (read (current-buffer))))
     ; compose PYTHONPATH
     (message (format "found %s" project-file))))
+
+                                        ; make anythin.el to work with eproject
+(require 'cl)
+(defun anything-eproject-get-files ()
+  (let ((matcher (format "\\(?:%s\\)"
+                         (reduce (lambda (a b) (concat a "\\|" b))
+                                 (mapcar (lambda (f) (format "\\(?:%s\\)" f))
+                                         (eproject-get-project-metadatum
+                                          (eproject-type) :relevant-files))))))
+    (eproject--search-directory-tree (eproject-root) matcher "$^")))
+
+(defvar anything-eproject-source
+  '((name . "Eproject")
+    (init . (lambda ()
+              (setq anything-eproject-last-buffer (current-buffer))))
+    (type . file)
+    (candidates . (lambda ()
+                    (with-current-buffer anything-eproject-last-buffer
+                      (anything-eproject-get-files))))))
+
+(defun any-eproject ()
+  "helps anything to use eproject to find a file"
+  (interactive)
+  (let ((anything-sources '(anything-eproject-source)) anything-samewindow)
+    (anything nil nil nil nil nil "eproject")))
+
+
+(global-set-key (kbd "M-p") 'any-eproject)
 
