@@ -145,18 +145,52 @@ Including indent-buffer, which should not be called automatically on save."
   :relevant-files ("\.py$" "\.xml$" "\.md$" "\.properties$"))
 
 
+(defun generate-pydevprojectrun-file (file)
+  "Generate content ")
+
+(defun compose-cmd-line (jython-home python-path python-ext-path script)
+  "Compose command line for jython script execution")
+
+(defun file-read-content (file))
+
+(defun file-write-content (file content))
+
+(defun parse-pydevproject (content))
+
 (defun run-jython-tests ()
   "Execute jython tests in currect buffer"
   (interactive)
   ; take project root folder and read .pydevproject file 
   (let ((project-file (concat (eproject-root) "/.pydevproject"))
-         content
-         python-path)
-    (with-temp-buffer
-      (insert-file-contents-literally project-file)
-      (setq content (read (current-buffer))))
-    ; compose PYTHONPATH
-    (message (format "found %s" project-file))))
+         (run-file (concat (eproject-root) "/.pydevrun"))
+         (one-hour-in-sec (* 60 60)))
+    ; check for the stored file .pydevrun
+    (when (or (not (file-exists-p run-file))
+            (progn (let
+                     (attrs (file-attributes run-file))
+                     (modification-time (float-time (elt attrs 5)))
+                     (current-time (float-time))
+                     ; compute difference 1 HOUR
+                     (> (- current-time modification-time) one-hour-in-sec))))
+      
+      ; get content of .pydevproject file
+      (setq pydevproject (parse-pydevproject (file-read-content project-file)))
+      (file-write-content project-run-file
+        (compose-cmd-line
+          jython-home
+          ; pythonpath and python ext path (libs)
+          (elt pydevproject 0) (elt pydevproject 1))))
+
+    ; execute & redirect output to temporary buffer
+    (show-in-temporary-buffer
+      (execute-shell-cmd
+        (string (get-file-content run-file) (current-buffer))))))
+    
+    
+    ;; (with-temp-buffer
+    ;;   (insert-file-contents-literally project-file)
+    ;;   (setq content (read (current-buffer))))
+
 
                                         ; make anythin.el to work with eproject
 (require 'cl)
