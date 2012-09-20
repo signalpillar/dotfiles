@@ -145,15 +145,24 @@ Including indent-buffer, which should not be called automatically on save."
   :relevant-files ("\.py$" "\.xml$" "\.md$" "\.properties$"))
 
 
-(defun generate-pydevprojectrun-file (file)
-  "Generate content ")
+                                        ; jython stuff
 
 (defun compose-cmd-line (jython-home python-path python-ext-path script)
   "Compose command line for jython script execution")
 
-(defun file-read-content (file))
+(defun file-read-content (file)
+  "Read the contents of a file and return as a string."
+  (with-temp-buffer
+    (insert-file-contents file)
+    (buffer-string)))
 
-(defun file-write-content (file content))
+(defun file-write-content (file content)
+   (with-temp-buffer
+     (insert content)
+     (when (file-writable-p file)
+       (write-region (point-min)
+                     (point-max)
+                     file))))
 
 (defun parse-pydevproject (content))
 
