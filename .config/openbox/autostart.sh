@@ -2,6 +2,7 @@ tint2 &
 tilda &
 #tomboy &
 parcellite &
+volwheel &
 (sleep 3 && /usr/bin/nm-applet --sm-disable) &
 #skype &
 xmodmap ~/.xmodmap &
