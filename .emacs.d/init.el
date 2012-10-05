@@ -1,15 +1,26 @@
-                                        ; run in server mode
-(server-start)
+;; Turn off mouse interface early in startup to avoid momentary display
+(if (fboundp 'menu-bar-mode) (menu-bar-mode -1))
+(if (fboundp 'tool-bar-mode) (tool-bar-mode -1))
+(if (fboundp 'scroll-bar-mode) (scroll-bar-mode -1))
+
+;; run as server
+(require 'server)
+(unless (server-running-p)
+  (server-start))
+
+; Prevent noise when C-g is hit
+(setq visible-bell t)
+(blink-cursor-mode)
+(show-paren-mode t)
                                         ; package managment
 (require 'package)
 (add-to-list 'package-archives
              '("marmalade" . "http://marmalade-repo.org/packages/") t)
+(add-to-list 'package-archives
+             '("melpa" . "http://melpa.milkbox.net/packages/") t)
 (package-initialize)
 
-                                        ; TOOLBAR
-(menu-bar-mode 1)
                                         ; ELSCREEN
-
 (add-to-list 'load-path "~/.emacs.d/escreen/")
 (load "escreen")
 (escreen-install)
@@ -117,7 +128,7 @@ Including indent-buffer, which should not be called automatically on save."
  ;; If there is more than one, they won't work right.
  '(blink-cursor-mode nil)
  '(column-number-mode t)
- '(custom-safe-themes (quote ("71efabb175ea1cf5c9768f10dad62bb2606f41d110152f4ace675325d28df8bd" default)))
+ '(custom-safe-themes (quote ("1f2b1f771fb60d7fb0f31d7adfc1e1c4524c7318c3aeb100ad6fab4dce389c0b" "71efabb175ea1cf5c9768f10dad62bb2606f41d110152f4ace675325d28df8bd" default)))
  '(show-paren-mode t)
  '(tool-bar-mode nil))
 
@@ -136,8 +147,8 @@ Including indent-buffer, which should not be called automatically on save."
                                         ; projects type configuration
 
 (define-project-type clojure (generic)
-  (look-for ".scalaproject")
-  :relevant-files ("\.java$" "\.scala$"))
+  (look-for "project.clj")
+  :relevant-files ("\.clj$"))
 
 (define-project-type scala (generic)
   (look-for ".scalaproject")
@@ -231,3 +242,18 @@ Including indent-buffer, which should not be called automatically on save."
 
 
 (global-set-key (kbd "M-p") 'any-eproject)
+;; (global-set-key (kbd "M-S-<up>") 'enlarge-window)
+;; (global-set-key (kbd "M-S-<down>") 'shrink-window)
+(global-set-key (kbd "<f8>") (lambda () (interactive) (message (buffer-file-name))))
+
+
+                                        ; nrepl
+
+(add-hook 'nrepl-interaction-mode-hook
+  'nrepl-turn-on-eldoc-mode)
+
+(add-to-list 'same-window-buffer-names "*nrepl")
+
+;; Fill column indicator
+(require 'fill-column-indicator)
+(setq fci-rule-color "#111122")
