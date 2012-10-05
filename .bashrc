@@ -99,7 +99,7 @@ export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
 export SCALA_HOME=$dt/scala
-export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin
+export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
 
 # editor
 export EDITOR=~/bin/ec
