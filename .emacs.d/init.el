@@ -29,6 +29,8 @@
 ;; add C-\ l to list screens with emphase for current one
 
                                         ; EDITOR CONFIGURATION
+; highlight entire expression
+(setq show-paren-style 'expression)
 ; disable wordwrap by default
 (setq-default truncate-lines nil)
 (setq lisp-indent-offset 2)
@@ -197,23 +199,18 @@ Including indent-buffer, which should not be called automatically on save."
                      (> (- current-time modification-time) one-hour-in-sec))))
       
       ; get content of .pydevproject file
+      (setq jython-home "/media/repos/dt/jython-2.1")
       (setq pydevproject (parse-pydevproject (file-read-content project-file)))
-      (file-write-content project-run-file
+      (file-write-content run-file
         (compose-cmd-line
-          jython-home
+          (string jython-home "/jython.jar")
           ; pythonpath and python ext path (libs)
           (elt pydevproject 0) (elt pydevproject 1))))
 
     ; execute & redirect output to temporary buffer
     (show-in-temporary-buffer
       (execute-shell-cmd
-        (string (get-file-content run-file) (current-buffer))))))
-    
-    
-    ;; (with-temp-buffer
-    ;;   (insert-file-contents-literally project-file)
-    ;;   (setq content (read (current-buffer))))
-
+        (string (get-file-content run-file) (buffer-file-name))))))
 
                                         ; make anythin.el to work with eproject
 (require 'cl)
