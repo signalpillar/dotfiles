@@ -1,5 +1,5 @@
 tint2 &
-tilda &
+guake &
 #tomboy &
 parcellite &
 volwheel &
