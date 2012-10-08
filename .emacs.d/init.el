@@ -23,13 +23,20 @@
 ;; load packages installed with package manager
 (package-initialize)
 ;; Add in your own as you wish:
-(defvar my-packages '(evil ac-slime slime-fuzzy
+(defvar my-packages '(evil
+                      paredit
+                      auto-complete
+                      ac-slime slime-fuzzy
                            elscreen
 			   fill-column-indicator
 			   ;clojure related
 			   clojure-mode clojure-test-mode nrepl
 			   )
   "A list of packages to ensure are installed at launch.")
+(dolist (p my-packages)
+      (when (not (package-installed-p p))
+              (package-install p)))
+
 ; gui
 (tool-bar-mode 0)
 
@@ -39,7 +46,7 @@
 (load-theme 'tango-dark)
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
-(global-hl-line-mode nil)
+(global-hl-line-mode -1)                   ; disable current line hightlighting
 ;; show right margin (80symb)
 (define-globalized-minor-mode global-fci-mode fci-mode
   (lambda () (fci-mode 1)))
