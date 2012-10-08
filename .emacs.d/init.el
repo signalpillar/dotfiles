@@ -24,6 +24,7 @@
 (package-initialize)
 ;; Add in your own as you wish:
 (defvar my-packages '(evil ac-slime slime-fuzzy
+                           elscreen
 			   fill-column-indicator
 			   ;clojure related
 			   clojure-mode clojure-test-mode nrepl
@@ -38,6 +39,7 @@
 (load-theme 'tango-dark)
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
+(global-hl-line-mode nil)
 ;; show right margin (80symb)
 (define-globalized-minor-mode global-fci-mode fci-mode
   (lambda () (fci-mode 1)))
