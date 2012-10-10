@@ -38,6 +38,7 @@
 (load-theme 'tango-dark)
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
+(set-scroll-bar-mode nil)
 ;; show right margin (80symb)
 (define-globalized-minor-mode global-fci-mode fci-mode
   (lambda () (fci-mode 1)))
