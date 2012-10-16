@@ -39,6 +39,9 @@
 
 ; gui
 (tool-bar-mode 0)
+(menu-bar-mode 0)
+
+(global-set-key (kbd "<f2>") 'sr-speedbar-toggle)
 
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
@@ -140,3 +143,6 @@
 
 ;; used resources
 ; http://www.xsteve.at/prg/emacs/power-user-tips.html
+
+
+(require 'graphene)
