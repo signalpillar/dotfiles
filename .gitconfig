@@ -4,9 +4,33 @@
     cot = checkout --theirs
     ci = commit
     df = diff --ignore-all-space --color
-    st = status
+    st = status -sb
     stu = status --untracked-files=no
     hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
+    up = !(git add . && git stash && git pull --rebase >&2) | grep -v \"No local changes to save\" && git stash pop
+
+    # check for commits before running pull and push
+    in = "!git remote update -p; git log ..@{u}"
+    out = log @{u}..
+    # append to index new files/updates and remove all what was deleted
+    addremove = !git add . && git ls-files --deleted | xargs --no-run-if-empty git rm
+    unstage = reset HEAD --
+    backup = !file=../`git describe`.tar && echo \"Creating `readlink -f $file`\" && tar cf $file .
+    bl = blame -b -w
+    cia = commit --amend
+    lg = log --pretty=format:'%h was %an, %ar, message: %s' --graph
+    who = shortlog -s --
+    lsd = log --graph '--pretty=tformat:%Cblue%h%Creset %Cgreen%ar%Creset %Cblue%d%Creset %s' --all --simplify-by-decoration
+
+    sb = show-branch --sha1-name
+    ls-del = ls-files -d
+    ls-mod = ls-files -m # включая удалённые файлы
+    ls-new = ls-files --exclude-standard -o
+    ls-ign = ls-files --exclude-standard -o -i
+    ka = !gitk --all
+    kdo = !gitk --date-order
+    kado = !gitk --all --date-order
+    kasd = !gitk --all --simplify-by-decoration
 [help]
 	autocorrect = 10
 [color]
