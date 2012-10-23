@@ -24,6 +24,7 @@
 (package-initialize)
 ;; Add in your own as you wish:
 (defvar my-packages '(evil
+                      graphene
                       paredit
                       auto-complete
                       ac-slime slime-fuzzy
@@ -41,7 +42,6 @@
 (tool-bar-mode 0)
 (menu-bar-mode 0)
 
-(global-set-key (kbd "<f2>") 'sr-speedbar-toggle)
 
 ; disable creation of backup files
 (setq make-backup-files nil)
@@ -148,5 +148,7 @@
 ;; used resources
 ; http://www.xsteve.at/prg/emacs/power-user-tips.html
 
-
 (require 'graphene)
+(global-set-key [(f2)] 'sr-speedbar-toggle)
+(global-set-key [(f4)] 'sr-speedbar-select-window)
+
