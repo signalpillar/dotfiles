@@ -1,3 +1,11 @@
+;init.el --- my Emacs customizations
+;Table of contents
+;; 1: Emacs
+;; 2: Packages
+;; 3: Custom
+;Enable narrowing of regions
+(put 'narrow-to-region 'disabled nil)
+
 (setq-default inhibit-startup-screen t)
 ;; update "PATH" variable that is used from non-login shell
 (let (
@@ -152,3 +160,6 @@
 (global-set-key [(f2)] 'sr-speedbar-toggle)
 (global-set-key [(f4)] 'sr-speedbar-select-window)
 
+
+; These tell Emacs to associate certain filename extensions with certain modes.
+(push '("\\.md$" . markdown-mode) auto-mode-alist)
