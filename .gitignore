@@ -17,3 +17,5 @@ runtime
 .emacs.d/url/cookies
 *.elc
 *.*~
+.lein/*
+!.lein/profiles.clj
