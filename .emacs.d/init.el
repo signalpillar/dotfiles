@@ -140,10 +140,7 @@
 
 ; clojure 
 (setq inferior-lisp-program "lein repl")
-(add-hook 'clojure-mode-hook
-          (lambda ()
-            ((turn-on-paredit)
-             )))
+(add-hook 'clojure-mode-hook (lambda () (paredit-mode +1)))
 
 ; elscreen
 (load "elscreen" "ElScreen" t)
@@ -163,3 +160,5 @@
 
 ; These tell Emacs to associate certain filename extensions with certain modes.
 (push '("\\.md$" . markdown-mode) auto-mode-alist)
+
+
