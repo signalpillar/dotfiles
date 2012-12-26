@@ -22,133 +22,75 @@
 
 ;; load packages installed with package manager
 (package-initialize)
-;; Add in your own as you wish:
-(defvar my-packages '(evil
-                      graphene
-                      paredit
-                      auto-complete
-                      ac-slime slime-fuzzy
-                           elscreen
-			   fill-column-indicator
-			   ;clojure related
-			   clojure-mode clojure-test-mode nrepl
-			   )
-  "A list of packages to ensure are installed at launch.")
-(dolist (p my-packages)
-      (when (not (package-installed-p p))
-              (package-install p)))
+
+(evil-mode 1)
 
 ; gui
-(tool-bar-mode 0)
-(menu-bar-mode 0)
-
+;; (tool-bar-mode 0)
+(menu-bar-mode t)
+;(load-theme 'wombat)
 
 ; disable creation of backup files
 (setq make-backup-files nil)
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
-(set-frame-font "Monaco-10")               ; change font
-(load-theme 'tango-dark)
+;(set-frame-font "Monaco-12")               ; change font
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
-(global-hl-line-mode -1)                   ; disable current line hightlighting
+;; (global-hl-line-mode -1)                   ; disable current line hightlighting
 ;; show right margin (80symb)
-(define-globalized-minor-mode global-fci-mode fci-mode
-  (lambda () (fci-mode 1)))
-(global-fci-mode 1)
+;; (define-globalized-minor-mode global-fci-mode fci-mode
+;;   (lambda () (fci-mode 1)))
+;; (global-fci-mode 1)
 (setq-default fill-column 79)
+
 ; show line numbers always
-(global-linum-mode 1)
+(global-linum-mode -1)
+
 ; show paren mode
 (show-paren-mode 1)
-(setq show-paren-style 'expression)
-(set-face-background 'show-paren-match-face "#4F5152")
-;;; enable evil-mode
-(require 'evil)
-(evil-mode 1)
+(setq show-paren-style 'parenthesis)
+(set-face-background 'show-paren-match-face "#bAA")
 
-;; autocomplete
-(require 'auto-complete-config)
-(add-to-list 'ac-dictionary-directories "~/.emacs.d/ac-dict")
-(ac-config-default)
-(setq ac-delay 0.5)
-;; show menu after 0.5 seconds
-(setq ac-auto-show-menu 0.5)
-(setq ac-show-menu-immediately-on-auto-complete t)
-(setq ac-use-fuzzy t)
-;; ignore case
-(setq ac-ignore-case t)
-;; ac-slime
-(add-hook 'slime-mode-hook 'set-up-slime-ac)
-(add-hook 'slime-repl-mode-hook 'set-up-slime-ac)
-(eval-after-load "auto-complete"
-  '(add-to-list 'ac-modes 'slime-repl-mode))
 
-      
 ;; paredit
-(autoload 'paredit-mode "paredit" t)
-(add-hook 'emacs-lisp-mode-hook (lambda () (paredit-mode +1)))
-(add-hook 'slime-repl-mode-hook (lambda () (paredit-mode +1)))
-(add-hook 'lisp-mode-hook (lambda () (paredit-mode +1)))
-(add-hook 'lisp-interaction-mode-hook (lambda () (paredit-mode +1)))
-
-;; eldoc
-(require 'eldoc)
-(eldoc-add-command
- 'paredit-backward-delete
- 'paredit-close-round)
-
-;;ido
-(custom-set-variables
- '(ido-enable-last-directory-history t)
- '(ido-record-commands t)
- '(ido-max-work-file-list 10)
- '(ido-max-work-directory-list 5))
-
-(setq ido-enable-flex-matching t)
-(setq ido-everywhere t)
-(ido-mode 1)
-
-;; nrepl
-;; enable eldoc in clojure buffers
-(add-hook 'nrepl-interaction-mode-hook
-	  'nrepl-turn-on-eldoc-mode)
-;; stop the error buffer from popping up while working in the REPL
-(setq nrepl-popup-stacktraces nil)
+;; (autoload 'paredit-mode "paredit" t);
+;; (add-hook 'emacs-lisp-mode-hook (lambda () (paredit-mode +1)))
+;; (add-hook 'slime-repl-mode-hook (lambda () (paredit-mode +1)))
+;; (add-hook 'lisp-mode-hook (lambda () (paredit-mode +1)))
+;; (add-hook 'lisp-interaction-mode-hook (lambda () (paredit-mode +1)))
 
 
 ;; recentf
-(recentf-mode 1)
-(setq recentf-max-saved-items 500)
-(setq recentf-max-menu-items 60)
-(global-set-key [(meta f12)] 'recentf-open-files)
+;; (recentf-mode 1)
+;; (setq recentf-max-saved-items 500)
+;; (setq recentf-max-menu-items 60)
+;; (global-set-key [(meta f12)] 'recentf-open-files)
 
-;; ibuffer configuration
-(setq ibuffer-shrink-to-minimum-size t)
-(setq ibuffer-always-show-last-buffer nil)
-(setq ibuffer-sorting-mode 'recency)
-(setq ibuffer-use-header-line t)
-(global-set-key [(f12)] 'ibuffer)
 
 ; clojure 
 (setq inferior-lisp-program "lein repl")
+(defun compile-clj-buffer ()
+  "Compile current clojure buffer"
+  )
+
+(defun enable-paredit ()
+  (paredit-mode 1))
+(add-hook 'clojure-mode-hook 'enable-paredit)
 (add-hook 'clojure-mode-hook
-          (lambda ()
-            ((turn-on-paredit)
-             )))
+          '(lambda ()
+             (add-hook 'after-save-hook 'slime-compile-and-load-file)))
 
-; elscreen
-(load "elscreen" "ElScreen" t)
-(setq elscreen-prefix-key (kbd "C-c c")
-      elscreen-display-tab nil)
-(global-unset-key elscreen-prefix-key)
-(global-set-key elscreen-prefix-key elscreen-map)
-(elscreen-start)
 
-;; used resources
-; http://www.xsteve.at/prg/emacs/power-user-tips.html
-
-(require 'graphene)
 (global-set-key [(f2)] 'sr-speedbar-toggle)
 (global-set-key [(f4)] 'sr-speedbar-select-window)
+(global-set-key [(f5)] 'rever-buffer)
+
+; (require 'graphene)
+
+; (setq graphene-linum-auto nil)
+
+(add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
+
+(ido-mode t)
 
