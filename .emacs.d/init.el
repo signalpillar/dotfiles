@@ -32,9 +32,13 @@
 
 ; disable creation of backup files
 (setq make-backup-files nil)
-; global editor settings
-(setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
-(set-frame-font "Inconsolata-11")               ; change font
+;; =================== global editor settings ==============
+; use only spaces (no tabs at all)
+(setq-default indent-tabs-mode nil)        
+(setq-default tab-width 2)
+(setq standard-indent 2)
+
+(set-frame-font "Inconsolata-11")               
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
 ;; (global-hl-line-mode -1)                   ; disable current line hightlighting
@@ -99,4 +103,7 @@
 ; enable bindings to move among windows (Shift + Arrow Key)
 (when (fboundp 'windmove-default-keybindings)
   (windmove-default-keybindings))
+
+;; ============= Backup files ==================
+(setq make-backup-files nil)
 
