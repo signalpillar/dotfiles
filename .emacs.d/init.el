@@ -27,8 +27,8 @@
 
 ; gui
 (tool-bar-mode 0)
-(menu-bar-mode t)
-;(load-theme 'wombat)
+(menu-bar-mode 0)
+(load-theme 'wombat)
 
 ; disable creation of backup files
 (setq make-backup-files nil)
@@ -93,7 +93,8 @@
 (add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
 
 (ido-mode t)
-
+; disable scroll bars
+(scroll-bar-mode -1)
 
 ; enable bindings to move among windows (Shift + Arrow Key)
 (when (fboundp 'windmove-default-keybindings)
