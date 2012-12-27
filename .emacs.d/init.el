@@ -26,7 +26,7 @@
 (evil-mode 1)
 
 ; gui
-;; (tool-bar-mode 0)
+(tool-bar-mode 0)
 (menu-bar-mode t)
 ;(load-theme 'wombat)
 
@@ -34,7 +34,7 @@
 (setq make-backup-files nil)
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
-;(set-frame-font "Monaco-12")               ; change font
+(set-frame-font "Inconsolata-11")               ; change font
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
 ;; (global-hl-line-mode -1)                   ; disable current line hightlighting
@@ -77,9 +77,9 @@
 (defun enable-paredit ()
   (paredit-mode 1))
 (add-hook 'clojure-mode-hook 'enable-paredit)
-(add-hook 'clojure-mode-hook
-          '(lambda ()
-             (add-hook 'after-save-hook 'slime-compile-and-load-file)))
+;; (add-hook 'clojure-mode-hook
+;;           '(lambda ()
+;;              (add-hook 'after-save-hook 'slime-compile-and-load-file)))
 
 
 (global-set-key [(f2)] 'sr-speedbar-toggle)
@@ -93,4 +93,9 @@
 (add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
 
 (ido-mode t)
+
+
+; enable bindings to move among windows (Shift + Arrow Key)
+(when (fboundp 'windmove-default-keybindings)
+  (windmove-default-keybindings))
 
