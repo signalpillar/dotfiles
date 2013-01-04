@@ -107,3 +107,8 @@
 ;; ============= Backup files ==================
 (setq make-backup-files nil)
 
+(defun jao-toggle-selective-display ()
+  (interactive)
+  (set-selective-display (if selective-display nil 1)))
+
+(global-set-key [f3] 'jao-toggle-selective-display)
