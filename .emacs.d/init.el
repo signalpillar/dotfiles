@@ -112,6 +112,19 @@
   "Kill all other buffers."
   (interactive)
   (mapc 'kill-buffer (delq (current-buffer) (buffer-list))))
+
+; Making Emacs Indent Tests Properly
+(eval-after-load 'clojure-mode
+  '(define-clojure-indent
+     (describe 'defun)
+     (testing 'defun)
+     (given 'defun)
+     (using 'defun)
+     (with 'defun)
+     (it 'defun)
+     (do-it 'defun)))
+
+;
 (defun jao-toggle-selective-display ()
   (interactive)
   (set-selective-display (if selective-display nil 1)))
