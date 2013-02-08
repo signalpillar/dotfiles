@@ -16,6 +16,8 @@ runtime
 .emacs.d/auto-save-list/
 .emacs.d/url/cookies
 *.elc
-*.*~
+*~
+*#
+.#*
 .lein/*
 !.lein/profiles.clj
