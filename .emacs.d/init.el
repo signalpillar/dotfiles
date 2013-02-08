@@ -1,12 +1,11 @@
 (setq-default inhibit-startup-screen t)
 ;; update "PATH" variable that is used from non-login shell
-(let (
-      (mypaths
+(let ((mypaths
        (list 
          "/home/spillar/bin"
-         (getenv "PATH")
-         )
-       ))
+         "/bin"
+         "/usr/bin/"
+         (getenv "PATH")))) 
 
   (setenv "PATH" (mapconcat 'identity mypaths ":") )
   (setq exec-path (append mypaths (list "." exec-directory)) )) 
@@ -33,12 +32,17 @@
 ; disable creation of backup files
 (setq make-backup-files nil)
 ;; =================== global editor settings ==============
+;; Save point position between sessions
+(require 'saveplace)
+(setq-default save-place t)
+(setq save-place-file (expand-file-name ".places" user-emacs-directory))
+
 ; use only spaces (no tabs at all)
 (setq-default indent-tabs-mode nil)        
 (setq-default tab-width 2)
 (setq standard-indent 2)
 
-(set-frame-font "Inconsolata-11")               
+(set-frame-font "Inconsolata-12")               
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
 ;; (global-hl-line-mode -1)                   ; disable current line hightlighting
@@ -81,6 +85,12 @@
 (defun enable-paredit ()
   (paredit-mode 1))
 (add-hook 'clojure-mode-hook 'enable-paredit)
+(add-hook 'clojure-mode-hook 'rainbow-delimiters-mode)
+
+; nrepl
+(setq nrepl-popup-stacktraces nil)
+(add-hook 'nrepl-mode-hook 'enable-paredit)
+(add-hook 'nrepl-mode-hook 'rainbow-delimiters-mode)
 ;; (add-hook 'clojure-mode-hook
 ;;           '(lambda ()
 ;;              (add-hook 'after-save-hook 'slime-compile-and-load-file)))
@@ -107,6 +117,9 @@
 ;; ============= Backup files ==================
 (setq make-backup-files nil)
 
+;; project-mode
+;; clojure-project-mode
+(require 'clojure-project-mode)
 
 (defun kill-other-buffers ()
   "Kill all other buffers."
