@@ -1,11 +1,13 @@
 (setq-default inhibit-startup-screen t)
 ;; update "PATH" variable that is used from non-login shell
-(let ((mypaths
+(let (
+      (mypaths
        (list 
-         "/home/spillar/bin"
-         "/bin"
          "/usr/bin/"
-         (getenv "PATH")))) 
+         "/home/spillar/bin"
+         (getenv "PATH")
+         )
+       ))
 
   (setenv "PATH" (mapconcat 'identity mypaths ":") )
   (setq exec-path (append mypaths (list "." exec-directory)) )) 
@@ -25,24 +27,15 @@
 (evil-mode 1)
 
 ; gui
-(tool-bar-mode 0)
-(menu-bar-mode 0)
-(load-theme 'wombat)
+;; (tool-bar-mode 0)
+(menu-bar-mode t)
+;(load-theme 'wombat)
 
 ; disable creation of backup files
 (setq make-backup-files nil)
-;; =================== global editor settings ==============
-;; Save point position between sessions
-(require 'saveplace)
-(setq-default save-place t)
-(setq save-place-file (expand-file-name ".places" user-emacs-directory))
-
-; use only spaces (no tabs at all)
-(setq-default indent-tabs-mode nil)        
-(setq-default tab-width 2)
-(setq standard-indent 2)
-
-(set-frame-font "Inconsolata-12")               
+; global editor settings
+(setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
+;(set-frame-font "Inconsolata-12")               ; change font
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
 ;; (global-hl-line-mode -1)                   ; disable current line hightlighting
@@ -85,15 +78,7 @@
 (defun enable-paredit ()
   (paredit-mode 1))
 (add-hook 'clojure-mode-hook 'enable-paredit)
-(add-hook 'clojure-mode-hook 'rainbow-delimiters-mode)
-
-; nrepl
-(setq nrepl-popup-stacktraces nil)
-(add-hook 'nrepl-mode-hook 'enable-paredit)
-(add-hook 'nrepl-mode-hook 'rainbow-delimiters-mode)
-;; (add-hook 'clojure-mode-hook
-;;           '(lambda ()
-;;              (add-hook 'after-save-hook 'slime-compile-and-load-file)))
+; (add-hook 'clojure-mode-hook '(lambda () ;(add-hook 'after-save-hook 'slime-compile-and-load-file)))
 
 
 (global-set-key [(f2)] 'sr-speedbar-toggle)
@@ -107,39 +92,62 @@
 (add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
 
 (ido-mode t)
-; disable scroll bars
-(scroll-bar-mode -1)
 
-; enable bindings to move among windows (Shift + Arrow Key)
-(when (fboundp 'windmove-default-keybindings)
-  (windmove-default-keybindings))
+(require 'auto-complete-config)
+(add-to-list 'ac-dictionary-directories "~/.emacs.d//ac-dict")
+(ac-config-default)
 
-;; ============= Backup files ==================
-(setq make-backup-files nil)
+(require 'ac-slime)
+(add-hook 'slime-mode-hook 'set-up-slime-ac)
 
-;; project-mode
-;; clojure-project-mode
-(require 'clojure-project-mode)
+;; dirty fix for having AC everywhere
+(define-globalized-minor-mode real-global-auto-complete-mode
+  auto-complete-mode (lambda ()                       
+                       (if (not (minibufferp (current-buffer)))                           
+                           (auto-complete-mode 1))))
+(real-global-auto-complete-mode t)
 
-(defun kill-other-buffers ()
-  "Kill all other buffers."
-  (interactive)
-  (mapc 'kill-buffer (delq (current-buffer) (buffer-list))))
-
-; Making Emacs Indent Tests Properly
-(eval-after-load 'clojure-mode
-  '(define-clojure-indent
-     (describe 'defun)
-     (testing 'defun)
-     (given 'defun)
-     (using 'defun)
-     (with 'defun)
-     (it 'defun)
-     (do-it 'defun)))
-
-;
 (defun jao-toggle-selective-display ()
   (interactive)
   (set-selective-display (if selective-display nil 1)))
 
 (global-set-key [f3] 'jao-toggle-selective-display)
+
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(blink-cursor-mode nil)
+ '(column-number-mode t)
+ '(show-paren-mode t)
+ '(size-indication-mode t)
+ '(tool-bar-mode nil))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(default ((t (:family "Inconsolata" :foundry "unknown" :slant normal :weight normal :height 113 :width normal)))))
+
+
+(defun collect-regexp-results (regex)
+  ;;; collects all the matches of regex in a buffer called *collect-result*
+  ;;; then switches to that buffer
+  ;;; TODO refactor this to take the region as a parameter
+  (interactive "Mregex to search for: ")
+  (let ((curmin (region-or-buffer-beginning))
+        (curmax (region-or-buffer-end)))
+    (save-excursion
+      (goto-char curmin)
+      ;; (goto-char (region-or-buffer-beginning))
+      (while (re-search-forward regex curmax t)
+        (let ((retval (match-string-no-properties 0)))
+          (with-current-buffer (get-buffer-create "*collect results*")
+            (insert retval)
+            (insert "\n"))))
+      (switch-to-buffer "*collect results*"))))
+ 
+(defun collect-ip-addresses ()
+  (interactive)
+  (collect-regexp-results "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"))
