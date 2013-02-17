@@ -1,4 +1,7 @@
 [alias]
+    ap = "add --patch"
+    au = "add --update"
+    ss = "stash save -u"
     co = checkout
     coo = checkout --ours
     cot = checkout --theirs
@@ -31,6 +34,9 @@
     kdo = !gitk --date-order
     kado = !gitk --all --date-order
     kasd = !gitk --all --simplify-by-decoration
+    l = "!git log-hist"
+    log-hist = "!git log-pretty --graph"
+    log-pretty = "log --pretty='format:%C(blue)%h%C(red)%d%C(yellow) %s %C(green)%an%Creset, %ar'"
 [help]
 	autocorrect = 10
 [color]
