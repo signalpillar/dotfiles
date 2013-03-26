@@ -85,13 +85,17 @@
 (global-set-key [(f4)] 'sr-speedbar-select-window)
 (global-set-key [(f5)] 'rever-buffer)
 
-; (require 'graphene)
-
-; (setq graphene-linum-auto nil)
+(require 'graphene)
+(setq graphene-linum-auto nil)
 
 (add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
 
 (ido-mode t)
+;; show recently opened buffers but closed in ido
+(setq ido-use-virtual-buffers t)
+
+;; minimal comfort
+(fset 'yes-or-no-p 'y-or-n-p)
 
 (require 'auto-complete-config)
 (add-to-list 'ac-dictionary-directories "~/.emacs.d//ac-dict")
@@ -123,12 +127,7 @@
  '(show-paren-mode t)
  '(size-indication-mode t)
  '(tool-bar-mode nil))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(default ((t (:family "Inconsolata" :foundry "unknown" :slant normal :weight normal :height 113 :width normal)))))
+
 
 
 (defun collect-regexp-results (regex)
