@@ -1,3 +1,6 @@
+;; keep message buffer complete
+(setq messasge-log-max t)
+
 (setq-default inhibit-startup-screen t)
 ;; update "PATH" variable that is used from non-login shell
 (let (
@@ -27,18 +30,20 @@
 (evil-mode 1)
 
 ; gui
-;; (tool-bar-mode 0)
-(menu-bar-mode t)
-;(load-theme 'wombat)
+(size-indication-mode t)
+(scroll-bar-mode -1)
+(tool-bar-mode 0)
+(menu-bar-mode 0)
+;;(load-theme 'wombat t nil)
+(color-theme-monokai)
 
 ; disable creation of backup files
 (setq make-backup-files nil)
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
-;(set-frame-font "Inconsolata-12")               ; change font
+(set-frame-font "Monaco-10")               ; change font
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
-;; (global-hl-line-mode -1)                   ; disable current line hightlighting
 ;; show right margin (80symb)
 ;; (define-globalized-minor-mode global-fci-mode fci-mode
 ;;   (lambda () (fci-mode 1)))
@@ -85,9 +90,6 @@
 (global-set-key [(f4)] 'sr-speedbar-select-window)
 (global-set-key [(f5)] 'rever-buffer)
 
-(require 'graphene)
-(setq graphene-linum-auto nil)
-
 (add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
 
 (ido-mode t)
@@ -117,16 +119,10 @@
 
 (global-set-key [f3] 'jao-toggle-selective-display)
 
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(blink-cursor-mode nil)
- '(column-number-mode t)
- '(show-paren-mode t)
- '(size-indication-mode t)
- '(tool-bar-mode nil))
+
+
+;; show (in left margin) marker for empty lines
+(setq-default indicate-empty-lines t)
 
 
 
@@ -162,3 +158,6 @@ user."
     (find-file file)))
 ;; or some other keybinding...
 (global-set-key (kbd "C-x F") 'djcb-find-file-as-root)
+
+(electric-pair-mode +1)
+
