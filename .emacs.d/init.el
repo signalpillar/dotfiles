@@ -1,5 +1,6 @@
 ;; keep message buffer complete
 (setq messasge-log-max t)
+(setq initial-scratch-message nil)
 
 (setq-default inhibit-startup-screen t)
 ;; update "PATH" variable that is used from non-login shell
@@ -27,6 +28,7 @@
 ;; load packages installed with package manager
 (package-initialize)
 
+(require 'graphene)
 (evil-mode 1)
 
 ; gui
@@ -41,7 +43,7 @@
 (setq make-backup-files nil)
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
-(set-frame-font "Monaco-10")               ; change font
+;(set-frame-font "Monaco-10")               ; change font
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
 ;; show right margin (80symb)
@@ -124,8 +126,6 @@
 ;; show (in left margin) marker for empty lines
 (setq-default indicate-empty-lines t)
 
-
-
 (defun collect-regexp-results (regex)
   ;;; collects all the matches of regex in a buffer called *collect-result*
   ;;; then switches to that buffer
@@ -160,4 +160,13 @@ user."
 (global-set-key (kbd "C-x F") 'djcb-find-file-as-root)
 
 (electric-pair-mode +1)
+
+;; enable git-gutter mode globally
+(global-git-gutter-mode t)
+
+
+;; markdown-mode bindings
+(add-to-list 'auto-mode-alist '("\\.md" . markdown-mode))
+
+
 
