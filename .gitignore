@@ -21,3 +21,6 @@ runtime
 .#*
 .lein/*
 !.lein/profiles.clj
+.DS_Store
+.idea/
+*.iml
