@@ -48,7 +48,7 @@
 	tool = diffuse
 [core]
 	excludesfile = ~/.gitignore
-	editor = gvim
+	editor = vim
 [svn]
 	rmdir = true
 [gui]
