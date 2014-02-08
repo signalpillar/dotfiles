@@ -196,3 +196,10 @@ function transmitFileLikeHttpServer {
 function printTcpConnectionStatistic {
     netstat -npat|grep ESTABLISHED | awk 'BEGIN{counter=0;} {split($5,a,":");ip=a[1];if(ip in ips)ips[ip]+=1;else ips[ip]=1;counter++;} END{for(i in ips)print i" = "ips[i]"\n"}'| sort | grep -vP '^\s*$'
 }
+
+function is_grub_installed {
+    sudo dd bs=512 count=1 if=$1 | od -Ax -tx1z -v
+}
+
+# mac osx
+# system_profiler -xml SPHardwareDataType
