@@ -24,3 +24,6 @@ runtime
 .DS_Store
 .idea/
 *.iml
+
+# python compiled
+*.pyc

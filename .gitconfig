@@ -1,4 +1,5 @@
 [alias]
+    dfc = "diff --cached"
     ap = "add --patch"
     au = "add --update"
     ss = "stash save -u"
@@ -9,7 +10,7 @@
     df = diff --ignore-all-space --color
     st = status -sb
     stu = status --untracked-files=no
-    hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
+    #hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
     up = !(git add . && git stash && git pull --rebase >&2) | grep -v \"No local changes to save\" && git stash pop
 
     # check for commits before running pull and push
@@ -34,9 +35,12 @@
     kdo = !gitk --date-order
     kado = !gitk --all --date-order
     kasd = !gitk --all --simplify-by-decoration
-    l = "!git log-hist"
+    hist = "!git log-hist"
     log-hist = "!git log-pretty --graph"
-    log-pretty = "log --pretty='format:%C(blue)%h%C(red)%d%C(yellow) %s %C(green)%an%Creset, %ar'"
+    log-pretty = "log --first-parent --pretty='format:%C(blue)%h%C(red)%d%C(yellow) %s %C(green)[%an]%Creset, %ar'"
+    review = !`git rev-parse --show-toplevel`/../devtools/rm-post-review
+    springcleaning = for-each-ref --sort=-committerdate --format='%(refname:short) %(committerdate:short)'
+
 [help]
 	autocorrect = 10
 [color]
@@ -45,7 +49,7 @@
 	interactive = auto
 	status = auto
 [diff]
-	tool = diffuse
+	tool = /Applications/DiffMerge.app/Contents/MacOS/DiffMerge
 [core]
 	excludesfile = ~/.gitignore
 	editor = vim
@@ -55,6 +59,7 @@
     ;fontgui = -family \"Lucida Sans\" -size 13 -weight normal -slant roman -underline 0 -overstrike 0
 	fontdiff = -family \"DejaVu Sans Mono\" -size 9 -weight normal -slant roman -underline 0 -overstrike 0
 	fontui = -family \"DejaVu Sans Mono\" -size 10 -weight bold -slant roman -underline 0 -overstrike 0
+	historybrowser = gitk
 	;fontdiff = -family fixed -size 10 -weight normal -slant roman -underline 0 -overstrike 0
 [merge]
 	tool = diffuse
@@ -62,5 +67,15 @@
 	cmd = diffuse \"$FILENAME\"
 	noconsole = yes
 [user]
-	email = signalpillar@signalpillar
-	name = signalpillar
+	email = vitvitskiy@rivermeadow.com
+	name = Vladimir Vitvitskiy
+[mergetool]
+	keepBackup = true
+[difftool "sourcetree"]
+	cmd = /Applications/DiffMerge.app/Contents/MacOS/DiffMerge --nosplash \"$LOCAL\" \"$REMOTE\"
+	path = 
+[mergetool "sourcetree"]
+	cmd = /usr/local/bin/ksdiff --merge --output \"$MERGED\" --base \"$BASE\" -- \"$LOCAL\" --snapshot \"$REMOTE\" --snapshot
+	trustExitCode = true
+[cola]
+	savewindowsettings = false
