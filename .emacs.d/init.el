@@ -7,9 +7,9 @@
 (let (
       (mypaths
        (list 
+         (getenv "PATH")
          "/usr/bin/"
          "/home/spillar/bin"
-         (getenv "PATH")
          )
        ))
 
@@ -37,7 +37,7 @@
 (tool-bar-mode 0)
 (menu-bar-mode 0)
 ;;(load-theme 'wombat t nil)
-(color-theme-monokai)
+;;(color-theme-monokai)
 
 ; disable creation of backup files
 (setq make-backup-files nil)
@@ -105,8 +105,8 @@
 (add-to-list 'ac-dictionary-directories "~/.emacs.d//ac-dict")
 (ac-config-default)
 
-(require 'ac-slime)
-(add-hook 'slime-mode-hook 'set-up-slime-ac)
+; (require 'ac-slime)
+; (add-hook 'slime-mode-hook 'set-up-slime-ac)
 
 ;; dirty fix for having AC everywhere
 (define-globalized-minor-mode real-global-auto-complete-mode
@@ -162,11 +162,14 @@ user."
 (electric-pair-mode +1)
 
 ;; enable git-gutter mode globally
-(global-git-gutter-mode t)
+;; (global-git-gutter-mode t)
 
 
 ;; markdown-mode bindings
 (add-to-list 'auto-mode-alist '("\\.md" . markdown-mode))
 
+(electric-pair-mode -1)
 
-
+(require 'server)
+(or (server-running-p)
+    (server-start))
