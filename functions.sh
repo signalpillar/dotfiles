@@ -201,5 +201,9 @@ function is_grub_installed {
     sudo dd bs=512 count=1 if=$1 | od -Ax -tx1z -v
 }
 
+function ec {
+    emacsclient -t $1
+}
+
 # mac osx
 # system_profiler -xml SPHardwareDataType
