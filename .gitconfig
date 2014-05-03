@@ -57,8 +57,8 @@
 	rmdir = true
 [gui]
     ;fontgui = -family \"Lucida Sans\" -size 13 -weight normal -slant roman -underline 0 -overstrike 0
-	fontdiff = -family \"DejaVu Sans Mono\" -size 9 -weight normal -slant roman -underline 0 -overstrike 0
-	fontui = -family \"DejaVu Sans Mono\" -size 10 -weight bold -slant roman -underline 0 -overstrike 0
+	fontdiff = -family Consolas -size 12 -weight normal -slant roman -underline 0 -overstrike 0
+	fontui = -family Consolas -size 12 -weight bold -slant roman -underline 0 -overstrike 0
 	historybrowser = gitk
 	;fontdiff = -family fixed -size 10 -weight normal -slant roman -underline 0 -overstrike 0
 [merge]
@@ -79,3 +79,6 @@
 	trustExitCode = true
 [cola]
 	savewindowsettings = false
+[filter "media"]
+	clean = git-media-clean %f
+	smudge = git-media-smudge %f
