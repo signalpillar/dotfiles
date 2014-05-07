@@ -56,5 +56,11 @@ export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
+export ALTERNATE_EDITOR=""
 export EDITOR=~/bin/ec
 
+
+. `brew --prefix`/etc/profile.d/z.sh
+. /usr/local/bin/virtualenvwrapper.sh
+
+alias vim=ec
