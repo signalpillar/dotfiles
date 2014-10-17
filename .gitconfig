@@ -1,5 +1,5 @@
 [alias]
-    dfc = "diff --cached"
+    dfc = "diff --cached --ignore-all-space --color --word-diff=color"
     ap = "add --patch"
     au = "add --update"
     ss = "stash save -u"
@@ -7,7 +7,7 @@
     coo = checkout --ours
     cot = checkout --theirs
     ci = commit
-    df = diff --ignore-all-space --color
+    df = diff --ignore-all-space --color --word-diff=color
     st = status -sb
     stu = status --untracked-files=no
     #hist = log --pretty=format:\"%h %ad | %s%d [%an]\" --graph --date=short
