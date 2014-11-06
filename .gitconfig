@@ -67,13 +67,12 @@
 	cmd = diffuse \"$FILENAME\"
 	noconsole = yes
 [user]
-	email = vitvitskiy@rivermeadow.com
 	name = Vladimir Vitvitskiy
 [mergetool]
 	keepBackup = true
 [difftool "sourcetree"]
 	cmd = /Applications/DiffMerge.app/Contents/MacOS/DiffMerge --nosplash \"$LOCAL\" \"$REMOTE\"
-	path = 
+	path =
 [mergetool "sourcetree"]
 	cmd = /usr/local/bin/ksdiff --merge --output \"$MERGED\" --base \"$BASE\" -- \"$LOCAL\" --snapshot \"$REMOTE\" --snapshot
 	trustExitCode = true
