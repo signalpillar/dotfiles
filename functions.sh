@@ -35,7 +35,7 @@ function mountIso {
 }
 
 function listFilesInCurrentDir {
-    sudo du -sh * | sort -n
+    du -sh * | sort -n
 }
 
 function downloadWholeSite {
@@ -59,7 +59,7 @@ function takeScreenVideo {
 }
 
 function shareShellOutput {
-    # nc -k - live after client disconnect 
+    # nc -k - live after client disconnect
     # nc -l by default
     SHELL=/bin/bash
     mkfifo /tmp/fifo;(nc -q0 -l 5000 < /tmp/fifo > /dev/null &);script -f /tmp/fifo && rm /tmp/fifo
@@ -72,7 +72,7 @@ function listAllOpenPortsAndTheirOwningExecutables {
 function findPPARepository {
     # ppasearch utility
     [ -z "$1" ] && echo "usage: `basename $0` \"search string\"" 1>&2 && exit 1
- 
+
     wget -qO- "https://launchpad.net/ubuntu/+ppas?name_filter=$1" |\
     sed -ne 's/^.\+=\"\(.\+\)\">.\+<\/a><\/td>.*$/https:\/\/launchpad.net\1/p'
 }
@@ -207,3 +207,16 @@ function ec {
 
 # mac osx
 # system_profiler -xml SPHardwareDataType
+
+function simple_chat {
+    ncat -vlm 5 --ssl --chat 9876
+}
+
+function docker-enter {
+    boot2docker ssh '[ -f /var/lib/boot2docker/nsenter ] || docker run --rm -v /var/lib/boot2docker/:/target jpetazzo/nsenter'
+    boot2docker ssh -t sudo /var/lib/boot2docker/docker-enter "$@"
+}
+
+function pylint_on_changed {
+    git st | grep ".py$" | cut -d" " -f3 | xargs -I{} pylint -r n -f colorized --rcfile=./pylint.cfg {}
+}
