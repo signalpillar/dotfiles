@@ -5,7 +5,9 @@ ZSH=$HOME/.oh-my-zsh
 # Look in ~/.oh-my-zsh/themes/
 # Optionally, if you set this to "random", it'll load a random theme each
 # time that oh-my-zsh is loaded.
-ZSH_THEME="robbyrussell"
+# ZSH_THEME="robbyrussell"
+ZSH_THEME="wedisagree"
+ZSH_THEME="sunrise"
 
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
@@ -29,7 +31,7 @@ ZSH_THEME="robbyrussell"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(git battery debian lein mvn npm)
+plugins=(git brew docker git-extras osx pip python vagrant zsh-syntax-highlighting)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -63,4 +65,15 @@ export EDITOR=~/bin/ec
 . `brew --prefix`/etc/profile.d/z.sh
 . /usr/local/bin/virtualenvwrapper.sh
 
-alias vim=ec
+alias setup="python setup.py"
+
+# export TERM=xterm-256color
+export LC_ALL=en_US.UTF-8
+export LANG=en_US.UTF-8
+
+
+export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
+
+bindkey -e
+bindkey '\e\e[C' forward-word
+bindkey '\e\e[D' backward-word
