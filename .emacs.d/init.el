@@ -1,119 +1,161 @@
-;; keep message buffer complete
-(setq messasge-log-max t)
-(setq initial-scratch-message nil)
+;;; init.el --- Prelude's configuration entry point.
+;;
+;; Copyright (c) 2011 Bozhidar Batsov
+;;
+;; Author: Bozhidar Batsov <bozhidar@batsov.com>
+;; URL: http://batsov.com/prelude
+;; Version: 1.0.0
+;; Keywords: convenience
 
-(setq-default inhibit-startup-screen t)
-;; update "PATH" variable that is used from non-login shell
-(let (
-      (mypaths
-       (list 
-         (getenv "PATH")
-         "/usr/bin/"
-         "/home/spillar/bin"
-         )
-       ))
+;; This file is not part of GNU Emacs.
 
-  (setenv "PATH" (mapconcat 'identity mypaths ":") )
-  (setq exec-path (append mypaths (list "." exec-directory)) )) 
+;;; Commentary:
 
-(require 'package)
-;; declare repositories that will be used by package.el
-(add-to-list 'package-archives
-	     '("marmalade" . "http://marmalade-repo.org/packages/") t)
-(add-to-list 'package-archives
-	     '("melpa" . "http://melpa.milkbox.net/packages/"))
-(add-to-list 'package-archives
-	     '("gnu" . "http://elpa.gnu.org/packages/"))
+;; This file simply sets up the default load path and requires
+;; the various modules defined within Emacs Prelude.
 
-;; load packages installed with package manager
-(package-initialize)
+;;; License:
 
-(require 'graphene)
-(evil-mode 1)
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License
+;; as published by the Free Software Foundation; either version 3
+;; of the License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with GNU Emacs; see the file COPYING.  If not, write to the
+;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
 
-; gui
-(size-indication-mode t)
-(scroll-bar-mode -1)
-(tool-bar-mode 0)
+;;; Code:
+(defvar current-user
+      (getenv
+       (if (equal system-type 'windows-nt) "USERNAME" "USER")))
+
+(message "Prelude is powering up... Be patient, Master %s!" current-user)
+
+(when (version< emacs-version "24.1")
+  (error "Prelude requires at least GNU Emacs 24.1, but you're running %s" emacs-version))
+
+;; Always load newest byte code
+(setq load-prefer-newer t)
+
+(defvar prelude-dir (file-name-directory load-file-name)
+  "The root dir of the Emacs Prelude distribution.")
+(defvar prelude-core-dir (expand-file-name "core" prelude-dir)
+  "The home of Prelude's core functionality.")
+(defvar prelude-modules-dir (expand-file-name  "modules" prelude-dir)
+  "This directory houses all of the built-in Prelude modules.")
+(defvar prelude-personal-dir (expand-file-name "personal" prelude-dir)
+  "This directory is for your personal configuration.
+
+Users of Emacs Prelude are encouraged to keep their personal configuration
+changes in this directory.  All Emacs Lisp files there are loaded automatically
+by Prelude.")
+(defvar prelude-personal-preload-dir (expand-file-name "preload" prelude-personal-dir)
+  "This directory is for your personal configuration, that you want loaded before Prelude.")
+(defvar prelude-vendor-dir (expand-file-name "vendor" prelude-dir)
+  "This directory houses packages that are not yet available in ELPA (or MELPA).")
+(defvar prelude-savefile-dir (expand-file-name "savefile" prelude-dir)
+  "This folder stores all the automatically generated save/history-files.")
+(defvar prelude-modules-file (expand-file-name "prelude-modules.el" prelude-dir)
+  "This files contains a list of modules that will be loaded by Prelude.")
+
+(unless (file-exists-p prelude-savefile-dir)
+  (make-directory prelude-savefile-dir))
+
+(defun prelude-add-subfolders-to-load-path (parent-dir)
+ "Add all level PARENT-DIR subdirs to the `load-path'."
+ (dolist (f (directory-files parent-dir))
+   (let ((name (expand-file-name f parent-dir)))
+     (when (and (file-directory-p name)
+                (not (string-prefix-p "." f)))
+       (add-to-list 'load-path name)
+       (prelude-add-subfolders-to-load-path name)))))
+
+;; add Prelude's directories to Emacs's `load-path'
+(add-to-list 'load-path prelude-core-dir)
+(add-to-list 'load-path prelude-modules-dir)
+(add-to-list 'load-path prelude-vendor-dir)
+(prelude-add-subfolders-to-load-path prelude-vendor-dir)
+
+;; reduce the frequency of garbage collection by making it happen on
+;; each 50MB of allocated data (the default is on every 0.76MB)
+(setq gc-cons-threshold 50000000)
+
+;; warn when opening files bigger than 100MB
+(setq large-file-warning-threshold 100000000)
+
+;; preload the personal settings from `prelude-personal-preload-dir'
+(when (file-exists-p prelude-personal-preload-dir)
+  (message "Loading personal configuration files in %s..." prelude-personal-preload-dir)
+  (mapc 'load (directory-files prelude-personal-preload-dir 't "^[^#].*el$")))
+
+(message "Loading Prelude's core...")
+
+;; the core stuff
+(require 'prelude-packages)
+(require 'prelude-ui)
+(require 'prelude-custom)  ;; Needs to be loaded before core and editor
+(require 'prelude-core)
+(require 'prelude-mode)
+(require 'prelude-editor)
+(require 'prelude-global-keybindings)
+
+;; OSX specific settings
+(when (eq system-type 'darwin)
+  (require 'prelude-osx))
+
+(message "Loading Prelude's modules...")
+
+;; the modules
+(when (file-exists-p prelude-modules-file)
+  (load prelude-modules-file))
+
+;; config changes made through the customize UI will be store here
+(setq custom-file (expand-file-name "custom.el" prelude-personal-dir))
+
+;; load the personal settings (this includes `custom-file')
+(when (file-exists-p prelude-personal-dir)
+  (message "Loading personal configuration files in %s..." prelude-personal-dir)
+  (mapc 'load (directory-files prelude-personal-dir 't "^[^#].*el$")))
+
+(message "Prelude is ready to do thy bidding, Master %s!" current-user)
+
+(prelude-eval-after-init
+ ;; greet the use with some useful tip
+ (run-at-time 5 nil 'prelude-tip-of-the-day))
+
 (menu-bar-mode 0)
-;;(load-theme 'wombat t nil)
-;;(color-theme-monokai)
-
 ; disable creation of backup files
 (setq make-backup-files nil)
+(disable-theme 'zenburn)
+(setq prelude-whitespace nil)
+(setq prelude-flyspell nil)
+(global-linum-mode -1)
+
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
-;(set-frame-font "Monaco-10")               ; change font
 (column-number-mode t)
 (size-indication-mode t)                   ; show file size
-;; show right margin (80symb)
-;; (define-globalized-minor-mode global-fci-mode fci-mode
-;;   (lambda () (fci-mode 1)))
-;; (global-fci-mode 1)
-(setq-default fill-column 79)
-
-; show line numbers always
-(global-linum-mode -1)
+; (setq-default fill-column 79)
 
 ; show paren mode
 (show-paren-mode 1)
 (setq show-paren-style 'parenthesis)
 (set-face-background 'show-paren-match-face "#bAA")
 
-
-;; paredit
-;; (autoload 'paredit-mode "paredit" t);
-;; (add-hook 'emacs-lisp-mode-hook (lambda () (paredit-mode +1)))
-;; (add-hook 'slime-repl-mode-hook (lambda () (paredit-mode +1)))
-;; (add-hook 'lisp-mode-hook (lambda () (paredit-mode +1)))
-;; (add-hook 'lisp-interaction-mode-hook (lambda () (paredit-mode +1)))
-
-
-;; recentf
-;; (recentf-mode 1)
-;; (setq recentf-max-saved-items 500)
-;; (setq recentf-max-menu-items 60)
-;; (global-set-key [(meta f12)] 'recentf-open-files)
-
-
-; clojure 
-(setq inferior-lisp-program "lein repl")
-(defun compile-clj-buffer ()
-  "Compile current clojure buffer"
-  )
-
-(defun enable-paredit ()
-  (paredit-mode 1))
-(add-hook 'clojure-mode-hook 'enable-paredit)
-; (add-hook 'clojure-mode-hook '(lambda () ;(add-hook 'after-save-hook 'slime-compile-and-load-file)))
-
-
-(global-set-key [(f2)] 'sr-speedbar-toggle)
-(global-set-key [(f4)] 'sr-speedbar-select-window)
-(global-set-key [(f5)] 'rever-buffer)
-
-(add-to-list 'auto-mode-alist '("\.cljs$" . clojure-mode))
-
-(ido-mode t)
 ;; show recently opened buffers but closed in ido
-(setq ido-use-virtual-buffers t)
+(ido-vertical-mode 1)
 
 ;; minimal comfort
 (fset 'yes-or-no-p 'y-or-n-p)
 
-(require 'auto-complete-config)
-(add-to-list 'ac-dictionary-directories "~/.emacs.d//ac-dict")
-(ac-config-default)
-
-; (require 'ac-slime)
-; (add-hook 'slime-mode-hook 'set-up-slime-ac)
-
-;; dirty fix for having AC everywhere
-(define-globalized-minor-mode real-global-auto-complete-mode
-  auto-complete-mode (lambda ()                       
-                       (if (not (minibufferp (current-buffer)))                           
-                           (auto-complete-mode 1))))
-(real-global-auto-complete-mode t)
+(global-hl-line-mode -1)
 
 (defun jao-toggle-selective-display ()
   (interactive)
@@ -121,55 +163,118 @@
 
 (global-set-key [f3] 'jao-toggle-selective-display)
 
-
-
 ;; show (in left margin) marker for empty lines
 (setq-default indicate-empty-lines t)
 
-(defun collect-regexp-results (regex)
-  ;;; collects all the matches of regex in a buffer called *collect-result*
-  ;;; then switches to that buffer
-  ;;; TODO refactor this to take the region as a parameter
-  (interactive "Mregex to search for: ")
-  (let ((curmin (region-or-buffer-beginning))
-        (curmax (region-or-buffer-end)))
-    (save-excursion
-      (goto-char curmin)
-      ;; (goto-char (region-or-buffer-beginning))
-      (while (re-search-forward regex curmax t)
-        (let ((retval (match-string-no-properties 0)))
-          (with-current-buffer (get-buffer-create "*collect results*")
-            (insert retval)
-            (insert "\n"))))
-      (switch-to-buffer "*collect results*"))))
- 
-(defun collect-ip-addresses ()
-  (interactive)
-  (collect-regexp-results "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"))
+(prelude-require-package 'edit-server)
+(edit-server-start)
 
-(defun djcb-find-file-as-root ()
-  "Like `ido-find-file, but automatically edit the file with
-root-privileges (using tramp/sudo), if the file is not writable by
-user."
-  (interactive)
-  (let ((file (ido-read-file-name "Edit as root: ")))
-    (unless (file-writable-p file)
-      (setq file (concat "/sudo:root@localhost:" file)))
-    (find-file file)))
-;; or some other keybinding...
-(global-set-key (kbd "C-x F") 'djcb-find-file-as-root)
+(elpy-enable)
+(define-key yas-minor-mode-map (kbd "C-c k") 'yas-expand)
+(define-key global-map (kbd "C-c O") 'iedit-mode)
 
-(electric-pair-mode +1)
+;; jump to the top location, jump back in the navigation history
+(define-key global-map (kbd "M-[") 'pop-global-mark)
 
-;; enable git-gutter mode globally
-;; (global-git-gutter-mode t)
+;;; init.el ends here
+
+;; evil-model configuration
+; Don't move back the cursor one position when exiting insert mode
+(setq evil-move-cursor-back nil)
+
+(define-key evil-normal-state-map (kbd ",f") 'projectile-find-file)
+(define-key evil-normal-state-map (kbd ",p") 'helm-projectile)
+(define-key evil-normal-state-map (kbd ",,") 'evil-buffer)
+(define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+;; fix C-u in evil mode - it has to scroll up by screen
+(define-key evil-normal-state-map (kbd "C-u") 'evil-scroll-up)
+
+(evil-define-keymap evil-insert-state-modes "<tab>" 'evil-jump-forward)
+
+;; trim spaces before save
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+
+;; open recent file when emacs starts
+(recentf-mode 1)
+(global-set-key "\C-x\ \C-r" 'recentf-open-files)
+
+(electric-indent-mode)
+;; python configuration
+(add-hook 'python-mode-hook #'lambda-mode 1)
+
+(yas-global-mode 1)
+
+;; fixing a keybinding bugs in elpy
+(define-key yas-minor-mode-map (kbd "C-c k") 'yas-expand)
+(define-key global-map (kbd "C-c o") 'iedit-mode)
+
+(setq prelude-whitespace nil)
+(setq prelude-guru nil)
+
+(elpy-use-ipython)
+
+;; configure clojure model
+(add-hook 'cider-mode-hook 'cider-turn-on-eldoc-mode)
+(setq nrepl-hide-special-buffers t)
+
+(setq-default cursort-type 'bar)
+
+(add-hook 'hy-mode-hook 'paredit-mode)
+
+; from http://juanjoalvarez.net/es/detail/2014/sep/19/vim-emacsevil-chaotic-migration-guide/
+; configure powerline like in vim (shows current mode)
+(require 'powerline)
+(powerline-evil-vim-color-theme)
+(display-time-mode)
+
+; smooth scrolling
+(setq scroll-margin 5
+      scroll-conservatively 9999
+      scroll-step 1)
+
+; start maximazed
+(custom-set-variables
+ '(initial-frame-alist (quote ((fullscreen . maximized))))) ;; start maximized
+
+; coding style and spaces instead of tabs
+(setq-default tab-width 4
+              indent-tabs-mode nil)
+
+; determine indentation style of opened file
+(dtrt-indent-mode 1)
+; auto-indent with Return key
+(define-key global-map (kbd "RET")
+  'newline-and-indent)
+
+(define-key python-mode-map (kbd "M-b") '(elpy-goto-definition))
+(add-hook 'python-mode-hook (lambda ()
+                              ; fill-column-indicator
+                              ; (fci-mode)
+                              (color-identifiers-mode)
+                              ; (set-fill-column 79)
+                              ))
+
+(add-hook 'python-mode-hook 'jedi:setup)
+(setq jedi:complete-on-dot t)                 ; optional
+
+; don't create backup files
+(setq make-backup-files nil)
+
+; disable scroll bars
+(scroll-bar-mode -1)
+
+(color-theme-approximate-on)
+(global-evil-search-highlight-persist t)
+; (evil-leader/set-key "SPC" 'evil-search-highlight-persist-remove-all)
+
+(helm-mode 1)
+
+(global-set-key (kbd "M-x") 'helm-M-x)
+; (load-theme 'misterioso t)
+(load-theme 'tango t)
 
 
-;; markdown-mode bindings
-(add-to-list 'auto-mode-alist '("\\.md" . markdown-mode))
-
-(electric-pair-mode -1)
-
-(require 'server)
-(or (server-running-p)
-    (server-start))
+; haskell mode configuration
+(add-hook 'haskell-mode-hook 'turn-on-haskell-doc-mode)
+(add-hook 'haskell-mode-hook 'turn-on-haskell-indent)
+(add-hook 'haskell-mode-hook 'turn-on-haskell-simple-indent)
