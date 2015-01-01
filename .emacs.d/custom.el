@@ -28,17 +28,18 @@
 
 ;;; Code:
 
+; disable menu bar
 (menu-bar-mode 0)
+(tool-bar-mode 0)
 ; disable creation of backup files
 (setq make-backup-files nil)
-(disable-theme 'zenburn)
 (setq prelude-whitespace nil)
 (setq prelude-flyspell nil)
 
 ; global editor settings
 (setq-default indent-tabs-mode nil)        ; use only spaces (no tabs at all)
 ; (column-number-mode nil)
-(size-indication-mode t)                   ; show file size
+; (size-indication-mode -1)                   ; show file size
 ; (setq-default fill-column 79)
 
 ; show paren mode
@@ -74,34 +75,6 @@
 (define-key global-map (kbd "M-[") 'pop-global-mark)
 
 
-;; evil-model configuration
-;; https://github.com/bradleywright/emacs.d/blob/master/setup-evil.el
-(setq
- ;; this stops evil from overwriting the cursor color
- evil-default-cursor t
- evil-default-state 'normal
- ;; Don't move back the cursor one position when exiting insert mode
- evil-move-cursor-back nil
- )
-
-(global-evil-search-highlight-persist t)
-
-;; Make C-g work like <esc>
-(define-key evil-normal-state-map "\C-g" 'evil-normal-state)
-(define-key evil-visual-state-map "\C-g" 'evil-normal-state)
-(define-key evil-insert-state-map "\C-g" 'evil-normal-state)
-(define-key evil-normal-state-map (kbd ",f") 'projectile-find-file)
-(define-key evil-normal-state-map (kbd ",p") 'helm-projectile)
-(define-key evil-normal-state-map (kbd ",,") 'evil-buffer)
-(define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
-;; fix C-u in evil mode - it has to scroll up by screen
-(define-key evil-normal-state-map (kbd "C-u") 'evil-scroll-up)
-(evil-define-keymap evil-insert-state-modes "<tab>" 'evil-jump-forward)
-
-;; evil-surround - Emacs version of surround.vim
-;; https://github.com/timcharper/evil-surround
-(require 'evil-surround)
-
 ;; trim spaces before save
 (add-hook 'before-save-hook 'delete-trailing-whitespace)
 
@@ -111,7 +84,7 @@
 
 (electric-indent-mode)
 ;; python configuration
-(add-hook 'python-mode-hook #'lambda-mode 1)
+(add-hook 'python-mode-hook #'pretty-lambda-mode 1)
 
 (yas-global-mode 1)
 
@@ -132,20 +105,10 @@
 
 (add-hook 'hy-mode-hook 'paredit-mode)
 
-; from http://juanjoalvarez.net/es/detail/2014/sep/19/vim-emacsevil-chaotic-migration-guide/
-; configure powerline like in vim (shows current mode)
-(require 'powerline)
-(powerline-evil-vim-color-theme)
-(display-time-mode)
-
 ; smooth scrolling
 (setq scroll-margin 5
       scroll-conservatively 9999
       scroll-step 1)
-
-; start maximazed
-(custom-set-variables
- '(initial-frame-alist (quote ((fullscreen . maximized))))) ;; start maximized
 
 ; coding style and spaces instead of tabs
 (setq-default tab-width 4
@@ -154,10 +117,9 @@
 ; determine indentation style of opened file
 (dtrt-indent-mode 1)
 ; auto-indent with Return key
-(define-key global-map (kbd "RET")
-  'newline-and-indent)
+; (define-key global-map (kbd "RET")
+;  'newline-and-indent)
 
-(define-key python-mode-map (kbd "M-b") '(elpy-goto-definition))
 (add-hook 'python-mode-hook (lambda ()
                               ; fill-column-indicator
                               ; (fci-mode)
@@ -180,7 +142,6 @@
 
 (global-set-key (kbd "M-x") 'helm-M-x)
 
-
 ; haskell mode configuration
 (add-hook 'haskell-mode-hook 'turn-on-haskell-doc-mode)
 (add-hook 'haskell-mode-hook 'turn-on-haskell-indent)
@@ -188,7 +149,197 @@
 
 ;; configure to load "github" theme
 (add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
-(load-theme 'github t)
 (color-theme-approximate-on)
 (message "evaluated from custom.el")
+
+;; evil configuration
+;; evil-model configuration
+;; https://github.com/bradleywright/emacs.d/blob/master/setup-evil.el
+(setq
+ ;; this stops evil from overwriting the cursor color
+ evil-default-cursor t
+ evil-default-state 'normal
+ ;; Don't move back the cursor one position when exiting insert mode
+ evil-move-cursor-back nil
+ )
+
+; from http://juanjoalvarez.net/es/detail/2014/sep/19/vim-emacsevil-chaotic-migration-guide/
+; configure powerline like in vim (shows current mode)
+(require 'powerline)
+(powerline-evil-vim-color-theme)
+(display-time-mode -1)
+
+
+(global-evil-search-highlight-persist -1)
+
+;; Make C-g work like <esc>
+(define-key evil-normal-state-map "\C-g" 'evil-normal-state)
+(define-key evil-visual-state-map "\C-g" 'evil-normal-state)
+(define-key evil-insert-state-map "\C-g" 'evil-normal-state)
+(define-key evil-normal-state-map (kbd ",f") 'projectile-find-file)
+(define-key evil-normal-state-map (kbd ",gt") 'helm-etags-select)
+(define-key evil-normal-state-map (kbd ",p") 'helm-projectile)
+(define-key evil-normal-state-map (kbd ",,") 'evil-buffer)
+(define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+;; fix C-u in evil mode - it has to scroll up by screen
+(define-key evil-normal-state-map (kbd "C-u") 'evil-scroll-up)
+(evil-define-keymap evil-insert-state-modes "<tab>" 'evil-jump-forward)
+
+(global-evil-leader-mode)
+; to make it work in all modes
+(setq evil-leader/in-all-states 1)
+(evil-leader/set-leader ",")
+
+
+(defun tw/helm-occur-word-at-point ()
+  "View occurrences of `word-at-point' with helm-occur."
+  (interactive)
+  (helm-occur-init-source)
+  (let ((searchterm
+         (if (region-active-p)
+             (buffer-substring-no-properties (region-beginning)
+                                             (region-end))
+           (thing-at-point 'symbol)))
+        (bufs (list (buffer-name (current-buffer)))))
+    (helm-attrset 'moccur-buffers bufs helm-source-occur)
+    (helm-set-local-variable 'helm-multi-occur-buffer-list bufs)
+    (helm-set-local-variable
+     'helm-multi-occur-buffer-tick
+     (cl-loop for b in bufs
+              collect (buffer-chars-modified-tick (get-buffer b))))
+    (helm :sources 'helm-source-occur
+          :buffer "*helm occur*"
+          :input   searchterm
+          :truncate-lines t)))
+
+(defun tw/helm-occur-python ()
+  "View occurrences of `word-at-point' with helm-occur."
+  (interactive)
+  (helm-occur-init-source)
+  (let ((searchterm "def[[:space:]]\\|class[[:space:]]")
+        (bufs (list (buffer-name (current-buffer)))))
+    (helm-attrset 'moccur-buffers bufs helm-source-occur)
+    (helm-set-local-variable 'helm-multi-occur-buffer-list bufs)
+    (helm-set-local-variable
+     'helm-multi-occur-buffer-tick
+     (cl-loop for b in bufs
+              collect (buffer-chars-modified-tick (get-buffer b))))
+    (helm :sources 'helm-source-occur
+          :buffer "*helm occur*"
+          :input   searchterm
+          :truncate-lines t)))
+
+(global-set-key (kbd "C-c m o") 'tw/helm-occur-word-at-point)
+(global-set-key (kbd "C-c m g") 'tw/helm-occur-python)
+
+
+(evil-leader/set-key
+  "s" 'tw/helm-occur-python
+  "d" 'dash-at-point
+  "D" 'dash-at-point-with-docset
+  "<SPC>" 'company-yasnippet
+
+  ;; neotree
+  "e" 'neotree-toggle
+
+  ;; extended commands
+  "xt" 'create-tags
+
+  ;; helm
+  "gg" 'helm-git-grep
+  "gt" 'helm-etags-select
+  "hc" 'helm-flycheck
+  "h#" 'helm-themes
+  "hgg" 'helm-ag
+  "hgd" 'helm-do-ag
+
+  ;; shell
+  "ts" 'shell
+  "te" 'eshell
+  "tt" 'ansi-term
+  "tp" 'shell-pwd
+
+  ;; projectile/perspective
+  "pf" 'projectile-find-file
+  "ps" 'projectile-switch-project
+  "pg" 'projectile-ag
+  "pd" 'projectile-dired
+  "ph" 'persp-prev
+  "pl" 'persp-next
+  "pr" 'persp-rename
+  "pw" 'persp-switch
+  "pk" 'persp-kill
+
+  ;; evil nerd commenter
+  "''" 'evilnc-comment-or-uncomment-lines
+  "'l" 'evilnc-comment-or-uncomment-to-the-line
+  "'c" 'evilnc-copy-and-comment-lines
+  "'p" 'evilnc-comment-or-uncomment-paragraphs
+  "'r" 'comment-or-uncomment-region
+
+  ;; magit
+  "ms" 'magit-status
+  "mc" 'magit-checkout
+  "mg" 'magit-run-gitk
+  "ml" 'magit-log
+  "mf" 'magit-fetch
+  "mr" 'magit-reflog
+  "mb" 'magit-blame-mode)
+
+(evil-leader/set-key-for-mode 'python-mode
+  "<" 'python-indent-shift-left
+  ">" 'python-indent-shift-right
+
+  "ow" 'pyvenv-workon
+  "oe" 'pyvenv-deactivate
+  "or" 'run-python
+  "od" 'elpy-doc
+  "ob" 'elpy-goto-definition
+  "os" 'elpy-shell-switch-to-shell
+
+  ;; pony
+  "opb" 'pony-browser
+  "ops" 'pony-shell
+  "opd" 'pony-db-shell
+  "opf" 'pony-fabric
+  "opm" 'pony-manage
+  "opr" 'pony-runserver
+  "opt" 'pony-test
+  "opgs" 'pony-goto-settings
+  "opgt" 'pony-goto-template)
+
+
+(defun rebuild-python-tags ()
+  "Rebuild TAGS for the current projectile project and chosen venv.
+
+  Dependencies: projectile, elpy, etags (shell command)."
+  (interactive)
+  (call-interactively 'pyvenv-workon)
+  (let ((python-files-locations (list (projectile-project-root) pyvenv-virtual-env))
+        (output-file-path (concat (projectile-project-root) "TAGS")))
+    (message (format "Remove initial TAGS file: %s" output-file-path))
+    (shell-command (format "rm %s| true" output-file-path))
+    (loop for base-dir in python-files-locations collect
+          (let ((cmd (format
+                      "find %s -type f -name '*.py' | xargs etags --append --language=python --output=%s"
+                      base-dir output-file-path)))
+            (message cmd)
+            (shell-command cmd)))
+    (message "Regenerated %s!" output-file-path)))
+
+
+(setq projectile-switch-project-action
+      (lambda ()
+        (neotree-projectile-action)))
+
+(add-hook 'neotree-mode-hook
+          (lambda ()
+            (define-key evil-normal-state-local-map (kbd "TAB") 'neotree-enter)
+            (define-key evil-normal-state-local-map (kbd "SPC") 'neotree-enter)
+            (define-key evil-normal-state-local-map (kbd "q") 'neotree-hide)
+            (define-key evil-normal-state-local-map (kbd "o") 'neotree-enter)
+            (define-key evil-normal-state-local-map (kbd "RET") 'neotree-enter)))
+
+
+
 ;;; custom.el ends here
