@@ -220,3 +220,11 @@ function docker-enter {
 function pylint_on_changed {
     git st | grep ".py$" | cut -d" " -f3 | xargs -I{} pylint -r n -f colorized --rcfile=./pylint.cfg {}
 }
+
+function show_process_stack {
+    sudo gdb -batch -ex bt -p $@
+}
+
+function list_all_opened_ports {
+    lsof -Pan -i tcp -i udp
+}
