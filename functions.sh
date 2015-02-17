@@ -228,3 +228,11 @@ function show_process_stack {
 function list_all_opened_ports {
     lsof -Pan -i tcp -i udp
 }
+
+function vpn {
+    source ~/.openconnect/rivermeadow.sh
+}
+
+function link_environment_file_to_postactivate {
+     rm $VIRTUAL_ENV/bin/postactivate; ln -s `pwd`/.environment $VIRTUAL_ENV/bin/postactivate
+}

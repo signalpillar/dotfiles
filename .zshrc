@@ -38,7 +38,7 @@ source $ZSH/oh-my-zsh.sh
 # aliases
 # some more ls aliases
 # t - sort by time
-alias ll='ls -altF'
+alias ll='ls -althF'
 alias la='ls -A'
 alias l='ls -CF'
 
@@ -54,7 +54,7 @@ export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
 export SCALA_HOME=$dt/scala
-export PATH=$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
+export PATH=/usr/local/sbin:/usr/local/bin:$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
@@ -63,7 +63,8 @@ export EDITOR=~/bin/ec
 
 
 . `brew --prefix`/etc/profile.d/z.sh
-. /usr/local/bin/virtualenvwrapper.sh
+
+alias vw=source\ /usr/local/bin/virtualenvwrapper.sh
 
 alias setup="python setup.py"
 
@@ -77,3 +78,7 @@ export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
 bindkey -e
 bindkey '\e\e[C' forward-word
 bindkey '\e\e[D' backward-word
+
+alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.1'
+
+export PROJECT_HOME=~/proj/py/
