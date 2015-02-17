@@ -28,6 +28,11 @@
 
 ;;; Code:
 
+(add-to-list 'package-archives
+             '("elpy" . "http://jorgenschaefer.github.io/packages/"))
+
+(disable-theme 'zenburn)
+
 ; disable menu bar
 (menu-bar-mode 0)
 (tool-bar-mode 0)
@@ -148,7 +153,6 @@
 (add-hook 'haskell-mode-hook 'turn-on-haskell-simple-indent)
 
 ;; configure to load "github" theme
-(add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
 (color-theme-approximate-on)
 (message "evaluated from custom.el")
 
@@ -169,6 +173,8 @@
 (powerline-evil-vim-color-theme)
 (display-time-mode -1)
 
+;; (message (format "%s" mode-line-format))
+
 
 (global-evil-search-highlight-persist -1)
 
@@ -179,6 +185,7 @@
 (define-key evil-normal-state-map (kbd ",f") 'projectile-find-file)
 (define-key evil-normal-state-map (kbd ",gt") 'helm-etags-select)
 (define-key evil-normal-state-map (kbd ",p") 'helm-projectile)
+(define-key evil-normal-state-map (kbd ",o") 'elpy-goto-definition)
 (define-key evil-normal-state-map (kbd ",,") 'evil-buffer)
 (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
 ;; fix C-u in evil mode - it has to scroll up by screen
@@ -191,46 +198,19 @@
 (evil-leader/set-leader ",")
 
 
-(defun tw/helm-occur-word-at-point ()
-  "View occurrences of `word-at-point' with helm-occur."
-  (interactive)
-  (helm-occur-init-source)
-  (let ((searchterm
-         (if (region-active-p)
-             (buffer-substring-no-properties (region-beginning)
-                                             (region-end))
-           (thing-at-point 'symbol)))
-        (bufs (list (buffer-name (current-buffer)))))
-    (helm-attrset 'moccur-buffers bufs helm-source-occur)
-    (helm-set-local-variable 'helm-multi-occur-buffer-list bufs)
-    (helm-set-local-variable
-     'helm-multi-occur-buffer-tick
-     (cl-loop for b in bufs
-              collect (buffer-chars-modified-tick (get-buffer b))))
-    (helm :sources 'helm-source-occur
-          :buffer "*helm occur*"
-          :input   searchterm
-          :truncate-lines t)))
+;; https://github.com/ShingoFukuyama/helm-swoop
+(global-set-key (kbd "M-i") 'helm-swoop)
+;; When doing evil-search, hand the word over to helm-swoop
+(define-key evil-motion-state-map (kbd "M-i") 'helm-swoop-from-evil-search)
+;; If this value is t, split window inside the current window
+(setq helm-swoop-split-with-multiple-windows nil)
+;; Split direcion. 'split-window-vertically or 'split-window-horizontally
+(setq helm-swoop-split-direction 'split-window-vertically)
+;; Go to the opposite side of line from the end or beginning of line
+(setq helm-swoop-move-to-line-cycle t)
 
-(defun tw/helm-occur-python ()
-  "View occurrences of `word-at-point' with helm-occur."
-  (interactive)
-  (helm-occur-init-source)
-  (let ((searchterm "def[[:space:]]\\|class[[:space:]]")
-        (bufs (list (buffer-name (current-buffer)))))
-    (helm-attrset 'moccur-buffers bufs helm-source-occur)
-    (helm-set-local-variable 'helm-multi-occur-buffer-list bufs)
-    (helm-set-local-variable
-     'helm-multi-occur-buffer-tick
-     (cl-loop for b in bufs
-              collect (buffer-chars-modified-tick (get-buffer b))))
-    (helm :sources 'helm-source-occur
-          :buffer "*helm occur*"
-          :input   searchterm
-          :truncate-lines t)))
-
-(global-set-key (kbd "C-c m o") 'tw/helm-occur-word-at-point)
-(global-set-key (kbd "C-c m g") 'tw/helm-occur-python)
+(setq helm-semantic-fuzzy-match t
+      helm-imenu-fuzzy-match    t)
 
 
 (evil-leader/set-key
@@ -341,5 +321,34 @@
             (define-key evil-normal-state-local-map (kbd "RET") 'neotree-enter)))
 
 
+(load-theme 'monokai t)
+
+;; Share clipboard with OSX
+;; http://blog.lathi.net/articles/2007/11/07/sharing-the-mac-clipboard-with-emacs
+;; (defun copy-from-osx ()
+;;   (shell-command-to-string "pbpaste"))
+
+;; (defun paste-to-osx (text &optional push)
+;;   (let ((process-connection-type nil))
+;;     (let ((proc (start-process "pbcopy" "*Messages*" "pbcopy")))
+;;       (process-send-string proc text)
+;;       (process-send-eof proc))))
+
+;; (setq interprogram-cut-function 'paste-to-osx)
+;; (setq interprogram-paste-function 'copy-from-osx)
 
 ;;; custom.el ends here
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(custom-safe-themes
+   (quote
+    ("03ec0a33794a2f1b74103e5d63b1646ddb2a0cf38b3b447df6d6e6ba68c5b3af" "bb08c73af94ee74453c90422485b29e5643b73b05e8de029a6909af6a3fb3f58" "fa942713c74b5ad27893e72ed8dccf791c9d39e5e7336e52d76e7125bfa51d4c" "c4e6fe8f5728a5d5fd0e92538f68c3b4e8b218bcfb5e07d8afff8731cc5f3df0" default))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
