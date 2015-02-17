@@ -19,6 +19,7 @@
     # append to index new files/updates and remove all what was deleted
     addremove = !git add . && git ls-files --deleted | xargs --no-run-if-empty git rm
     unstage = reset HEAD --
+	coh = checkout HEAD
     backup = !file=../`git describe`.tar && echo \"Creating `readlink -f $file`\" && tar cf $file .
     bl = blame -b -w
     cia = commit --amend
@@ -38,7 +39,6 @@
     hist = "!git log-hist"
     log-hist = "!git log-pretty --graph"
     log-pretty = "log --first-parent --pretty='format:%C(blue)%h%C(red)%d%C(yellow) %s %C(green)[%an]%Creset, %ar'"
-    review = !`git rev-parse --show-toplevel`/../devtools/rm-post-review
     springcleaning = for-each-ref --sort=-committerdate --format='%(refname:short) %(committerdate:short)'
 
 [help]
@@ -68,16 +68,20 @@
 	noconsole = yes
 [user]
 	name = Vladimir Vitvitskiy
+	email = volodymyr.vitvitskyi@gmail.com
 [mergetool]
 	keepBackup = true
 [difftool "sourcetree"]
 	cmd = /Applications/DiffMerge.app/Contents/MacOS/DiffMerge --nosplash \"$LOCAL\" \"$REMOTE\"
-	path =
+	path = 
 [mergetool "sourcetree"]
 	cmd = /usr/local/bin/ksdiff --merge --output \"$MERGED\" --base \"$BASE\" -- \"$LOCAL\" --snapshot \"$REMOTE\" --snapshot
 	trustExitCode = true
 [cola]
 	savewindowsettings = false
 [filter "media"]
-	clean = git-media-clean %f
-	smudge = git-media-smudge %f
+	clean = git media clean %f
+	smudge = git media smudge %f
+	required = true
+[credential]
+	helper = osxkeychain
