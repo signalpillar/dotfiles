@@ -6,7 +6,7 @@ ZSH=$HOME/.oh-my-zsh
 # Optionally, if you set this to "random", it'll load a random theme each
 # time that oh-my-zsh is loaded.
 # ZSH_THEME="robbyrussell"
-ZSH_THEME="wedisagree"
+# ZSH_THEME="wedisagree"
 ZSH_THEME="sunrise"
 
 # Example aliases
@@ -31,7 +31,7 @@ ZSH_THEME="sunrise"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(git brew docker git-extras osx pip python vagrant zsh-syntax-highlighting)
+plugins=(cp colorize git brew docker git-extras osx pip python vagrant zsh-syntax-highlighting)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -48,13 +48,16 @@ alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo
 alias ex='emacs -nw'
 alias gitk='gitk --date-order'
 
-source ~/.env
 source ~/functions.sh
 export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
 export SCALA_HOME=$dt/scala
-export PATH=/usr/local/sbin:/usr/local/bin:$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
+export PATH=~/.pyenv/shims:/usr/local/sbin:/usr/local/bin:$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
+
+# to enable gnu tools by default
+export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+MANPATH="/usr/local/opt/coreutils/libexec/gnuman:$MANPATH"
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
@@ -64,11 +67,12 @@ export EDITOR=~/bin/ec
 
 . `brew --prefix`/etc/profile.d/z.sh
 
-alias vw=source\ /usr/local/bin/virtualenvwrapper.sh
+function vw {
+  source $(pyenv which virtualenvwrapper.sh)
+}
 
 alias setup="python setup.py"
 
-# export TERM=xterm-256color
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
