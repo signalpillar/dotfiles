@@ -212,9 +212,13 @@ function simple_chat {
     ncat -vlm 5 --ssl --chat 9876
 }
 
+# function docker-enter {
+#     boot2docker ssh '[ -f /var/lib/boot2docker/nsenter ] || docker run --rm -v /var/lib/boot2docker/:/target jpetazzo/nsenter'
+#     boot2docker ssh -t sudo /var/lib/boot2docker/docker-enter "$@"
+# }
+
 function docker-enter {
-    boot2docker ssh '[ -f /var/lib/boot2docker/nsenter ] || docker run --rm -v /var/lib/boot2docker/:/target jpetazzo/nsenter'
-    boot2docker ssh -t sudo /var/lib/boot2docker/docker-enter "$@"
+    docker exec -it $1 /bin/bash
 }
 
 function pylint_on_changed {
