@@ -5,9 +5,8 @@ ZSH=$HOME/.oh-my-zsh
 # Look in ~/.oh-my-zsh/themes/
 # Optionally, if you set this to "random", it'll load a random theme each
 # time that oh-my-zsh is loaded.
-# ZSH_THEME="robbyrussell"
-# ZSH_THEME="wedisagree"
-ZSH_THEME="sunrise"
+ZSH_THEME="frisk"
+# ZSH_THEME="sunrise"
 
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
@@ -59,6 +58,10 @@ export PATH=~/.pyenv/shims:/usr/local/sbin:/usr/local/bin:$PATH:$MAVEN/bin:$SCAL
 export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
 MANPATH="/usr/local/opt/coreutils/libexec/gnuman:$MANPATH"
 
+# GOROOT-based install location
+export GOPATH=~/go/
+export PATH=$PATH:/usr/local/opt/go/libexec/bin:$GOPATH/bin
+
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
 export ALTERNATE_EDITOR=""
@@ -69,6 +72,10 @@ export EDITOR=~/bin/ec
 
 function vw {
   source $(pyenv which virtualenvwrapper.sh)
+}
+
+function trinity {
+    source ~/bin/trinity.sh
 }
 
 alias setup="python setup.py"
