@@ -67,7 +67,7 @@
 	cmd = diffuse \"$FILENAME\"
 	noconsole = yes
 [user]
-	name = Vladimir Vitvitskiy
+	name = Volodymyr Vitvitskyi
 	email = volodymyr.vitvitskyi@gmail.com
 [mergetool]
 	keepBackup = true
@@ -85,3 +85,7 @@
 	required = true
 [credential]
 	helper = osxkeychain
+[filter "lfs"]
+	clean = git lfs clean %f
+	smudge = git lfs smudge %f
+	required = true
