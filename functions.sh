@@ -221,6 +221,11 @@ function docker-enter {
     docker exec -it $1 /bin/bash
 }
 
+function container-ip {
+    # takes container ID as a single parameter
+    docker inspect $1 | jq '.[].NetworkSettings.IPAddress'
+}
+
 function pylint_on_changed {
     git st | grep ".py$" | cut -d" " -f3 | xargs -I{} pylint -r n -f colorized --rcfile=./pylint.cfg {}
 }
@@ -239,4 +244,32 @@ function vpn {
 
 function link_environment_file_to_postactivate {
      rm $VIRTUAL_ENV/bin/postactivate; ln -s `pwd`/.environment $VIRTUAL_ENV/bin/postactivate
+}
+
+function java_use() {
+    export JAVA_HOME=$(/usr/libexec/java_home -v $1)
+    export PATH=$JAVA_HOME/bin:$PATH
+    java -version
+}
+
+
+function upgrade_apps {
+    if read -q '?upgrade all brew ups (y/n) ?'; then
+        brew update
+        brew upgrade
+    fi
+    if read -q '?upgrade nix packages (y/n) ?'; then
+        activate-nix-profile
+        nix-channel --update nixpkgs
+        nix-env -u '*'
+    fi
+    if read -q '?upgrade .emacs (y/n) ?'; then
+        cd ~/.emacs.d/
+        git fetch origin
+        git rebase origin/develop
+    fi
+}
+
+function activate-nix-profile {
+    source ~/.nix-profile/etc/profile.d/nix.sh
 }
