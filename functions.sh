@@ -221,9 +221,9 @@ function docker-enter {
     docker exec -it $1 /bin/bash
 }
 
-function container-ip {
+function docker-container-ip {
     # takes container ID as a single parameter
-    docker inspect $1 | jq '.[].NetworkSettings.IPAddress'
+    docker inspect -f '{{.NetworkSettings.IPAddress}}' $1
 }
 
 function pylint_on_changed {
@@ -272,4 +272,18 @@ function upgrade_apps {
 
 function activate-nix-profile {
     source ~/.nix-profile/etc/profile.d/nix.sh
+}
+
+function docker-remove-all-containers {
+    docker rm `docker ps -a -q`
+}
+
+function install-anaconda-dependencies {
+    wget -o ~/tmp/anaconda-requirements.txt https://raw.githubusercontent.com/proofit404/anaconda-mode/master/requirements.txt
+    pip install -r ~/tmp/anaconda-requirements.txt
+}
+
+
+function ssh-copy-id {
+    cat ~/.ssh/id_rsa.pub | ssh $1 "mkdir -p ~/.ssh && cat >>  ~/.ssh/authorized_keys"
 }
