@@ -1,0 +1,3 @@
+# packages used by Emacs
+elpy
+importmagic
