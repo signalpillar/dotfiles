@@ -5,7 +5,7 @@ ZSH=$HOME/.oh-my-zsh
 # Look in ~/.oh-my-zsh/themes/
 # Optionally, if you set this to "random", it'll load a random theme each
 # time that oh-my-zsh is loaded.
-ZSH_THEME="frisk"
+ZSH_THEME="sunrise"
 # ZSH_THEME="sunrise"
 
 # Example aliases
@@ -30,7 +30,7 @@ ZSH_THEME="frisk"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(cp colorize git brew docker git-extras osx pip python vagrant zsh-syntax-highlighting)
+plugins=(colored-man cp colorize git brew docker git-extras osx pip python vagrant zsh-syntax-highlighting)
 
 source $ZSH/oh-my-zsh.sh
 
