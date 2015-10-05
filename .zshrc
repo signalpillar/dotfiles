@@ -93,3 +93,4 @@ bindkey '\e\e[D' backward-word
 alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.1'
 
 export PROJECT_HOME=~/proj/py/
+export PATH="$HOME/.pyenv/bin:$PATH"
