@@ -2,3 +2,4 @@
 elpy
 importmagic
 percol
+tox
