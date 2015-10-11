@@ -43,10 +43,7 @@
                           spacegray
                           material
                           tangotango
-                          birds-of-paradise-plus
                           fogus
-                          solarized-light
-                          spolsky
                           zenburn
                           twilight)
  )
