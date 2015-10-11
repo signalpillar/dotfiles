@@ -59,7 +59,8 @@ export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
 MANPATH="/usr/local/opt/coreutils/libexec/gnuman:$MANPATH"
 
 # Extend PATH to find `go` binaries
-export PATH=$PATH:/usr/local/opt/go/libexec/bin
+export GOPATH=~/go/
+export PATH=$PATH:/usr/local/opt/go/libexec/bin:$GOPATH/bin
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
