@@ -2,35 +2,36 @@
 ;; --------------------
 
 (setq-default
- dotspacemacs-configuration-layers '(
-                                     ansible
-                                     (python :variables
-                                             python-fill-docstring-style 'pep-257-nn
-                                             fill-column 100
-                                             python-test-runner 'pytest
-                                             )
-                                     clojure
-                                     git
-                                     go
-                                     (version-control :variables
-                                          git-magit-status-fullscreen t)
-                                     dockerfile
-                                     markdown
-                                     deft
-                                     haskell
-                                     emacs-lisp
-                                     themes-megapack
-                                     (auto-completion :variables
-                                                      auto-completion-enable-help-tooltip t
-                                                      auto-completion-enable-sort-by-usage t
-                                                      )
-                                     syntax-checking
-                                     ;; experimental
-                                     puppet
-                                     osx
-                                     slime
-                                     colors
-                                     prelude)
+ dotspacemacs-configuration-layers
+ '(
+   ansible
+   (python :variables
+           python-fill-docstring-style 'pep-257-nn
+           fill-column 100
+           python-test-runner 'pytest
+           )
+   clojure
+   git
+   go
+   (version-control :variables
+                    git-magit-status-fullscreen t)
+   dockerfile
+   markdown
+   deft
+   haskell
+   emacs-lisp
+   themes-megapack
+   (auto-completion :variables
+                    auto-completion-enable-help-tooltip t
+                    auto-completion-enable-sort-by-usage t
+                    )
+   syntax-checking
+   ;; experimental
+   puppet
+   osx
+   slime
+   colors
+   prelude)
     dotspacemacs-smooth-scrolling t
     dotspacemacs-leader-key ","
     dotspacemacs-major-mode-leader-key "SPC"
