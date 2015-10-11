@@ -58,9 +58,8 @@ export PATH=~/.pyenv/shims:/usr/local/sbin:/usr/local/bin:$PATH:$MAVEN/bin:$SCAL
 export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
 MANPATH="/usr/local/opt/coreutils/libexec/gnuman:$MANPATH"
 
-# GOROOT-based install location
-export GOPATH=~/go/
-export PATH=$PATH:/usr/local/opt/go/libexec/bin:$GOPATH/bin
+# Extend PATH to find `go` binaries
+export PATH=$PATH:/usr/local/opt/go/libexec/bin
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
@@ -94,3 +93,4 @@ alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.
 
 export PROJECT_HOME=~/proj/py/
 export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(direnv hook zsh)"
