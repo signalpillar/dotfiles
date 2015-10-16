@@ -59,6 +59,7 @@ layers configuration."
   (global-set-key (kbd "C-=") 'zoom-frm-in)
   (global-set-key (kbd "C--") 'zoom-frm-out)
   (evil-leader/set-key "of" 'neotree-find)
+  (setq clojure-enable-fancify-symbols t)
   (setq-default
    ;; Powerline with arrows as separator
    powerline-default-separator 'arrow

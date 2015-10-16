@@ -1,9 +1,4 @@
-{:user
- {
-  :local-repo "/media/repos/.m2/repository/"
-  :plugins [
-            [lein-simpleton "1.0.0"]
-            [lein-iclojure "1.1"]
-            [lein-exec "0.3.0"]
-            [lein-swank "1.4.4"]
-            [lein-marginalia "0.7.1"]]}}
+{:user {:plugins      [[cider/cider-nrepl "0.10.0-SNAPSHOT"]
+                       [refactor-nrepl "1.2.0-SNAPSHOT"]]
+        :dependencies [[alembic "0.3.2"]
+                       [org.clojure/tools.nrepl "0.2.10"]]}}
