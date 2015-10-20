@@ -1,5 +1,6 @@
 # packages used by Emacs
 elpy
 importmagic
+ipython
 percol
 tox
