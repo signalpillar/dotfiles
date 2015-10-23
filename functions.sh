@@ -287,3 +287,7 @@ function install-anaconda-dependencies {
 function ssh-copy-id {
     cat ~/.ssh/id_rsa.pub | ssh $1 "mkdir -p ~/.ssh && cat >>  ~/.ssh/authorized_keys"
 }
+
+function download-youtube-playlist {
+    youtube-dl -f best --yes-playlist $1
+}
