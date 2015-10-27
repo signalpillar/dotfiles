@@ -1,4 +1,5 @@
 # packages used by Emacs
+cookiecutter
 elpy
 importmagic
 ipython
