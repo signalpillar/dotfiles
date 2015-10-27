@@ -291,3 +291,7 @@ function ssh-copy-id {
 function download-youtube-playlist {
     youtube-dl -f best --yes-playlist $1
 }
+
+function create-tox-project {
+    cookiecutter https://github.com/signalpillar/cookiecutter-tox-based.git
+}
