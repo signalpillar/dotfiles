@@ -5,3 +5,4 @@ importmagic
 ipython
 percol
 tox
+restview
