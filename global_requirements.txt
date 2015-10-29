@@ -1,8 +1,10 @@
 # packages used by Emacs
+pip
 cookiecutter
 elpy
 importmagic
 ipython
 percol
 tox
+# May fail due to present README file in the site-packages directory which conflicts with the `readme` library name required by `restview`
 restview
