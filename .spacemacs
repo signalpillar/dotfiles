@@ -13,6 +13,8 @@
    clojure
    git
    go
+   (org :variables
+        org-enable-github-support t)
    (version-control :variables
                     git-magit-status-fullscreen t)
    dockerfile
