@@ -19,6 +19,7 @@
                     git-magit-status-fullscreen t)
    dockerfile
    markdown
+   ocaml
    deft
    haskell
    emacs-lisp
