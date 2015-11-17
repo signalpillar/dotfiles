@@ -12,6 +12,7 @@
            )
    clojure
    git
+   github
    go
    (org :variables
         org-enable-github-support t)
@@ -35,6 +36,7 @@
    slime
    colors
    prelude)
+
     dotspacemacs-smooth-scrolling t
     dotspacemacs-leader-key ","
     dotspacemacs-major-mode-leader-key "SPC"
