@@ -1,133 +1,167 @@
 ;; Configuration layers
 ;; --------------------
 
-(setq-default
- dotspacemacs-configuration-layers
- '(
-   ansible
-   (python :variables
-           python-fill-docstring-style 'pep-257-nn
-           fill-column 100
-           python-test-runner 'pytest
-           )
-   clojure
-   git
-   github
-   go
-   (org :variables
-        org-enable-github-support t)
-   (version-control :variables
-                    git-magit-status-fullscreen t)
-   dockerfile
-   markdown
-   ocaml
-   deft
-   haskell
-   emacs-lisp
-   themes-megapack
-   (auto-completion :variables
-                    auto-completion-enable-help-tooltip t
-                    auto-completion-enable-sort-by-usage t
-                    )
-   syntax-checking
-   ;; experimental
-   puppet
-   osx
-   slime
-   colors
-   prelude)
+(defun dotspacemacs/layers ()
+  (setq-default
+   dotspacemacs-delete-orphan-packages t
+   dotspacemacs-distribution 'spacemacs
+   dotspacemacs-configuration-layers
+   '(
+     ansible
+     (auto-completion :variables
+                      ;; auto-completion-enable-help-tooltip t
+                      auto-completion-return-key-behavior nil
+                      auto-completion-tab-key-behavior 'cycle
+                      auto-completion-enable-sort-by-usage t
+                      :disabled-for org)
+     clojure
+     colors
+     deft
+     dockerfile
+     emacs-lisp
+     ;; eyebrowse
+     git
+     github
+     go
+     haskell
+     markdown
+     (org :variables
+          org-enable-github-support t)
+     ocaml
+     osx
 
-    dotspacemacs-smooth-scrolling t
-    dotspacemacs-leader-key ","
-    dotspacemacs-major-mode-leader-key "SPC"
-    ;; light theme - leuven
-    ;; dotspacemacs-themes '(material)
-    dotspacemacs-themes '(
-                          leuven
-                          subatomic
-                          spacegray
-                          material
-                          tangotango
-                          fogus
-                          zenburn
-                          twilight)
- )
+     (python :variables
+             python-fill-docstring-style 'pep-257-nn
+             fill-column 100
+             python-test-runner 'pytest)
+     (shell :variables
+            shell-default-shell 'shell)
+     (syntax-checking :variables
+                      syntax-checking-enable-by-default nil)
+     themes-megapack
+     (version-control :variables
+                      git-magit-status-fullscreen t)
+     yaml)
 
-(setq dotspacemacs-additional-packages '(groovy-mode)
-      x-select-enable-clipboard nil)
+   dotspacemacs-additional-packages `()
+   dotspacemacs-excluded-packages `()))
 
-(defun dotspacemacs/config ()
+(defun dotspacemacs/init ()
+  "Initialization function.
+   This function is called at the very startup of Spacemacs initialization
+   before layers configuration."
+
+  (setq-default
+
+   dotspacemacs-editing-style 'vim
+
+   dotspacemacs-themes '(
+                         leuven
+                         molokai
+                         subatomic
+                         spacegray
+                         material
+                         tangotango
+                         fogus
+                         zenburn
+                         twilight)
+
+   ;; If non nil the cursor color matches the state color.
+   dotspacemacs-colorize-cursor-according-to-state t
+   dotspacemacs-default-font '("Source Code Pro"
+                               :size 14
+                               :weight normal
+                               :width normal
+                               :powerline-scale 1.15)
+
+   dotspacemacs-leader-key ","
+   dotspacemacs-emacs-leader-key "M-m"
+   dotspacemacs-major-mode-leader-key "SPC"
+   dotspacemacs-major-mode-emacs-leader-key "C-M-m"
+
+   dotspacemacs-command-key ":"
+   dotspacemacs-remap-Y-to-y$ t
+   dotspacemacs-helm-resize t
+   ;; dotspacemacs-helm-no-header t
+   dotspacemacs-which-key-delay 1.0
+   dotspacemacs-smooth-scrolling t
+   dotspacemacs-search-tools '("ag" "grep")
+
+   ))
+
+(defun dotspacemacs/user-init ()
+  (setq-default
+
+   ;; Miscellaneous
+   require-final-newline t
+   x-select-enable-clipboard nil
+
+   ;; Backups
+   backup-directory-alist `((".*" . ,temporary-file-directory))
+   auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
+   backup-by-copying t
+   delete-old-versions t
+   kept-new-versions 6
+   kept-old-versions 2
+   make-backup-files nil
+
+   ;; Evil
+   evil-shift-round nil
+
+   ;; Whitespace mode
+   whitespace-style '(face tabs tab-mark newline-mark)
+   whitespace-display-mappings
+   '((newline-mark 10 [172 10])
+     (tab-mark 9 [9655 9]))
+
+   ;; Smartparens
+   sp-highlight-pair-overlay nil
+   sp-highlight-wrap-overlay nil
+   sp-highlight-wrap-tag-overlay nil
+
+   ;; Flycheck
+   flycheck-check-syntax-automatically '(save mode-enabled)
+
+   ;; Deft
+   deft-extension "rst"
+   deft-text-mode 'rst-mode
+   deft-directory "~/Documents/Wuala/MdNotes/"
+   deft-use-filename-as-title t
+
+   ;; Avy
+   avy-all-windows 'all-frames
+   ))
+
+(defun dotspacemacs/user-config ()
   "Configuration function.
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
+
+  (defun jao-toggle-selective-display ()
+    (interactive)
+    (set-selective-display (if selective-display nil 1)))
+  (global-set-key [f3] 'jao-toggle-selective-display)
+
+  (setq-default
+   powerline-default-separator 'alternate
+   guide-key/popup-window-position :right
+   )
+
   (set-fill-column 100)
   (global-set-key (kbd "C-=") 'zoom-frm-in)
   (global-set-key (kbd "C--") 'zoom-frm-out)
   (evil-leader/set-key "of" 'neotree-find)
   (setq clojure-enable-fancify-symbols t)
-  (setq-default
-   ;; Powerline with arrows as separator
-   powerline-default-separator 'arrow
-   deft-extension "rst"
-   deft-text-mode 'rst-mode
-   deft-directory "~/Documents/Wuala/MdNotes/"
-   deft-use-filename-as-title t
-   guide-key/popup-window-position :right
-   )
+
+  ;; Miscellaneous
+  (add-hook 'text-mode-hook 'auto-fill-mode)
+  (add-hook 'makefile-mode-hook 'whitespace-mode)
+
+  ;; Disable smartparens highlighting
+  (with-eval-after-load 'smartparens
+    (show-smartparens-global-mode -1))
   )
-
-(defun dotspacemacs/init ()
-  "Initialization function.
-This function is called at the very startup of Spacemacs initialization
-before layers configuration."
-  (setq-default
-
-   ;; If non nil the cursor color matches the state color.
-   dotspacemacs-colorize-cursor-according-to-state t
-   )
-
-  ;; User initialization goes here
-  (add-hook 'python-mode-hook 'eldoc-mode)
-
-)
-
-(defun jao-toggle-selective-display ()
-  (interactive)
-  (set-selective-display (if selective-display nil 1)))
-
-(global-set-key [f3] 'jao-toggle-selective-display)
 
 (setq markdown-open-command "~/bin/open_md")
 
-(setq-default dotspacemacs-default-font '("Source Code Pro"
-                                          :size 14
-                                          :weight normal
-                                          :width normal
-                                          :powerline-scale 1.3))
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(ahs-case-fold-search nil)
- '(ahs-default-range (quote ahs-range-whole-buffer))
- '(ahs-idle-interval 0.25)
- '(ahs-idle-timer 0 t)
- '(ahs-inhibit-face-list nil)
- '(ansi-color-faces-vector
-   [default default default italic underline success warning error])
- '(ansi-color-names-vector
-   ["black" "red3" "ForestGreen" "yellow3" "blue" "magenta3" "DeepSkyBlue" "gray50"])
- '(custom-safe-themes
-   (quote
-    ("eafda598b275a9d68cc1fbe1689925f503cab719ee16be23b10a9f2cc5872069" default)))
- '(paradox-github-token t)
- '(ring-bell-function (quote ignore) t))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(default ((t (:background nil))))
- '(company-tooltip-common ((t (:inherit company-tooltip :weight bold :underline nil))))
- '(company-tooltip-common-selection ((t (:inherit company-tooltip-selection :weight bold :underline nil)))))
+
