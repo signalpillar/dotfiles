@@ -34,6 +34,7 @@
              python-fill-docstring-style 'pep-257-nn
              fill-column 100
              python-test-runner 'pytest)
+     ranger
      (shell :variables
             shell-default-shell 'shell)
      (syntax-checking :variables
@@ -56,6 +57,7 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes '(
+                         solarized-light
                          leuven
                          molokai
                          subatomic
