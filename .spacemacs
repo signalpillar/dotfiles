@@ -24,6 +24,7 @@
      github
      go
      haskell
+     lua
      markdown
      (org :variables
           org-enable-github-support t)
@@ -57,14 +58,8 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes '(
-                         solarized-light
-                         leuven
-                         molokai
-                         subatomic
-                         spacegray
                          material
-                         tangotango
-                         fogus
+                         molokai
                          zenburn
                          twilight)
 
@@ -74,7 +69,7 @@
                                :size 14
                                :weight normal
                                :width normal
-                               :powerline-scale 1.15)
+                               :powerline-scale 0.75)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -84,8 +79,8 @@
    dotspacemacs-command-key ":"
    dotspacemacs-remap-Y-to-y$ t
    dotspacemacs-helm-resize t
-   ;; dotspacemacs-helm-no-header t
-   dotspacemacs-which-key-delay 1.0
+   dotspacemacs-helm-no-header t
+   dotspacemacs-which-key-delay 0.4
    dotspacemacs-smooth-scrolling t
    dotspacemacs-search-tools '("ag" "grep")
 
