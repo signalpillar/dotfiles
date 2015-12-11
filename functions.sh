@@ -295,3 +295,7 @@ function download-youtube-playlist {
 function create-tox-project {
     cookiecutter https://github.com/signalpillar/cookiecutter-tox-based.git
 }
+
+function ocaml-playground {
+    docker run -it -v /Users/signalpillar/Google\ Drive/notebooks:/root/notebooks -P oh-my-ocaml
+}
