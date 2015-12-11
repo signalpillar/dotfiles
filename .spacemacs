@@ -24,6 +24,7 @@
      github
      go
      haskell
+     html
      lua
      markdown
      (org :variables
