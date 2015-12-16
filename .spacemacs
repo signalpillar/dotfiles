@@ -59,10 +59,23 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes '(
+                         ;; light theemes
+                         spacemacs-light
+                         twilight-bright
+                         tao-yang
+                         mccarthy
+                         ritchie
+                         stekene-light
+                         organic-green
+                         occidental
+                         monochrome-bright
+                         minimal-light
+                         ;; dark themes
                          material
                          molokai
                          zenburn
-                         twilight)
+                         twilight
+                         )
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
