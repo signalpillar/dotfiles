@@ -60,16 +60,16 @@
 
    dotspacemacs-themes '(
                          ;; light theemes
-                         spacemacs-light
-                         twilight-bright
-                         tao-yang
-                         mccarthy
-                         ritchie
-                         stekene-light
-                         organic-green
-                         occidental
-                         monochrome-bright
-                         minimal-light
+                         ;; spacemacs-light
+                         ;; twilight-bright
+                         ;; tao-yang
+                         ;; mccarthy
+                         ;; ritchie
+                         ;; stekene-light
+                         ;; organic-green
+                         ;; occidental
+                         ;; monochrome-bright
+                         ;; minimal-light
                          ;; dark themes
                          material
                          molokai
@@ -163,6 +163,7 @@ layers configuration."
   (global-set-key (kbd "C--") 'zoom-frm-out)
   (evil-leader/set-key "of" 'neotree-find)
   (setq clojure-enable-fancify-symbols t)
+  (setq flycheck-display-errors-function 'flycheck-display-error-messages-unless-error-list)
 
   ;; Miscellaneous
   (add-hook 'text-mode-hook 'auto-fill-mode)
