@@ -34,7 +34,7 @@
 
      (python :variables
              python-fill-docstring-style 'pep-257-nn
-             fill-column 100
+             python-fill-column 100
              python-test-runner 'pytest)
      ranger
      (shell :variables
@@ -46,7 +46,7 @@
                       git-magit-status-fullscreen t)
      yaml)
 
-   dotspacemacs-additional-packages `()
+   dotspacemacs-additional-packages `(virtualenvwrapper)
    dotspacemacs-excluded-packages `()))
 
 (defun dotspacemacs/init ()
@@ -151,6 +151,7 @@ layers configuration."
   (defun jao-toggle-selective-display ()
     (interactive)
     (set-selective-display (if selective-display nil 1)))
+
   (global-set-key [f3] 'jao-toggle-selective-display)
 
   (setq-default
@@ -177,3 +178,28 @@ layers configuration."
 (setq markdown-open-command "~/bin/open_md")
 
 
+(defun parent-dir (dir)
+  (file-name-directory (directory-file-name dir)))
+
+(defun site-package? (dir)
+  (s-ends-with? "site-packages/" dir))
+
+(defun strip-path-to-tox-dir (dir)
+  (parent-dir (parent-dir (parent-dir (parent-dir dir)))))
+
+(defun find-tox-venevs-in-project (project-root-dir project-dirs)
+  (let ((site-package-dirs (-filter 'site-package? project-dirs)))
+    (-map (lambda (dir) (concat project-root-dir (strip-path-to-tox-dir dir))) site-package-dirs)))
+
+(defun activate-current-project-tox-env ()
+  (interactive)
+  (let ((venv-dirs (find-tox-venevs-in-project (projectile-project-p) (projectile-current-project-dirs))))
+    (let ((venv-dirs-length (length venv-dirs)))
+      (progn
+        (venv-set-location
+         (if (> venv-dirs-length 1)
+             (helm-comp-read "Choose tox directory to workon" venv-dirs)
+           (if (= venv-dirs-length 0)
+               (error "The project doesn't have created tox virtual environments.")
+             (car venv-dirs))))
+        (venv-workon)))))
