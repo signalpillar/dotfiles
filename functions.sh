@@ -107,9 +107,7 @@ function logBash {
     script /tmp/log.txt
 }
 
-function downloadYoutubeVideo {
-    wget "$1" -qO- | awk '/fmt_url_map/{gsub(/[\|\"]/,"\n");print}' | sed -n "/^fmt_url_map/,/videoplayback/p" | sed -e :a -e '$q;N;2,$D;ba' | tr -d '\n' | sed -e "s/\(.*\),\(.\)\{1,3\}/\1/;s/\\\//g" | wget -i - -O $2
-}
+
 function med {
     git ls-files --modified | grep $1 | xargs -i{} $2 {};
 }
@@ -139,10 +137,6 @@ function file_charset {
     file -i $0
 }
 
-function grepMp3Links {
-    grep -o "http://[^[:space:]]*.mp3"
-}
-
 function reloadXdefaults {
     xrdb ~/.Xdefaults
 }
@@ -159,10 +153,6 @@ function makeSnapshotOfPipe {
 
 function trueuniq {
     awk '{ if (!h[$0]) { print $0; h[$0]=1 } }'
-}
-
-function playPianoramaRadio {
-    mplayer http://188.127.226.185:80/
 }
 
 # youtube-dl has this functionality built in. If you're running an older version
@@ -212,11 +202,6 @@ function simple_chat {
     ncat -vlm 5 --ssl --chat 9876
 }
 
-# function docker-enter {
-#     boot2docker ssh '[ -f /var/lib/boot2docker/nsenter ] || docker run --rm -v /var/lib/boot2docker/:/target jpetazzo/nsenter'
-#     boot2docker ssh -t sudo /var/lib/boot2docker/docker-enter "$@"
-# }
-
 function docker-enter {
     docker exec -it $1 /bin/bash
 }
@@ -238,10 +223,6 @@ function list_all_opened_ports {
     lsof -Pan -i tcp -i udp
 }
 
-function vpn {
-    source ~/.openconnect/rivermeadow.sh
-}
-
 function link_environment_file_to_postactivate {
      rm $VIRTUAL_ENV/bin/postactivate; ln -s `pwd`/.environment $VIRTUAL_ENV/bin/postactivate
 }
@@ -250,24 +231,6 @@ function java_use() {
     export JAVA_HOME=$(/usr/libexec/java_home -v $1)
     export PATH=$JAVA_HOME/bin:$PATH
     java -version
-}
-
-
-function upgrade_apps {
-    if read -q '?upgrade all brew ups (y/n) ?'; then
-        brew update
-        brew upgrade
-    fi
-    if read -q '?upgrade nix packages (y/n) ?'; then
-        activate-nix-profile
-        nix-channel --update nixpkgs
-        nix-env -u '*'
-    fi
-    if read -q '?upgrade .emacs (y/n) ?'; then
-        cd ~/.emacs.d/
-        git fetch origin
-        git rebase origin/develop
-    fi
 }
 
 function activate-nix-profile {
