@@ -259,6 +259,10 @@ function create-tox-project {
     cookiecutter https://github.com/signalpillar/cookiecutter-tox-based.git
 }
 
-function ocaml-playground {
+function docker-ocaml-playground {
     docker run -it -v /Users/signalpillar/Google\ Drive/notebooks:/root/notebooks -P oh-my-ocaml
+}
+
+function docker-jupyter {
+    docker run -v ~/Google\ Drive/notebooks:/home/jovyan/work --rm -p 8888:8888 jupyter/datascience-notebook
 }
