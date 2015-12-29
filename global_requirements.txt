@@ -1,7 +1,11 @@
 # packages used by Emacs
 pip
 cookiecutter
-elpy
+
+autoflake
+# Reformat the buffer according to PEP8 using YAPF
+yapf
+
 importmagic
 ipython
 percol
