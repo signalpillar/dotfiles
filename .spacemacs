@@ -107,6 +107,10 @@
    require-final-newline t
    x-select-enable-clipboard nil
 
+   ;; If non nil then spacemacs will check for updates at startup
+   ;; when the current branch is not `develop'. (default t)
+	 dotspacemacs-check-for-update nil
+
    ;; Backups
    backup-directory-alist `((".*" . ,temporary-file-directory))
    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
