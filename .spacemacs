@@ -46,7 +46,7 @@
                       git-magit-status-fullscreen t)
      yaml)
 
-   dotspacemacs-additional-packages `(virtualenvwrapper)
+   dotspacemacs-additional-packages `(virtualenvwrapper nix-mode)
    dotspacemacs-excluded-packages `()))
 
 (defun dotspacemacs/init ()
@@ -60,7 +60,7 @@
 
    dotspacemacs-themes '(
                          ;; light theemes
-                         ;; spacemacs-light
+                         spacemacs-light
                          ;; twilight-bright
                          ;; tao-yang
                          ;; mccarthy
@@ -182,28 +182,29 @@ layers configuration."
 (setq markdown-open-command "~/bin/open_md")
 
 
-(defun parent-dir (dir)
+
+(defun sp/path/parent-dir (dir)
   (file-name-directory (directory-file-name dir)))
 
-(defun site-package? (dir)
-  (s-ends-with? "site-packages/" dir))
+(defun sp/tox/find-tox-dirs-in-project (project-root-dir)
 
-(defun strip-path-to-tox-dir (dir)
-  (parent-dir (parent-dir (parent-dir (parent-dir dir)))))
+  (defun -find-toxenv-bin-dirs (root)
+    (projectile-files-via-ext-command
+     (format "find %s -type d -name 'bin' -path '*/.tox/*/bin' -print0" root)))
 
-(defun find-tox-venevs-in-project (project-root-dir project-dirs)
-  (let ((site-package-dirs (-filter 'site-package? project-dirs)))
-    (-map (lambda (dir) (concat project-root-dir (strip-path-to-tox-dir dir))) site-package-dirs)))
+  (-map (lambda (file) (sp/path/parent-dir (sp/path/parent-dir file)))
+        (-find-toxenv-bin-dirs project-root-dir)))
 
-(defun activate-current-project-tox-env ()
+(defun sp/tox/activate-current-project-tox-env ()
   (interactive)
-  (let ((venv-dirs (find-tox-venevs-in-project (projectile-project-p) (projectile-current-project-dirs))))
-    (let ((venv-dirs-length (length venv-dirs)))
-      (progn
-        (venv-set-location
-         (if (> venv-dirs-length 1)
-             (helm-comp-read "Choose tox directory to workon" venv-dirs)
-           (if (= venv-dirs-length 0)
-               (error "The project doesn't have created tox virtual environments.")
-             (car venv-dirs))))
-        (venv-workon)))))
+  (let* (
+         (venv-dirs (sp/tox/find-tox-dirs-in-project (projectile-project-root)))
+         (venv-dirs-length (length venv-dirs)))
+    (progn
+      (venv-set-location
+       (if (> venv-dirs-length 1)
+           (helm-comp-read "Choose tox directory to workon" venv-dirs)
+         (if (= venv-dirs-length 0)
+             (error "The project doesn't have created tox virtual environments.")
+           (car venv-dirs))))
+      (venv-workon))))
