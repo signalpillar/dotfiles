@@ -60,7 +60,7 @@
 
    dotspacemacs-themes '(
                          ;; light theemes
-                         spacemacs-light
+                         ;; spacemacs-light
                          ;; twilight-bright
                          ;; tao-yang
                          ;; mccarthy
@@ -71,8 +71,9 @@
                          ;; monochrome-bright
                          ;; minimal-light
                          ;; dark themes
-                         material
-                         molokai
+                         ;; material
+                         ;; molokai
+                         colorsarenice-dark
                          zenburn
                          twilight
                          )
