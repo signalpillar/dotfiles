@@ -3,23 +3,28 @@
 
 (defun dotspacemacs/layers ()
   (setq-default
+
    dotspacemacs-delete-orphan-packages t
    dotspacemacs-distribution 'spacemacs
+
    dotspacemacs-configuration-layers
-   '(
-     ansible
+
+   '(ansible
      (auto-completion :variables
                       ;; auto-completion-enable-help-tooltip t
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
                       auto-completion-enable-sort-by-usage t
                       :disabled-for org)
+     (c-c++ :variables
+            c-c++--enable-clang-support t)
      clojure
      colors
      deft
      dockerfile
      emacs-lisp
      ;; eyebrowse
+     games
      git
      github
      go
@@ -27,8 +32,7 @@
      html
      lua
      markdown
-     (org :variables
-          org-enable-github-support t)
+     org
      ocaml
      osx
 
@@ -37,16 +41,32 @@
              python-fill-column 100
              python-test-runner 'pytest)
      ranger
+     semantic
      (shell :variables
             shell-default-shell 'shell)
      (syntax-checking :variables
                       syntax-checking-enable-by-default nil)
      themes-megapack
+     (theming :variables
+              theming-headings-inherit-from-default 'all
+              theming-headings-same-size 'all
+              theming-headings-bold 'all)
      (version-control :variables
+                      version-control-diff-tool 'diff-hl
                       git-magit-status-fullscreen t)
      yaml)
 
-   dotspacemacs-additional-packages `(virtualenvwrapper nix-mode)
+   dotspacemacs-additional-packages `(
+                                      virtualenvwrapper
+                                      nix-mode
+                                      ;; python2
+                                      ;; python3
+                                      ;; bash
+                                      ;; c
+                                      ;; c++
+                                      ;; cmake
+                                      ;; emacs lisp
+                                      helm-dash)
    dotspacemacs-excluded-packages `()))
 
 (defun dotspacemacs/init ()
@@ -55,7 +75,10 @@
    before layers configuration."
 
   (setq-default
-
+   dotspacemacs-elpa-https t
+   ;; If non nil then spacemacs will check for updates at startup
+   ;; when the current branch is not `develop'. (default t)
+	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes '(
@@ -75,11 +98,11 @@
                          ;; molokai
                          colorsarenice-dark
                          zenburn
-                         twilight
-                         )
+                         twilight)
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
+
    dotspacemacs-default-font '("Source Code Pro"
                                :size 14
                                :weight normal
@@ -93,8 +116,9 @@
 
    dotspacemacs-command-key ":"
    dotspacemacs-remap-Y-to-y$ t
+   dotspacemacs-use-ido nil
    dotspacemacs-helm-resize t
-   dotspacemacs-helm-no-header t
+   dotspacemacs-helm-position 'bottom
    dotspacemacs-which-key-delay 0.4
    dotspacemacs-smooth-scrolling t
    dotspacemacs-search-tools '("ag" "grep")
@@ -108,10 +132,6 @@
    require-final-newline t
    x-select-enable-clipboard nil
 
-   ;; If non nil then spacemacs will check for updates at startup
-   ;; when the current branch is not `develop'. (default t)
-	 dotspacemacs-check-for-update nil
-
    ;; Backups
    backup-directory-alist `((".*" . ,temporary-file-directory))
    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
@@ -123,6 +143,7 @@
 
    ;; Evil
    evil-shift-round nil
+   evil-want-C-i-jump nil
 
    ;; Whitespace mode
    whitespace-style '(face tabs tab-mark newline-mark)
@@ -209,3 +230,57 @@ layers configuration."
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
       (venv-workon))))
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(org-capture-templates
+   (quote
+    (("ort/checkitem" "Org Repo Checklist Item" checkitem
+      (file+headline
+       (ort/todo-file)
+       "Checklist"))
+     ("ort/todo" "Org Repo Todo" entry
+      (file+headline
+       (ort/todo-file)
+       "Todos")
+      "* TODO  %?			%T
+ %i
+ Link: %l
+")))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(default ((t (:background nil))))
+ '(company-tooltip-common ((t (:inherit company-tooltip :weight bold :underline nil))))
+ '(company-tooltip-common-selection ((t (:inherit company-tooltip-selection :weight bold :underline nil))))
+ '(font-latex-sectioning-0-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(font-latex-sectioning-1-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(font-latex-sectioning-2-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(font-latex-sectioning-3-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(font-latex-sectioning-4-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(font-latex-sectioning-5-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(font-latex-slide-title-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(info-title-1 ((t (:inherit default :height 1.0 :weight bold))))
+ '(info-title-2 ((t (:inherit default :height 1.0 :weight bold))))
+ '(info-title-3 ((t (:inherit default :height 1.0 :weight bold))))
+ '(info-title-4 ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face-1 ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face-2 ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face-3 ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face-4 ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face-5 ((t (:inherit default :height 1.0 :weight bold))))
+ '(markdown-header-face-6 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-document-title ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-1 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-2 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-3 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-4 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-5 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-6 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-7 ((t (:inherit default :height 1.0 :weight bold))))
+ '(org-level-8 ((t (:inherit default :height 1.0 :weight bold)))))
