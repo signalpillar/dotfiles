@@ -196,6 +196,21 @@ layers configuration."
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
 
+  ;; Org-babel
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((awk . t)
+     (emacs-lisp . t)
+     (gnuplot . t)
+     (makefile . t)
+     (ocaml . t)
+     (org . t)
+     (perl . t)
+     (python . t)
+     (shell . t)
+     (sql . t)
+     (sqlite . t)))
+
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
     (show-smartparens-global-mode -1))
