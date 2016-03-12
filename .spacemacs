@@ -127,6 +127,7 @@
 
 (defun dotspacemacs/user-init ()
   (setq-default
+   
 
    ;; Miscellaneous
    require-final-newline t
@@ -210,6 +211,14 @@ layers configuration."
      (shell . t)
      (sql . t)
      (sqlite . t)))
+
+  (setq org-capture-templates
+        '(;; other entries
+          ("j" "Journal entry" plain
+           (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
+           "%K - %a\n%i\n%?\n")
+          ;; other entries
+          ))
 
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
