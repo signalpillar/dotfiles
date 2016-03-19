@@ -4,7 +4,7 @@
 (defun dotspacemacs/layers ()
   (setq-default
 
-   dotspacemacs-delete-orphan-packages t
+   dotspacemacs-delete-orphan-packages nil
    dotspacemacs-distribution 'spacemacs
 
    dotspacemacs-configuration-layers
@@ -56,9 +56,9 @@
                       git-magit-status-fullscreen t)
      yaml)
 
-   dotspacemacs-additional-packages `(
-                                      virtualenvwrapper
+   dotspacemacs-additional-packages `(virtualenvwrapper
                                       nix-mode
+                                      org-webpage
                                       ;; python2
                                       ;; python3
                                       ;; bash
@@ -219,6 +219,22 @@ layers configuration."
            "%K - %a\n%i\n%?\n")
           ;; other entries
           ))
+  ;; org-webpage
+  (require 'org-webpage)
+  (owp/add-project-config
+   '("https://signalpillar.github.io/"
+     :repository-directory "~/proj/signalpillar.github.com/"
+     :remote (git "https://github.com/signalpillar/signalpillar.github.com.git" "master")
+     :site-domain "https://signalpillar.github.io/"
+     :site-main-title "signalpillar"
+     :site-sub-title "Rrr"
+     :theme (worg)
+     :personal-disqus-shortname "signalpillar"
+     :source-browse-url ("Github" "https://github.com/signalpillar/signalpillar.github.com.git")
+     :web-server-port 7654
+     :category-ignore-list ("about" "themes" "assets" "upload-scripts")
+
+     ))
 
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
