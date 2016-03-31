@@ -23,6 +23,7 @@
      deft
      dockerfile
      emacs-lisp
+     erc
      ;; eyebrowse
      games
      git
@@ -59,6 +60,7 @@
    dotspacemacs-additional-packages `(virtualenvwrapper
                                       nix-mode
                                       org-webpage
+                                      org-jira
                                       ;; python2
                                       ;; python3
                                       ;; bash
