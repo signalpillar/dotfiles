@@ -95,3 +95,6 @@ alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.
 export PROJECT_HOME=~/proj/py/
 export PATH="$HOME/.pyenv/bin:$PATH"
 eval "$(direnv hook zsh)"
+
+# OPAM configuration
+. /Users/signalpillar/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
