@@ -61,6 +61,7 @@
                                       nix-mode
                                       org-webpage
                                       org-jira
+                                      graphviz-dot-mode
                                       ;; python2
                                       ;; python3
                                       ;; bash
@@ -203,6 +204,7 @@ layers configuration."
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((awk . t)
+     (dot . t)
      (emacs-lisp . t)
      (gnuplot . t)
      (makefile . t)
