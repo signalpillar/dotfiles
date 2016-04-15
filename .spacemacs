@@ -33,7 +33,15 @@
      html
      lua
      markdown
-     org
+     (org :variables
+          org-agenda-files (quote ("~/Dropbox/org-mode/journal.org"))
+          org-hide-emphasis-markers t
+          org-capture-templates
+          '(;; other entries
+            ("j" "Journal entry" plain
+             (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
+             "%K - %a\n%i\n%?\n"))
+          )
      ocaml
      osx
 
@@ -215,14 +223,6 @@ layers configuration."
      (shell . t)
      (sql . t)
      (sqlite . t)))
-
-  (setq org-capture-templates
-        '(;; other entries
-          ("j" "Journal entry" plain
-           (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
-           "%K - %a\n%i\n%?\n")
-          ;; other entries
-          ))
   ;; org-webpage
   (require 'org-webpage)
   (owp/add-project-config
