@@ -65,7 +65,14 @@
                       git-magit-status-fullscreen t)
      yaml)
 
-   dotspacemacs-additional-packages `(virtualenvwrapper
+   dotspacemacs-additional-packages `(
+                                      cask
+                                      (cram-mode
+                                       :location (recipe
+                                                  :fetcher github
+                                                  :repo "signalpillar/cram-mode"))
+                                      (gifcast :location local)
+                                      virtualenvwrapper
                                       nix-mode
                                       org-webpage
                                       org-jira
@@ -107,6 +114,8 @@
                          ;; dark themes
                          ;; material
                          ;; molokai
+                         default
+                         apropospriate-light
                          colorsarenice-dark
                          zenburn
                          twilight)
@@ -207,6 +216,7 @@ layers configuration."
   ;; Miscellaneous
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
+  (require 'cram-mode)
 
   ;; Org-babel
   (org-babel-do-load-languages
