@@ -40,7 +40,7 @@
           '(;; other entries
             ("j" "Journal entry" plain
              (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
-             "%K - %a\n%i\n%?\n"))
+             "**** %K %a\n%i\n%?\n"))
           )
      ocaml
      osx
