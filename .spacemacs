@@ -101,7 +101,7 @@
 
    dotspacemacs-themes '(
                          ;; light theemes
-                         ;; spacemacs-light
+                         spacemacs-light
                          ;; twilight-bright
                          ;; tao-yang
                          ;; mccarthy
