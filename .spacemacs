@@ -21,6 +21,16 @@
      clojure
      colors
      deft
+
+     (cscope)
+     (clojure :variables
+              clojure-enable-fancify-symbols t)
+     (deft :variables
+       deft-extensions '("org" "rst" "md")
+       deft-directory "~/Dropbox/org-mode"
+       deft-use-filter-string-for-filename t)
+
+
      dockerfile
      emacs-lisp
      erc
