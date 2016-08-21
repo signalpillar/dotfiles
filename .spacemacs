@@ -61,6 +61,7 @@
              python-test-runner 'pytest)
      ranger
      semantic
+     terraform
      (shell :variables
             shell-default-shell 'shell)
      (syntax-checking :variables
