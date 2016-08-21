@@ -85,6 +85,7 @@
                                       (gifcast :location local)
                                       virtualenvwrapper
                                       nix-mode
+                                      helm-org-rifle
                                       org-webpage
                                       org-jira
                                       graphviz-dot-mode
