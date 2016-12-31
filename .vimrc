@@ -1,13 +1,56 @@
 " disable compatibility mode with VI
 " Use Vim settings, rather then Vi settings (much better!).
 set nocompatible
+filetype off
+
+" set the runtime path to include Vundle and initialize
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+" alternatively, pass a path where Vundle should install plugins
+" "call vundle#begin('~/some/path/here')
+
+" Plugins " {{{
+" let Vundle manage Vundle, required
+Plugin 'VundleVim/Vundle.vim'
+" Git integration
+Plugin 'tpope/vim-fugitive'
+"Nerd tree
+Plugin 'The-NERD-tree'
+map <F2> :NERDTreeToggle<CR>
+"Nerd commenter
+Plugin 'The-NERD-Commenter'
+"Color schemes
+Plugin 'mayansmoke'
+"Ctrl-P 
+Plugin 'kien/ctrlp.vim'
+
+let loaded_project = 1
+
+Plugin 'minibufexpl.vim'
+" }}}
+
+" All of your Plugins must be added before the following line
+call vundle#end()            " required
+filetype plugin indent on    " required
+" To ignore plugin indent changes, instead use:
+"filetype plugin on
+"
+" Brief help
+" :PluginList       - lists configured plugins
+" :PluginInstall    - installs plugins; append `!` to update or just
+" :PluginUpdate
+" :PluginSearch foo - searches for foo; append `!` to refresh local cache
+" :PluginClean      - confirms removal of unused plugins; append `!` to
+" auto-approve removal
+"
+" see :h vundle for more details or wiki for FAQ
+" Put your non-Plugin stuff after this line
 
 "{{{ General section
 
 " Allow backgrounding buffers without writing them, and remember marks/undo
 " for backgrounded buffers
 set hidden
-filetype plugin indent on
 
 " Make tab completion for files/buffers act like bash
 set wildmenu
@@ -35,39 +78,6 @@ set nowritebackup
 set noswapfile
 "}}}
 
-"====================================="
-" Vundle configuration "
-set rtp+=~/.vim/bundle/vundle/
-call vundle#rc()
-
-" let Vundle manage Vundle " required! 
-Bundle 'gmarik/vundle'
-" Plugins " {{{
-" Git integration
-Bundle "git.zip"
-Bundle "tpope/vim-fugitive"
-"Syntax highlight"
-Bundle "cucumber.zip"
-"Nerd tree
-Bundle "The-NERD-tree"
-map <F2> :NERDTreeToggle<CR>
-"Nerd commenter
-Bundle "The-NERD-Commenter"
-"Color schemes
-Bundle 'mayansmoke'
-" Project plugin
-Bundle 'project.tar.gz'
-let loaded_project = 1
-
-Bundle 'minibufexpl.vim'
-
-Bundle 'scala'
-
-" Scala {{{
-Bundle 'rosstimson/scala-vim-support'
-" }}}
-
-"====================================="
 
 " allow backspacing over everything in insert mode
 set backspace=indent,eol,start
@@ -447,54 +457,6 @@ function FoldStackTrace()
     endif
     return foldlevel(v:lnum)                                
 endfunction 
-
-autocmd BufEnter *.record call b:configureForRecordFiles()
-autocmd BufEnter Message*txt call b:configureForRecordFiles()
-
-function! b:configureForRecordFiles()
-    set foldmethod=expr
-    set foldexpr=FoldStackTrace() "stacktrace
-    "set foldexpr=FoldClientProperties() "'ClientProperties')
-    "set foldexpr=getline(v:lnum)=~'^\\s*<stacktrace>\\s*'?0:0
-    "set foldexpr=getline(v:lnum)=~'^\\s*<\/stacktrace>\\s*'?'<1':0
-    "syn
-    "SynColor Error term=reverse cterm=NONE ctermfg=Black ctermbg=Black gui=NONE guifg=White guibg=Red
-
-    "set foldmethod=syntax
-    "syntax region stacktrace start="^\\s*<destination>\\s*" end="^\\s*</destination>\\s*"
-    "
-    syn match ConnectionFailed /<CONNECT.*RESULT=\"\"/
-    syn match ConnectionOk /<CONNECT.*RESULT=\"success\"/
-    hi def link ConnectionFailed Error
-    hi def link ConnectionOk SpecialComment
-endfunction
-
-
-autocmd BufEnter *.log call b:configureForLog()
-
-function! b:configureForLog()
-    set nowrap
-    set noswapfile              "do not save copy of file
-    set bufhidden=unload        "save memory when other file is viewed
-    " causes file silent state - without refreshing
-    "set buftype=nowrite          "is read-only
-    set undolevels=-1           "no undo
-    
-    "reread file content automatically
-    set autoread
-    " syntax
-    "syn match ExceptionClass /\(\.\|\w\)\{-}Exception:\?\(\s.*\)\?/  contains=ExceptionMessage,package
-    syn match ExceptionClass /\(\.\|\w\)\{-}Exception:\s.*/  contains=ExceptionMessage,package
-    syn match ExceptionMessage /:\s.*/ contains=package,SessionFacade 
-    syn match sessionfacade /\w*sessionfacade\w*/ 
-    syn match package /com\.hp/
-    syn keyword AtKeyword at
-    hi def link ExceptionClass String
-    hi def link ExceptionMessage Comment
-    hi def link AtKeyword Keyword
-    hi def link SessionFacade Macro
-    hi def link package Typedef
-endfunction
 
 " GRB: use emacs-style tab completion when selecting files, etc
 set wildmode=longest,list
