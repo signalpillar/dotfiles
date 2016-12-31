@@ -20,28 +20,14 @@
             c-c++--enable-clang-support t)
      clojure
      colors
-     deft
 
-     (cscope)
      (clojure :variables
               clojure-enable-fancify-symbols t)
-     (deft :variables
-       deft-extensions '("org" "rst" "md")
-       deft-directory "~/Dropbox/org-mode"
-       deft-use-filter-string-for-filename t)
 
-
-     dockerfile
      emacs-lisp
-     erc
      ;; eyebrowse
-     games
      git
-     github
-     go
-     haskell
      html
-     lua
      markdown
      (org :variables
           org-agenda-files (quote ("~/Dropbox/org-mode/journal.org"))
@@ -85,17 +71,8 @@
                                       (gifcast :location local)
                                       virtualenvwrapper
                                       nix-mode
-                                      helm-org-rifle
-                                      org-webpage
-                                      org-jira
+                                      ;; helm-org-rifle
                                       graphviz-dot-mode
-                                      ;; python2
-                                      ;; python3
-                                      ;; bash
-                                      ;; c
-                                      ;; c++
-                                      ;; cmake
-                                      ;; emacs lisp
                                       helm-dash)
    dotspacemacs-excluded-packages `()))
 
@@ -245,22 +222,6 @@ layers configuration."
      (shell . t)
      (sql . t)
      (sqlite . t)))
-  ;; org-webpage
-  (require 'org-webpage)
-  (owp/add-project-config
-   '("https://signalpillar.github.io/"
-     :repository-directory "~/proj/signalpillar.github.com/"
-     :remote (git "https://github.com/signalpillar/signalpillar.github.com.git" "master")
-     :site-domain "https://signalpillar.github.io/"
-     :site-main-title "signalpillar"
-     :site-sub-title "Rrr"
-     :theme (worg)
-     :personal-disqus-shortname "signalpillar"
-     :source-browse-url ("Github" "https://github.com/signalpillar/signalpillar.github.com.git")
-     :web-server-port 7654
-     :category-ignore-list ("about" "themes" "assets" "upload-scripts")
-
-     ))
 
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
@@ -296,25 +257,7 @@ layers configuration."
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
       (venv-workon))))
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(org-capture-templates
-   (quote
-    (("ort/checkitem" "Org Repo Checklist Item" checkitem
-      (file+headline
-       (ort/todo-file)
-       "Checklist"))
-     ("ort/todo" "Org Repo Todo" entry
-      (file+headline
-       (ort/todo-file)
-       "Todos")
-      "* TODO  %?			%T
- %i
- Link: %l
-")))))
+
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -350,3 +293,11 @@ layers configuration."
  '(org-level-6 ((t (:inherit default :height 1.0 :weight bold))))
  '(org-level-7 ((t (:inherit default :height 1.0 :weight bold))))
  '(org-level-8 ((t (:inherit default :height 1.0 :weight bold)))))
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(package-selected-packages
+   (quote
+    (org-projectile org-present org-pomodoro alert log4e gntp org-download htmlize gnuplot orgit org-plus-contrib org organic-green-theme org-bullets zonokai-theme zenburn-theme zen-and-art-theme yapfify yaml-mode xterm-color ws-butler window-numbering which-key web-mode volatile-highlights virtualenvwrapper vi-tilde-fringe uuidgen utop use-package underwater-theme ujelly-theme typit twilight-theme twilight-bright-theme twilight-anti-bright-theme tuareg tronesque-theme toxi-theme toc-org terraform-mode tao-theme tangotango-theme tango-plus-theme tango-2-theme tagedit sunny-day-theme sublime-themes subatomic256-theme subatomic-theme stickyfunc-enhance srefactor spacemacs-theme spaceline spacegray-theme soothe-theme soft-stone-theme soft-morning-theme soft-charcoal-theme smyx-theme smeargle slim-mode shell-pop seti-theme scss-mode sass-mode reverse-theme reveal-in-osx-finder restart-emacs ranger rainbow-mode rainbow-identifiers rainbow-delimiters railscasts-theme quelpa pyvenv pytest pyenv-mode py-isort purple-haze-theme pug-mode professional-theme popwin planet-theme pip-requirements phoenix-dark-pink-theme phoenix-dark-mono-theme persp-mode pcre2el pbcopy pastels-on-dark-theme paradox pacmacs osx-trash osx-dictionary open-junk-file omtose-phellack-theme oldlace-theme ocp-indent occidental-theme obsidian-theme noctilux-theme nix-mode niflheim-theme neotree naquadah-theme mustang-theme multi-term move-text monokai-theme monochrome-theme molokai-theme moe-theme mmm-mode minimal-theme merlin material-theme markdown-toc majapahit-theme magit-gitflow magit-gh-pulls macrostep lush-theme lua-mode lorem-ipsum live-py-mode linum-relative link-hint light-soap-theme less-css-mode launchctl jinja2-mode jbeans-theme jazz-theme ir-black-theme intero inkpot-theme info+ indent-guide ido-vertical-mode hy-mode hungry-delete hlint-refactor hl-todo hindent highlight-parentheses highlight-numbers highlight-indentation hide-comnt heroku-theme hemisu-theme help-fns+ helm-themes helm-swoop helm-pydoc helm-projectile helm-mode-manager helm-make helm-hoogle helm-gitignore helm-flx helm-descbinds helm-dash helm-css-scss helm-cscope helm-company helm-c-yasnippet helm-ag hc-zenburn-theme haskell-snippets gruvbox-theme gruber-darker-theme graphviz-dot-mode grandshell-theme gotham-theme google-translate golden-ratio go-guru go-eldoc github-search github-clone github-browse-file gitconfig-mode gitattributes-mode git-timemachine git-messenger git-link git-gutter-fringe git-gutter-fringe+ gist gh-md gandalf-theme flycheck-pos-tip flycheck-haskell flx-ido flatui-theme flatland-theme firebelly-theme fill-column-indicator farmhouse-theme fancy-battery eyebrowse expand-region exec-path-from-shell evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-magit evil-lisp-state evil-indent-plus evil-iedit-state evil-exchange evil-escape evil-ediff evil-args evil-anzu espresso-theme eshell-z eshell-prompt-extras esh-help erc-yt erc-view-log erc-terminal-notifier erc-social-graph erc-image erc-hl-nicks emmet-mode elisp-slime-nav dumb-jump dracula-theme django-theme disaster diff-hl deft darktooth-theme darkokai-theme darkmine-theme darkburn-theme dakrone-theme cython-mode cyberpunk-theme cram-mode company-web company-statistics company-go company-ghci company-ghc company-cabal company-c-headers company-anaconda column-enforce-mode colorsarenice-theme color-theme-sanityinc-tomorrow color-theme-sanityinc-solarized color-identifiers-mode cmm-mode cmake-mode clues-theme clojure-snippets clj-refactor clean-aindent-mode clang-format cider-eval-sexp-fu cherry-blossom-theme cask busybee-theme bubbleberry-theme birds-of-paradise-plus-theme badwolf-theme auto-yasnippet auto-highlight-symbol auto-compile apropospriate-theme anti-zenburn-theme ansible-doc ansible ample-zen-theme ample-theme alect-themes aggressive-indent afternoon-theme adaptive-wrap ace-window ace-link ace-jump-helm-line ac-ispell 2048-game))))
