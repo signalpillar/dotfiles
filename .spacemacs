@@ -37,6 +37,30 @@
             ("j" "Journal entry" plain
              (file+datetree "~/Dropbox/org-mode/journal.org")
              "**** %?"))
+
+
+          org-export-babel-evaluate nil
+          org-src-preserve-indentation t
+          org-todo-keywords (quote
+                   ((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d@/!)")
+                    (sequence "WAITING(w@/!)" "REVIEW(r)"
+                        "HOLD(h@/!)" "|" "CANCELLED(c@/!)" "MERGED(m)")))
+          org-todo-keyword-faces (quote
+                                  (
+                                   ("TODO" :foreground "red" :width bold)
+                                   ("NEXT" :foreground "blue" :width bold)
+                                   ("DONE" :foreground "forest green" :width bold)
+                                   ("WAITING" :foreground "orange" :width bold)
+                                   ("REVIEW" :foreground "orange" :width bold)
+                                   ("HOLD" :foreground "magenta" :width bold)
+                                   ("CANCELLED" :foreground "forest gree" :width bold)
+                                   ("MERGED" :foreground "forest gree" :width bold)))
+          org-log-done (quote time)
+          org-log-into-drawer t
+          org-log-state-notes-insert-after-drawers nil
+          org-agenda-files (quote ("~/Dropbox/org-mode/journal.org"))
+          org-hide-emphasis-markers t
+
           )
      ocaml
      osx
