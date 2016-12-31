@@ -49,8 +49,8 @@
           org-capture-templates
           '(;; other entries
             ("j" "Journal entry" plain
-             (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
-             "**** %K %a\n%i\n%?\n"))
+             (file+datetree "~/Dropbox/org-mode/journal.org")
+             "**** %?"))
           )
      ocaml
      osx
