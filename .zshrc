@@ -48,6 +48,7 @@ alias ex='emacs -nw'
 alias gitk='gitk --date-order'
 
 source ~/functions.sh
+source ~/.env
 export proj=$r/proj
 export dt=$r/dt
 export MAVEN=$dt/apache-maven
