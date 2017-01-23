@@ -2,7 +2,6 @@
 pip
 cookiecutter
 
-autoflake
 # Reformat the buffer according to PEP8 using YAPF
 yapf
 
