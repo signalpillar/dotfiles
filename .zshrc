@@ -99,3 +99,4 @@ eval "$(direnv hook zsh)"
 
 # OPAM configuration
 . /Users/signalpillar/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
+alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/opam"
