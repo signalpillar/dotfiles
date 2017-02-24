@@ -1,6 +1,9 @@
 # packages used by Emacs
 pip
 cookiecutter
+jedi>=0.9.0
+json-rpc>=1.8.1
+service_factory>=0.1.5
 
 # Reformat the buffer according to PEP8 using YAPF
 yapf
