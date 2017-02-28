@@ -1,5 +1,7 @@
 # packages used by Emacs
 pip
+pipenv
+docker-compose
 cookiecutter
 jedi>=0.9.0
 json-rpc>=1.8.1
