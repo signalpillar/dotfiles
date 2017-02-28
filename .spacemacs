@@ -114,6 +114,7 @@
 
    dotspacemacs-themes '(
                          ;; light theemes
+                         leuven
                          default
                          ;; soft-stone
                          ;; spacemacs-light
