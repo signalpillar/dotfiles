@@ -40,8 +40,8 @@ except ImportError:
 
 PACKAGES = [
     # Pip has no dependencies, as it vendors everything:
-    ('https://pypi.python.org/packages/source/p/pip/pip-8.0.2.tar.gz',
-     '46f4bd0d8dfd51125a554568d646fe4200a3c2c6c36b9f2d06d2212148439521'),
+    ('https://pypi.python.org/packages/11/b6/abcb525026a4be042b486df43905d6893fb04f05aac21c32c638e939e447/pip-9.0.1.tar.gz#md5=35f01da33009719497f01a4ba69d63c9',
+     '57ff41e99cb01b6a1c2b0999161589b726f0ec8b'),
     # This version of setuptools has only optional dependencies:
     ('https://pypi.python.org/packages/source/s/setuptools/'
      'setuptools-19.4.tar.gz',
