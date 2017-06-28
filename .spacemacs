@@ -9,7 +9,7 @@
 
    dotspacemacs-configuration-layers
 
-   '(ansible
+   '(
      (auto-completion :variables
                       ;; auto-completion-enable-help-tooltip t
                       auto-completion-return-key-behavior nil
