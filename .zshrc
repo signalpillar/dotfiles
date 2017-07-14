@@ -40,6 +40,7 @@ source $ZSH/oh-my-zsh.sh
 alias ll='ls -althF'
 alias la='ls -A'
 alias l='ls -CF'
+alias tmux='tmux -2'
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
