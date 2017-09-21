@@ -130,6 +130,7 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes '(
+                         github
                          ;; light theemes
                          leuven
                          default
@@ -156,7 +157,7 @@
    dotspacemacs-colorize-cursor-according-to-state t
 
    dotspacemacs-default-font '("Monaco"
-                               :size 12
+                               :size 11
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -179,7 +180,6 @@
 
 (defun dotspacemacs/user-init ()
   (setq-default
-   
 
    ;; Miscellaneous
    require-final-newline t
@@ -253,12 +253,12 @@ layers configuration."
   (add-hook 'python-mode-hook 'flycheck-mode)
 
   ;; Org-babel
-  (org-indent-mode)
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((awk . t)
      (dot . t)
      (emacs-lisp . t)
+     (restclient . t)
      (gnuplot . t)
      (makefile . t)
      (ocaml . t)
@@ -268,6 +268,10 @@ layers configuration."
      (shell . t)
      (sql . t)
      (sqlite . t)))
+
+  (with-eval-after-load 'org
+    (require 'ox-gfm nil t)
+    (require 'ox-confluence nil t))
 
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
