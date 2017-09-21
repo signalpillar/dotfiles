@@ -52,19 +52,6 @@ alias gtime='gtime -f "real %E\nuser %U:%P\nmemory: %M\nI/O %I/%O"'
 
 source ~/functions.sh
 source ~/.env
-export proj=$r/proj
-export dt=$r/dt
-export MAVEN=$dt/apache-maven
-export SCALA_HOME=$dt/scala
-export PATH=~/.pyenv/shims:/usr/local/sbin:/usr/local/bin:$PATH:$MAVEN/bin:$SCALA_HOME/bin/:~/bin:~/bin/sbt
-
-# to enable gnu tools by default
-export PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
-MANPATH="/usr/local/opt/coreutils/libexec/gnuman:$MANPATH"
-
-# Extend PATH to find `go` binaries
-export GOPATH=~/go/
-export PATH=$PATH:/usr/local/opt/go/libexec/bin:$GOPATH/bin
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
@@ -92,17 +79,11 @@ alias setup="python setup.py"
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
-
-export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
-
 bindkey -e
 bindkey '\e\e[C' forward-word
 bindkey '\e\e[D' backward-word
 
 alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.1'
-
-export PROJECT_HOME=~/proj/py/
-export PATH="$HOME/.pyenv/bin:$PATH"
 eval "$(direnv hook zsh)"
 
 # OPAM configuration
