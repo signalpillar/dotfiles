@@ -41,12 +41,14 @@ alias ll='ls -althF'
 alias la='ls -A'
 alias l='ls -CF'
 alias tmux='tmux -2'
+alias ddc='docker-compose'
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
 alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
 alias ex='emacs -nw'
 alias gitk='gitk --date-order'
+alias gtime='gtime -f "real %E\nuser %U:%P\nmemory: %M\nI/O %I/%O"'
 
 source ~/functions.sh
 source ~/.env
@@ -76,6 +78,11 @@ function vw {
   source $(pyenv which virtualenvwrapper.sh)
 }
 
+function pyenv-venvs {
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+}
+
 function trinity {
     source ~/bin/trinity.sh
 }
@@ -101,3 +108,5 @@ eval "$(direnv hook zsh)"
 # OPAM configuration
 . /Users/signalpillar/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
 alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/opam"
+# Java configuration
+export JAVA_HOME=$(/usr/libexec/java_home)
