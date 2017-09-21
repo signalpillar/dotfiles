@@ -251,6 +251,7 @@ layers configuration."
   (require 'cram-mode)
 
   (add-hook 'python-mode-hook 'flycheck-mode)
+  (add-hook 'python-mode-hook 'auto-fill-mode)
 
   ;; Org-babel
   (org-babel-do-load-languages
