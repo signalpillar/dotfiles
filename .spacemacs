@@ -11,25 +11,29 @@
 
    '(
      (auto-completion :variables
-                      ;; auto-completion-enable-help-tooltip t
+                      auto-completion-enable-help-tooltip t
+                      auto-completion-private-snippets-directory nil
+                      auto-completion-enable-snippets-in-popup nil
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
-                      auto-completion-enable-sort-by-usage t
+                      ;; auto-completion-enable-sort-by-usage t
+                      auto-completion-complete-with-key-sequence nil
+                      auto-completion-complete-with-key-sequence-delay 0.1
                       :disabled-for org)
-     (c-c++ :variables
-            c-c++--enable-clang-support t)
-     clojure
-     nginx
+     ;; (c-c++ :variables
+     ;;        c-c++--enable-clang-support t)
      colors
-
-     (clojure :variables
-              clojure-enable-fancify-symbols t)
+     (dash :variables
+           helm-dash-browser-func 'eww)
+     ;; sql
 
      emacs-lisp
+     javascript
      ;; eyebrowse
      git
-     html
+     ;; html
      markdown
+     nginx
      (org :variables
           org-agenda-files (quote ("~/Dropbox/org-mode/journal.org"))
           org-hide-emphasis-markers t
@@ -39,7 +43,11 @@
              (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
              "**** %?"))
 
-
+          org-cycle-separator-lines -2
+          org-fontify-whole-heading-lines t
+          org-blank-before-new-entry '(
+                                       (heading . nil)
+                                       (plain-list-item . nil))
           org-export-babel-evaluate nil
           org-src-preserve-indentation t
           org-todo-keywords (quote
@@ -68,21 +76,22 @@
 
      (python :variables
              python-fill-docstring-style 'pep-257-nn
-             python-fill-column 100
+             python-fill-column 79
              python-test-runner 'pytest)
-     ranger
+     ;; ranger
      semantic
-     terraform
+     ;; terraform
      (shell :variables
             shell-default-shell 'shell)
      (syntax-checking :variables
                       syntax-checking-enable-by-default nil)
-     themes-megapack
+     ;; themes-megapack
      (theming :variables
               theming-headings-inherit-from-default 'all
               theming-headings-same-size 'all
               theming-headings-bold 'all)
      spell-checking
+     restclient
      (version-control :variables
                       version-control-diff-tool 'diff-hl
                       git-magit-status-fullscreen t)
@@ -90,16 +99,19 @@
 
    dotspacemacs-additional-packages `(
                                       cask
-                                      (cram-mode
-                                       :location (recipe
-                                                  :fetcher github
-                                                  :repo "signalpillar/cram-mode"))
-                                      (gifcast :location local)
+                                      ;; (cram-mode
+                                      ;;  :location (recipe
+                                      ;;             :fetcher github
+                                      ;;             :repo "signalpillar/cram-mode"))
+                                      ;; (gifcast :location local)
+                                      ;; treemacs
+                                      ;; treemacs-evil
                                       virtualenvwrapper
-                                      nix-mode
+                                      ;; nix-mode
+                                      ox-gfm
+                                      ob-restclient
                                       ;; helm-org-rifle
-                                      graphviz-dot-mode
-                                      helm-dash)
+                                      ;; graphviz-dot-mode
    dotspacemacs-excluded-packages `()))
 
 (defun dotspacemacs/init ()
