@@ -30,7 +30,7 @@ ZSH_THEME="sunrise"
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
-plugins=(colored-man cp colorize git brew docker git-extras osx pip python vagrant zsh-syntax-highlighting)
+plugins=(colored-man cp colorize git brew docker git-extras osx pip python zsh-syntax-highlighting zsh-autosuggestions)
 
 source $ZSH/oh-my-zsh.sh
 
