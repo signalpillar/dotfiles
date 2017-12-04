@@ -4,6 +4,11 @@
 (defun dotspacemacs/layers ()
   (setq-default
 
+   ;; If non-nil then Spacelpa repository is the primary source to install
+   ;; a locked version of packages. If nil then Spacemacs will install the lastest
+   ;; version of packages from MELPA. (default nil)
+   dotspacemacs-use-spacelpa nil
+
    dotspacemacs-delete-orphan-packages nil
    dotspacemacs-distribution 'spacemacs
 
@@ -11,13 +16,13 @@
 
    '(
      (auto-completion :variables
-                      auto-completion-enable-help-tooltip t
+                      auto-completion-enable-help-tooltip nil
                       auto-completion-private-snippets-directory nil
                       auto-completion-enable-snippets-in-popup nil
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
                       ;; auto-completion-enable-sort-by-usage t
-                      auto-completion-complete-with-key-sequence nil
+                      ;; auto-completion-complete-with-key-sequence nil
                       auto-completion-complete-with-key-sequence-delay 0.1
                       :disabled-for org)
      ;; (c-c++ :variables
@@ -31,11 +36,12 @@
      javascript
      ;; eyebrowse
      git
+     github
      ;; html
      markdown
      nginx
      (org :variables
-          org-agenda-files (quote ("~/Dropbox/org-mode/journal.org"))
+          org-agenda-files (quote ("~/Dropbox/org-mode/"))
           org-hide-emphasis-markers t
           org-capture-templates
           '(;; other entries
@@ -67,7 +73,6 @@
           org-log-done (quote time)
           org-log-into-drawer t
           org-log-state-notes-insert-after-drawers nil
-          org-agenda-files (quote ("~/Dropbox/org-mode/journal.org"))
           org-hide-emphasis-markers t
 
           )
@@ -85,7 +90,7 @@
             shell-default-shell 'shell)
      (syntax-checking :variables
                       syntax-checking-enable-by-default nil)
-     ;; themes-megapack
+     themes-megapack
      (theming :variables
               theming-headings-inherit-from-default 'all
               theming-headings-same-size 'all
@@ -98,8 +103,10 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      ;; org-download
+                                      ;; magithub
                                       github-theme
-                                      cask
+                                      ;; cask
                                       ;; (cram-mode
                                       ;;  :location (recipe
                                       ;;             :fetcher github
@@ -109,8 +116,9 @@
                                       ;; treemacs-evil
                                       virtualenvwrapper
                                       ;; nix-mode
-                                      ox-gfm
+                                      ;; ox-gfm
                                       ob-restclient
+                                      org-tree-slide
                                       ;; helm-org-rifle
                                       ;; graphviz-dot-mode
                                       )
@@ -129,13 +137,19 @@
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
 
-   dotspacemacs-themes '(
+   dotspacemacs-themes `(
+                         spacemacs-light
+                         ,(if (display-graphic-p) 'tango-dark 'tango-dark)
+                         zenburn
+                         hickey
+                         mccarthy
+                         cyberpunk
+                         spacemacs-dark
                          github
                          ;; light theemes
                          leuven
                          default
                          ;; soft-stone
-                         ;; spacemacs-light
                          ;; twilight-bright
                          ;; tao-yang
                          ;; mccarthy
@@ -150,7 +164,6 @@
                          ;; molokai
                          ;; apropospriate-light
                          colorsarenice-dark
-                         zenburn
                          twilight)
 
    ;; If non nil the cursor color matches the state color.
@@ -227,6 +240,7 @@
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
 
+  (require 'helm-bookmark)
   (defun jao-toggle-selective-display ()
     (interactive)
     (set-selective-display (if selective-display nil 1)))
@@ -248,10 +262,13 @@ layers configuration."
   ;; Miscellaneous
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
-  (require 'cram-mode)
 
   (add-hook 'python-mode-hook 'flycheck-mode)
   (add-hook 'python-mode-hook 'auto-fill-mode)
+  ;; Magit
+  ;; (use-package magithub
+  ;;   :after magit
+  ;;   :config (magithub-feature-autoinject t))
 
   ;; Org-babel
   (org-babel-do-load-languages
@@ -277,9 +294,6 @@ layers configuration."
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
     (show-smartparens-global-mode -1))
-  )
-
-(setq markdown-open-command "~/bin/open_md")
 
 
 
@@ -307,15 +321,16 @@ layers configuration."
          (if (= venv-dirs-length 0)
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
-      (venv-workon))))
+      (venv-workon)
+      (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
+      (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
+      )))
 
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(ansi-color-names-vector
-   ["#0a0814" "#f2241f" "#67b11d" "#b1951d" "#4f97d7" "#a31db1" "#28def0" "#b2b2b2"])
  '(evil-want-Y-yank-to-eol t)
  '(neo-hidden-regexp-list
    (quote
