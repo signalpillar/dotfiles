@@ -265,6 +265,10 @@ layers configuration."
 
   (add-hook 'python-mode-hook 'flycheck-mode)
   (add-hook 'python-mode-hook 'auto-fill-mode)
+  (advice-add 'pyenv-mode-set
+              :after
+              (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
+              )
   ;; Magit
   ;; (use-package magithub
   ;;   :after magit
