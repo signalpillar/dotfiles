@@ -1,5 +1,5 @@
 # packages used by Emacs
-pip
+pundle
 pipenv
 docker-compose
 cookiecutter
@@ -10,10 +10,13 @@ service_factory>=0.1.5
 # Reformat the buffer according to PEP8 using YAPF
 yapf
 
+# importmagic and etc
 importmagic
+epc
+
 ipython
 percol
-tox
+tox-battery
 # May fail due to present README file in the site-packages directory which conflicts with the `readme` library name required by `restview`
 restview
 wheel
