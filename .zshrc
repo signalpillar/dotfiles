@@ -59,8 +59,6 @@ export ALTERNATE_EDITOR=""
 export EDITOR=~/bin/ec
 
 
-. `brew --prefix`/etc/profile.d/z.sh
-
 function vw {
   source $(pyenv which virtualenvwrapper.sh)
 }
