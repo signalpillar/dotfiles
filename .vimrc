@@ -23,6 +23,13 @@ Plugin 'The-NERD-Commenter'
 Plugin 'mayansmoke'
 "Ctrl-P 
 Plugin 'kien/ctrlp.vim'
+" Synctastic
+" Plugin 'scrooloose/syntastic'
+Plugin 'bling/vim-airline'
+Plugin 'airblade/vim-gitgutter'
+Plugin 'sheerun/vim-polyglot'
+Plugin 'w0rp/ale'
+Plugin 'jreybert/vimagit'
 
 let loaded_project = 1
 
