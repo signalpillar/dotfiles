@@ -30,6 +30,7 @@ Plugin 'airblade/vim-gitgutter'
 Plugin 'sheerun/vim-polyglot'
 Plugin 'w0rp/ale'
 Plugin 'jreybert/vimagit'
+Plugin 'jpalardy/vim-slime'
 
 let loaded_project = 1
 
@@ -280,6 +281,19 @@ map <c-a> ggVG
 
 " Undo in insert mode.
 imap <c-z> <c-o>u
+
+
+
+" Configure tslime key bindings
+let g:slime_target = "tmux"
+vmap <C-c><C-c> <Plug>SendSelectionToTmux
+nmap <C-c><C-c> <Plug>NormalModeSendToTmux
+nmap <C-c>r <Plug>SetTmuxVars
+
+" For IPython repl we need to set special variable so slime knows how to
+" insert code correctly.
+" https://github.com/jpalardy/vim-slime/tree/master/ftplugin/python
+" autocmd BufRead *.py let g:slime_python_ipython = 1
 
 
 " ************************************************************************
