@@ -14,7 +14,9 @@
 
    dotspacemacs-configuration-layers
 
-   '(
+   '(csv
+     ;; ruby
+     ;; elm
      (auto-completion :variables
                       auto-completion-enable-help-tooltip nil
                       auto-completion-private-snippets-directory nil
@@ -30,16 +32,18 @@
      colors
      (dash :variables
            helm-dash-browser-func 'eww)
+     ;; elm
      ;; sql
 
-     emacs-lisp
-     javascript
+     ;; emacs-lisp
+     javascript  ;; required for json support
      ;; eyebrowse
      git
      github
+     gtags
      ;; html
      markdown
-     nginx
+     ;; nginx
      (org :variables
           org-agenda-files (quote ("~/Dropbox/org-mode/"))
           org-hide-emphasis-markers t
@@ -76,7 +80,7 @@
           org-hide-emphasis-markers t
 
           )
-     ocaml
+     ;; ocaml
      osx
 
      (python :variables
@@ -87,10 +91,10 @@
      semantic
      ;; terraform
      (shell :variables
-            shell-default-shell 'shell)
+            shell-default-shell 'multi-term)
      (syntax-checking :variables
-                      syntax-checking-enable-by-default nil)
-     themes-megapack
+                     syntax-checking-enable-by-default nil)
+     ;; themes-megapack
      (theming :variables
               theming-headings-inherit-from-default 'all
               theming-headings-same-size 'all
@@ -138,8 +142,7 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes `(
-                         spacemacs-light
-                         ,(if (display-graphic-p) 'tango-dark 'tango-dark)
+                         ,(if (display-graphic-p) 'github 'tango-dark)
                          zenburn
                          hickey
                          mccarthy
@@ -169,8 +172,8 @@
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("Monaco"
-                               :size 11
+   dotspacemacs-default-font '("Source Code Pro"
+                               :size 15
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -299,6 +302,18 @@ layers configuration."
   (with-eval-after-load 'smartparens
     (show-smartparens-global-mode -1))
 
+  ;; https://gist.github.com/ftrain/8443721
+  ;; enable visual feedback on selections
+  (setq transient-mark-mode t)
+  ;; default to better frame titles
+  (setq frame-title-format
+        (concat  "%b - emacs@" (system-name)))
+  ;; default to unified diffs
+  (setq diff-switches "-u")
+
+  ;; disable ya-snippets
+  ;; https://github.com/syl20bnr/spacemacs/issues/1923#issuecomment-112710468
+  (setq yas-snippet-dirs '("~/.emacs.d/private/snippets"))
 
 
 (defun sp/path/parent-dir (dir)
