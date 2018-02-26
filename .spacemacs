@@ -45,6 +45,7 @@
      markdown
      ;; nginx
      (org :variables
+          org-startup-indented t
           org-agenda-files (quote ("~/Dropbox/org-mode/"))
           org-hide-emphasis-markers t
           org-capture-templates
@@ -107,9 +108,18 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      apropospriate-theme
+                                      panda-theme  ;; very pleasant
+                                      danneskjold-theme
+                                      zpresent
+                                      pipenv
                                       ;; org-download
                                       ;; magithub
+                                      protobuf-mode
+                                      eval-sexp-fu
                                       github-theme
+                                      (babylon :location local)
+                                      (eval-sexp-fu :location local)
                                       ;; cask
                                       ;; (cram-mode
                                       ;;  :location (recipe
@@ -142,7 +152,10 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes `(
-                         ,(if (display-graphic-p) 'github 'tango-dark)
+                         panda
+                         apropospriate-dark
+                         spacemacs-light
+                         ;; ,(if (display-graphic-p) 'spacemacs-light 'tango-dark)
                          zenburn
                          hickey
                          mccarthy
@@ -187,7 +200,7 @@
    dotspacemacs-remap-Y-to-y$ t
    dotspacemacs-use-ido nil
    dotspacemacs-helm-resize t
-   dotspacemacs-helm-position 'bottom
+   dotspacemacs-helm-position 'right
    dotspacemacs-which-key-delay 0.4
    dotspacemacs-smooth-scrolling t
    dotspacemacs-search-tools '("ag" "grep")

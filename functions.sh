@@ -266,3 +266,9 @@ function docker-ocaml-playground {
 function docker-jupyter {
     docker run -v ~/Google\ Drive/notebooks:/home/jovyan/work --rm -p 8888:8888 jupyter/datascience-notebook
 }
+
+function cdd {
+    local PATH=$1
+    /bin/mkdir -p $PATH
+    cd $PATH
+}
