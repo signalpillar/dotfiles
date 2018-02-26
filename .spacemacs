@@ -136,7 +136,11 @@
                                       ;; helm-org-rifle
                                       ;; graphviz-dot-mode
                                       )
-   dotspacemacs-excluded-packages `()))
+   dotspacemacs-excluded-packages `(
+        evil-search-highlight-persist
+        eval-sexp-fu
+        info+
+       )))
 
 (defun dotspacemacs/init ()
   "Initialization function.
