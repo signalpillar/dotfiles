@@ -17,6 +17,7 @@
    '(csv
      ;; ruby
      ;; elm
+     rust
      (auto-completion :variables
                       auto-completion-enable-help-tooltip nil
                       auto-completion-private-snippets-directory nil
@@ -95,7 +96,7 @@
             shell-default-shell 'multi-term)
      (syntax-checking :variables
                      syntax-checking-enable-by-default nil)
-     ;; themes-megapack
+     themes-megapack
      (theming :variables
               theming-headings-inherit-from-default 'all
               theming-headings-same-size 'all
@@ -108,13 +109,12 @@
      yaml)
 
    dotspacemacs-additional-packages `(
-                                      apropospriate-theme
-                                      panda-theme  ;; very pleasant
-                                      danneskjold-theme
-                                      zpresent
                                       pipenv
+                                      flycheck-mypy
+                                      danneskjold-theme
                                       ;; org-download
                                       ;; magithub
+                                      panda-theme
                                       protobuf-mode
                                       eval-sexp-fu
                                       github-theme
@@ -140,7 +140,9 @@
         evil-search-highlight-persist
         eval-sexp-fu
         info+
-       )))
+        )
+   ) ;; setq
+  )
 
 (defun dotspacemacs/init ()
   "Initialization function.
@@ -148,7 +150,7 @@
    before layers configuration."
 
   (setq-default
-   exec-path-from-shell-arguments '("-l")
+   ;; exec-path-from-shell-arguments '("-l")
    dotspacemacs-elpa-https t
    ;; If non nil then spacemacs will check for updates at startup
    ;; when the current branch is not `develop'. (default t)
@@ -156,15 +158,15 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes `(
-                         panda
-                         apropospriate-dark
+                         professional
+                         spacemacs-dark
+                         danneskjold
                          spacemacs-light
                          ;; ,(if (display-graphic-p) 'spacemacs-light 'tango-dark)
                          zenburn
                          hickey
                          mccarthy
                          cyberpunk
-                         spacemacs-dark
                          github
                          ;; light theemes
                          leuven
@@ -189,8 +191,8 @@
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("Source Code Pro"
-                               :size 15
+   dotspacemacs-default-font '("DejaVu Sans Mono"
+                               :size 13
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -260,6 +262,7 @@
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
 
+  (fset 'evil-visual-update-x-selection 'ignore)
   (require 'helm-bookmark)
   (defun jao-toggle-selective-display ()
     (interactive)
@@ -332,6 +335,14 @@ layers configuration."
   ;; https://github.com/syl20bnr/spacemacs/issues/1923#issuecomment-112710468
   (setq yas-snippet-dirs '("~/.emacs.d/private/snippets"))
 
+  (require 'flycheck-mypy)
+  (flycheck-add-next-checker 'python-flake8 'python-mypy t)
+  (setq flycheck-python-mypy-args
+        '("--strict-optional" "--ignore-missing-imports" "--fast-parser"))
+  (dolist (f '("GPATH" "GTAGS" "GRTAGS" ".*"))
+    (add-to-list 'helm-grep-ignored-files f))
+  )
+
 
 (defun sp/path/parent-dir (dir)
   (file-name-directory (directory-file-name dir)))
@@ -374,16 +385,18 @@ layers configuration."
  '(org-cycle-separator-lines 4)
  '(package-selected-packages
    (quote
-    (github-theme web-beautify livid-mode skewer-mode simple-httpd js2-refactor js2-mode js-doc company-tern tern coffee-mode dash-functional magit-gh-pulls github-search github-clone github-browse-file gist gh marshal logito pcache ht dash-at-point define-word treemacs-evil treemacs pfuture company-quickhelp org-category-capture dockerfile-mode docker json-mode tablist docker-tramp json-snatcher json-reformat restclient-helm ob-restclient ob-http company-restclient know-your-http-well restclient sql-indent eink-theme flyspell-correct-helm flyspell-correct auto-dictionary caml powerline log4e gntp parent-mode gitignore-mode fringe-helper git-gutter+ pos-tip flx iedit anzu goto-chg undo-tree web-completion-data hydra peg eval-sexp-fu highlight spinner pkg-info shut-up epl bind-map bind-key pythonic popup f nginx-mode diminish seq package-build projectile markdown-mode alert s winum solarized-theme madhat2r-theme fuzzy company-ansible org packed auto-complete yasnippet anaconda-mode smartparens evil avy magit-popup async haml-mode dash colorsarenice-theme web-mode terraform-mode moe-theme jazz-theme helm-projectile git-gutter-fringe evil-mc eshell-z clj-refactor cider alect-themes flycheck autothemer company request helm helm-core magit git-commit zonokai-theme zenburn-theme zen-and-art-theme yapfify yaml-mode xterm-color ws-butler with-editor window-numbering which-key volatile-highlights virtualenvwrapper vi-tilde-fringe uuidgen utop use-package underwater-theme ujelly-theme twilight-theme twilight-bright-theme twilight-anti-bright-theme tuareg tronesque-theme toxi-theme toc-org tao-theme tangotango-theme tango-plus-theme tango-2-theme tagedit sunny-day-theme sublime-themes subatomic256-theme subatomic-theme stickyfunc-enhance srefactor spacemacs-theme spaceline spacegray-theme soothe-theme soft-stone-theme soft-morning-theme soft-charcoal-theme smyx-theme smeargle slim-mode shell-pop seti-theme scss-mode sass-mode reverse-theme reveal-in-osx-finder restart-emacs ranger rainbow-mode rainbow-identifiers rainbow-delimiters railscasts-theme queue quelpa pyvenv pytest pyenv-mode py-isort purple-haze-theme pug-mode professional-theme popwin planet-theme pip-requirements phoenix-dark-pink-theme phoenix-dark-mono-theme persp-mode pcre2el pbcopy pastels-on-dark-theme paredit paradox osx-trash osx-dictionary orgit organic-green-theme org-projectile org-present org-pomodoro org-plus-contrib org-download org-bullets open-junk-file omtose-phellack-theme oldlace-theme ocp-indent occidental-theme obsidian-theme noctilux-theme nix-mode niflheim-theme neotree naquadah-theme mustang-theme multiple-cursors multi-term move-text monokai-theme monochrome-theme molokai-theme mmm-mode minimal-theme merlin material-theme markdown-toc majapahit-theme magit-gitflow macrostep lush-theme lorem-ipsum live-py-mode linum-relative link-hint light-soap-theme less-css-mode launchctl jinja2-mode jbeans-theme ir-black-theme inkpot-theme info+ inflections indent-guide ido-vertical-mode hy-mode hungry-delete htmlize hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt heroku-theme hemisu-theme help-fns+ helm-themes helm-swoop helm-pydoc helm-mode-manager helm-make helm-gitignore helm-flx helm-descbinds helm-dash helm-css-scss helm-company helm-c-yasnippet helm-ag hcl-mode hc-zenburn-theme gruvbox-theme gruber-darker-theme graphviz-dot-mode grandshell-theme gotham-theme google-translate golden-ratio gnuplot gitconfig-mode gitattributes-mode git-timemachine git-messenger git-link git-gutter-fringe+ git-gutter gh-md gandalf-theme flycheck-pos-tip flx-ido flatui-theme flatland-theme firebelly-theme fill-column-indicator farmhouse-theme fancy-battery eyebrowse expand-region exec-path-from-shell evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-matchit evil-magit evil-lisp-state evil-indent-plus evil-iedit-state evil-exchange evil-escape evil-ediff evil-args evil-anzu espresso-theme eshell-prompt-extras esh-help emmet-mode elisp-slime-nav edn dumb-jump dracula-theme django-theme disaster diff-hl darktooth-theme darkokai-theme darkmine-theme darkburn-theme dakrone-theme cython-mode cyberpunk-theme company-web company-statistics company-c-headers company-anaconda column-enforce-mode color-theme-sanityinc-tomorrow color-theme-sanityinc-solarized color-identifiers-mode cmake-mode clues-theme clojure-snippets clojure-mode clean-aindent-mode clang-format cider-eval-sexp-fu cherry-blossom-theme cask busybee-theme bubbleberry-theme birds-of-paradise-plus-theme badwolf-theme auto-yasnippet auto-highlight-symbol auto-compile apropospriate-theme anti-zenburn-theme ansible-doc ansible ample-zen-theme ample-theme aggressive-indent afternoon-theme adaptive-wrap ace-window ace-link ace-jump-helm-line ac-ispell)))
- '(pytest-cmd-flags "-vv -x -s"))
+    (zeal-at-point yapfify yaml-mode xterm-color web-beautify virtualenvwrapper stickyfunc-enhance srefactor smeargle shell-pop reveal-in-osx-finder restclient-helm rainbow-mode rainbow-identifiers pyvenv pytest pyenv-mode py-isort protobuf-mode pip-requirements pbcopy panda-theme osx-trash osx-dictionary orgit org-tree-slide org-projectile org-category-capture org-present org-pomodoro alert log4e gntp org-mime org-download ob-restclient ob-http multi-term mmm-mode markdown-toc markdown-mode magit-gitflow magit-gh-pulls livid-mode skewer-mode simple-httpd live-py-mode launchctl json-mode json-snatcher json-reformat js2-refactor multiple-cursors js2-mode js-doc hy-mode htmlize helm-pydoc helm-gtags helm-gitignore helm-dash helm-company helm-c-yasnippet gnuplot gitignore-mode github-theme github-search github-clone github-browse-file gitconfig-mode gitattributes-mode git-timemachine git-messenger git-link git-gutter-fringe+ git-gutter-fringe fringe-helper git-gutter+ git-gutter gist gh marshal logito pcache ht gh-md ggtags fuzzy flyspell-correct-helm flyspell-correct flycheck-pos-tip pos-tip flycheck evil-unimpaired evil-magit magit magit-popup git-commit ghub let-alist with-editor eshell-z eshell-prompt-extras esh-help diff-hl cython-mode csv-mode company-tern dash-functional tern company-statistics company-restclient restclient know-your-http-well company-anaconda company color-identifiers-mode coffee-mode auto-yasnippet yasnippet auto-dictionary anaconda-mode pythonic ac-ispell auto-complete danneskjold-theme ws-butler winum which-key volatile-highlights vi-tilde-fringe uuidgen use-package toc-org spaceline restart-emacs request rainbow-delimiters popwin persp-mode pcre2el paradox org-plus-contrib org-bullets open-junk-file neotree move-text macrostep lorem-ipsum linum-relative link-hint info+ indent-guide hungry-delete hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-themes helm-swoop helm-projectile helm-mode-manager helm-make helm-flx helm-descbinds helm-ag google-translate golden-ratio flx-ido fill-column-indicator fancy-battery eyebrowse expand-region exec-path-from-shell evil-visualstar evil-visual-mark-mode evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-indent-plus evil-iedit-state evil-exchange evil-escape evil-ediff evil-args evil-anzu eval-sexp-fu elisp-slime-nav dumb-jump diminish define-word column-enforce-mode clean-aindent-mode auto-highlight-symbol auto-compile aggressive-indent adaptive-wrap ace-window ace-link ace-jump-helm-line)))
+ '(pytest-cmd-flags "-vv -x -s")
+ '(pytest-global-name "pytest"))
+
+
+
+
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(default ((t (:inherit nil :stipple nil :background "#ffffff" :foreground "#333333" :inverse-video nil :box nil :strike-through nil :overline nil :underline nil :slant normal :weight normal :height 110 :width normal :foundry "nil" :family "Monaco"))))
- '(company-tooltip-common ((t (:inherit company-tooltip :weight bold :underline nil))))
- '(company-tooltip-common-selection ((t (:inherit company-tooltip-selection :weight bold :underline nil))))
  '(font-latex-sectioning-0-face ((t (:inherit default :height 1.0 :weight bold))))
  '(font-latex-sectioning-1-face ((t (:inherit default :height 1.0 :weight bold))))
  '(font-latex-sectioning-2-face ((t (:inherit default :height 1.0 :weight bold))))
@@ -391,10 +404,6 @@ layers configuration."
  '(font-latex-sectioning-4-face ((t (:inherit default :height 1.0 :weight bold))))
  '(font-latex-sectioning-5-face ((t (:inherit default :height 1.0 :weight bold))))
  '(font-latex-slide-title-face ((t (:inherit default :height 1.0 :weight bold))))
- '(font-lock-doc-face ((t (:foreground "gray64"))))
- '(font-lock-function-name-face ((t (:foreground "#99008c"))))
- '(font-lock-keyword-face ((t (:foreground "#333333"))))
- '(font-lock-type-face ((t (:foreground "#99008c"))))
  '(info-title-1 ((t (:inherit default :height 1.0 :weight bold))))
  '(info-title-2 ((t (:inherit default :height 1.0 :weight bold))))
  '(info-title-3 ((t (:inherit default :height 1.0 :weight bold))))
