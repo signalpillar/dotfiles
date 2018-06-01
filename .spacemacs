@@ -47,7 +47,7 @@
      ;; nginx
      (org :variables
           org-startup-indented t
-          org-agenda-files (quote ("~/Dropbox/org-mode/"))
+          org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"))
           org-hide-emphasis-markers t
           org-capture-templates
           '(;; other entries
@@ -65,7 +65,7 @@
           org-todo-keywords (quote
                    ((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d@/!)")
                     (sequence "WAITING(w@/!)" "REVIEW(r)"
-                        "HOLD(h@/!)" "|" "CANCELLED(c@/!)" "MERGED(m)")))
+                        "HOLD(h@/!)" "|" "CANCELLED(c@/!)" "MERGED(m)" "MEETING(g@/!)")))
           org-todo-keyword-faces (quote
                                   (
                                    ("TODO" :foreground "red" :width bold)
@@ -73,6 +73,7 @@
                                    ("DONE" :foreground "forest green" :width bold)
                                    ("WAITING" :foreground "orange" :width bold)
                                    ("REVIEW" :foreground "orange" :width bold)
+                                   ("MEETING" :foreground "orange" :width bold)
                                    ("HOLD" :foreground "magenta" :width bold)
                                    ("CANCELLED" :foreground "forest gree" :width bold)
                                    ("MERGED" :foreground "forest gree" :width bold)))
@@ -87,7 +88,7 @@
 
      (python :variables
              python-fill-docstring-style 'pep-257-nn
-             python-fill-column 79
+             python-fill-column 80
              python-test-runner 'pytest)
      ;; ranger
      semantic
@@ -109,6 +110,12 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      plantuml-mode
+                                      all-the-icons
+                                      doom-themes
+
+                                      ;; highlight the window with the cursor
+                                      solaire-mode
                                       pipenv
                                       flycheck-mypy
                                       danneskjold-theme
@@ -158,6 +165,9 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes `(
+                         doom-one
+                         majapahit-light
+                         spolsky
                          professional
                          spacemacs-dark
                          danneskjold
@@ -192,7 +202,6 @@
    dotspacemacs-colorize-cursor-according-to-state t
 
    dotspacemacs-default-font '("DejaVu Sans Mono"
-                               :size 13
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -206,7 +215,7 @@
    dotspacemacs-remap-Y-to-y$ t
    dotspacemacs-use-ido nil
    dotspacemacs-helm-resize t
-   dotspacemacs-helm-position 'right
+   ;; dotspacemacs-helm-position 'right
    dotspacemacs-which-key-delay 0.4
    dotspacemacs-smooth-scrolling t
    dotspacemacs-search-tools '("ag" "grep")
@@ -262,13 +271,47 @@
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
 
+  ;; for any theme I wan to be able to see the borders of the windows.
+  (set-frame-parameter (selected-frame) 'internal-border-width 30)
+
   (fset 'evil-visual-update-x-selection 'ignore)
+
+  ;; -------------- plantuml mode
+  (add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
+  ;; -------------- configure solaire-mode
+  ;; brighten buffers (that represent real files)
+  (add-hook 'after-change-major-mode-hook #'turn-on-solaire-mode)
+  ;; To enable solaire-mode unconditionally for certain modes:
+  (add-hook 'ediff-prepare-buffer-hook #'solaire-mode)
+
+  ;; ...if you use auto-revert-mode, this prevents solaire-mode from turning
+  ;; itself off every time Emacs reverts the file
+  (add-hook 'after-revert-hook #'turn-on-solaire-mode)
+
+  ;; highlight the minibuffer when it is activated:
+  (add-hook 'minibuffer-setup-hook #'solaire-mode-in-minibuffer)
+
+  ;; if the bright and dark background colors are the wrong way around, use this
+  ;; to switch the backgrounds of the `default` and `solaire-default-face` faces.
+  ;; This should be used *after* you load the active theme!
+  ;;
+  ;; NOTE: This is necessary for themes in the doom-themes package!
+  (solaire-mode-swap-bg)
+
+  ;; -------------- configure doom themes
+  (require 'doom-themes)
+  ;; Enable custom neotree theme
+  (doom-themes-neotree-config)  ; all-the-icons fonts must be installed!
+  ;; Corrects (and improves) org-mode's native fontification.
+  (doom-themes-org-config)
+
   (require 'helm-bookmark)
   (defun jao-toggle-selective-display ()
     (interactive)
     (set-selective-display (if selective-display nil 1)))
 
   (global-set-key [f3] 'jao-toggle-selective-display)
+  (global-set-key [f4] 'sp/tox/activate-current-project-tox-env)
 
   (setq-default
    powerline-default-separator 'alternate
@@ -298,6 +341,8 @@ layers configuration."
   ;;   :config (magithub-feature-autoinject t))
 
   ;; Org-babel
+  (require 'plantuml-mode)
+
   (org-babel-do-load-languages
    'org-babel-load-languages
    '((awk . t)
@@ -309,10 +354,14 @@ layers configuration."
      (ocaml . t)
      (org . t)
      (perl . t)
+     (plantuml . t)
      (python . t)
      (shell . t)
      (sql . t)
      (sqlite . t)))
+
+  (add-to-list
+   'org-src-lang-modes '("plantuml" . plantuml))
 
   (with-eval-after-load 'org
     (require 'ox-gfm nil t)
