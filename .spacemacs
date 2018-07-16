@@ -15,8 +15,6 @@
    dotspacemacs-configuration-layers
 
    '(csv
-     ;; ruby
-     ;; elm
      rust
      (auto-completion :variables
                       auto-completion-enable-help-tooltip nil
@@ -106,7 +104,11 @@
               theming-headings-inherit-from-default 'all
               theming-headings-same-size 'all
               theming-headings-bold 'all)
-     spell-checking
+     (spell-checking :variables
+                     spell-checking-enable-auto-dictionary t
+                     enable-flyspell-auto-completion t
+                     spell-checking-enable-by-default nil
+      )
      restclient
      (version-control :variables
                       version-control-diff-tool 'diff-hl
@@ -128,7 +130,7 @@
                                       panda-theme
                                       protobuf-mode
                                       eval-sexp-fu
-                                      github-theme
+                                      github-modern-theme
                                       (babylon :location local)
                                       (eval-sexp-fu :location local)
                                       ;; cask
@@ -141,7 +143,7 @@
                                       ;; treemacs-evil
                                       virtualenvwrapper
                                       ;; nix-mode
-                                      ;; ox-gfm
+                                      ox-gfm
                                       ob-restclient
                                       org-tree-slide
                                       ;; helm-org-rifle
@@ -169,21 +171,20 @@
    dotspacemacs-editing-style 'vim
 
    dotspacemacs-themes `(
+                         spacemacs-light
+                         zenburn
+                         solarized-light
+                         cyberpunk
                          doom-one
                          majapahit-light
                          spolsky
                          professional
-                         spacemacs-dark
                          danneskjold
-                         spacemacs-light
                          ;; ,(if (display-graphic-p) 'spacemacs-light 'tango-dark)
-                         zenburn
                          hickey
                          mccarthy
                          cyberpunk
-                         github
                          ;; light theemes
-                         leuven
                          default
                          ;; soft-stone
                          ;; twilight-bright
@@ -199,13 +200,12 @@
                          ;; material
                          ;; molokai
                          ;; apropospriate-light
-                         colorsarenice-dark
                          twilight)
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("DejaVu Sans Mono"
+   dotspacemacs-default-font '("Source Code Pro"
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -229,6 +229,7 @@
 (defun dotspacemacs/user-init ()
   (setq-default
 
+   line-spacing 3
    ;; Miscellaneous
    require-final-newline t
    x-select-enable-clipboard t
@@ -276,7 +277,7 @@
 layers configuration."
 
   ;; for any theme I wan to be able to see the borders of the windows.
-  (set-frame-parameter (selected-frame) 'internal-border-width 30)
+  (set-frame-parameter (selected-frame) 'internal-border-width 15)
 
   (fset 'evil-visual-update-x-selection 'ignore)
 
@@ -304,8 +305,18 @@ layers configuration."
 
   ;; -------------- configure doom themes
   (require 'doom-themes)
+  ;; Neotree
+  (with-eval-after-load 'neotree
+    (add-to-list 'neo-hidden-regexp-list "TAGS$")
+    (add-to-list 'neo-hidden-regexp-list "__pycache__")
+  )
+  ;; auto-completion for python doesn't work
+  ;; https://github.com/syl20bnr/spacemacs/issues/10638
+  (eval-after-load "company"
+    '(add-to-list 'company-backends 'company-anaconda))
   ;; Enable custom neotree theme
   (doom-themes-neotree-config)  ; all-the-icons fonts must be installed!
+  (evil-leader/set-key "of" 'neotree-find)
   ;; Corrects (and improves) org-mode's native fontification.
   (doom-themes-org-config)
 
@@ -325,7 +336,6 @@ layers configuration."
   (set-fill-column 100)
   (global-set-key (kbd "C-=") 'zoom-frm-in)
   (global-set-key (kbd "C--") 'zoom-frm-out)
-  (evil-leader/set-key "of" 'neotree-find)
   (setq clojure-enable-fancify-symbols t)
   (setq flycheck-display-errors-function 'flycheck-display-error-messages-unless-error-list)
 
