@@ -26,8 +26,9 @@
                       ;; auto-completion-complete-with-key-sequence nil
                       auto-completion-complete-with-key-sequence-delay 0.1
                       :disabled-for org)
-     ;; (c-c++ :variables
-     ;;        c-c++--enable-clang-support t)
+     ;; It slows down the navigation in the buffer
+     ;; https://github.com/turnspike/spacemacs-spaceline
+     ;; (spacemacs-spaceline :location local)
      colors
      (dash :variables
            helm-dash-browser-func 'eww)
