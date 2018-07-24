@@ -125,32 +125,14 @@
 
                                       ;; highlight the window with the cursor
                                       solaire-mode
-                                      pipenv
                                       flycheck-mypy
-                                      danneskjold-theme
-                                      ;; org-download
-                                      ;; magithub
-                                      panda-theme
                                       protobuf-mode
                                       eval-sexp-fu
-                                      github-modern-theme
                                       (babylon :location local)
                                       (eval-sexp-fu :location local)
-                                      ;; cask
-                                      ;; (cram-mode
-                                      ;;  :location (recipe
-                                      ;;             :fetcher github
-                                      ;;             :repo "signalpillar/cram-mode"))
-                                      ;; (gifcast :location local)
-                                      ;; treemacs
-                                      ;; treemacs-evil
                                       virtualenvwrapper
-                                      ;; nix-mode
                                       ox-gfm
                                       ob-restclient
-                                      org-tree-slide
-                                      ;; helm-org-rifle
-                                      ;; graphviz-dot-mode
                                       )
    dotspacemacs-excluded-packages `(
         evil-search-highlight-persist
