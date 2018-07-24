@@ -52,6 +52,8 @@
           org-startup-indented t
           org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"))
           org-hide-emphasis-markers t
+          ;; this is to open only the task in the follow mode in agenda (F)
+          org-agenda-follow-indirect t
           org-capture-templates
           '(;; other entries
             ("j" "Journal entry" plain
@@ -377,6 +379,11 @@ layers configuration."
 
   (add-to-list
    'org-src-lang-modes '("plantuml" . plantuml))
+  ;; Open only task sub-tree on org-agdenda-goto from agenda
+  ;; https://emacs.stackexchange.com/questions/17797/how-to-narrow-to-subtree-in-org-agenda-follow-mode
+  (advice-add 'org-agenda-goto :after
+              (lambda (&rest args)
+                (org-narrow-to-subtree)))
 
   (with-eval-after-load 'org
     (require 'ox-gfm nil t)
