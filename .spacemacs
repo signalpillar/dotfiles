@@ -173,37 +173,7 @@
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
 
-   dotspacemacs-themes `(
-                         spacemacs-light
-                         zenburn
-                         solarized-light
-                         cyberpunk
-                         doom-one
-                         majapahit-light
-                         spolsky
-                         professional
-                         danneskjold
-                         ;; ,(if (display-graphic-p) 'spacemacs-light 'tango-dark)
-                         hickey
-                         mccarthy
-                         cyberpunk
-                         ;; light theemes
-                         default
-                         ;; soft-stone
-                         ;; twilight-bright
-                         ;; tao-yang
-                         ;; mccarthy
-                         ;; ritchie
-                         ;; stekene-light
-                         ;; organic-green
-                         ;; occidental
-                         ;; monochrome-bright
-                         ;; minimal-light
-                         ;; dark themes
-                         ;; material
-                         ;; molokai
-                         ;; apropospriate-light
-                         twilight)
+   dotspacemacs-themes `(paper)
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -232,7 +202,7 @@
 (defun dotspacemacs/user-init ()
   (setq-default
 
-   line-spacing 3
+   line-spacing 4
    ;; Miscellaneous
    require-final-newline t
    x-select-enable-clipboard t
