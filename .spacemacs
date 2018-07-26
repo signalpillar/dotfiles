@@ -354,6 +354,9 @@ layers configuration."
   ;; default to unified diffs
   (setq diff-switches "-u")
 
+  ;; use the built-in emacs prompt for passphrase when using gpg
+  (setf epa-pinentry-mode 'loopback)
+
   ;; disable ya-snippets
   ;; https://github.com/syl20bnr/spacemacs/issues/1923#issuecomment-112710468
   (setq yas-snippet-dirs '("~/.emacs.d/private/snippets"))
