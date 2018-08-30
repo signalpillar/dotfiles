@@ -81,7 +81,7 @@
                                    ("MEETING" :foreground "orange" :width bold)
                                    ("HOLD" :foreground "magenta" :width bold)
                                    ("CANCELLED" :foreground "forest gree" :width bold)
-                                   ("MERGED" :foreground "forest gree" :width bold)))
+                                   ("MERGED" :foreground "forest green" :width bold)))
           org-log-done (quote time)
           org-log-into-drawer t
           org-log-state-notes-insert-after-drawers nil
@@ -160,7 +160,7 @@
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("Source Code Pro"
+   dotspacemacs-default-font '("Monaco"
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -398,6 +398,13 @@ layers configuration."
       (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
       (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
       )))
+
+(defun sp/org-insert-clipboard-image (&optional file)
+  (interactive "F")
+  (shell-command (concat "pngpaste " file))
+  (insert (concat "[[" file "]]"))
+  (org-display-inline-images))
+
 
 (custom-set-variables
  ;; custom-set-variables was added by Custom.

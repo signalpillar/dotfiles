@@ -12,3 +12,4 @@ export GOPATH=~/go/
 export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
 
 export PROJECT_HOME=~/proj/py/
+export GPG_TTY=$(tty)
