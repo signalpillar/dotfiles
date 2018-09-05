@@ -119,6 +119,7 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      magit-todos
                                       plantuml-mode
                                       all-the-icons
                                       doom-themes
