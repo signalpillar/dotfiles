@@ -22,3 +22,6 @@ restview
 wheel
 
 zest.releaser
+# tmux session manager
+# https://tmuxp.readthedocs.io/en/latest/
+tmuxp
