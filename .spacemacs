@@ -58,7 +58,11 @@
           '(;; other entries
             ("j" "Journal entry" plain
              (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
-             "**** %?"))
+             "**** %?")
+            ("i" "Interview entry" plain
+             (file+datetree+prompt "~/Dropbox/org-mode/interviews.org")
+             "**** TODO Interview %?        :interview:\nSCHEDULED: %t")
+            )
 
           org-cycle-separator-lines -2
           org-fontify-whole-heading-lines t
@@ -139,6 +143,8 @@
         evil-search-highlight-persist
         eval-sexp-fu
         info+
+        spaceline
+        smooth-scrolling
         )
    ) ;; setq
   )
@@ -156,12 +162,12 @@
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
 
-   dotspacemacs-themes `(paper)
+   dotspacemacs-themes `(doom-one-light doom-solarized-light paper )
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("Monaco"
+   dotspacemacs-default-font '("Fira Code"  ;; Monaco
                                :weight normal
                                :width normal
                                :powerline-scale 0.75)
@@ -237,6 +243,16 @@ layers configuration."
 
   (fset 'evil-visual-update-x-selection 'ignore)
 
+  ;; -------------- font configuration
+  (if (eq system-type 'darwin)
+      ;; The emacs should be installed from
+      ;; https://github.com/railwaycat/homebrew-emacsmacport
+      (mac-auto-operator-composition-mode))
+
+  ;; ui
+  ;; https://news.ycombinator.com/item?id=17172524
+  (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
+  (add-to-list 'default-frame-alist '(ns-appearance . dark))
   ;; -------------- plantuml mode
   (add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
   ;; -------------- configure solaire-mode
@@ -271,7 +287,8 @@ layers configuration."
   (eval-after-load "company"
     '(add-to-list 'company-backends 'company-anaconda))
   ;; Enable custom neotree theme
-  (doom-themes-neotree-config)  ; all-the-icons fonts must be installed!
+  ;; (doom-themes-neotree-config)  ; all-the-icons fonts must be installed!
+  (setq neo-theme (if (display-graphic-p) 'icons 'arrow))
   (evil-leader/set-key "of" 'neotree-find)
   ;; Corrects (and improves) org-mode's native fontification.
   (doom-themes-org-config)
