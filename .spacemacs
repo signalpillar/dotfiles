@@ -22,6 +22,15 @@
                       auto-completion-enable-snippets-in-popup nil
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
+
+                      spacemacs-default-company-backends '(
+                                                           company-keywords
+                                                           company-dabbrev
+                                                           company-dabbrev-code
+                                                           company-files
+                                                           company-gtags
+                                                           company-etags
+                                                           )
                       ;; auto-completion-enable-sort-by-usage t
                       ;; auto-completion-complete-with-key-sequence nil
                       auto-completion-complete-with-key-sequence-delay 0.1
@@ -62,6 +71,9 @@
             ("i" "Interview entry" plain
              (file+datetree+prompt "~/Dropbox/org-mode/interviews.org")
              "**** TODO Interview %?        :interview:\nSCHEDULED: %t")
+            ("t" "Journal todo" plain
+             (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
+             "**** TODO %?\nSCHEDULED: %t")
             )
 
           org-cycle-separator-lines -2
@@ -145,6 +157,7 @@
         info+
         spaceline
         smooth-scrolling
+        rainbow-delimiters
         )
    ) ;; setq
   )
@@ -162,7 +175,7 @@
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
 
-   dotspacemacs-themes `(doom-one-light doom-solarized-light paper )
+   dotspacemacs-themes `(flatui doom-one-light doom-solarized-light paper )
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -238,6 +251,9 @@
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
 
+  (add-to-list 'spacemacs-default-jump-handlers 'dumb-jump-go)
+
+
   ;; for any theme I wan to be able to see the borders of the windows.
   (set-frame-parameter (selected-frame) 'internal-border-width 15)
 
@@ -253,8 +269,11 @@ layers configuration."
   ;; https://news.ycombinator.com/item?id=17172524
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . dark))
+
   ;; -------------- plantuml mode
   (add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
+
+  ;; org-plantuml-jar-path’ is not set
   ;; -------------- configure solaire-mode
   ;; brighten buffers (that represent real files)
   (add-hook 'after-change-major-mode-hook #'turn-on-solaire-mode)
@@ -318,14 +337,11 @@ layers configuration."
 
   (add-hook 'python-mode-hook 'flycheck-mode)
   (add-hook 'python-mode-hook 'auto-fill-mode)
+  (remove-hook 'python-mode-hook 'semantic-stickyfunc-mode)
   (advice-add 'pyenv-mode-set
               :after
               (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
               )
-  ;; Magit
-  ;; (use-package magithub
-  ;;   :after magit
-  ;;   :config (magithub-feature-autoinject t))
 
   ;; Org-babel
   (require 'plantuml-mode)
@@ -395,6 +411,7 @@ layers configuration."
 
   (defun -find-toxenv-bin-dirs (root)
     (projectile-files-via-ext-command
+     root
      (format "find %s -type d -name 'bin' -path '*/.tox/*/bin' -print0" root)))
 
   (-map (lambda (file) (sp/path/parent-dir (sp/path/parent-dir file)))
