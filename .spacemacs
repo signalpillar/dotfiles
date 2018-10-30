@@ -112,7 +112,8 @@
              python-fill-column 80
              python-test-runner 'pytest)
      ;; ranger
-     semantic
+     (semantic
+      :variables semantic-stickyfunc-mode nil)
      ;; terraform
      (shell :variables
             shell-default-shell 'multi-term)
@@ -251,6 +252,8 @@
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
 
+  (config-visuals)
+
   (add-to-list 'spacemacs-default-jump-handlers 'dumb-jump-go)
 
 
@@ -337,7 +340,7 @@ layers configuration."
 
   (add-hook 'python-mode-hook 'flycheck-mode)
   (add-hook 'python-mode-hook 'auto-fill-mode)
-  (remove-hook 'python-mode-hook 'semantic-stickyfunc-mode)
+
   (advice-add 'pyenv-mode-set
               :after
               (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
@@ -403,6 +406,24 @@ layers configuration."
     (add-to-list 'helm-grep-ignored-files f))
   )
 
+(defun config-visuals ()
+
+  (spacemacs/toggle-highlight-current-line-globally-off)
+  (add-hook 'semantic-mode-hook 'sp/fight-stickyfunc)
+  (setq-default highlight-indent-guides-method 'character)
+  (unless (display-graphic-p)
+    (set-face-background 'default "unspecified-bg" (selected-frame)))
+
+  )
+
+;; copied from https://github.com/adamseyfarth/dotfiles/blob/70cd5f7d6961097926142af1e8c6c33b20eedfa2/spacemacs/.spacemacs#L344
+(defun sp/fight-stickyfunc ()
+  "Do whatever it takes to disable semantic-stickyfunc-mode"
+  (with-eval-after-load 'semantic
+    (setq-default semantic-default-submodes
+                  (remove 'global-semantic-stickyfunc-mode
+                          semantic-default-submodes))
+    (spacemacs/toggle-semantic-stickyfunc-globally-off)))
 
 (defun sp/path/parent-dir (dir)
   (file-name-directory (directory-file-name dir)))
