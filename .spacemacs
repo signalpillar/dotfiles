@@ -14,8 +14,9 @@
 
    dotspacemacs-configuration-layers
 
-   '(csv
-     rust
+   '(
+     neotree
+     csv
      (auto-completion :variables
                       auto-completion-enable-help-tooltip nil
                       auto-completion-private-snippets-directory nil
@@ -42,7 +43,6 @@
      (dash :variables
            helm-dash-browser-func 'eww)
      ;; elm
-     ;; sql
 
      ;; emacs-lisp
      javascript  ;; required for json support
@@ -102,21 +102,29 @@
           org-log-into-drawer t
           org-log-state-notes-insert-after-drawers nil
           org-hide-emphasis-markers t
-
+          org-enable-github-support t
+          org-enable-bootstrap-support t
+          org-enable-reveal-js-support t
           )
      ;; ocaml
      osx
 
      (python :variables
              python-fill-docstring-style 'pep-257-nn
-             python-fill-column 80
+             python-fill-column 79
              python-test-runner 'pytest)
      ;; ranger
      (semantic
       :variables semantic-stickyfunc-mode nil)
      ;; terraform
      (shell :variables
-            shell-default-shell 'multi-term)
+            shell-default-height 48
+            shell-default-position 'bottom
+            shell-default-term-shell "bash"
+            ;; shell-default-shell 'eshell
+            shell-default-shell 'multi-term
+            multi-term-program "bash"
+            )
      (syntax-checking :variables
                      syntax-checking-enable-by-default nil)
      themes-megapack
@@ -136,6 +144,10 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      ;; to fix the editor issue when commiting
+                                      git-commit
+
+                                      paper-theme
                                       magit-todos
                                       plantuml-mode
                                       all-the-icons
@@ -149,16 +161,16 @@
                                       (babylon :location local)
                                       (eval-sexp-fu :location local)
                                       virtualenvwrapper
-                                      ox-gfm
                                       ob-restclient
                                       )
    dotspacemacs-excluded-packages `(
+        org-plus-contrib
         evil-search-highlight-persist
         eval-sexp-fu
         info+
-        spaceline
         smooth-scrolling
         rainbow-delimiters
+        treemacs
         )
    ) ;; setq
   )
@@ -175,16 +187,21 @@
    ;; when the current branch is not `develop'. (default t)
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
+   dotspacemacs-mode-line-theme 'vim-powerline
+   ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
+   dotspacemacs-verbose-loading nil
+   dotspacemacs-startup-buffer-responsive t
 
-   dotspacemacs-themes `(flatui doom-one-light doom-solarized-light paper )
+   dotspacemacs-themes (if (display-graphic-p) `(paper smyx doom-one-light zenburn) `(paper))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("Fira Code"  ;; Monaco
+   dotspacemacs-default-font '("Menlo"
                                :weight normal
                                :width normal
-                               :powerline-scale 0.75)
+                               :size 11
+                               :powerline-scale 1.2)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -198,14 +215,17 @@
    ;; dotspacemacs-helm-position 'right
    dotspacemacs-which-key-delay 0.4
    dotspacemacs-smooth-scrolling t
-   dotspacemacs-search-tools '("ag" "grep")
+   dotspacemacs-search-tools '("rg" "ag" "grep")
 
+   dotspacemacs-large-file-size 32
+   dotspacemacs-line-numbers t
+   dotspacemacs-folding-method 'origami
    ))
 
 (defun dotspacemacs/user-init ()
   (setq-default
-
-   line-spacing 4
+   ;; Increase space between the lines
+   line-spacing 5
    ;; Miscellaneous
    require-final-newline t
    x-select-enable-clipboard t
@@ -229,22 +249,15 @@
    '((newline-mark 10 [172 10])
      (tab-mark 9 [9655 9]))
 
-   ;; Smartparens
-   sp-highlight-pair-overlay nil
-   sp-highlight-wrap-overlay nil
-   sp-highlight-wrap-tag-overlay nil
+   ;; Wait 0.5seconds before automatically highlitghting
+   ahs-idle-interval 0.5
+
+   ;; Avy
+   avy-all-windows 'all-frames
 
    ;; Flycheck
    flycheck-check-syntax-automatically '(save mode-enabled)
 
-   ;; Deft
-   deft-extension "rst"
-   deft-text-mode 'rst-mode
-   deft-directory "~/Documents/Wuala/MdNotes/"
-   deft-use-filename-as-title t
-
-   ;; Avy
-   avy-all-windows 'all-frames
    ))
 
 (defun dotspacemacs/user-config ()
@@ -374,10 +387,6 @@ layers configuration."
               (lambda (&rest args)
                 (org-narrow-to-subtree)))
 
-  (with-eval-after-load 'org
-    (require 'ox-gfm nil t)
-    (require 'ox-confluence nil t))
-
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
     (show-smartparens-global-mode -1))
@@ -462,25 +471,22 @@ layers configuration."
   (org-display-inline-images))
 
 
+(defun dotspacemacs/emacs-custom-settings ()
+  "Emacs custom settings.
+This is an auto-generated function, do not modify its content directly, use
+Emacs customize menu instead.
+This function is called at the very end of Spacemacs initialization."
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(evil-want-Y-yank-to-eol t)
- '(neo-hidden-regexp-list
-   (quote
-    ("^\\." "\\.pyc$" "~$" "^#.*#$" "\\.elc$" "__pycache__")))
- '(org-cycle-separator-lines 4)
+ '(magit-gitignore-arguments nil)
  '(package-selected-packages
    (quote
-    (zeal-at-point yapfify yaml-mode xterm-color web-beautify virtualenvwrapper stickyfunc-enhance srefactor smeargle shell-pop reveal-in-osx-finder restclient-helm rainbow-mode rainbow-identifiers pyvenv pytest pyenv-mode py-isort protobuf-mode pip-requirements pbcopy panda-theme osx-trash osx-dictionary orgit org-tree-slide org-projectile org-category-capture org-present org-pomodoro alert log4e gntp org-mime org-download ob-restclient ob-http multi-term mmm-mode markdown-toc markdown-mode magit-gitflow magit-gh-pulls livid-mode skewer-mode simple-httpd live-py-mode launchctl json-mode json-snatcher json-reformat js2-refactor multiple-cursors js2-mode js-doc hy-mode htmlize helm-pydoc helm-gtags helm-gitignore helm-dash helm-company helm-c-yasnippet gnuplot gitignore-mode github-theme github-search github-clone github-browse-file gitconfig-mode gitattributes-mode git-timemachine git-messenger git-link git-gutter-fringe+ git-gutter-fringe fringe-helper git-gutter+ git-gutter gist gh marshal logito pcache ht gh-md ggtags fuzzy flyspell-correct-helm flyspell-correct flycheck-pos-tip pos-tip flycheck evil-unimpaired evil-magit magit magit-popup git-commit ghub let-alist with-editor eshell-z eshell-prompt-extras esh-help diff-hl cython-mode csv-mode company-tern dash-functional tern company-statistics company-restclient restclient know-your-http-well company-anaconda company color-identifiers-mode coffee-mode auto-yasnippet yasnippet auto-dictionary anaconda-mode pythonic ac-ispell auto-complete danneskjold-theme ws-butler winum which-key volatile-highlights vi-tilde-fringe uuidgen use-package toc-org spaceline restart-emacs request rainbow-delimiters popwin persp-mode pcre2el paradox org-plus-contrib org-bullets open-junk-file neotree move-text macrostep lorem-ipsum linum-relative link-hint info+ indent-guide hungry-delete hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-themes helm-swoop helm-projectile helm-mode-manager helm-make helm-flx helm-descbinds helm-ag google-translate golden-ratio flx-ido fill-column-indicator fancy-battery eyebrowse expand-region exec-path-from-shell evil-visualstar evil-visual-mark-mode evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-indent-plus evil-iedit-state evil-exchange evil-escape evil-ediff evil-args evil-anzu eval-sexp-fu elisp-slime-nav dumb-jump diminish define-word column-enforce-mode clean-aindent-mode auto-highlight-symbol auto-compile aggressive-indent adaptive-wrap ace-window ace-link ace-jump-helm-line)))
- '(pytest-cmd-flags "-vv -x -s")
- '(pytest-global-name "pytest"))
-
-
-
-
+    (wsd-mode org-download kaolin-themes gruvbox-theme google-translate forge color-theme-sanityinc-tomorrow centered-cursor-mode apropospriate-theme ace-window counsel swiper ivy window-purpose helm hydra zenburn-theme zen-and-art-theme yasnippet-snippets yapfify yaml-mode xterm-color ws-butler writeroom-mode winum white-sand-theme which-key web-mode web-beautify volatile-highlights virtualenvwrapper vi-tilde-fringe uuidgen utop use-package underwater-theme ujelly-theme twilight-theme twilight-bright-theme twilight-anti-bright-theme tuareg toxi-theme toml-mode toc-org tao-theme tangotango-theme tango-plus-theme tango-2-theme tagedit symon sunny-day-theme sublime-themes subatomic256-theme subatomic-theme string-inflection stickyfunc-enhance srefactor sql-indent spaceline-all-the-icons spacegray-theme soothe-theme solarized-theme solaire-mode soft-stone-theme soft-morning-theme soft-charcoal-theme smyx-theme smeargle slim-mode shell-pop seti-theme scss-mode sass-mode reverse-theme reveal-in-osx-finder restclient-helm restart-emacs rebecca-theme rainbow-mode rainbow-identifiers railscasts-theme racer pyvenv pytest pyenv-mode py-isort purple-haze-theme pug-mode protobuf-mode professional-theme prettier-js popwin plantuml-mode planet-theme pippel pipenv pip-requirements phoenix-dark-pink-theme phoenix-dark-mono-theme persp-mode password-generator paradox paper-theme ox-twbs ox-reveal ox-gfm osx-trash osx-dictionary origami orgit organic-green-theme org-projectile org-present org-pomodoro org-mime org-bullets org-brain open-junk-file omtose-phellack-theme oldlace-theme ocp-indent occidental-theme obsidian-theme ob-restclient ob-http noctilux-theme neotree naquadah-theme mustang-theme multi-term move-text monokai-theme monochrome-theme molokai-theme moe-theme mmm-mode minimal-theme merlin material-theme markdown-toc majapahit-theme magithub magit-todos magit-svn magit-gitflow madhat2r-theme lush-theme lorem-ipsum livid-mode live-py-mode link-hint light-soap-theme launchctl json-navigator json-mode js2-refactor js-doc jinja2-mode jbeans-theme jazz-theme ir-black-theme inkpot-theme indent-guide importmagic impatient-mode imenu-list hungry-delete highlight-parentheses highlight-numbers highlight-indentation heroku-theme hemisu-theme helm-xref helm-themes helm-swoop helm-pydoc helm-purpose helm-projectile helm-org-rifle helm-mode-manager helm-make helm-gtags helm-gitignore helm-git-grep helm-flx helm-descbinds helm-dash helm-css-scss helm-company helm-c-yasnippet helm-ag hc-zenburn-theme gruber-darker-theme grandshell-theme gotham-theme golden-ratio gnuplot gitignore-templates github-search github-clone gitconfig-mode gitattributes-mode git-timemachine git-messenger git-link git-gutter-fringe git-gutter-fringe+ gist gh-md ggtags gandalf-theme fuzzy font-lock+ flyspell-popup flyspell-correct-helm flycheck-rust flycheck-pos-tip flycheck-mypy flx-ido flatui-theme flatland-theme fill-column-indicator farmhouse-theme fancy-battery eziam-theme eyebrowse expand-region exotica-theme evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-surround evil-org evil-numbers evil-nerd-commenter evil-matchit evil-magit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-escape evil-ediff evil-cleverparens evil-args evil-anzu espresso-theme eshell-z eshell-prompt-extras esh-help emmet-mode editorconfig dumb-jump dracula-theme dotenv-mode doom-themes doom-modeline django-theme diminish diff-hl dash-at-point darktooth-theme darkokai-theme darkmine-theme darkburn-theme dakrone-theme cython-mode cyberpunk-theme csv-mode counsel-projectile company-web company-tern company-statistics company-restclient company-ansible company-anaconda column-enforce-mode color-theme-sanityinc-solarized color-identifiers-mode clues-theme closql clean-aindent-mode cherry-blossom-theme cargo busybee-theme bubbleberry-theme browse-at-remote birds-of-paradise-plus-theme badwolf-theme auto-yasnippet auto-highlight-symbol auto-dictionary anti-zenburn-theme ansible-doc ansible ample-zen-theme ample-theme alect-themes aggressive-indent afternoon-theme ace-link ace-jump-helm-line ac-ispell)))
+ '(pytest-cmd-flags "-vvv  -x -s --doctest-modules"))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -513,3 +519,4 @@ layers configuration."
  '(org-level-6 ((t (:inherit default :height 1.0 :weight bold))))
  '(org-level-7 ((t (:inherit default :height 1.0 :weight bold))))
  '(org-level-8 ((t (:inherit default :height 1.0 :weight bold)))))
+)
