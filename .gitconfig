@@ -89,3 +89,9 @@
 	clean = git lfs clean %f
 	smudge = git lfs smudge %f
 	required = true
+[magithub]
+	online = false
+[magithub "status"]
+	includeStatusHeader = false
+	includePullRequestsSection = false
+	includeIssuesSection = false

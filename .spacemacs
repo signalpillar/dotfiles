@@ -158,8 +158,6 @@
                                       flycheck-mypy
                                       protobuf-mode
                                       eval-sexp-fu
-                                      (babylon :location local)
-                                      (eval-sexp-fu :location local)
                                       virtualenvwrapper
                                       ob-restclient
                                       )
