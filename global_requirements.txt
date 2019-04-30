@@ -10,6 +10,10 @@ service_factory>=0.1.5
 # Reformat the buffer according to PEP8 using YAPF
 yapf
 
+mypy
+editorconfig
+isort
+
 # importmagic and etc
 importmagic
 epc
