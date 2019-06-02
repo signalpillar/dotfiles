@@ -17,8 +17,15 @@
    '(
      neotree
      csv
+     graphviz
+     (go :variables
+         go-tab-width 4
+         go-use-golangci-lint t
+         godoc-at-point-function 'godoc-gogetdoc
+         go-format-before-save t
+       )
      (auto-completion :variables
-                      auto-completion-enable-help-tooltip nil
+                      auto-completion-enable-help-tooltip t
                       auto-completion-private-snippets-directory nil
                       auto-completion-enable-snippets-in-popup nil
                       auto-completion-return-key-behavior nil
@@ -126,7 +133,7 @@
             multi-term-program "bash"
             )
      (syntax-checking :variables
-                     syntax-checking-enable-by-default nil)
+                     syntax-checking-enable-by-default t)
      themes-megapack
      (theming :variables
               theming-headings-inherit-from-default 'all

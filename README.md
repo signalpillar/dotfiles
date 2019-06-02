@@ -5,6 +5,9 @@ Running a PYPI mirror, check the following configuration files:
 - `$HOME/.pydistutils.cfg`, for `easy_install`
 - `$HOME/.pip/pip.conf`, for `pip`
 
+# June 2019
+An attempt to adopt Nix package manager.
+
 # May 2015
 
 * Moved to [spacemacs](https://github.com/syl20bnr/spacemacs) as a replacement for Prelude.
