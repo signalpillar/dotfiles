@@ -15,6 +15,7 @@
    dotspacemacs-configuration-layers
 
    '(
+     nixos
      neotree
      csv
      graphviz
