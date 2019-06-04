@@ -96,9 +96,7 @@
       libnotify
       mplayer
       ncdu
-      python36
-      # Required to build python driver (pg_config)
-      postgresql
+      pkg-config
       (python36.withPackages(ps: with ps; [ pip tox cffi ]))
       tmux
       tree
