@@ -29,9 +29,10 @@ nix-shell \
   -p pkgconfig \
   -p openssl \
   -p libffi \
-  -p python36Packages.cryptography \
   -p postgresql \
   -p graphviz
+  # This line is not required unless site-packages are shared with virtualenv.
+  # -p '(python36.withPackages(ps: with ps; [ cryptography ]))'
 ```
 
 `gcc` and some other tools are installed globally.
@@ -41,5 +42,8 @@ Snippet from tox file that customises install command.
 ```
 [testenv]
 ...
-install_command = pip install -vv --user --extra-index-url={env:EXTRA_INDEX_URL:} {opts} {packages}
+install_command = pip install --prefix {envdir} -vv --extra-index-url={env:EXTRA_INDEX_URL:} {opts} {packages}
 ```
+
+`--prefix` is required because for some reason by default it is python artifact
+path - not the root of the environment directory.
