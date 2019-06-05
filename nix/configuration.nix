@@ -75,10 +75,25 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment = {
+    # For development purposes
+    pathsToLink = [
+      "/share/pkgconfig"
+    ];
+
+    profileRelativeEnvVars = {
+      # PKG_CONFIG_PATH is set by pkgconfig's setup hook. When you simply add
+      # package to systemPackages this hook does not run, and this is
+      # intentional.
+      # Run: nix-shell -p pkgconfig -p <pkg-name>
+      PKG_CONFIG_PATH = [ "/share/pkgconfig" ];
+    };
+
     variables = {
       EDITOR = pkgs.lib.mkOverride 0 "vim";
     };
     systemPackages = with pkgs; [
+      # A code-searching tool similar to ack, but faster
+      ag
       docker-compose
       dmenu
       emacs
@@ -86,6 +101,8 @@
       firefox
       gcc
       git
+      # Source code tag system
+      global
       htop
       i3cat
       i3lock-color
@@ -94,18 +111,27 @@
       i3status-rust
       libffi
       libnotify
+      lshw
       mplayer
       ncdu
+      openssl
       pkg-config
-      (python36.withPackages(ps: with ps; [ pip tox cffi ]))
+      # Required to build python driver (pg_config)
+      postgresql
+      (python36.withPackages(ps: with ps; [ pip tox cffi asn1crypto ]))
+      # Simple X Image Viewer
+      sxiv
       tmux
       tree
+      termite
       unzip
       vim
       wget
       which
+      xclip
       xterm
-      tilda
+      # A highly customizable and functional PDF viewer
+      zathura
       zeal
     ];
   };
@@ -123,7 +149,6 @@
 
   # Enable the OpenSSH daemon.
   # services.openssh.enable = true;
-  services.virtualbox.enable = true;
   services.locate.enable = true;
 
   # Open ports in the firewall.
@@ -143,6 +168,7 @@
   services.xserver = {
     enable = true;
     layout = "us";
+    videoDrivers = [ "VBoxSVGA" ];
     windowManager.i3.enable = true;
     displayManager.lightdm.enable = true;
     displayManager.sessionCommands =  ''
@@ -150,6 +176,7 @@
           XTerm*faceName:             xft:Dejavu Sans Mono for Powerline:size=11
           XTerm*utf8:                 2
           Xft*dpi:                    149
+          ! Xft*dpi:                    96
           ! Xft*antialias:              true
           ! Xft*hinting:                full
           Xft.autohint: 0
@@ -180,9 +207,5 @@
 
   # VIRTUALISATION
   virtualisation.docker.enable = true;
-  virtualisation.docker.socketActivation = true;
-
-
-
-
+  virtualisation.virtualbox.guest.enable = true;
 }
