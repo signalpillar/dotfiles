@@ -278,3 +278,7 @@ function kubectl-service-version {
   local SERVICE_NAME=$1
   kubectl get pods -l app=$SERVICE_NAME -o json | jq '.items[].spec.containers[].env[] | select(.name | contains("SERVICE_VERSION"))'
 }
+
+function battery_stat_osx {
+    pmset -g batt
+}
