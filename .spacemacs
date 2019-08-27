@@ -60,7 +60,6 @@
           magit-ediff-dwim-show-on-hunks t
           ;; to see the diff by words not whole lines
           magit-diff-refine-hunk t)
-     github
      gtags
      ;; html
      markdown
