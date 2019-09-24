@@ -4,35 +4,58 @@
 :header-args: :session client
 :END:
 
-The document is only for OSX at the moment.
-Before nix everybody has the same path - dotfiles, symlinks etc.
+The document is mostly for OSX at the moment.
+
+Before Nix everybody has the same path - dotfiles, symlinks etc.
 
 Then =homebrew= to manage the software installation. It is all not bad until you
 want to update some software or have several versions of the same library on
 several machines.
 
-** Bootstrap without Nix
+*Expectations*
+- Use declarative nature of Nix from the beginning
+- The declared packages are versioned
+- Use on OSX as a package manager first
+- Use on OSX as a solution for isolated environments (python development).
 
-Instructions how to get Nix configured on a new machine.
+In the first step I imagined a shell where declared in the configuration
+software is installed.
+
+** [OSX] Where to start?
+
+- Install nix
+- [[https://nixos.org/nixos/nix-pills/enter-environment.html][Enter the profile]] environment (default profile).
 
 #+begin_src bash
 source ~/.nix-profile/etc/profile.d/nix.sh
 #+end_src
 
-#+RESULTS[9ab8b5b87668da10efa29b454c0dcd872a567aae]:
+- Create =~/.nixpkgs/config.nix= this is where the power of Nix starts
+  ([[https://news.ycombinator.com/item?id=11803558][source]]). The file user-local settings for Nix Packages.
 
+From =dotfiles=
 
-*** Prerequisites
-
-Make sure you have nix installed on your system and then::
-
-*** Steps
 #+begin_src bash
+git clone https://github.com/signalpillar/dotfiles ~/proj
 mkdir -p ~/.nixpkgs/
 cd ~/.nixpkgs
-git clone https://github.com/signalpillar/dotfiles
-ln -s `pwd`/dotfiles/nix/nixpkgs/config.nix config.nix
+ln -s ~/proj/dotfiles/nix/.nixpkgs/ ~/.nixpkgs
 #+end_src
+
+To install the declared
+
+#+begin_src bash
+nix-env -i osx-desktop
+#+end_src
+
+** Where to go next ?
+After I achive my primary goals and get some confidence in Nix.
+
+Looks like [[https://github.com/rycee/home-manager][home-manager]] is an expected way to go but I want to try things myself
+before I use a complete solution.
+Also there's also =nix-darwin=, which almost turns macOS into NixOS. It lets you
+configure all kinds of services and system settings with Nix, plus global system
+package management.
 
 ** Install the packages
 
@@ -124,3 +147,7 @@ $ cd ~/proj/X/
 $ nix-shell
 [nix-shell:~/proj/X]$
 #+end_src
+** Random facts
+
+[[https://nixos.org/nixpkgs/][nixpkgs]], the default source of packages for the nix package manager, has many of
+the basic command-line packages you’ll need on OS X ([[https://www.mpscholten.de/nixos/2016/05/26/my-experience-with-nix-on-osx.html?][source]]).
