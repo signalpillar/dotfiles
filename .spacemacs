@@ -21,7 +21,6 @@
      graphviz
      (go :variables
          go-tab-width 4
-         go-use-golangci-lint t
          godoc-at-point-function 'godoc-gogetdoc
          go-format-before-save t
        )
@@ -31,17 +30,6 @@
                       auto-completion-enable-snippets-in-popup nil
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
-
-                      spacemacs-default-company-backends '(
-                                                           company-keywords
-                                                           company-dabbrev
-                                                           company-dabbrev-code
-                                                           company-files
-                                                           company-gtags
-                                                           company-etags
-                                                           )
-                      ;; auto-completion-enable-sort-by-usage t
-                      ;; auto-completion-complete-with-key-sequence nil
                       auto-completion-complete-with-key-sequence-delay 0.1
                       :disabled-for org)
      ;; It slows down the navigation in the buffer
@@ -198,7 +186,7 @@
    dotspacemacs-verbose-loading nil
    dotspacemacs-startup-buffer-responsive t
 
-   dotspacemacs-themes (if (display-graphic-p) `(paper smyx doom-one-light zenburn) `(paper))
+   dotspacemacs-themes (if (display-graphic-p) `(default paper cyberpunk  smyx doom-one-light zenburn) `(default zenburn paper))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
