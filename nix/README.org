@@ -1,11 +1,32 @@
-* Bootstrap without Nix
+#+PROPERTY: header-args :results output :session client :tangle yes :comments org :exports both
+* Nix
+:PROPERTIES:
+:header-args: :session client
+:END:
+
+The document is only for OSX at the moment.
+Before nix everybody has the same path - dotfiles, symlinks etc.
+
+Then =homebrew= to manage the software installation. It is all not bad until you
+want to update some software or have several versions of the same library on
+several machines.
+
+** Bootstrap without Nix
 
 Instructions how to get Nix configured on a new machine.
 
-** Prerequisites
+#+begin_src bash
+source ~/.nix-profile/etc/profile.d/nix.sh
+#+end_src
+
+#+RESULTS[9ab8b5b87668da10efa29b454c0dcd872a567aae]:
+
+
+*** Prerequisites
 
 Make sure you have nix installed on your system and then::
-** Steps
+
+*** Steps
 #+begin_src bash
 mkdir -p ~/.nixpkgs/
 cd ~/.nixpkgs
@@ -13,16 +34,42 @@ git clone https://github.com/signalpillar/dotfiles
 ln -s `pwd`/dotfiles/nix/nixpkgs/config.nix config.nix
 #+end_src
 
-* Install the packages
+** Install the packages
 
 #+begin_src bash
 nix-env -iA nixpkgs.myPackages
 #+end_src
+** Daily usage
+*** List packages
 
-** Resources
+List installed packages
 
-- [Inspiration](https://github.com/garbas/dotfiles)
-* Build Python package
+#+begin_src bash :async
+nix-env -qs
+#+end_src
+
+List all available packages
+
+#+begin_src bash
+nix-env -qaP
+#+end_src
+
+*** Upgrade the packages
+#+begin_src bash
+nix-env -u
+#+end_src
+
+*** Collect garbage
+
+#+begin_src bash
+nix-collect-garbage -d
+#+end_src
+
+*** Resources
+
+- [[https://github.com/garbas/dotfiles][Inspiration]]
+- [[https://github.com/nmattia/homies][Homies]] (interesting project)
+** Build Python package
 
 Enter the shell with the build dependencies so we can build the virtual
 environment.
@@ -50,3 +97,30 @@ install_command = pip install --prefix {envdir} -vv --extra-index-url={env:EXTRA
 
 =--prefix= is required because for some reason by default it is python artifact
 path - not the root of the environment directory.
+** Project environment
+
+Each projet can have own =default.nix= file like in this example
+
+#+begin_src nix
+with import <nixpkgs> {};
+stdenv.mkDerivation rec {
+  name = "env";
+  env = buildEnv { name = name; paths = buildInputs; };
+  buildInputs = [
+    python
+    python27Packages.virtualenv
+    python27Packages.pip
+    go_1_4
+    lua5_3
+  ];
+}
+#+end_src
+
+To work on the project
+
+#+begin_src bash
+
+$ cd ~/proj/X/
+$ nix-shell
+[nix-shell:~/proj/X]$
+#+end_src
