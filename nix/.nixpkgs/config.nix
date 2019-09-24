@@ -9,6 +9,9 @@
         aspell
         bc
         coreutils
+        # Icon fonts for emacs all-the-icons
+        emacs-all-the-icons-fonts
+        emacsMacport
         ffmpeg
         gdb
         gitAndTools.gitFull

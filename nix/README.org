@@ -57,12 +57,13 @@ Also there's also =nix-darwin=, which almost turns macOS into NixOS. It lets you
 configure all kinds of services and system settings with Nix, plus global system
 package management.
 
-** Install the packages
+** Daily usage
+*** Get package description
 
 #+begin_src bash
-nix-env -iA nixpkgs.myPackages
+nix-env -qa --description '.*emacs.*'
 #+end_src
-** Daily usage
+
 *** List packages
 
 List installed packages
