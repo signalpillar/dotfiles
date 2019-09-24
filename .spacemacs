@@ -350,7 +350,9 @@ layers configuration."
 
   (org-babel-do-load-languages
    'org-babel-load-languages
-   '((awk . t)
+   '(
+     (async . t)
+     (awk . t)
      (dot . t)
      (emacs-lisp . t)
      (restclient . t)
