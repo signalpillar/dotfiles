@@ -1,0 +1,24 @@
+* Bootstrap without Nix
+
+Instructions how to get Nix configured on a new machine.
+
+** Prerequisites
+
+Make sure you have nix installed on your system and then::
+** Steps
+#+begin_src bash
+mkdir -p ~/.nixpkgs/
+cd ~/.nixpkgs
+git clone https://github.com/signalpillar/dotfiles
+ln -s `pwd`/dotfiles/nix/nixpkgs/config.nix config.nix
+#+end_src
+
+* Install the packages
+
+#+begin_src bash
+nix-env -iA nixpkgs.myPackages
+#+end_src
+
+* Resources
+
+- [Inspiration](https://github.com/garbas/dotfiles)
