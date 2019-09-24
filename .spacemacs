@@ -161,6 +161,9 @@
                                       eval-sexp-fu
                                       virtualenvwrapper
                                       ob-restclient
+                                      ;; allows to not block on org source-block
+                                      ;; execution
+                                      ob-async
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
