@@ -174,6 +174,9 @@
         smooth-scrolling
         rainbow-delimiters
         treemacs
+        ;; not needed functionality
+        pip-requirements
+        pippel
         )
    ) ;; setq
   )
