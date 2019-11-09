@@ -23,7 +23,7 @@ software is installed.
 
 ** [OSX] Where to start?
 
-- Install nix
+- Install nix ([[https://github.com/NixOS/nix/issues/2925#issuecomment-539570232][on catalina]])
 - [[https://nixos.org/nixos/nix-pills/enter-environment.html][Enter the profile]] environment (default profile).
 
 #+begin_src bash
