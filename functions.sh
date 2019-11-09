@@ -282,3 +282,11 @@ function kubectl-service-version {
 function battery_stat_osx {
     pmset -g batt
 }
+
+function enable_indexing_osx {
+    sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+}
+
+function disable_indexing_osx {
+    sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+}

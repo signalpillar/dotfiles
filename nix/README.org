@@ -58,6 +58,12 @@ configure all kinds of services and system settings with Nix, plus global system
 package management.
 
 ** Daily usage
+*** Package info
+
+#+begin_example
+nix-env -qa --description <pkg-name>
+#+end_example
+
 *** Get package description
 
 #+begin_src bash

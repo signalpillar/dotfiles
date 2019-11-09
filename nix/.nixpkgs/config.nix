@@ -9,6 +9,8 @@
         aspell
         bc
         coreutils
+        # is super handy loading evars when they are exported in .envrc
+        direnv
         # Icon fonts for emacs all-the-icons
         emacs-all-the-icons-fonts
         emacsMacport
@@ -16,8 +18,14 @@
         gdb
         gitAndTools.gitFull
         jq
+        # used for emacs-terminal integration
+        # osx: not supported
+        # libvterm
+        openssh
         silver-searcher
+        tmux
         vim
+        unrar
       ];
     };
   };
