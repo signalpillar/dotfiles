@@ -6,6 +6,7 @@
   packageOverrides = pkgs: with pkgs; rec {
 
     # nix-shell -p lorri ( to test build )
+    # nix-collect-garbage -d
     lorri = (
       let
         src = pkgs.fetchFromGitHub {
@@ -29,6 +30,7 @@
         emacs-all-the-icons-fonts
         emacsMacport
         ffmpeg
+        just
         gdb
         gitAndTools.gitFull
         jq
@@ -36,6 +38,7 @@
         # used for emacs-terminal integration
         # osx: not supported
         # libvterm
+        ncdu
         openssh
         silver-searcher
         tmux
