@@ -1,6 +1,0 @@
-clear mod4
-remove control = Control_R
-keycode 134 = Control_R
-add control = Control_R
-
-

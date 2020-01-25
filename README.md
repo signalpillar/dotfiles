@@ -1,9 +1,7 @@
 This project contains all my dotfiles that are moved from box to box.
 
-Running a PYPI mirror, check the following configuration files:
-
-- `$HOME/.pydistutils.cfg`, for `easy_install`
-- `$HOME/.pip/pip.conf`, for `pip`
+# Jan 2020
+Project restructured to work with [chezmoi](https://github.com/twpayne/chezmoi/blob/master/docs/HOWTO.md)
 
 # June 2019
 An attempt to adopt Nix package manager.

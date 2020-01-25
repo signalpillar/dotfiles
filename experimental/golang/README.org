@@ -1,6 +1,0 @@
-* Golang Dev environment in the container
-
-#+begin_src shell
-docker build -t godev .
-#+end_src
-

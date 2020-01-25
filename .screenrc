@@ -1,8 +1,0 @@
-# last parameter about a-load
-hardstatus alwayslastline "%{=b}%{B} Screen(s): %{b}%w %=%{kG}%C%A  %D, %M/%d/%Y %l"
-startup_message off
-termcapinfo xterm* ti@:te@
-defscrollback         50000            # default: 100
-# restore regions after detach
-layout new desktop
-layout autosave on 

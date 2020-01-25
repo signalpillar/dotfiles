@@ -1,0 +1,10 @@
+# Don't install on linux
+{{- if .chezmoi.os "linux" }}
+bin/appify
+{{- end }}
+
+
+# Don't install on Darwin
+{{- if .chezmoi.os "darwin" }}
+.screenlayout/vm.sh
+{{- end }}

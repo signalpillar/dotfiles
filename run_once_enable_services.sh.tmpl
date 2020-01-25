@@ -1,0 +1,6 @@
+#!/bin/bash
+{{- if eq .chezmoi.os "linux" }}
+
+sudo systemctl enable docker.service
+
+{{- end }}

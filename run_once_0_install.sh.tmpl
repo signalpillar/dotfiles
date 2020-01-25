@@ -1,0 +1,25 @@
+#!/bin/bash
+{{- if eq .chezmoi.os "linux" }}
+# arandr - front-end for xrandr
+# todo:
+# - just
+# - direnv
+sudo pacman --needed -S \
+     yay \
+     ripgrep ncdu \
+     unrar \
+     arandr \
+     ttf-ibm-plex \
+     pyenv \
+     emacs vim jq \
+     docker docker-compose \
+     htop tmux \
+     pyenv autoconf automake binutils findutils file gcc make patch pkgconf fakeroot \
+     git
+
+# If we leave yay - it will always try to install the packages
+# yay emacs-all-the-icons snap
+{{- end }}
+
+{{- if eq .chezmoi.os "darwin" }}
+{{- end }}
