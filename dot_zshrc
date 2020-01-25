@@ -53,6 +53,7 @@ alias gtime='gtime -f "real %E\nuser %U:%P\nmemory: %M\nI/O %I/%O"'
 
 source ~/functions.sh
 source ~/.env
+source ~/.env.golang
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
