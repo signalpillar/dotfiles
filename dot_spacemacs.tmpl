@@ -15,19 +15,26 @@
    dotspacemacs-configuration-layers
 
    '(
+
+     {{- if eq .chezmoi.hostname "b-0309.local" }}
+     chrome
+     (deft :variables deft-extensions '("org" "md" "txt"))
+     (typescript :variables typescript-fmt-on-save t)
+     {{- end}}
+
      nixos
      neotree
      csv
      graphviz
      (go :variables
          go-backend 'lsp
-         go-tab-width 4
-         godoc-at-point-function 'godoc-gogetdoc
          go-format-before-save t
+         go-tab-width 4
+         go-use-golangci-lint t
+         godoc-at-point-function 'godoc-gogetdoc
        )
      (auto-completion :variables
                       auto-completion-enable-help-tooltip t
-                      auto-completion-private-snippets-directory t
                       auto-completion-enable-snippets-in-popup t
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
@@ -121,6 +128,7 @@
              python-fill-docstring-style 'pep-257-nn
              python-fill-column 79
              python-test-runner 'pytest
+             python-lsp-server 'mspyls
              )
      ;; ranger
      (semantic
@@ -136,7 +144,6 @@
             )
      (syntax-checking :variables
                      syntax-checking-enable-by-default t)
-     themes-megapack
      (theming :variables
               theming-headings-inherit-from-default 'all
               theming-headings-same-size 'all
@@ -153,6 +160,7 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      magit-circleci
                                       centaur-tabs
                                       ;; to fix the editor issue when commiting
                                       git-commit
@@ -180,7 +188,6 @@
         info+
         smooth-scrolling
         rainbow-delimiters
-        treemacs
         ;; not needed functionality
         pip-requirements
         pippel
@@ -279,6 +286,10 @@
 layers configuration."
 
   (config-visuals)
+
+  (set-background-color "honeydew")
+
+  (setq deft-directory "~/Dropbox/notes")
 
   (add-to-list 'spacemacs-default-jump-handlers 'dumb-jump-go)
 
@@ -464,6 +475,19 @@ layers configuration."
   (insert (concat "[[" file "]]"))
   (org-display-inline-images))
 
+{{- if eq .chezmoi.hostname "b-0309.local" }}
+(defun djangoapp/set-cms-evars ()
+  (interactive)
+  (setenv "DATABASE_NAME" "monitor-cms")
+  (setenv "DATABASE_HOST" "localhost")
+  (setenv "DATABASE_PORT" "6603")
+  (setenv "DATABASE_USER" "user")
+  (setenv "DATABASE_PASSWORD" "password")
+  (setenv "SECRET_KEY" "secret-key")
+  (setenv "LOG_LEVEL" "INFO")
+  )
+
+{{- end}}
 
 (defun dotspacemacs/emacs-custom-settings ()
   "Emacs custom settings.
