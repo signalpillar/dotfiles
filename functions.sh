@@ -290,3 +290,50 @@ function enable_indexing_osx {
 function disable_indexing_osx {
     sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
 }
+
+
+function pixel {
+    /usr/local/share/android-sdk/emulator/emulator -avd pixel
+}
+
+function start-android-emulator {
+    local -r NAME=$1
+    # /usr/local/share/android-sdk/emulator/emulator -avd $NAME
+    /usr/local/share/android-sdk/emulator/emulator -avd $NAME -no-snapshot-load
+}
+
+function create-android-emulator-kitkat {
+    local -r NAME=$1
+    avdmanager --verbose create avd -n $NAME -k "system-images;android-19;google_apis;x86" --tag google_apis -d pixel
+}
+
+function create-android-emulator {
+    local -r NAME=$1
+    avdmanager --verbose create avd -n $NAME -k "system-images;android-27;google_apis;x86" --tag google_apis --sdcard 2048M -d pixel
+}
+
+function create-android-emulator-arm {
+    local -r NAME=$1
+    avdmanager --verbose create avd -n $NAME -k "system-images;android-25;google_apis;armeabi-v7a" --tag google_apis --sdcard 2048M -d pixel
+}
+
+function delete-android-avd {
+  local -r NAME=$1
+  avdmanager delete avd --name $NAME
+}
+
+function android-enable-cool-stuff {
+  local -r NAME=$1
+  echo "\nhw.keyboard=yes\nhw.ramSize=4096" >> ~/.android/avd/$NAME.avd/config.ini
+  echo "[UPDATED] ~/.android/avd/$NAME.avd/config.ini"
+}
+
+function bmi_w_h {
+    local -r weight=$1
+    local -r height=$2
+    echo "BMI: $(bc <<< "scale=3; $weight / (($height/100) * ($height/100))")"
+}
+
+function osx_ldd {
+    otool -L $@
+}
