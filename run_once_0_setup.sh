@@ -1,3 +1,3 @@
 #!/bin/bash
 
-touch ~/.env
+touch ~/.env.sh

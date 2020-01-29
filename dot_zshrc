@@ -52,7 +52,7 @@ alias gitk='gitk --date-order'
 alias gtime='gtime -f "real %E\nuser %U:%P\nmemory: %M\nI/O %I/%O"'
 
 source ~/functions.sh
-source ~/.env
+source ~/.env.sh
 
 # editor
 export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
@@ -91,3 +91,5 @@ eval "$(direnv hook zsh)"
 alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/opam"
 # Java configuration
 export JAVA_HOME=$(/usr/libexec/java_home)
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
