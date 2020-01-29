@@ -21,6 +21,7 @@ sudo pacman --needed -S \
 # yay emacs-all-the-icons snap
 {{- end }}
 
+# https://github.com/Homebrew/homebrew-bundle
 {{- if eq .chezmoi.os "darwin" }}
-brew install lastpass-cli fzf
+brew bundle install --file ~/Brewfile
 {{- end }}
