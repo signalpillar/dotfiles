@@ -23,5 +23,13 @@ sudo pacman --needed -S \
 
 {{- if eq .chezmoi.os "darwin" }}
 # https://github.com/Homebrew/homebrew-bundle
+
+# Alternative way of installing without Brewfile
+# brew bundle --file=- <<-EOS
+# brew "formula1"
+# brew "formula2"
+# brew "formula3"
+# EOS
+
 brew bundle install --file ~/Brewfile
 {{- end }}
