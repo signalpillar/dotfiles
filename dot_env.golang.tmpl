@@ -1,0 +1,10 @@
+{{- if eq .chezmoi.hostname "b-0309" }}
+VERSION=1.13.7
+{{- else}}
+VERSION=1.13.6
+{{- end}}
+
+
+export GOPATH=/usr/local/Cellar/go/$VERSION
+export GOROOT=/usr/local/Cellar/go/$VERSION/libexec
+export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
