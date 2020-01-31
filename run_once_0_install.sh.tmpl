@@ -22,5 +22,14 @@ sudo pacman --needed -S \
 {{- end }}
 
 {{- if eq .chezmoi.os "darwin" }}
-brew install lastpass-cli
+# https://github.com/Homebrew/homebrew-bundle
+
+# Alternative way of installing without Brewfile
+# brew bundle --file=- <<-EOS
+# brew "formula1"
+# brew "formula2"
+# brew "formula3"
+# EOS
+
+brew bundle install --file ~/Brewfile
 {{- end }}

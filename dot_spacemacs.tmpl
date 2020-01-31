@@ -16,7 +16,7 @@
 
    '(
 
-     {{- if eq .chezmoi.hostname "b-0309.local" }}
+     {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
      (deft :variables deft-extensions '("org" "md" "txt"))
      (typescript :variables typescript-fmt-on-save t)
@@ -475,7 +475,7 @@ layers configuration."
   (insert (concat "[[" file "]]"))
   (org-display-inline-images))
 
-{{- if eq .chezmoi.hostname "b-0309.local" }}
+{{- if eq .chezmoi.hostname "b-0309" }}
 (defun djangoapp/set-cms-evars ()
   (interactive)
   (setenv "DATABASE_NAME" "monitor-cms")
