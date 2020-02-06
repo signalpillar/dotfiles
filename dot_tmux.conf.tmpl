@@ -30,6 +30,13 @@ bind c new-window -c "#{pane_current_path}"
 # Use vim keybindings in copy mode
 setw -g mode-keys vi
 
+# vim-like pane switching
+bind -r k select-pane -U
+bind -r j select-pane -D
+bind -r h select-pane -L
+bind -r l select-pane -R
+
+
 # # Setup 'v' to begin selection as in Vim
 bind-key -T copy-mode-vi 'v' send -X begin-selection
 
