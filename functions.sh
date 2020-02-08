@@ -42,6 +42,11 @@ function downloadWholeSite {
     get --random-wait -r -p -e robots=off -U $1 $2
 }
 
+function randStr {
+    local N=${1:5}
+    echo `base64 </dev/urandom | tr -dc 'a-zA-Z0-9' | head -c$N`
+}
+
 function whoListenPort {
     lsof -i :$1
 }
