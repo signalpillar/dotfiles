@@ -1,8 +1,18 @@
 #!/bin/bash
 
 
-GO111MODULE=on CGO_ENABLED=0 go get -v -trimpath -ldflags '-s -w' github.com/golangci/golangci-lint/cmd/golangci-lint
-GO111MODULE=on go get -v golang.org/x/tools/gopls@latest
+# do not install as binary
+{{- if eq .chezmoi.os "darwin" }}
+
+brew install golangci/tap/golangci-lint
+
+{{- else}}
+
+CGO_ENABLED=0 go get -v -trimpath -ldflags '-s -w' github.com/golangci/golangci-lint/cmd/golangci-lint
+
+{{- end}}
+
+go get -v golang.org/x/tools/gopls@latest
 
 
 go get -u -v golang.org/x/tools/cmd/godoc
