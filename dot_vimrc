@@ -31,6 +31,7 @@ Plugin 'sheerun/vim-polyglot'
 Plugin 'w0rp/ale'
 Plugin 'jreybert/vimagit'
 Plugin 'jpalardy/vim-slime'
+Plugin 'fatih/vim-go'
 
 let loaded_project = 1
 
