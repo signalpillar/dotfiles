@@ -5,4 +5,7 @@ brew upgrade pyenv
 {{- end}}
 
 pyenv update
-pyenv install 3.6.10
+pyenv install --skip-existing 3.6.10
+cd `mktemp -d`
+pyenv local 3.6.10
+pip install tox-battery ipython
