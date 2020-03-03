@@ -166,6 +166,9 @@
      yaml)
 
    dotspacemacs-additional-packages `(
+                                      {{- if eq .chezmoi.hostname "b-0309" }}
+                                      (babylon :location local)
+                                      {{- end}}
                                       blacken
                                       magit-circleci
                                       centaur-tabs
