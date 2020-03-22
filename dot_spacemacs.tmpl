@@ -9,7 +9,7 @@
    ;; version of packages from MELPA. (default nil)
    dotspacemacs-use-spacelpa nil
 
-   dotspacemacs-auto-resume-layouts t
+   dotspacemacs-auto-resume-layouts nil
    dotspacemacs-delete-orphan-packages nil
    dotspacemacs-distribution 'spacemacs
 
@@ -189,6 +189,7 @@
                                       ;; allows to not block on org source-block
                                       ;; execution
                                       ob-async
+                                      modus-operandi-theme
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
@@ -223,7 +224,7 @@
    dotspacemacs-verbose-loading nil
    dotspacemacs-startup-buffer-responsive t
 
-   dotspacemacs-themes (if (display-graphic-p) '(default paper cyberpunk  smyx doom-one-light zenburn) '(spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi default paper cyberpunk  smyx doom-one-light zenburn) '(spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
