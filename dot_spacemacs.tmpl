@@ -70,6 +70,7 @@
      markdown
      ;; nginx
      (org :variables
+          org-enable-hugo-support t
           org-startup-indented t
           org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"))
           org-hide-emphasis-markers t
@@ -192,6 +193,7 @@
                                       ;; execution
                                       ob-async
                                       modus-operandi-theme
+                                      easy-hugo
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
@@ -306,6 +308,12 @@ layers configuration."
   (setq deft-directory "~/Dropbox/notes")
 
   (add-to-list 'spacemacs-default-jump-handlers 'dumb-jump-go)
+
+  ;; hugo
+  ;; note: tailing slash is important
+  (setq easy-hugo-basedir "~/proj/signalpillar.github.io/")
+  (setq easy-hugo-url "https://signalpillar.github.io")
+  (setq easy-hugo-postdir "content/posts")
 
 
   ;; for any theme I wan to be able to see the borders of the windows.
