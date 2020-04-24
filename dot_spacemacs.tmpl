@@ -81,15 +81,17 @@
             ("j" "Journal entry" plain
              (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
              "**** %?")
+     {{- if eq .chezmoi.hostname "b-0309" }}
             ("i" "Interview entry" plain
-             (file+datetree+prompt "~/Dropbox/org-mode/interviews.org")
+             (file+datetree+prompt "~/Dropbox/babylon-org-mode/interviews.org")
              "**** TODO Interview %?        :interview:\nSCHEDULED: %t")
             ("t" "Journal todo" plain
-             (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
+             (file+datetree+prompt "~/Dropbox/babylon-org-mode/journal.org")
              "**** TODO %?\nSCHEDULED: %t")
             ("b" "Babylon todo" plain
-             (file+datetree+prompt "~/Dropbox/org-mode/babylon.org")
+             (file+datetree+prompt "~/Dropbox/babylon-org-mode/babylon.org")
              "**** TODO %?\nSCHEDULED: %t")
+     {{- end}}
             )
 
           org-cycle-separator-lines -2
