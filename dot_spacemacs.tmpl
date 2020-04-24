@@ -72,7 +72,11 @@
      (org :variables
           org-enable-hugo-support t
           org-startup-indented t
-          org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"))
+          org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"
+     {{- if eq .chezmoi.hostname "b-0309" }}
+          "~/Dropbox/babylon-org-mode"
+     {{- end}}
+          ))
           org-hide-emphasis-markers t
           ;; this is to open only the task in the follow mode in agenda (F)
           org-agenda-follow-indirect t
