@@ -16,10 +16,10 @@
    dotspacemacs-configuration-layers
 
    '(
+     (deft :variables deft-extensions '("org" "md" "txt"))
 
      {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
-     (deft :variables deft-extensions '("org" "md" "txt"))
      (typescript :variables typescript-fmt-on-save t)
      {{- end}}
 
