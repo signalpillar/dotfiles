@@ -188,7 +188,6 @@
                                       magit-todos
                                       plantuml-mode
                                       all-the-icons
-                                      doom-themes
                                       parchment-theme
 
                                       flycheck-mypy
@@ -235,7 +234,7 @@
    dotspacemacs-verbose-loading nil
    dotspacemacs-startup-buffer-responsive t
 
-   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx doom-one-light zenburn) '(spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -344,8 +343,6 @@ layers configuration."
 
   ;; org-plantuml-jar-path’ is not set
 
-  ;; -------------- configure doom themes
-  (require 'doom-themes)
   ;; Neotree
   (with-eval-after-load 'neotree
     (add-to-list 'neo-hidden-regexp-list "TAGS$")
@@ -356,11 +353,8 @@ layers configuration."
   (eval-after-load "company"
     '(add-to-list 'company-backends 'company-anaconda))
   ;; Enable custom neotree theme
-  ;; (doom-themes-neotree-config)  ; all-the-icons fonts must be installed!
   (setq neo-theme (if (display-graphic-p) 'icons 'arrow))
   (evil-leader/set-key "of" 'neotree-find)
-  ;; Corrects (and improves) org-mode's native fontification.
-  (doom-themes-org-config)
 
   (require 'helm-bookmark)
   (defun jao-toggle-selective-display ()
