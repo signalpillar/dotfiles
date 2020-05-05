@@ -363,6 +363,7 @@ layers configuration."
 
   (global-set-key [f3] 'jao-toggle-selective-display)
   (global-set-key [f4] 'sp/tox/activate-current-project-tox-env)
+  (global-set-key [f5] 'sp/org-insert-clipboard-image)
 
   (setq-default
    powerline-default-separator 'alternate
@@ -493,11 +494,23 @@ layers configuration."
       (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
       )))
 
-(defun sp/org-insert-clipboard-image (&optional file)
-  (interactive "F")
-  (shell-command (concat "pngpaste " file))
-  (insert (concat "[[" file "]]"))
-  (org-display-inline-images))
+(defun sp/org-insert-clipboard-image ()
+  (interactive)
+  ;; Insert image from clipboard in the org-mode headline.
+  ;; use org-id.el to get or craete ID property.
+  ;; the function uses pngpaste
+  (let* (
+        (caption (read-from-minibuffer "Image caption: "))
+        (fname (read-from-minibuffer "Image fname (without ext): "))
+        (-headline-id (org-id-get nil 'create))
+        (imagedir (concat default-directory "/" -headline-id))
+        (file (concat imagedir "/" fname ".png")))
+    (mkdir -headline-id default-directory)
+    (shell-command (concat "pngpaste " file))
+    (insert (concat "#+CAPTION: " caption "\n[[" file "]]"))
+    )
+  (org-display-inline-images)
+  )
 
 {{- if eq .chezmoi.hostname "b-0309" }}
 (defun djangoapp/set-cms-evars ()
