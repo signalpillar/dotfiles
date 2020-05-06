@@ -27,6 +27,10 @@
      neotree
      csv
      graphviz
+    (languagetool :variables
+                   langtool-default-language "en-GB"
+                   langtool-java-classpath (concat (getenv "HOME") "/languagetool/*")
+                   )
      (go :variables
          ;; go-backend 'lsp
          go-backend 'go-mode
