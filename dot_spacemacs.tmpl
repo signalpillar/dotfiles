@@ -512,7 +512,7 @@ layers configuration."
         (file (concat imagedir "/" fname ".png")))
     (mkdir (concat "data/"-headline-id) default-directory)
     (shell-command (concat "pngpaste " file))
-    (insert (concat "#+CAPTION: " caption "#+ATTR_ORG: :width 500\n[[" file "]]"))
+    (insert (concat "#+CAPTION: " caption "\n#+ATTR_ORG: :width 500\n[[" file "]]"))
     )
   (org-display-inline-images)
   )
