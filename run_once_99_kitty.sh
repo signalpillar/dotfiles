@@ -13,6 +13,6 @@ if [ ! -d $THEMES_DIR ]; then
 fi
 
 
-ln -Fs $THEMES_DIR/themes/Github.conf ~/.config/kitty/theme.conf
+ln -Fs $THEMES_DIR/themes/Chalkboard.conf ~/.config/kitty/theme.conf
 
 
