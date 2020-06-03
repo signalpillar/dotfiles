@@ -1,5 +1,11 @@
 This project contains all my dotfiles that are moved from box to box.
 
+Manually installing
+
+- docker-toolbox
+- mplayer
+- [Spark](https://sparkmailapp.com/)
+
 # Jan 2020
 Project restructured to work with [chezmoi](https://github.com/twpayne/chezmoi/blob/master/docs/HOWTO.md)
 

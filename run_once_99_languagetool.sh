@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # https://languagetool.org/
 # For emacs integration with langauge tool we need to download it first.
 # https://github.com/jsmestad/spacemacs-langtool
@@ -24,5 +26,5 @@ fi
 
 SPACEMACS_LAYER="$HOME/.emacs.d/private/languagetool"
 if ! [ -d $SPACEMACS_LAYER ]; then
-    git clone git@github.com:jsmestad/spacemacs-langtool.git $SPACEMACS_LAYER
+    git clone https://github.com/jsmestad/spacemacs-langtool.git $SPACEMACS_LAYER
 fi
