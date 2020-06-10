@@ -3,6 +3,7 @@ This project contains all my dotfiles that are moved from box to box.
 Manually installing
 
 - docker-toolbox
+- Signal
 - mplayer
 - [Spark](https://sparkmailapp.com/)
 
