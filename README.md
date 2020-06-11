@@ -7,6 +7,11 @@ Manually installing
 - mplayer
 - [Spark](https://sparkmailapp.com/)
 
+## Fonts
+
+- IBM Plex is my favorite ([download](https://github.com/IBM/plex/releases/))
+## History
+
 # Jan 2020
 Project restructured to work with [chezmoi](https://github.com/twpayne/chezmoi/blob/master/docs/HOWTO.md)
 
