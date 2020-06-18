@@ -259,7 +259,7 @@
    dotspacemacs-default-font '("IBM Plex Mono"
                                :weight normal
                                :width normal
-                               :size 11
+                               :size 13
                                :powerline-scale 1.2)
 
    dotspacemacs-leader-key ","
@@ -343,12 +343,6 @@ layers configuration."
   (set-frame-parameter (selected-frame) 'internal-border-width 15)
 
   (fset 'evil-visual-update-x-selection 'ignore)
-
-  ;; -------------- font configuration
-  (if (eq system-type 'darwin)
-      ;; The emacs should be installed from
-      ;; https://github.com/railwaycat/homebrew-emacsmacport
-      (mac-auto-operator-composition-mode))
 
   ;; ui
   ;; https://news.ycombinator.com/item?id=17172524
