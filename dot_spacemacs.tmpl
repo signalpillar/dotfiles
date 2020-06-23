@@ -256,11 +256,7 @@
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
 
-   dotspacemacs-default-font '("IBM Plex Mono"
-                               :weight normal
-                               :width normal
-                               :size 11
-                               :powerline-scale 1.2)
+   dotspacemacs-default-font '("IBM Plex Mono" :size 14)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -301,6 +297,8 @@
    ;; Evil
    evil-shift-round nil
    evil-want-C-i-jump nil
+   ;; do not put replaced text in clipboard
+   evil-kill-on-visual-paste nil
 
    ;; Whitespace mode
    whitespace-style '(face tabs tab-mark newline-mark)
@@ -343,12 +341,6 @@ layers configuration."
   (set-frame-parameter (selected-frame) 'internal-border-width 15)
 
   (fset 'evil-visual-update-x-selection 'ignore)
-
-  ;; -------------- font configuration
-  (if (eq system-type 'darwin)
-      ;; The emacs should be installed from
-      ;; https://github.com/railwaycat/homebrew-emacsmacport
-      (mac-auto-operator-composition-mode))
 
   ;; ui
   ;; https://news.ycombinator.com/item?id=17172524

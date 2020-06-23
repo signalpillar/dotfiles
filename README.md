@@ -4,6 +4,8 @@ Manually installing
 
 - docker-toolbox
 - Signal
+- Clipy
+- Docker
 - mplayer
 - [Spark](https://sparkmailapp.com/)
 
