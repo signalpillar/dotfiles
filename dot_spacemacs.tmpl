@@ -13,6 +13,10 @@
    dotspacemacs-delete-orphan-packages nil
    dotspacemacs-distribution 'spacemacs
 
+   ;; If non-nil then Spacemacs will ask for confirmation before installing
+   ;; a layer lazily. (default t)
+   dotspacemacs-ask-for-lazy-installation t
+
    dotspacemacs-configuration-layers
 
    '(
@@ -196,13 +200,15 @@
                                       (babylon :location local)
                                       {{- end}}
                                       blacken
-                                      magit-circleci
                                       centaur-tabs
                                       ;; to fix the editor issue when commiting
                                       git-commit
+                                      git-review
+                                      magit-delta
+                                      magit-todos
+                                      magit-circleci
 
                                       paper-theme
-                                      magit-todos
                                       plantuml-mode
                                       all-the-icons
                                       parchment-theme
@@ -230,6 +236,15 @@
         pip-requirements
         pippel
         yasnippet-snippets
+
+        ;; I don't really need them
+        define-word
+        fancy-battery
+
+        git-gutter
+        git-gutter+
+        git-gutter-fringe
+        git-gutter-fringe+
         )
    ) ;; setq
   )
@@ -240,6 +255,15 @@
    before layers configuration."
 
   (setq-default
+
+   ;; Set `gc-cons-threshold' and `gc-cons-percentage' when startup finishes.
+   ;; This is an advanced option and should not be changed unless you suspect
+   ;; performance issues due to garbage collection operations.
+   ;; (default '(100000000 0.1))
+   dotspacemacs-gc-cons '(100000000 0.1)
+   ;; True if the home buffer should respond to resize events. (default t)
+   dotspacemacs-startup-buffer-responsive t
+
    ;; exec-path-from-shell-arguments '("-l")
    dotspacemacs-elpa-https t
    ;; If non nil then spacemacs will check for updates at startup
@@ -249,12 +273,25 @@
    dotspacemacs-mode-line-theme 'vim-powerline
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
-   dotspacemacs-startup-buffer-responsive t
 
    dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
+
+   ;; Location where to auto-save files. Possible values are `original' to
+   ;; auto-save the file in-place, `cache' to auto-save the file to another
+   ;; file stored in the cache directory and `nil' to disable auto-saving.
+   ;; (default 'cache)
+   dotspacemacs-auto-save-file-location 'cache
+
+   ;; Maximum number of rollback slots to keep in the cache. (default 5)
+   dotspacemacs-max-rollback-slots 5
+
+   ;; Size (in MB) above which spacemacs will prompt to open the large file
+   ;; literally to avoid performance issues. Opening a file literally means that
+   ;; no major mode or minor modes are active. (default is 1)
+   dotspacemacs-large-file-size 1
 
    dotspacemacs-default-font '("IBM Plex Mono" :size 14)
 
@@ -266,15 +303,45 @@
    dotspacemacs-command-key ":"
    dotspacemacs-remap-Y-to-y$ t
    dotspacemacs-use-ido nil
-   dotspacemacs-helm-resize t
-   ;; dotspacemacs-helm-position 'right
+
+   ;; If non-nil, `helm' will try to minimize the space it uses. (default nil)
+   dotspacemacs-helm-resize nil
+
+   ;; Which-key delay in seconds. The which-key buffer is the popup listing
+   ;; the commands bound to the current keystroke sequence. (default 0.4)
    dotspacemacs-which-key-delay 0.4
+
+   ;; If non-nil `spacemacs/toggle-fullscreen' will not use native fullscreen.
+   ;; Use to disable fullscreen animations in OSX. (default nil)
+   dotspacemacs-fullscreen-use-non-native nil
+
+   ;; If non-nil smooth scrolling (native-scrolling) is enabled. Smooth
+   ;; scrolling overrides the default behavior of Emacs which recenters point
+   ;; when it reaches the top or bottom of the screen. (default t)
    dotspacemacs-smooth-scrolling t
    dotspacemacs-search-tools '("rg" "ag" "grep")
 
-   dotspacemacs-large-file-size 32
    ;; dotspacemacs-line-numbers t
    dotspacemacs-folding-method 'evil  ;; origami
+
+   ;; Format specification for setting the frame title.
+   ;; %a - the `abbreviated-file-name', or `buffer-name'
+   ;; %t - `projectile-project-name'
+   ;; %I - `invocation-name'
+   ;; %S - `system-name'
+   ;; %U - contents of $USER
+   ;; %b - buffer name
+   ;; %f - visited file name
+   ;; %F - frame name
+   ;; %s - process status
+   ;; %p - percent of buffer above top of window, or Top, Bot or All
+   ;; %P - percent of buffer above bottom of window, perhaps plus Top, or Bot or All
+   ;; %m - mode name
+   ;; %n - Narrow if appropriate
+   ;; %z - mnemonics of buffer, terminal, and keyboard coding systems
+   ;; %Z - like %z, but including the end-of-line format
+   ;; (default "%I@%S")
+   dotspacemacs-frame-title-format "%a@%t"
    ))
 
 (defun dotspacemacs/user-init ()
