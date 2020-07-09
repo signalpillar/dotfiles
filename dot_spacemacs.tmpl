@@ -256,11 +256,6 @@
 
   (setq-default
 
-   ;; Set `gc-cons-threshold' and `gc-cons-percentage' when startup finishes.
-   ;; This is an advanced option and should not be changed unless you suspect
-   ;; performance issues due to garbage collection operations.
-   ;; (default '(100000000 0.1))
-   dotspacemacs-gc-cons '(100000000 0.1)
    ;; True if the home buffer should respond to resize events. (default t)
    dotspacemacs-startup-buffer-responsive t
 
@@ -304,8 +299,8 @@
    dotspacemacs-remap-Y-to-y$ t
    dotspacemacs-use-ido nil
 
-   ;; If non-nil, `helm' will try to minimize the space it uses. (default nil)
-   dotspacemacs-helm-resize nil
+   ;; If non-nil, `helm' will try to minimize the space it uses. (default t)
+   dotspacemacs-helm-resize t
 
    ;; Which-key delay in seconds. The which-key buffer is the popup listing
    ;; the commands bound to the current keystroke sequence. (default 0.4)
