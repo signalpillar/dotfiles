@@ -561,6 +561,7 @@ layers configuration."
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
       (venv-workon)
+      (setq lsp-python-ms-python-executable-cmd (format "%s/bin/python" python-shell-virtualenv-path))
       (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
       (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
       )))
