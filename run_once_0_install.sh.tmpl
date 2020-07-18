@@ -53,7 +53,6 @@ brew "dex2jar"
 brew "gradle"
 brew "hub"
 brew "leveldb"
-# emacs-plus --HEAD --with-natural-title-bars
 brew "emacs-plus@28"
 brew "fpp"
 brew "hugo"
@@ -91,6 +90,7 @@ brew "ffmpeg"
 brew "fzf"
 brew "gdb"
 brew "git"
+brew "git-delta"
 brew "git-lfs"
 brew "global"
 brew "gnu-time"
@@ -146,4 +146,6 @@ cask "skype"
 cask "slack"
 cask "spotify"
 EOS
+
+rm -rf $(brew --cache)
 {{- end }}
