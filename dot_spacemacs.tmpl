@@ -64,6 +64,11 @@
      javascript  ;; required for json support
      ;; eyebrowse
      (git :variables
+          ;; tell Magit to only automatically refresh the current Magit buffer,
+          ;; but not the status buffer. If you do that, then the status buffer is only
+          ;; refreshed automatically if it is the current buffer.
+          ;; https://magit.vc/manual/magit/Performance.html#Performance
+          magit-refresh-status-buffer nil
           ;; start with cursor on head section
           magit-status-initial-section nil
           ;; to see only 2-panes in the diff-window instead of 3
@@ -203,15 +208,13 @@
                                       centaur-tabs
                                       ;; to fix the editor issue when commiting
                                       git-commit
-                                      git-review
                                       magit-delta
-                                      magit-todos
-                                      magit-circleci
 
                                       paper-theme
                                       plantuml-mode
                                       all-the-icons
                                       parchment-theme
+                                      acme-theme
 
                                       flycheck-mypy
                                       protobuf-mode
@@ -269,7 +272,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(acme parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
