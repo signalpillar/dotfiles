@@ -291,7 +291,7 @@
    ;; no major mode or minor modes are active. (default is 1)
    dotspacemacs-large-file-size 1
 
-   dotspacemacs-default-font '("Input Mono Compressed" :size 14)
+   dotspacemacs-default-font '("Source Code Pro" :size 14)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -380,6 +380,8 @@
    ;; Flycheck
    flycheck-check-syntax-automatically '(save mode-enabled)
 
+   ;; powerline doom theme
+   doom-modeline-buffer-file-name-style 'truncate-all
    ))
 
 (defun dotspacemacs/user-config ()
