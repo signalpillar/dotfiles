@@ -3,6 +3,7 @@
 bin/appify
 {{- end }}
 
+dockerise
 
 # Don't install on Darwin
 {{- if eq .chezmoi.os "darwin" }}
