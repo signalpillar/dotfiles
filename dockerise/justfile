@@ -1,0 +1,10 @@
+set shell := ["bash", "-c"]
+
+build:
+  docker build -t dev .
+
+run:
+  docker run -v $HOME/.ssh:/root/.ssh -v $HOME/.pip:/root/.pip -it --name currentdev dev /bin/bash
+
+attach:
+  docker start -i --attach currentdev
