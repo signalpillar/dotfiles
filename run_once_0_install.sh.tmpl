@@ -1,5 +1,6 @@
 #!/bin/bash
-{{- if eq .chezmoi.osRelease.name "arch" }}
+{{- if (index . "chezmoi.osRelease") }}
+{{- if eq .chezmoi.osRelease.name "arch"}}
 # arandr - front-end for xrandr
 # todo:
 # - just
@@ -19,6 +20,7 @@ sudo pacman --needed -S \
 
 # If we leave yay - it will always try to install the packages
 # yay emacs-all-the-icons snap
+{{- end }}
 {{- end }}
 
 # Alloy tool for design exploration
@@ -120,6 +122,7 @@ brew "qemu"
 brew "reattach-to-user-namespace"
 brew "ripgrep"
 # brew "rocksdb"
+brew "rust"
 brew "shellcheck"
 brew "tbb"
 brew "the_silver_searcher"

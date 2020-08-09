@@ -1,4 +1,5 @@
 #!/bin/sh
+{{- if (index . "chezmoi.osRelease") }}
 {{- if eq .chezmoi.osRelease.name "arch" }}
 
 yay snap
@@ -6,4 +7,5 @@ sudo systemctl enable --now snapd.socket
 sudo ln -s /var/lib/snapd/snap /snap
 sudo snap install signal-desktop
 
+{{- end }}
 {{- end }}
