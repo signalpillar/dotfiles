@@ -8,6 +8,7 @@ Manually installing
 - Docker
 - mplayer
 - [Spark](https://sparkmailapp.com/)
+- [pyflow](https://github.com/David-OConnor/pyflow), requires Rust
 
 ## Fonts
 
