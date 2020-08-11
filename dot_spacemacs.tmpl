@@ -24,17 +24,11 @@
 
      {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
-     (typescript :variables typescript-fmt-on-save t)
      {{- end}}
 
-     nixos
      neotree
      csv
      graphviz
-    (languagetool :variables
-                   langtool-default-language "en-GB"
-                   langtool-java-classpath (concat (getenv "HOME") "/languagetool/*")
-                   )
      (go :variables
          go-backend 'lsp
          ;; go-backend 'go-mode
@@ -59,7 +53,6 @@
            elm-format-on-save t
            elm-sort-imports-on-save t)
 
-     erc
      emacs-lisp
      javascript  ;; required for json support
      ;; eyebrowse
