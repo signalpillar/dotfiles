@@ -1,5 +1,5 @@
 source ~/.env.golang
-export PATH=$HOME/.cargo/bin:$HOME/.pyenv/bin:$GOROOT:$GOPATH/bin:$HOME/.pyenv/shims:/usr/local/sbin:/usr/local/bin:$PATH:~/bin
+export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/bin:$GOROOT:$GOPATH/bin:$HOME/.pyenv/shims:/usr/local/sbin:/usr/local/bin:$PATH:~/bin
 
 export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
 export GPG_TTY=$(tty)
