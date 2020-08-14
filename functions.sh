@@ -354,3 +354,13 @@ function bmi_w_h {
 function osx_ldd {
     otool -L $@
 }
+
+function git-clone-project {
+    local -r https_url=$1
+    cd ~/proj
+    path_without_schema=$(echo $https_url | grep / | cut -d/ -f2-)
+    proj_path=$(dirname "$HOME/proj/$path_without_schema")
+    mkdir -p $proj_path
+    cd $proj_path
+    git clone $https_url
+}
