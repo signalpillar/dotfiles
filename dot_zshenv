@@ -3,3 +3,4 @@ export PATH=$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/bin:$GOROOT:$GOPATH/b
 
 export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
 export GPG_TTY=$(tty)
+export CARP_DIR=$HOME/proj/github.com/carp-lang/Carp
