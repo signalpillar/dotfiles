@@ -24,6 +24,8 @@
 
      {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
+     {{- else}}
+     clojure
      {{- end}}
 
      neotree
@@ -517,6 +519,24 @@ layers configuration."
   (setq-default highlight-indent-guides-method 'character)
   (unless (display-graphic-p)
     (set-face-background 'default "unspecified-bg" (selected-frame)))
+
+  ;;; configure Carp
+  (let ((carp_emacs_dir "~/proj/github.com/carp-lang/Carp/emacs/"))
+    (when (file-directory-p carp_emacs_dir)
+      (add-to-list 'load-path carp_emacs_dir)
+
+      (require 'carp-mode)
+      (require 'inf-carp-mode)
+
+      (add-to-list 'auto-mode-alist '("\\.carp\\'" . carp-mode))
+      (require 'carp-flycheck)
+
+      (add-hook 'carp-mode-hook
+                (lambda ()
+                  (flycheck-mode 1)))
+      )
+    )
+  )
 
   )
 
