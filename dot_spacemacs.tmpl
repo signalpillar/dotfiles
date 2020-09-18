@@ -25,6 +25,7 @@
      {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
      {{- end}}
+     semantic
 
      neotree
      csv
@@ -165,6 +166,7 @@
              python-format-on-save t
              python-formatter 'black
              python-lsp-server 'mspyls
+             python-indent-offset 4
              lsp-enable-snippet nil
              lsp-prefer-flymake nil
              )
@@ -181,8 +183,8 @@
               theming-headings-same-size 'all
               theming-headings-bold 'all)
      (spell-checking :variables
-                     spell-checking-enable-auto-dictionary t
-                     enable-flyspell-auto-completion t
+                     spell-checking-enable-auto-dictionary nil
+                     enable-flyspell-auto-completion nil
                      spell-checking-enable-by-default nil
       )
      restclient
@@ -202,7 +204,6 @@
                                       magit-delta
 
                                       paper-theme
-                                      plantuml-mode
                                       all-the-icons
                                       parchment-theme
                                       acme-theme
@@ -264,7 +265,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(acme parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi acme parchment default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -406,10 +407,6 @@ layers configuration."
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . dark))
 
-  ;; -------------- plantuml mode
-  (add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
-
-  ;; org-plantuml-jar-path’ is not set
 
   ;; Neotree
   (with-eval-after-load 'neotree
@@ -464,8 +461,6 @@ layers configuration."
               )
 
   ;; Org-babel
-  (require 'plantuml-mode)
-  (setq org-plantuml-jar-path "/Users/volodymyr.vitvitskyi/bin/plantuml.1.2018.10.jar")
 
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -480,14 +475,11 @@ layers configuration."
      (ocaml . t)
      (org . t)
      (perl . t)
-     (plantuml . t)
      (python . t)
      (shell . t)
      (sql . t)
      (sqlite . t)))
 
-  (add-to-list
-   'org-src-lang-modes '("plantuml" . plantuml))
   ;; Open only task sub-tree on org-agdenda-goto from agenda
   ;; https://emacs.stackexchange.com/questions/17797/how-to-narrow-to-subtree-in-org-agenda-follow-mode
   (advice-add 'org-agenda-goto :after
