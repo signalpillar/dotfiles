@@ -308,32 +308,32 @@ function __set_android_classpath_for_java11 {
     # avdmanager has to be updated to take into account an existing CLASSPATH
 }
 
-function start-android-emulator {
+function android-start-emulator {
     local -r NAME=$1
     # /usr/local/share/android-sdk/emulator/emulator -avd $NAME
     __set_android_classpath_for_java11
     /usr/local/share/android-sdk/emulator/emulator -avd $NAME -no-snapshot-load
 }
 
-function create-android-emulator-kitkat {
+function android-create-emulator-kitkat {
     local -r NAME=$1
     __set_android_classpath_for_java11
     avdmanager --verbose create avd -n $NAME -k "system-images;android-19;google_apis;x86" --tag google_apis -d pixel
 }
 
-function create-android-emulator {
+function android-create-emulator {
     local -r NAME=$1
     __set_android_classpath_for_java11
     avdmanager --verbose create avd -n $NAME -k "system-images;android-27;google_apis;x86" --tag google_apis --sdcard 2048M -d pixel
 }
 
-function create-android-emulator-arm {
+function android-create-emulator-arm {
     local -r NAME=$1
     __set_android_classpath_for_java11
     avdmanager --verbose create avd -n $NAME -k "system-images;android-25;google_apis;armeabi-v7a" --tag google_apis --sdcard 2048M -d pixel
 }
 
-function delete-android-avd {
+function android-delete-avd {
   local -r NAME=$1
   __set_android_classpath_for_java11
   avdmanager delete avd --name $NAME
