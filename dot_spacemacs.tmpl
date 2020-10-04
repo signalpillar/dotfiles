@@ -165,6 +165,7 @@
              python-lsp-server 'mspyls
              python-format-on-save t
              python-formatter 'black
+             python-auto-set-local-pyvenv-virtualenv 'on-project-switch
              )
      (shell :variables
             shell-default-height 48
@@ -261,7 +262,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(acme parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
