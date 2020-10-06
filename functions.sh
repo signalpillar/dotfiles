@@ -301,6 +301,10 @@ function pixel {
     /usr/local/share/android-sdk/emulator/emulator -avd pixel
 }
 
+# -----------------------------------------------
+# list SDK: sdkmanager --list
+# install : sdkmanager --install 'system-images;android-25;google_apis;armeabi-v7a'
+
 function __set_android_classpath_for_java11 {
     # the classpath needed only for Java11
     local -r JAXLIBDIR=~/Library/Android/sdk/jaxb_lib
@@ -330,7 +334,8 @@ function android-create-emulator {
 function android-create-emulator-arm {
     local -r NAME=$1
     __set_android_classpath_for_java11
-    avdmanager --verbose create avd -n $NAME -k "system-images;android-25;google_apis;armeabi-v7a" --tag google_apis --sdcard 2048M -d pixel
+    # avdmanager --verbose create avd -n $NAME -k "system-images;android-25;android-wear;armeabi-v7a" --tag google_apis --sdcard 2048M -d pixel
+    echo no | avdmanager --verbose create avd --force --name $NAME --abi 'google_apis/armeabi-v7a' --package 'system-images;android-25;google_apis;armeabi-v7a'
 }
 
 function android-delete-avd {
