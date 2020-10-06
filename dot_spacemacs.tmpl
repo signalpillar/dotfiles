@@ -25,6 +25,7 @@
      {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
      {{- end}}
+     semantic
 
      neotree
      csv
@@ -162,10 +163,12 @@
              python-fill-docstring-style 'pep-257-nn
              python-fill-column 88
              python-test-runner 'pytest
-             python-lsp-server 'mspyls
              python-format-on-save t
              python-formatter 'black
              python-auto-set-local-pyvenv-virtualenv 'on-project-switch
+             python-indent-offset 4
+             lsp-enable-snippet nil
+             lsp-prefer-flymake nil
              )
      (shell :variables
             shell-default-height 48
@@ -180,8 +183,8 @@
               theming-headings-same-size 'all
               theming-headings-bold 'all)
      (spell-checking :variables
-                     spell-checking-enable-auto-dictionary t
-                     enable-flyspell-auto-completion t
+                     spell-checking-enable-auto-dictionary nil
+                     enable-flyspell-auto-completion nil
                      spell-checking-enable-by-default nil
       )
      restclient
@@ -201,12 +204,12 @@
                                       magit-delta
 
                                       paper-theme
-                                      plantuml-mode
                                       all-the-icons
                                       parchment-theme
                                       acme-theme
 
                                       flycheck-mypy
+                                      poetry
                                       protobuf-mode
                                       eval-sexp-fu
                                       virtualenvwrapper
@@ -404,10 +407,6 @@ layers configuration."
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . dark))
 
-  ;; -------------- plantuml mode
-  (add-to-list 'auto-mode-alist '("\\.plantuml\\'" . plantuml-mode))
-
-  ;; org-plantuml-jar-path’ is not set
 
   ;; Neotree
   (with-eval-after-load 'neotree
@@ -451,14 +450,17 @@ layers configuration."
   (add-hook 'python-mode-hook 'auto-fill-mode)
   (add-hook 'python-mode-hook 'blacken-mode)
 
+  (add-hook 'live-py-mode-hook (lambda ()
+                                 (progn
+                                   (setq-default live-py-version (executable-find "python"))
+                                   (live-py-update-all))))
+
   (advice-add 'pyenv-mode-set
               :after
               (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
               )
 
   ;; Org-babel
-  (require 'plantuml-mode)
-  (setq org-plantuml-jar-path "/Users/volodymyr.vitvitskyi/bin/plantuml.1.2018.10.jar")
 
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -473,14 +475,11 @@ layers configuration."
      (ocaml . t)
      (org . t)
      (perl . t)
-     (plantuml . t)
      (python . t)
      (shell . t)
      (sql . t)
      (sqlite . t)))
 
-  (add-to-list
-   'org-src-lang-modes '("plantuml" . plantuml))
   ;; Open only task sub-tree on org-agdenda-goto from agenda
   ;; https://emacs.stackexchange.com/questions/17797/how-to-narrow-to-subtree-in-org-agenda-follow-mode
   (advice-add 'org-agenda-goto :after

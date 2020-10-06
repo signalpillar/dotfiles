@@ -68,7 +68,6 @@
 	noconsole = yes
 [user]
 	name = Volodymyr Vitvitskyi
-	email = contact.volodymyr@gmail.com
 [mergetool]
 	keepBackup = true
 [difftool "sourcetree"]
