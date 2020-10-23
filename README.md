@@ -9,6 +9,7 @@ Manually installing
 - mplayer
 - [Spark](https://sparkmailapp.com/)
 - [pyflow](https://github.com/David-OConnor/pyflow), requires Rust
+- gdal
 
 ## Fonts
 

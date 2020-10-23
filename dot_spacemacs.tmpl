@@ -165,7 +165,7 @@
              python-test-runner 'pytest
              python-format-on-save t
              python-formatter 'black
-             python-lsp-server 'mspyls
+             python-auto-set-local-pyvenv-virtualenv 'on-project-switch
              python-indent-offset 4
              lsp-enable-snippet nil
              lsp-prefer-flymake nil
@@ -266,7 +266,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi acme parchment default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
