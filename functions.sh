@@ -2,6 +2,10 @@ function tailSysLog {
     tail -f /var/log/syslog -n 100
 }
 
+function record-terminal-gif {
+    echo "https://github.com/sassman/t-rec-rs: not installed yet" > /dev/stderr
+}
+
 function listCDs {
     wodim --devices
 }
