@@ -456,10 +456,11 @@ layers configuration."
                                    (setq-default live-py-version (executable-find "python"))
                                    (live-py-update-all))))
 
-  (advice-add 'pyenv-mode-set
-              :after
-              (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
-              )
+  ;; .envrc files are setting now PYTHONPATH
+  ;; (advice-add 'pyenv-mode-set
+  ;;             :after
+  ;;             (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
+  ;;             )
 
   ;; Org-babel
 
