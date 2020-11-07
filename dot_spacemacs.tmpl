@@ -203,8 +203,8 @@
                                       ;; to fix the editor issue when commiting
                                       git-commit
                                       magit-delta
-
                                       paper-theme
+                                      ;; call all-the-icons-install-fonts to install the fonts on the system
                                       all-the-icons
                                       parchment-theme
                                       acme-theme
@@ -266,7 +266,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(eclipse parchment modus-operandi default paper cyberpunk  smyx zenburn) '(eclipse parchment spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -311,7 +311,7 @@
    ;; scrolling overrides the default behavior of Emacs which recenters point
    ;; when it reaches the top or bottom of the screen. (default t)
    dotspacemacs-smooth-scrolling t
-   dotspacemacs-search-tools '("rg" "ag" "grep")
+   dotspacemacs-search-tools '("ag" "rg" "grep")
 
    ;; dotspacemacs-line-numbers t
    dotspacemacs-folding-method 'evil  ;; origami
@@ -382,7 +382,7 @@
   "Configuration function.
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
-
+  (direnv-mode)
   (config-visuals)
 
   ;; (set-background-color "honeydew")
@@ -599,4 +599,10 @@ layers configuration."
 This is an auto-generated function, do not modify its content directly, use
 Emacs customize menu instead.
 This function is called at the very end of Spacemacs initialization."
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(pytest-cmd-flags "-vv -x -s"))
 )
