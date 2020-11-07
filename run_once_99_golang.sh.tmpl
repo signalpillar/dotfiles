@@ -22,8 +22,8 @@ go get -u -v github.com/haya14busa/gopkgs/cmd/gopkgs
 go get -u -v github.com/josharian/impl
 go get -u -v github.com/mdempsky/gocode
 go get -u -v github.com/rogpeppe/godef
-go get -u -v github.com/zmb3/gogetdoc
-
-CGO_ENABLED=0 go get -v -trimpath -ldflags '-s -w' github.com/golangci/golangci-lint/cmd/golangci-lint
+# recently I couldn't install these packages
+# go get -u -v github.com/zmb3/gogetdoc
+# CGO_ENABLED=0 go get -v -trimpath -ldflags '-s -w' github.com/golangci/golangci-lint/cmd/golangci-lint
 
 {{- end}}

@@ -1,5 +1,5 @@
 #!/bin/bash
-{{- if eq .chezmoi.osRelease.name "arch" }}
+{{- if eq .chezmoi.os "arch" }}
 
 sudo systemctl enable docker.service
 

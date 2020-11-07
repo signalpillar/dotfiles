@@ -43,7 +43,7 @@ tap "homebrew/services"
 tap "johanhaleby/kubetail"
 tap "twpayne/taps"
 
-{{- if eq .chezmoi.hostname "b-0309" }}
+{{- if eq .chezmoi.hostname "B-0309" }}
 tap "lokalise/brew"
 cask "osxfuse"
 cask "xquartz"
@@ -62,7 +62,7 @@ brew "jpeg"
 brew "markdown"
 brew "minikube", link: false
 brew "mono"
-brew "johanhaleby/kubetail/kubetail"
+# brew "johanhaleby/kubetail/kubetail"
 brew "gnuplot"
 brew "upx"
 brew "vault"
@@ -75,7 +75,8 @@ cask "android-sdk"
 cask "postman"
 # cask "superproductivity"
 {{- else}}
-cask "haskell-stack"
+# I don't really use it to install
+#cask "haskell-stack"
 {{- end}}
 
 brew "pngpaste"
@@ -107,6 +108,7 @@ brew "httpie"
 brew "iftop"
 brew "ispell"
 cask "iterm2-beta"
+cask  "joplin"
 brew "jq"
 brew "node"
 brew "jsonlint"
@@ -141,12 +143,8 @@ cask "karabiner-elements"
 # cask "clipy"
 # cask "docker"
 cask "dropbox"
-cask "firefox"
-# installation of flux doesn't work any more
-# cask "flux"
 cask "font-fira-code"
 cask "font-input"
-cask "google-chrome"
 cask "ngrok"
 cask "skype"
 cask "slack"
