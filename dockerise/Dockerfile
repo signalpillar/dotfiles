@@ -136,8 +136,9 @@ run touch /var/shared/placeholder
 run chown -R dev:dev /var/shared
 volume /var/shared
 
-RUN chown -R dev: /home/dev
-user dev
+# RUN chown -R dev: /home/dev
+# user dev
+# RUN cd /home/dev
 
 RUN curl -sfL https://git.io/chezmoi | sh
 RUN rm -rf /var/lib/apt/lists/*
