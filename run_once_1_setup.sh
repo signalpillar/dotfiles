@@ -10,3 +10,13 @@ function setup_emacs {
     git checkout develop
     git pull
 }
+
+
+{{- if eq .chezmoi.os "darwin" }}
+
+# Required to enable key repeat in Joplin (vim mode)
+# https://discourse.joplinapp.org/t/how-to-enable-repeating-keys-in-vim-mode/11167/5
+# defaults write net.cozic.joplin-desktop ApplePressAndHoldEnabled -bool false
+defaults write -g ApplePressAndHoldEnabled -bool false
+
+{{- end}}
