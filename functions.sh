@@ -373,3 +373,9 @@ function git-clone-project {
     cd $proj_path
     git clone $https_url
 }
+
+function debug-http-server {
+    local -r port=${1:-8004}
+    echo "Start debug server on port '$port' that will respond with 200 status code"
+    for i in `seq 5`; do { echo -e "HTTP/1.1 200 OK\r\n\n{\"nc_response_number\": $i}";  } | nc -l 8004; done
+}
