@@ -301,26 +301,41 @@ function disable_indexing_osx {
 }
 
 
-function pixel {
-    /usr/local/share/android-sdk/emulator/emulator -avd pixel
-}
-
 # -----------------------------------------------
+DEFAULT_ANDROID_SDK_DIR=~/Library/Android/sdk
 # list SDK: sdkmanager --list
 # install : sdkmanager --install 'system-images;android-25;google_apis;armeabi-v7a'
+
+# https://stackoverflow.com/questions/53076422/getting-android-sdkmanager-to-run-with-java-11
+function __android_download_jaxb_lib {
+    local -r sdk_dir=${1:-$DEFAULT_ANDROID_SDK_DIR}
+    mkdir $sdk_dir/jaxb_lib
+    wget https://repo1.maven.org/maven2/javax/activation/activation/1.1.1/activation-1.1.1.jar -O $sdk_dir/jaxb_lib/activation.jar
+    wget https://repo1.maven.org/maven2/com/sun/xml/bind/jaxb-impl/2.3.3/jaxb-impl-2.3.3.jar -O $sdk_dir/jaxb_lib/jaxb-impl.jar
+    wget https://repo1.maven.org/maven2/com/sun/istack/istack-commons-runtime/3.0.11/istack-commons-runtime-3.0.11.jar -O $sdk_dir/jaxb_lib/istack-commons-runtime.jar
+    wget https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-xjc/2.3.3/jaxb-xjc-2.3.3.jar -O $sdk_dir/jaxb_lib/jaxb-xjc.jar
+    wget https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-core/2.3.0.1/jaxb-core-2.3.0.1.jar -O $sdk_dir/jaxb_lib/jaxb-core.jar
+    wget https://repo1.maven.org/maven2/org/glassfish/jaxb/jaxb-jxc/2.3.3/jaxb-jxc-2.3.3.jar -O $sdk_dir/jaxb_lib/jaxb-jxc.jar
+    wget https://repo1.maven.org/maven2/javax/xml/bind/jaxb-api/2.3.1/jaxb-api-2.3.1.jar -O $sdk_dir/jaxb_lib/jaxb-api.jar
+
+}
 
 function __set_android_classpath_for_java11 {
     # the classpath needed only for Java11
     local -r JAXLIBDIR=~/Library/Android/sdk/jaxb_lib
-    export CLASSPATH=$JAXLIBDIR/activation.jar:$JAXLIBDIR/jaxb-impl.jar:$JAXLIBDIR/jaxb-xjc.jar:$JAXLIBDIR/jaxb-core.jar:$JAXLIBDIR/jaxb-jxc.jar:$JAXLIBDIR/jaxb-api.jar:$CLASSPATH
-    # avdmanager has to be updated to take into account an existing CLASSPATH
+
+    if [[ $CLASSPATH != *"jaxb_lib"* ]]; then
+        export CLASSPATH=$JAXLIBDIR/activation.jar:$JAXLIBDIR/jaxb-impl.jar:$JAXLIBDIR/jaxb-xjc.jar:$JAXLIBDIR/jaxb-core.jar:$JAXLIBDIR/jaxb-jxc.jar:$JAXLIBDIR/jaxb-api.jar:$CLASSPATH
+    fi
+    # avdmanager/sdkmanager have to be updated to take into account an existing CLASSPATH
 }
 
 function android-start-emulator {
     local -r NAME=$1
     # /usr/local/share/android-sdk/emulator/emulator -avd $NAME
     __set_android_classpath_for_java11
-    /usr/local/share/android-sdk/emulator/emulator -avd $NAME -no-snapshot-load
+    local -r sdk_dir=${2:-$DEFAULT_ANDROID_SDK_DIR}
+    $sdk_dir/emulator/emulator -avd $NAME -no-snapshot-load
 }
 
 function android-create-emulator-kitkat {
@@ -332,7 +347,7 @@ function android-create-emulator-kitkat {
 function android-create-emulator {
     local -r NAME=$1
     __set_android_classpath_for_java11
-    avdmanager --verbose create avd -n $NAME -k "system-images;android-27;google_apis;x86" --tag google_apis --sdcard 2048M -d pixel
+    avdmanager --verbose create avd -n $NAME -k "system-images;android-29;google_apis;x86" --tag google_apis --sdcard 2048M -d pixel
 }
 
 function android-create-emulator-arm {

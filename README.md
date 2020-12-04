@@ -10,6 +10,7 @@ Manually installing
 - [Spark](https://sparkmailapp.com/)
 - [pyflow](https://github.com/David-OConnor/pyflow), requires Rust
 - gdal
+- Slack
 
 ## Fonts
 
