@@ -19,7 +19,7 @@ defaults write -g ApplePressAndHoldEnabled -bool false
 
 if [ ! -f "$HOME/bin/imgcat" ]; then
     test -d $HOME/bin || mkdir $HOME/bin
-    wget -O ~/bin/imgcat https://raw.githubusercontent.com/gnachman/iTerm2/master/tests/imgcat
+    wget -O ~/bin/imgcat https://iterm2.com/utilities/imgcat
     chmod +x ~/bin/imgcat
 fi
 
