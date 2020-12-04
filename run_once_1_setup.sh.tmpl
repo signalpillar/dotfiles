@@ -1,8 +1,6 @@
 #!/bin/bash
 
 touch ~/.env.sh
-# git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
-git clone https://github.com/syl20bnr/spacemacs ~/.emacs.d
 
 function setup_emacs {
     git clone https://github.com/syl20bnr/spacemacs $HOME/.emacs.d
@@ -18,5 +16,20 @@ function setup_emacs {
 # https://discourse.joplinapp.org/t/how-to-enable-repeating-keys-in-vim-mode/11167/5
 # defaults write net.cozic.joplin-desktop ApplePressAndHoldEnabled -bool false
 defaults write -g ApplePressAndHoldEnabled -bool false
+
+if [ ! -f "$HOME/bin/imgcat" ]; then
+    test -d $HOME/bin || mkdir $HOME/bin
+    wget -O ~/bin/imgcat https://raw.githubusercontent.com/gnachman/iTerm2/master/tests/imgcat
+    chmod +x ~/bin/imgcat
+fi
+
+if [ ! -d "$HOME/.emacs.d" ]; then
+    setup_emacs
+fi
+
+if [ ! -d "$HOME/.vim/bundle/Vundle.vim" ]; then
+    git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim
+fi
+
 
 {{- end}}
