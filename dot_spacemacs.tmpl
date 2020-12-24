@@ -561,10 +561,19 @@ layers configuration."
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
       (venv-workon)
-      (setq lsp-python-ms-python-executable-cmd (format "%s/bin/python" python-shell-virtualenv-path))
+      (let ((python-exe (format "%s/%s/bin/python3" venv-location venv-current-name)))
+        ;; (pytest.el) 'pytest-global-name', default value is py.test and it's used like
+        ;; executable in compilation mode. That approach doesn't when pytest is
+        ;; not installed globally and we need to use one from the virtual
+        ;; environment.
+        ;; We set this custom variable to run pytest with the venv python
+        ;; interpreter.
+        (setq pytest-global-name (format "%s -m pytest" python-exe))
+        (pythonic-activate python-exe)
+        (setq lsp-python-ms-python-executable-cmd python-exe)
+        )
       (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
-      (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
-      )))
+      (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root))))))
 
 (defun sp/org-insert-clipboard-image ()
   (interactive)
