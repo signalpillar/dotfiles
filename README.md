@@ -11,6 +11,8 @@ Manually installing
 - [pyflow](https://github.com/David-OConnor/pyflow), requires Rust
 - gdal
 - Slack
+- [Kap](https://getkap.co/)
+
 
 ## Fonts
 
