@@ -544,6 +544,12 @@ layers configuration."
   (-map (lambda (file) (sp/path/parent-dir (sp/path/parent-dir file)))
         (-find-toxenv-bin-dirs project-root-dir)))
 
+(defun sp/tox/activate-tox-env-lsp ()
+  (interactive)
+  (call-interactively 'sp/tox/activate-current-project-tox-env)
+  (call-interactively 'lsp-workspace-restart)
+  )
+
 (defun sp/tox/activate-current-project-tox-env ()
   (interactive)
   (let* (
