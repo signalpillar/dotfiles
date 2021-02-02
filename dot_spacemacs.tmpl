@@ -572,7 +572,7 @@ layers configuration."
         ;; interpreter.
         (setq pytest-global-name (format "%s -m pytest" python-exe))
         (pythonic-activate python-exe)
-        (setq lsp-python-ms-python-executable-cmd python-exe)
+        (setq lsp-python-ms-python-executable python-exe)
         )
       (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
       (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root))))))
