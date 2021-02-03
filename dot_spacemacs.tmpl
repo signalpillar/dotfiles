@@ -79,6 +79,11 @@
           )
      (markdown :variables markdown-open-command "/Applications/Typora.app/Contents/MacOS/Typora")
      nix
+     (dart :variables
+       dart-backend 'lsp
+       lsp-enable-on-type-formatting t
+       lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
+     )
      ;; nginx
      (org :variables
           ;; https://github.com/abo-abo/org-download
