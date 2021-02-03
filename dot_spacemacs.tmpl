@@ -545,6 +545,12 @@ layers configuration."
   (-map (lambda (file) (sp/path/parent-dir (sp/path/parent-dir file)))
         (-find-toxenv-bin-dirs project-root-dir)))
 
+(defun sp/tox/activate-tox-env-lsp ()
+  (interactive)
+  (call-interactively 'sp/tox/activate-current-project-tox-env)
+  (call-interactively 'lsp-workspace-restart)
+  )
+
 (defun sp/tox/activate-current-project-tox-env ()
   (interactive)
   (let* (
@@ -567,7 +573,7 @@ layers configuration."
         ;; interpreter.
         (setq pytest-global-name (format "%s -m pytest" python-exe))
         (pythonic-activate python-exe)
-        (setq lsp-python-ms-python-executable-cmd python-exe)
+        (setq lsp-python-ms-python-executable python-exe)
         )
       (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
       (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root))))))
