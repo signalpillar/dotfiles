@@ -166,7 +166,8 @@
      dap
      (python :variables
              python-shell-interpreter "python3"
-             python-backend 'anaconda
+             ;; python-backend 'anaconda
+             python-backend 'lsp
              python-fill-docstring-style 'pep-257-nn
              python-fill-column 88
              python-test-runner 'pytest
