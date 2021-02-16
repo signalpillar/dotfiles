@@ -56,7 +56,7 @@ function whoListenPort {
 }
 
 function shareCurrentFolder {
-    python -m SimpleHTTPServer
+    python -m http.server
 }
 
 function getExternalIp {
