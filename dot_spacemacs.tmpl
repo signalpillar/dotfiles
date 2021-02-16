@@ -393,7 +393,7 @@ layers configuration."
   (config-visuals)
 
   ;; https://github.com/emacsorphanage/popwin
-  (push '(compilation-mode :noselect t :position right) popwin:special-display-config)
+  (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
 
   ;; (set-background-color "honeydew")
 
@@ -604,6 +604,13 @@ layers configuration."
     )
   (org-display-inline-images)
   )
+
+(defun sp/decode-jwt (start end)
+  (interactive "r")
+  (let* ((selected (buffer-substring start end))
+         (cmd (format "pyjwt decode --no-verify '%s'" selected))
+         (output (shell-command-to-string cmd)))
+    (kill-new output)))
 
 {{- if eq .chezmoi.hostname "b-0309" }}
 (defun djangoapp/set-cms-evars ()
