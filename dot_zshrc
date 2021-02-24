@@ -31,7 +31,7 @@ ZSH_THEME=crunch
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 znt_list_colorpair="black/white"
-plugins=(git docker zsh-autosuggestions zsh-navigation-tools)
+plugins=(docker zsh-autosuggestions zsh-navigation-tools)
 
 source $ZSH/oh-my-zsh.sh
 
