@@ -13,6 +13,9 @@ Manually installing
 - Slack
 - [Kap](https://getkap.co/)
 
+## Emacs
+
+- [Config of Gergely Nagy](https://github.com/algernon/emacs.d/blob/master/.spacemacs)
 
 ## Fonts
 
