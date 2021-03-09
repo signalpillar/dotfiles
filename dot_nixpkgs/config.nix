@@ -27,20 +27,20 @@
         # is super handy loading evars when they are exported in .envrc
         direnv
         # Icon fonts for emacs all-the-icons
-        emacs-all-the-icons-fonts
-        emacsMacport
+        # emacs-all-the-icons-fonts
+        # emacsMacport
         ffmpeg
-        just
+        # just
         gdb
         gitAndTools.gitFull
         jq
-        lorri
+        # lorri
         # used for emacs-terminal integration
         # osx: not supported
         # libvterm
         ncdu
         openssh
-        silver-searcher
+        # silver-searcher
         tmux
         vim
         unrar

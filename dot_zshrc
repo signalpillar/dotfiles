@@ -1,3 +1,5 @@
+source ~/.nix-profile/etc/profile.d/nix.sh
+
 # Path to your oh-my-zsh configuration.
 ZSH=$HOME/.oh-my-zsh
 
@@ -84,7 +86,6 @@ bindkey '\e\e[C' forward-word
 bindkey '\e\e[D' backward-word
 
 alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.1'
-eval "$(direnv hook zsh)"
 
 # OPAM configuration
 . /Users/signalpillar/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
@@ -93,3 +94,5 @@ alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/o
 export JAVA_HOME=$(/usr/libexec/java_home)
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+eval "$(direnv hook zsh)"
