@@ -20,11 +20,17 @@
    dotspacemacs-configuration-layers
 
    '(
+     better-defaults
      (deft :variables deft-extensions '("org" "md" "txt"))
 
      {{- if eq .chezmoi.hostname "b-0309" }}
      chrome
+     lua
      {{- end}}
+     helpful
+     (ibuffer :variables ibuffer-group-buffers-by 'projects)
+     imenu-list
+
      semantic
      pdf
      racket
@@ -38,9 +44,10 @@
          go-tab-width 4
        )
      (auto-completion :variables
-                      auto-completion-enable-help-tooltip nil
+                      company-quickhelp-delay 0.8
+                      auto-completion-enable-help-tooltip t
                       auto-completion-private-snippets-directory nil
-                      auto-completion-enable-snippets-in-popup nil
+                      auto-completion-enable-snippets-in-popup t
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
                       auto-completion-complete-with-key-sequence-delay 0.1
@@ -168,6 +175,7 @@
              python-shell-interpreter "python3"
              ;; python-backend 'anaconda
              python-backend 'lsp
+             python-lsp-server 'pyls
              python-fill-docstring-style 'pep-257-nn
              python-fill-column 88
              python-test-runner 'pytest
@@ -178,11 +186,13 @@
              lsp-enable-snippet nil
              lsp-prefer-flymake nil
              )
+     (ranger :variables ranger-show-preview t)
+     theming
      (shell :variables
             shell-default-height 48
             shell-default-position 'bottom
             shell-default-term-shell "zsh"
-            shell-default-shell 'eshell
+            shell-default-shell 'vterm
             )
      (syntax-checking :variables
                      syntax-checking-enable-by-default t)
@@ -271,6 +281,7 @@
 
    ;; exec-path-from-shell-arguments '("-l")
    dotspacemacs-elpa-https t
+   dotspacemacs-elpa-timeout 5
    ;; If non nil then spacemacs will check for updates at startup
    ;; when the current branch is not `develop'. (default t)
 	 dotspacemacs-check-for-update nil
@@ -310,7 +321,8 @@
    dotspacemacs-use-ido nil
 
    ;; If non-nil, `helm' will try to minimize the space it uses. (default t)
-   dotspacemacs-helm-resize t
+   dotspacemacs-helm-resize nil
+   dotspacemacs-helm-no-header t
    ;; If non-nil, `helm' will try to remove duplicates in history (default nil)
    history-delete-duplicates t
 
