@@ -28,6 +28,7 @@
 
       # Editors
       vim
+      emacsMacport
 
       # Terms
       kitty
