@@ -206,7 +206,8 @@
       )
      restclient
      (version-control :variables
-                      version-control-diff-tool 'diff-hl
+                      ;; diff-hl is slow
+                      ;; version-control-diff-tool 'diff-hl
                       git-magit-status-fullscreen t)
      yaml)
 
