@@ -9,8 +9,6 @@
       coreutils
       ffmpeg
       gdb
-      git
-      git-lfs
       jq
       fzf
       tree
@@ -28,7 +26,6 @@
 
       # Editors
       vim
-      emacsMacport
 
       # Terms
       kitty
@@ -42,9 +39,6 @@
     # Auto upgrade nix package and the daemon service.
     # DO NOT ENABLE DAEMON
     nix-daemon.enable = false;
-
-    # Enable the Emacs Daemon. Run emacs as a service
-    emacs.enable = true;
   };
 
   programs.man.enable = true;
