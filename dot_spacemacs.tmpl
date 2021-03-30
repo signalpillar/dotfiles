@@ -21,9 +21,9 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
+     chrome
 
      {{- if eq .chezmoi.hostname "b-0309" }}
-     chrome
      lua
      {{- end}}
      helpful
@@ -205,6 +205,13 @@
                      spell-checking-enable-by-default nil
       )
      restclient
+     react
+     (typescript :variables
+              typescript-linter 'tslint
+              typescript-fmt-tool 'prettier
+              typescript-fmt-on-save t
+              typescript-backend 'tide
+              )
      (version-control :variables
                       ;; diff-hl is slow
                       ;; version-control-diff-tool 'diff-hl
@@ -290,7 +297,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi parchment default paper cyberpunk  smyx zenburn) '(eink modus-operandi parchment))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -339,7 +346,7 @@
    ;; scrolling overrides the default behavior of Emacs which recenters point
    ;; when it reaches the top or bottom of the screen. (default t)
    dotspacemacs-smooth-scrolling t
-   dotspacemacs-search-tools '("ag" "rg" "grep")
+   dotspacemacs-search-tools '("rg" "ag" "grep")
 
    ;; Format specification for setting the frame title.
    ;; %a - the `abbreviated-file-name', or `buffer-name'
