@@ -21,13 +21,18 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
+     chrome
 
      {{- if eq .chezmoi.hostname "b-0309" }}
-     chrome
+     lua
      {{- end}}
+     helpful
+     (ibuffer :variables ibuffer-group-buffers-by 'projects)
+     imenu-list
+
      semantic
      pdf
-     racket
+     ;; racket
      neotree
      csv
      graphviz
@@ -38,9 +43,10 @@
          go-tab-width 4
        )
      (auto-completion :variables
-                      auto-completion-enable-help-tooltip nil
+                      company-quickhelp-delay 0.8
+                      auto-completion-enable-help-tooltip t
                       auto-completion-private-snippets-directory nil
-                      auto-completion-enable-snippets-in-popup nil
+                      auto-completion-enable-snippets-in-popup t
                       auto-completion-return-key-behavior nil
                       auto-completion-tab-key-behavior 'cycle
                       auto-completion-complete-with-key-sequence-delay 0.1
@@ -168,6 +174,7 @@
              python-shell-interpreter "python3"
              ;; python-backend 'anaconda
              python-backend 'lsp
+             python-lsp-server 'pyls
              python-fill-docstring-style 'pep-257-nn
              python-fill-column 88
              python-test-runner 'pytest
@@ -178,11 +185,13 @@
              lsp-enable-snippet nil
              lsp-prefer-flymake nil
              )
+     (ranger :variables ranger-show-preview t)
+     theming
      (shell :variables
             shell-default-height 48
             shell-default-position 'bottom
             shell-default-term-shell "zsh"
-            shell-default-shell 'eshell
+            shell-default-shell 'vterm
             )
      (syntax-checking :variables
                      syntax-checking-enable-by-default t)
@@ -196,12 +205,21 @@
                      spell-checking-enable-by-default nil
       )
      restclient
+     react
+     (typescript :variables
+              typescript-linter 'tslint
+              typescript-fmt-tool 'prettier
+              typescript-fmt-on-save t
+              typescript-backend 'tide
+              )
      (version-control :variables
-                      version-control-diff-tool 'diff-hl
+                      ;; diff-hl is slow
+                      ;; version-control-diff-tool 'diff-hl
                       git-magit-status-fullscreen t)
      yaml)
 
-   dotspacemacs-additional-packages `(
+   dotspacemacs-additional-packages `(eink-theme
+                                      brutalist-theme
                                       {{- if eq .chezmoi.hostname "b-0309" }}
                                       (babylon :location local)
                                       {{- end}}
@@ -224,6 +242,8 @@
                                       ;; execution
                                       ob-async
                                       easy-hugo
+                                      writegood-mode
+                                      powerthesaurus
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
@@ -231,7 +251,7 @@
         evil-search-highlight-persist
         eval-sexp-fu
         info+
-        smooth-scrolling
+        ;; smooth-scrolling
         rainbow-delimiters
         ;; not needed functionality
         pip-requirements
@@ -256,12 +276,19 @@
    before layers configuration."
 
   (setq-default
+   dotspacemacs-folding-method 'evil  ;; origami
+   dotspacemacs-mode-line-unicode-symbols t
+   dotspacemacs-highlight-delimiters 'nil
+   dotspacemacs-line-numbers '(:relative nil
+                             :enabled-for-modes nil)
+
 
    ;; True if the home buffer should respond to resize events. (default t)
    dotspacemacs-startup-buffer-responsive t
 
    ;; exec-path-from-shell-arguments '("-l")
    dotspacemacs-elpa-https t
+   dotspacemacs-elpa-timeout 5
    ;; If non nil then spacemacs will check for updates at startup
    ;; when the current branch is not `develop'. (default t)
 	 dotspacemacs-check-for-update nil
@@ -270,7 +297,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi parchment default paper cyberpunk  smyx zenburn) '(modus-operandi parchment))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -301,7 +328,8 @@
    dotspacemacs-use-ido nil
 
    ;; If non-nil, `helm' will try to minimize the space it uses. (default t)
-   dotspacemacs-helm-resize t
+   dotspacemacs-helm-resize nil
+   dotspacemacs-helm-no-header t
    ;; If non-nil, `helm' will try to remove duplicates in history (default nil)
    history-delete-duplicates t
 
@@ -318,10 +346,7 @@
    ;; scrolling overrides the default behavior of Emacs which recenters point
    ;; when it reaches the top or bottom of the screen. (default t)
    dotspacemacs-smooth-scrolling t
-   dotspacemacs-search-tools '("ag" "rg" "grep")
-
-   ;; dotspacemacs-line-numbers t
-   dotspacemacs-folding-method 'evil  ;; origami
+   dotspacemacs-search-tools '("rg" "ag" "grep")
 
    ;; Format specification for setting the frame title.
    ;; %a - the `abbreviated-file-name', or `buffer-name'

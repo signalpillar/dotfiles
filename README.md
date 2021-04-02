@@ -13,11 +13,21 @@ Manually installing
 - Slack
 - [Kap](https://getkap.co/)
 
+## Emacs
+
+- [Config of Gergely Nagy](https://github.com/algernon/emacs.d/blob/master/.spacemacs)
 
 ## Fonts
 
 - IBM Plex is my favorite ([download](https://github.com/IBM/plex/releases/))
+
+## ML
+- https://mlflow.org/
+
 ## History
+
+# March 2021
+Slow migration to nix-darwin started.
 
 # Jan 2020
 Project restructured to work with [chezmoi](https://github.com/twpayne/chezmoi/blob/master/docs/HOWTO.md)
