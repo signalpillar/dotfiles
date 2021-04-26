@@ -110,6 +110,7 @@ virtualisation.virtualbox.guest.enable = true;
 
 
 fonts.fonts = with pkgs; [
+  emacs-all-the-icons-fonts
   hermit
   source-code-pro
   terminus_font
