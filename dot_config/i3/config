@@ -148,6 +148,7 @@ bindsym $mod+r mode "resize"
 bar {
         position top
         status_command i3status
+        font termsyn:monospace 8
 }
 
 # exec dropbox start &
