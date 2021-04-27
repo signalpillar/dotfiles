@@ -67,6 +67,7 @@
 	cmd = diffuse \"$FILENAME\"
 	noconsole = yes
 [user]
+  email = contact.volodymyr@gmail.com
 	name = Volodymyr Vitvitskyi
 [mergetool]
 	keepBackup = true
