@@ -84,8 +84,10 @@ environment.systemPackages = with pkgs; [
    lshw
    mplayer
    ncdu
+   nodejs
    openssl
    pkg-config
+   signal-desktop
    tmux
    tree
    unzip
