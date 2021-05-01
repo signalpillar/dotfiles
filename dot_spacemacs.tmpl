@@ -585,6 +585,27 @@ layers configuration."
   (call-interactively 'lsp-workspace-restart)
   )
 
+(defun sp/poetry/activate-env-lsp ()
+  (interactive)
+
+  (call-interactively 'poetry-venv-workon)
+  (let ((python-exe (format "%s/bin/python" (poetry-get-virtualenv))))
+    ;; (pytest.el) 'pytest-global-name', default value is py.test and it's used like
+    ;; executable in compilation mode. That approach doesn't when pytest is
+    ;; not installed globally and we need to use one from the virtual
+    ;; environment.
+    ;; We set this custom variable to run pytest with the venv python
+    ;; interpreter.
+    (message "Activated python - %s" python-exe)
+    (setq lsp-pyright-venv-path (poetry-get-virtualenv))
+    (message "LPS pyright venv path: %s" lsp-pyright-venv-path)
+    (setq pytest-global-name (format "%s -m pytest" python-exe))
+    (pythonic-activate python-exe)
+    (setq lsp-python-ms-python-executable python-exe)
+    (call-interactively 'lsp-workspace-restart)
+    )
+  )
+
 (defun sp/tox/activate-current-project-tox-env ()
   (interactive)
   (let* (
