@@ -26,6 +26,7 @@
 
       # Editors
       vim
+      emacs
 
       # Terms
       kitty
@@ -33,7 +34,14 @@
 
       # Java
       # adoptopenjdk-bin
-    ];
+
+      # failed to build 38, fallback to 37
+      (python37.withPackages(ps: with ps; [
+          pip
+          black
+          isort
+      ]))
+  ];
 
   services = {
     # Auto upgrade nix package and the daemon service.
@@ -46,8 +54,11 @@
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnsupportedSystem = false;
 
-  environment.variables.LANG = "en_US.UTF-8";
-  environment.variables.LC_ALL = "en_US.UTF-8";
+  environment.variables = {
+    EDITOR = "vim";
+    LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
+  };
 
   # Use a custom configuration.nix location.
   # $ darwin-rebuild switch -I darwin-config=$HOME/.config/nixpkgs/darwin/configuration.nix
