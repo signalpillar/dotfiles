@@ -468,6 +468,7 @@ layers configuration."
   (global-set-key [f3] 'jao-toggle-selective-display)
   (global-set-key [f4] 'sp/tox/activate-current-project-tox-env)
   (global-set-key [f5] 'sp/org-insert-clipboard-image)
+  (global-set-key [f6] 'sp/insert-fortune-cookie)
 
   (setq-default
    powerline-default-separator 'alternate
@@ -660,6 +661,11 @@ layers configuration."
          (cmd (format "pyjwt decode --no-verify '%s'" selected))
          (output (shell-command-to-string cmd)))
     (kill-new output)))
+
+(defun sp/insert-fortune-cookie ()
+  (interactive)
+  (when (executable-find "fortune")
+    (shell-command "fortune -ec" t)))
 
 {{- if eq .chezmoi.hostname "b-0309" }}
 (defun djangoapp/set-cms-evars ()
