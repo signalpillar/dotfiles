@@ -95,6 +95,4 @@ alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/o
 # Java configuration
 export JAVA_HOME=$(/usr/libexec/java_home)
 
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-
 eval "$(direnv hook zsh)"

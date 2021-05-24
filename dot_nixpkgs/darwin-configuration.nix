@@ -13,10 +13,10 @@
       ffmpeg
       gdb
       jq
-      fzf
       tree
       htop
       ncdu
+      tmux
       # terminal-notifier # https://github.com/julienXX/terminal-notifier
       # synergy
       unrar
