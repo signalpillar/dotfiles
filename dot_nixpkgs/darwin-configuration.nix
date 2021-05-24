@@ -5,6 +5,9 @@
   # $ nix-env -qaP | grep wget
   environment.systemPackages = with pkgs;
     [
+      ag
+      ripgrep
+
       git
       chezmoi
       fortune
@@ -14,7 +17,10 @@
       gdb
       jq
       tree
+
+      iftop
       htop
+
       ncdu
       tmux
       # terminal-notifier # https://github.com/julienXX/terminal-notifier
@@ -35,13 +41,14 @@
       kitty
       oh-my-zsh
 
-      # Java
-      # adoptopenjdk-bin
+      # Java 11
+      adoptopenjdk-bin
 
       (python39.withPackages(ps: with ps; [
           pip
           black
           isort
+          tox
       ]))
   ];
 
