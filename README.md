@@ -1,17 +1,20 @@
 This project contains all my dotfiles that are moved from box to box.
 
-Manually installing
+Manually installed
 
-- docker-toolbox
+- iTerm
+- Brave browser
 - Signal
+- Slack
 - Clipy
 - Docker
-- mplayer
-- [Spark](https://sparkmailapp.com/)
-- [pyflow](https://github.com/David-OConnor/pyflow), requires Rust
-- gdal
-- Slack
+- VirtualBox
+- Joplin
+- Dropbox
+- Karabine-Elements
+- [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
 - [Kap](https://getkap.co/)
+- mplayer
 
 ## Emacs
 
@@ -19,7 +22,8 @@ Manually installing
 
 ## Fonts
 
-- IBM Plex is my favorite ([download](https://github.com/IBM/plex/releases/))
+- Cascadia Mono ([download](https://github.com/microsoft/cascadia-code))
+- IBM Plex ([download](https://github.com/IBM/plex/releases/))
 
 ## ML
 - https://mlflow.org/
@@ -28,6 +32,7 @@ Manually installing
 
 # March 2021
 Slow migration to nix-darwin started.
+All non-gui apps can be there.
 
 # Jan 2020
 Project restructured to work with [chezmoi](https://github.com/twpayne/chezmoi/blob/master/docs/HOWTO.md)

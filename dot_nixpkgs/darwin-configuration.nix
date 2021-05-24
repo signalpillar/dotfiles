@@ -5,6 +5,8 @@
   # $ nix-env -qaP | grep wget
   environment.systemPackages = with pkgs;
     [
+      git
+      chezmoi
       fortune
       direnv
       coreutils
@@ -36,8 +38,7 @@
       # Java
       # adoptopenjdk-bin
 
-      # failed to build 38, fallback to 37
-      (python37.withPackages(ps: with ps; [
+      (python39.withPackages(ps: with ps; [
           pip
           black
           isort
