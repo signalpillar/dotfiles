@@ -3,6 +3,7 @@
 touch ~/.env.sh
 
 function setup_emacs {
+    mv $HOME/.emacs.d $HOME/.emacs.d`time -I`
     git clone https://github.com/syl20bnr/spacemacs $HOME/.emacs.d
     cd $HOME/.emacs.d
     git checkout develop

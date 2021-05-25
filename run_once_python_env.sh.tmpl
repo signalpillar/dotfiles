@@ -1,15 +1,14 @@
 #!/bin/bash
 
-{{- if eq .chezmoi.os "darwin" }}
+{{- if eq .chezmoi.os "darwin-disabled" }}
 brew upgrade pyenv
 pyenv install --skip-existing 3.8.2
-{{- end}}
 
 pyenv update
 pyenv install --skip-existing 3.6.10
 cd `mktemp -d`
 pyenv local 3.6.10
-{{- if eq .chezmoi.os "darwin" }}
+
 python3 -m pip install --user -U pip
 python3 -m pip install --user tox-battery ipython
 pyenv local 3.8.2
