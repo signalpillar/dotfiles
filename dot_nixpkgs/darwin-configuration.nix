@@ -18,8 +18,12 @@
       jq
       tree
 
+      mtr
       iftop
+
       htop
+
+      nodejs
 
       ncdu
       tmux
