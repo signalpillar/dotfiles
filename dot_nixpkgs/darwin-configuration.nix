@@ -8,6 +8,9 @@
       ag
       ripgrep
 
+      # file manager
+      mc
+
       graphviz
 
       git
