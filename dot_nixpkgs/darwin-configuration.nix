@@ -8,6 +8,8 @@
       ag
       ripgrep
 
+      graphviz
+
       git
       chezmoi
       fortune
