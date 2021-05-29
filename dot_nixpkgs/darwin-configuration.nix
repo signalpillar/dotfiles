@@ -29,7 +29,8 @@
 
       watch
 
-      go_1_15
+      # 1.16.4
+      go
 
       mtr
       iftop
@@ -85,6 +86,8 @@
     EDITOR = "vim";
     LANG = "en_US.UTF-8";
     LC_ALL = "en_US.UTF-8";
+    # source: http://itchyknowsdevs.me/blog/developing-golang-in-nixos/
+    GOROOT = [ "${pkgs.go.out}/share/go" ];
   };
 
   # Use a custom configuration.nix location.
