@@ -7,9 +7,12 @@
     [
       ag
       ripgrep
+      global
 
       # file manager
       mc
+
+      readline
 
       graphviz
 
@@ -22,6 +25,9 @@
       gdb
       jq
       tree
+      youtube-dl
+
+      watch
 
       mtr
       iftop

@@ -2,6 +2,7 @@ This project contains all my dotfiles that are moved from box to box.
 
 Manually installed
 
+- Appcleaner
 - iTerm
 - Brave browser
 - Signal
