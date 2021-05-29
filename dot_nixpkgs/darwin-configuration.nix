@@ -29,6 +29,8 @@
 
       watch
 
+      go_1_15
+
       mtr
       iftop
 
@@ -38,6 +40,7 @@
 
       ncdu
       tmux
+      just
       # terminal-notifier # https://github.com/julienXX/terminal-notifier
       # synergy
       unrar
