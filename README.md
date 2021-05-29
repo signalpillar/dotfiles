@@ -17,6 +17,14 @@ Manually installed
 - [Kap](https://getkap.co/)
 - mplayer
 
+## iTerm ([source](https://www.mathiaspolligkeit.de/dev/exploring-nix-on-macos/))
+iTerm2 has an option to load the preferences from a custom location (iTerm2 →
+`Preferences → General → Preferences → Load preferences` from a custom folder or
+URL).
+
+You can set the location to `~/.config/iterm2`, click Save Current Settings to
+Folder and add the config to the repo.
+
 ## Emacs
 
 - [Config of Gergely Nagy](https://github.com/algernon/emacs.d/blob/master/.spacemacs)
