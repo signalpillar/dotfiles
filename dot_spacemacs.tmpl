@@ -23,9 +23,6 @@
      (deft :variables deft-extensions '("org" "md" "txt"))
      chrome
 
-     {{- if eq .chezmoi.hostname "b-0309" }}
-     lua
-     {{- end}}
      helpful
      (ibuffer :variables ibuffer-group-buffers-by 'projects)
      imenu-list
@@ -102,7 +99,7 @@
           org-startup-indented t
           org-journal-dir "~/Dropbox/org-mode/journal/"
           org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"
-     {{- if eq .chezmoi.hostname "b-0309" }}
+     {{- if eq .chezmoi.hostname "B-5014" }}
           "~/Dropbox/babylon-org-mode"
      {{- end}}
           ))
@@ -114,7 +111,7 @@
             ("j" "Journal entry" plain
              (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
              "**** %?")
-     {{- if eq .chezmoi.hostname "b-0309" }}
+     {{- if eq .chezmoi.hostname "B-5014" }}
             ("i" "Interview entry" plain
              (file+datetree+prompt "~/Dropbox/babylon-org-mode/interviews.org")
              "**** TODO Interview %?        :interview:\nSCHEDULED: %t")
@@ -667,7 +664,7 @@ layers configuration."
   (when (executable-find "fortune")
     (shell-command "fortune -ec" t)))
 
-{{- if eq .chezmoi.hostname "b-0309" }}
+{{- if eq .chezmoi.hostname "B-5014" }}
 (defun djangoapp/set-cms-evars ()
   (interactive)
   (setenv "DATABASE_NAME" "monitor-cms")
