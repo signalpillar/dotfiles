@@ -34,6 +34,8 @@
 
       mtr
       iftop
+      wrk2
+      pstree
 
       htop
 
