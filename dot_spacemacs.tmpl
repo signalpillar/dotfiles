@@ -279,8 +279,17 @@
    dotspacemacs-folding-method 'evil  ;; origami
    dotspacemacs-mode-line-unicode-symbols t
    dotspacemacs-highlight-delimiters 'nil
-   dotspacemacs-line-numbers '(:relative nil
-                             :enabled-for-modes nil)
+
+   dotspacemacs-line-numbers '(
+     :relative t
+     :visual t
+     :disabled-for-modes dired-mode
+                        doc-view-mode
+                        markdown-mode
+                        org-mode
+                        pdf-view-mode
+                        text-mode
+     :size-limit-kb 1000)
 
 
    ;; True if the home buffer should respond to resize events. (default t)
