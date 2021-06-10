@@ -41,6 +41,8 @@
 
       nodejs
 
+      _1password
+
       ncdu
       tmux
       just
