@@ -59,6 +59,7 @@
       # Editors
       vim
       emacs
+      emacs-all-the-icons-fonts
 
       # Terms
       kitty
