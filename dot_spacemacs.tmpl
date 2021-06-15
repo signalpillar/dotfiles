@@ -284,12 +284,7 @@
    dotspacemacs-line-numbers '(
      :relative t
      :visual t
-     :disabled-for-modes dired-mode
-                        doc-view-mode
-                        markdown-mode
-                        org-mode
-                        pdf-view-mode
-                        text-mode
+     :enabled-for-modes nil
      :size-limit-kb 1000)
 
 
@@ -307,7 +302,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi default paper cyberpunk  smyx zenburn) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
