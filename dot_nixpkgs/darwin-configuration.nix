@@ -58,7 +58,7 @@
 
       # Editors
       vim
-      emacs
+      emacsMacport
       emacs-all-the-icons-fonts
 
       # Terms
