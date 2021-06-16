@@ -5,6 +5,10 @@
   # $ nix-env -qaP | grep wget
   environment.systemPackages = with pkgs;
     [
+      aspellDicts.en
+
+      tldr  # community-driven man pages
+
       ag
       ripgrep
       global
@@ -102,7 +106,30 @@
   # nix.package = pkgs.nix;
 
   # Create /etc/bashrc that loads the nix-darwin environment.
-  programs.zsh.enable = true;  # default shell on catalina
+  programs.zsh = {
+    enable = true;
+    enableCompletion = true;
+    # oh-my-zsh.enable = true;
+    # https://github.com/nix-community/home-manager/issues/1226
+    # ohMyZsh = {
+    #   enable = true;
+    #   customPkgs = [];
+    #   theme = "amuse";
+    #   # zsh-navigation-tools
+    #   plugins = [ "git" "tmux" "z" "docker" "colored-man-pages" "zsh-autosuggestions"];
+    # };
+    # interactiveShellInit = ''
+    #   source "$(fzf-share)/key-bindings.zsh"
+    #   source "$(fzf-share)/completion.zsh"
+    #   eval "$(direnv hook zsh)"
+    #   export DIRENV_LOG_FORMAT= # Silence direnv
+    # '';
+    # promptInit = ''
+    #   any-nix-shell zsh --info-right | source /dev/stdin
+    # '';
+    # syntaxHighlighting.enable = true;
+  };
+
   # programs.fish.enable = true;
 
   # Used for backwards compatibility, please read the changelog before changing.
@@ -143,4 +170,14 @@
     # Disable shadow in screenshots
     screencapture.disable-shadow = true;
   };
+
+  fonts = {
+     enableFontDir = true;
+     fonts = with pkgs; [
+        dejavu_fonts
+        ibm-plex
+        inconsolata
+        proggyfonts
+     ];
+   };
 }
