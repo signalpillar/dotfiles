@@ -1,4 +1,4 @@
-export PATH=$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/sbin:/usr/local/bin:$PATH:~/bin:~/go/bin:$HOME/mutable_node_modules/bin
+export PATH=$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/sbin:/usr/local/bin:$PATH:~/go/bin
 
 export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
 export GPG_TTY=$(tty)

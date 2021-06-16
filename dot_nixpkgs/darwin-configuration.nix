@@ -99,6 +99,12 @@
     GOROOT = [ "${pkgs.go.out}/share/go" ];
   };
 
+  environment.systemPath = [
+    "$HOME/bin"
+    "$HOME/.npm/bin"
+    "$HOME/mutable_node_modules/bin"
+  ];
+
   # Use a custom configuration.nix location.
   # $ darwin-rebuild switch -I darwin-config=$HOME/.config/nixpkgs/darwin/configuration.nix
   # environment.darwinConfig = "$HOME/.config/nixpkgs/darwin/configuration.nix";
