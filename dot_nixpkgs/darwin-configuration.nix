@@ -166,6 +166,8 @@
     ## Keyboard
     # Enable full keyboard access for all controls (e.g. enable Tab in modal dialogs)
     NSGlobalDomain.AppleKeyboardUIMode = 3;
+    NSGlobalDomain.InitialKeyRepeat = 15;
+    NSGlobalDomain.KeyRepeat = 1;
 
     ## Trackpad/Mouse
     NSGlobalDomain.AppleShowScrollBars = "WhenScrolling";
@@ -175,6 +177,10 @@
 
     # Disable shadow in screenshots
     screencapture.disable-shadow = true;
+
+    NSGlobalDomain.AppleMeasurementUnits = "Centimeters";
+    NSGlobalDomain.AppleMetricUnits = 1;
+    NSGlobalDomain.AppleTemperatureUnit = "Celsius";
   };
 
   fonts = {
@@ -187,3 +193,6 @@
      ];
    };
 }
+
+# Inspiration:
+# - https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
