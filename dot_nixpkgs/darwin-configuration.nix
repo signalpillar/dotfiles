@@ -89,7 +89,6 @@
         }
       )
       emacsMacport
-      emacs-all-the-icons-fonts
 
       # Terms
       kitty
@@ -136,6 +135,10 @@
   # environment.darwinConfig = "$HOME/.config/nixpkgs/darwin/configuration.nix";
 
   # nix.package = pkgs.nix;
+  nix.gc = {
+    automatic = true;
+    options = "--delete-older-than 30d";
+  };
 
   # Create /etc/bashrc that loads the nix-darwin environment.
   programs.zsh = {
@@ -217,6 +220,7 @@
         ibm-plex
         inconsolata
         proggyfonts
+        emacs-all-the-icons-fonts
      ];
    };
 }
