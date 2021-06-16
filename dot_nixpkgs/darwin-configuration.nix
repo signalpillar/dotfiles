@@ -9,8 +9,16 @@
 
       tldr  # community-driven man pages
 
+      bat   # clone of cat
+      cloc
+
+      dive  # tool to explore each layer of the docker image
+
       ag
       ripgrep
+      exa
+      figlet # show banners
+
       global
 
       # file manager
@@ -61,7 +69,25 @@
       reattach-to-user-namespace
 
       # Editors
-      vim
+      (
+        pkgs.neovim.override {
+          vimAlias = true;
+          configure = {
+            packages.myPlugins = with pkgs.vimPlugins; {
+              start = [
+                vim-lastplace
+                vim-nix
+                nerdcommenter #preservim/nerdcommenter
+                vim-sleuth #tpope/vim-sleuth
+                vim-surround #tpope/vim-surround
+                vim-test #janko/vim-test
+              ];
+              opt = [];
+            };
+            # customRC = builtins.readFile ./../dotfiles/.vimrc;
+          };
+        }
+      )
       emacsMacport
       emacs-all-the-icons-fonts
 
@@ -157,6 +183,7 @@
     dock.mru-spaces = false;
 
     finder.AppleShowAllExtensions = true;
+    finder._FXShowPosixPathInTitle = true;
     finder.QuitMenuItem = true;
     # finder.FXEnableExtensionChangeWarning = false;
 
