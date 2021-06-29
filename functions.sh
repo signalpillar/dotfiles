@@ -2,6 +2,15 @@ function tailSysLog {
     tail -f /var/log/syslog -n 100
 }
 
+function getOSXVersion {
+    sw_vers | grep ProductVersion | cut -d: -f2
+}
+
+function getPidAndHtopByProcessName {
+    local -r PROCESS_NAME=$1
+    export TSPID=$(ps -ef | grep $1 | head -1 | awk '{print $2}'); echo $TSPID; htop -p $TSPID
+}
+
 function record-terminal-gif {
     echo "https://github.com/sassman/t-rec-rs: not installed yet" > /dev/stderr
 }
