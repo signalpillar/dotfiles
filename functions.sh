@@ -213,6 +213,10 @@ function ec {
     emacsclient -t $1
 }
 
+function emacsOpen {
+   open -n $(dirname $(dirname $(readlink -f `which emacs`)))/Applications/Emacs.app
+}
+
 # mac osx
 # system_profiler -xml SPHardwareDataType
 
