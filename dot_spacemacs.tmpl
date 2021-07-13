@@ -255,6 +255,7 @@
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
+        auto-highlight-symbol
         org-plus-contrib
         evil-search-highlight-persist
         eval-sexp-fu
@@ -500,6 +501,7 @@ layers configuration."
   (add-hook 'python-mode-hook 'flyspell-prog-mode)
   (add-hook 'python-mode-hook 'auto-fill-mode)
   (add-hook 'python-mode-hook 'blacken-mode)
+  (add-hook 'python-mode-hook #'(lambda () (modify-syntax-entry ?_ "w")))
 
   (add-hook 'live-py-mode-hook (lambda ()
                                  (progn
