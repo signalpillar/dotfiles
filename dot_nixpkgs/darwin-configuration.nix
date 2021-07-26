@@ -40,6 +40,7 @@
       youtube-dl
 
       watch
+      wget
 
       # 1.16.4
       go
@@ -96,6 +97,8 @@
 
       # Java 11
       adoptopenjdk-bin
+
+      ocaml
 
       (python39.withPackages(ps: with ps; [
           pip
