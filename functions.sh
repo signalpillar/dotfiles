@@ -361,7 +361,7 @@ function android-create-emulator-kitkat {
 function android-create-emulator {
     local -r NAME=$1
     __set_android_classpath_for_java11
-    avdmanager --verbose create avd -n $NAME -k "system-images;android-29;google_apis;x86" --tag google_apis --sdcard 2048M -d pixel
+    avdmanager --verbose create avd -n $NAME -k "system-images;android-30;google_apis;x86" --tag google_apis --sdcard 2048M -d pixel
 }
 
 function android-create-emulator-arm {
