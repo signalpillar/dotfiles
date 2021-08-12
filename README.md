@@ -37,6 +37,10 @@ Folder and add the config to the repo.
 ## ML
 - https://mlflow.org/
 
+## Nix
+
+- [Intro to flakes](https://serokell.io/blog/practical-nix-flakes)
+
 ## History
 
 # March 2021
