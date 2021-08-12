@@ -13,6 +13,8 @@ Manually installed
 - Joplin
 - Dropbox
 - Karabine-Elements
+- [Android Command line tools](https://developer.android.com/studio#cmdline-tools)
+- [super-productivity](https://github.com/johannesjo/super-productivity)
 - [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
 - [Kap](https://getkap.co/)
 - mplayer
@@ -24,6 +26,11 @@ URL).
 
 You can set the location to `~/.config/iterm2`, click Save Current Settings to
 Folder and add the config to the repo.
+
+## Android Command line tools
+- Download and unpack the dir `~/proj/cmdline-tools/latest`.
+- Add to path
+- Run `sdkmanager`
 
 ## Emacs
 

@@ -40,6 +40,7 @@
       youtube-dl
 
       watch
+      wget
 
       # 1.16.4
       go

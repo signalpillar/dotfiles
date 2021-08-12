@@ -176,7 +176,8 @@ function trueuniq {
 # youtube-dl has this functionality built in. If you're running an older version
 # of youtube-dl, you can update it using `youtube-dl -U`
 function convertUtubeVideoToMp3 {
-    youtube-dl -t --extract-audio --audio-format mp3 $1
+    local -r VIDEO_URL=$1
+    youtube-dl -t --extract-audio --audio-format mp3 $VIDEO_URL
 }
 
 # start command and kill it if still running after 5 secs
