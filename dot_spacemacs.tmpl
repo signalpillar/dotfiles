@@ -22,6 +22,7 @@
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
      chrome
+     nixos
 
      helpful
      (ibuffer :variables ibuffer-group-buffers-by 'projects)
@@ -91,6 +92,7 @@
      ;; nginx
      (org :variables
           org-enable-roam-support t
+          org-roam-v2-ack t
           org-roam-directory "~/Dropbox/notes/org-roam"
           ;; https://github.com/abo-abo/org-download
           org-download-method 'attach
@@ -100,7 +102,7 @@
           org-enable-hugo-support t
           org-startup-indented t
           org-journal-dir "~/Dropbox/org-mode/journal/"
-          org-agenda-files (quote ("~/Dropbox/org-mode/" "~/.org-jira/"
+          org-agenda-files (quote ("~/Dropbox/org-mode/"
      {{- if eq .chezmoi.hostname "B-5014" }}
           "~/Dropbox/babylon-org-mode"
      {{- end}}
@@ -203,6 +205,7 @@
                      spell-checking-enable-auto-dictionary nil
                      enable-flyspell-auto-completion nil
                      spell-checking-enable-by-default nil
+                     ispell-dictionary "british"
       )
      restclient
      react
