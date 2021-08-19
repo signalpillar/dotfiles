@@ -261,6 +261,8 @@
                                       powerthesaurus
                                       ;; run tests in TS and TSX
                                       jest-test-mode
+                                      ;; access clipboard in OSX
+                                      pbcopy
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
@@ -436,6 +438,10 @@
   "Configuration function.
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
+  ;; function from pbcopy package to manage clipboard when running in Terminal
+  (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
+      (turn-on-pbcopy))
+
   (direnv-mode)
   (config-visuals)
 
