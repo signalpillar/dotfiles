@@ -21,6 +21,7 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
+     sp-anki
      chrome
      nixos
 
@@ -28,7 +29,7 @@
      (ibuffer :variables ibuffer-group-buffers-by 'projects)
      imenu-list
 
-     semantic
+     ;; semantic
      pdf
      ;; racket
      neotree
@@ -235,7 +236,6 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-only
    dotspacemacs-additional-packages `(eink-theme
-                                      anki-editor
                                       brutalist-theme
                                       {{- if eq .chezmoi.hostname "b-0309" }}
                                       (babylon :location local)
