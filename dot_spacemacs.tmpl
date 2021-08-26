@@ -226,7 +226,10 @@
                       ;; diff-hl is slow
                       ;; version-control-diff-tool 'diff-hl
                       git-magit-status-fullscreen t)
-     yaml)
+     yaml
+     ;; own layer to configure tree-sitter for syntax highlight
+     sp-tree-sitter
+     )
    ;; Defines the behaviour of Spacemacs when installing packages.
    ;; Possible values are `used-only', `used-but-keep-unused' and `all'.
    ;; `used-only' installs only explicitly used packages and uninstall any
@@ -581,7 +584,7 @@ layers configuration."
     (add-to-list 'helm-grep-ignored-files f))
 
   ;; setup jest (test tool)
-  (dolist (major-mode '(typescript-mode js2-mode))
+  (dolist (major-mode '(typescript-mode js2-mode typescript-tsx-mode))
     (spacemacs/set-leader-keys-for-major-mode major-mode
       "tp" 'jest-test-run-all-tests
       "ta" 'jest-test-rerun-test
