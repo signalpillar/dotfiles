@@ -94,6 +94,7 @@
      ;; )
      ;; nginx
      (org :variables
+          org-modules '(org-habit)
           org-enable-roam-support t
           org-roam-v2-ack t
           org-roam-directory "~/Dropbox/notes/org-roam"
@@ -200,7 +201,7 @@
             shell-default-height 48
             shell-default-position 'bottom
             shell-default-term-shell "zsh"
-            shell-default-shell 'vterm
+            shell-default-shell 'eshell
             )
      (syntax-checking :variables
                      syntax-checking-enable-by-default t)
@@ -238,8 +239,7 @@
    ;; them if they become unused. `all' installs *all* packages supported by
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-only
-   dotspacemacs-additional-packages `(eink-theme
-                                      brutalist-theme
+   dotspacemacs-additional-packages `((hima :location local)
                                       {{- if eq .chezmoi.hostname "b-0309" }}
                                       (babylon :location local)
                                       {{- end}}
@@ -398,6 +398,8 @@
    ))
 
 (defun dotspacemacs/user-init ()
+  ;; just in case if custom theme is added
+  (add-to-list 'custom-theme-load-path "~/.emacs.d/private/local/")
   (setq-default
    ;; Increase space between the lines
    line-spacing 5
@@ -501,6 +503,12 @@ layers configuration."
   (global-set-key [f4] 'sp/tox/activate-current-project-tox-env)
   (global-set-key [f5] 'sp/org-insert-clipboard-image)
   (global-set-key [f6] 'sp/insert-fortune-cookie)
+
+  (defun os-open (path &optional link)
+    "Open the path with OS specific command"
+    (shell-command (format "open %s" path)))
+
+  (add-to-list 'org-file-apps '("\\.jpeg\\'" . os-open))
 
   (setq-default
    powerline-default-separator 'alternate
