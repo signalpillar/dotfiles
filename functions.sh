@@ -221,6 +221,11 @@ function emacsOpen {
 # mac osx
 # system_profiler -xml SPHardwareDataType
 
+
+function pretty_print_xml  {
+    cat $1 | python -c 'import sys; import xml.dom.minidom; s=sys.stdin.read(); print(xml.dom.minidom.parseString(s).toprettyxml())'
+}
+
 function simple_chat {
     ncat -vlm 5 --ssl --chat 9876
 }

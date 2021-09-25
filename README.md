@@ -68,3 +68,7 @@ An attempt to adopt Nix package manager.
   It is a Emacs Kit, focused on integration with Evil mode.
 
 * No need to use `nsenter` to enter docker container, using `docker exec` instead. 
+
+# NixOS
+
+- `xset r rate 200 25`

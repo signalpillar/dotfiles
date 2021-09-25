@@ -31,6 +31,8 @@ ZSH_THEME=amuse
 # Uncomment following line if you want red dots to be displayed while waiting for completion
 # COMPLETION_WAITING_DOTS="true"
 
+DISABLE_MAGIC_FUNCTIONS="true"
+
 # Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
 # Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
@@ -93,6 +95,6 @@ alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.
 . /Users/signalpillar/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
 alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/opam"
 # Java configuration
-export JAVA_HOME=$(/usr/libexec/java_home)
+# export JAVA_HOME=$(/usr/libexec/java_home)
 
 eval "$(direnv hook zsh)"

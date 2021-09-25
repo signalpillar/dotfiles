@@ -251,6 +251,7 @@
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       all-the-icons
                                       parchment-theme
+                                      paper-theme
 
                                       flycheck-mypy
                                       poetry
@@ -326,7 +327,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(paper parchment modus-operandi) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -345,7 +346,7 @@
    ;; no major mode or minor modes are active. (default is 1)
    dotspacemacs-large-file-size 1
 
-   dotspacemacs-default-font '("IBM Plex Mono" :size 12)
+   dotspacemacs-default-font '("Go Mono" :size 12)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
