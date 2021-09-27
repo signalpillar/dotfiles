@@ -7,12 +7,10 @@ if [ -d $KITTY_TERMINFO_DIR ]; then
 fi
 
 
-THEMES_DIR=~/.config/kitty/kitty-themes
-if [ ! -d $THEMES_DIR ]; then
-    git clone --depth 1 git@github.com:dexpota/kitty-themes.git $THEMES_DIR
+if [ ! -d ~/.config/kitty/kitty-themes ]; then
+    git clone --depth 1 https://github.com/dexpota/kitty-themes ~/.config/kitty/kitty-themes
 fi
 
-
-ln -Fs $THEMES_DIR/themes/CLRS.conf ~/.config/kitty/theme.conf
+ln -Fs ~/.config/kitty/kitty-themes/themes/Github.conf ~/.config/kitty/theme.conf
 
 
