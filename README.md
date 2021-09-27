@@ -49,8 +49,13 @@ Folder and add the config to the repo.
 - [Intro to flakes](https://serokell.io/blog/practical-nix-flakes)
 - [Tutorial](https://www.tweag.io/blog/2020-05-25-flakes/)
   - `nix-env -f '<nixpkgs>' -iA nixUnstable`
+- [NixOS in VMWare Fusion](https://dev.to/ryuheechul/quickest-way-to-run-nixos-on-your-vmware-fusion-4dn7)
 
 ## History
+
+# Sept 2021
+Development happens only in NixOS running in VMWare Fusion. I feel I am far from
+using flake though.
 
 # March 2021
 Slow migration to nix-darwin started.
