@@ -13,6 +13,10 @@ Manually installed
 - Joplin
 - Dropbox
 - Karabine-Elements
+  - It stopped working in Big Sur
+    - Use internal tool to generate the mapping file
+      - [Great Blog Post from Rakhesh Sasidharan](https://rakhesh.com/mac/using-hidutil-to-map-macos-keyboard-keys/)
+      - [Remapping File Generator](https://hidutil-generator.netlify.app/)
 - [Android Command line tools](https://developer.android.com/studio#cmdline-tools)
 - [super-productivity](https://github.com/johannesjo/super-productivity)
 - [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
