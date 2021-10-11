@@ -21,6 +21,7 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
+     ivy
      sp-anki
      chrome
      nixos
@@ -495,7 +496,6 @@ layers configuration."
   (setq neo-theme (if (display-graphic-p) 'icons 'arrow))
   (evil-leader/set-key "of" 'neotree-find)
 
-  (require 'helm-bookmark)
   (defun jao-toggle-selective-display ()
     (interactive)
     (set-selective-display (if selective-display nil 1)))
@@ -589,8 +589,9 @@ layers configuration."
   (flycheck-add-next-checker 'python-flake8 'python-mypy t)
   (setq flycheck-python-mypy-args
         '("--strict-optional" "--ignore-missing-imports"))
-  (dolist (f '("GPATH" "GTAGS" "GRTAGS" ".*"))
-    (add-to-list 'helm-grep-ignored-files f))
+  ;; There must be an alternative with ivy
+  ;; (dolist (f '("GPATH" "GTAGS" "GRTAGS" ".*"))
+  ;;   (add-to-list 'helm-grep-ignored-files f))
 
   ;; setup jest (test tool)
   (dolist (major-mode '(typescript-mode js2-mode typescript-tsx-mode))
@@ -669,7 +670,7 @@ layers configuration."
     (progn
       (venv-set-location
        (if (> venv-dirs-length 1)
-           (helm-comp-read "Choose tox directory to workon" venv-dirs)
+           (ivy-read "Choose tox directory to workon" venv-dirs)
          (if (= venv-dirs-length 0)
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
