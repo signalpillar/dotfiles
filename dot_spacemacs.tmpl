@@ -95,6 +95,9 @@
      ;; )
      ;; nginx
      (org :variables
+          ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
+          org-refile-targets '((nil :maxlevel . 10))
+
           org-modules '(org-habit)
           org-enable-roam-support t
           org-roam-v2-ack t

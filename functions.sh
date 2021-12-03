@@ -265,6 +265,10 @@ function activate-nix-profile {
     source ~/.nix-profile/etc/profile.d/nix.sh
 }
 
+function nix-show-package-info {
+    nix show-derivation $1
+}
+
 function docker-remove-all-containers {
     docker rm `docker ps -a -q`
 }
