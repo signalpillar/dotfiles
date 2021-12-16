@@ -17,32 +17,9 @@ system.stateVersion = lib.mkDefault "18.03";
 
 # ---------------------------------------------------------
 
-
-  # Let demo build as a trusted user.
-# nix.trustedUsers = [ "demo" ];
-
-# Mount a VirtualBox shared folder.
-# This is configurable in the VirtualBox menu at
-# Machine / Settings / Shared Folders.
-# fileSystems."/mnt/host" = {
-#  fsType = "vboxsf";
-#  device = "volodymyrvitvitskyi";
-#  options = [ "rw" ];
-# };
-
-# By default, the NixOS VirtualBox demo image includes SDDM and Plasma.
-# If you prefer another desktop manager or display manager, you may want
-# to disable the default.
-# services.xserver.desktopManager.plasma5.enable = lib.mkForce false;
-# services.xserver.displayManager.sddm.enable = lib.mkForce false;
-services.xserver.displayManager.sddm.enable = true;
-services.xserver.desktopManager.plasma5.enable = true;
-services.xserver.displayManager.defaultSession = "plasmawayland";
-
 # Enable GDM/GNOME by uncommenting above two lines and two lines below.
 # services.xserver.displayManager.gdm.enable = true;
 # services.xserver.desktopManager.gnome3.enable = true;
-services.xserver.enable = true;
 # services.xserver.desktopManager.gnome.enable = true;
 # services.xserver.displayManager.gdm.enable = true;
 # services.gnome.core-utilities.enable = false;
@@ -55,7 +32,7 @@ system.autoUpgrade.enable = true;
 # Define a user account. Don't forget to set a password with ‘passwd’.
 users.users.demo = {
    isNormalUser = true;
-  shell = pkgs.zsh;
+   shell = pkgs.zsh;
    extraGroups = [ "wheel"  "sudo" "docker" "vboxsf"];
 };
 
