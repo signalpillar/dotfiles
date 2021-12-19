@@ -21,6 +21,7 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
+     ivy
      sp-anki
      chrome
      nixos
@@ -94,6 +95,9 @@
      ;; )
      ;; nginx
      (org :variables
+          ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
+          org-refile-targets '((nil :maxlevel . 10))
+
           org-modules '(org-habit)
           org-enable-roam-support t
           org-roam-v2-ack t
@@ -251,6 +255,7 @@
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       all-the-icons
                                       parchment-theme
+                                      paper-theme
 
                                       flycheck-mypy
                                       poetry
@@ -326,7 +331,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(parchment modus-operandi) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(paper parchment modus-operandi) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -345,7 +350,7 @@
    ;; no major mode or minor modes are active. (default is 1)
    dotspacemacs-large-file-size 1
 
-   dotspacemacs-default-font '("IBM Plex Mono" :size 12)
+   dotspacemacs-default-font '("Go Mono" :size 12)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -494,7 +499,6 @@ layers configuration."
   (setq neo-theme (if (display-graphic-p) 'icons 'arrow))
   (evil-leader/set-key "of" 'neotree-find)
 
-  (require 'helm-bookmark)
   (defun jao-toggle-selective-display ()
     (interactive)
     (set-selective-display (if selective-display nil 1)))
@@ -588,8 +592,9 @@ layers configuration."
   (flycheck-add-next-checker 'python-flake8 'python-mypy t)
   (setq flycheck-python-mypy-args
         '("--strict-optional" "--ignore-missing-imports"))
-  (dolist (f '("GPATH" "GTAGS" "GRTAGS" ".*"))
-    (add-to-list 'helm-grep-ignored-files f))
+  ;; There must be an alternative with ivy
+  ;; (dolist (f '("GPATH" "GTAGS" "GRTAGS" ".*"))
+  ;;   (add-to-list 'helm-grep-ignored-files f))
 
   ;; setup jest (test tool)
   (dolist (major-mode '(typescript-mode js2-mode typescript-tsx-mode))
@@ -668,7 +673,7 @@ layers configuration."
     (progn
       (venv-set-location
        (if (> venv-dirs-length 1)
-           (helm-comp-read "Choose tox directory to workon" venv-dirs)
+           (ivy-read "Choose tox directory to workon" venv-dirs)
          (if (= venv-dirs-length 0)
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))

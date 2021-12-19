@@ -13,6 +13,10 @@ Manually installed
 - Joplin
 - Dropbox
 - Karabine-Elements
+  - It stopped working in Big Sur
+    - Use internal tool to generate the mapping file
+      - [Great Blog Post from Rakhesh Sasidharan](https://rakhesh.com/mac/using-hidutil-to-map-macos-keyboard-keys/)
+      - [Remapping File Generator](https://hidutil-generator.netlify.app/)
 - [Android Command line tools](https://developer.android.com/studio#cmdline-tools)
 - [super-productivity](https://github.com/johannesjo/super-productivity)
 - [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
@@ -49,8 +53,13 @@ Folder and add the config to the repo.
 - [Intro to flakes](https://serokell.io/blog/practical-nix-flakes)
 - [Tutorial](https://www.tweag.io/blog/2020-05-25-flakes/)
   - `nix-env -f '<nixpkgs>' -iA nixUnstable`
+- [NixOS in VMWare Fusion](https://dev.to/ryuheechul/quickest-way-to-run-nixos-on-your-vmware-fusion-4dn7)
 
 ## History
+
+# Sept 2021
+Development happens only in NixOS running in VMWare Fusion. I feel I am far from
+using flake though.
 
 # March 2021
 Slow migration to nix-darwin started.
@@ -68,3 +77,7 @@ An attempt to adopt Nix package manager.
   It is a Emacs Kit, focused on integration with Evil mode.
 
 * No need to use `nsenter` to enter docker container, using `docker exec` instead. 
+
+# NixOS
+
+- `xset r rate 200 25`

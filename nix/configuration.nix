@@ -1,211 +1,257 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
-
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
-  # imports =
-  #   [ # Include the results of the hardware scan.
-  #     ./hardware-configuration.nix
-  #   ];
-  #
-  # Use the GRUB 2 boot loader.
-  boot.loader.grub.enable = true;
-  boot.loader.grub.version = 2;
-  boot.cleanTmpDir = true;
-  # boot.loader.grub.efiSupport = true;
-  # boot.loader.grub.efiInstallAsRemovable = true;
-  # boot.loader.efi.efiSysMountPoint = "/boot/efi";
-  # Define on which hard drive you want to install Grub.
-  boot.loader.grub.device = "/dev/sda"; # or "nodev" for efi only
+#  imports = [ <nixpkgs/nixos/modules/installer/virtualbox-demo.nix> ];
+# ---------------------------------------------------------
+imports = [
+<nixpkgs/nixos/modules/virtualisation/virtualbox-image.nix>
+];
+# FIXME: UUID detection is currently broken
+boot.loader.grub.fsIdentifier = "provided";
+# Add some more video drivers to give X11 a shot at working in
+# VMware and QEMU.
+services.xserver.videoDrivers = lib.mkOverride 40 [ "vmware" "cirrus" "vesa" "modesetting" ];
 
-  fileSystems = [
-    { mountPoint = "/";
-      label = "nixos";
-    }
-  ];
+powerManagement.enable = false;
+system.stateVersion = lib.mkDefault "18.03";
 
-  # networking.hostName = "nixos"; # Define your hostname.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
+# ---------------------------------------------------------
 
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
+# Enable GDM/GNOME by uncommenting above two lines and two lines below.
+# services.xserver.displayManager.gdm.enable = true;
+# services.xserver.desktopManager.gnome3.enable = true;
+# services.xserver.desktopManager.gnome.enable = true;
+# services.xserver.displayManager.gdm.enable = true;
+# services.gnome.core-utilities.enable = false;
 
-  # Select internationalisation properties.
-  i18n = {
-    consoleFont = "Lat2-Terminus16";
-    consoleKeyMap = "us";
-    defaultLocale = "en_US.UTF-8";
-  };
+# Set your time zone.
+# time.timeZone = "Europe/Amsterdam";
+system.autoUpgrade.channel = https://nixos.org/channels/nixos-21.11;
+system.autoUpgrade.enable = true;
 
-  fonts = {
-    fonts = with pkgs; [
-      anonymousPro
-      corefonts
-      dejavu_fonts
-      emacs-all-the-icons-fonts
-      fira-code
-      fira-code-symbols
-      #font-droid
-      #google-fonts
-      inconsolata
-      league-of-moveable-type
-      liberation_ttf
-      powerline-fonts
-      proggyfonts
-      roboto
-      #roboto-mono
-      roboto-slab
-      source-code-pro
-      vistafonts
-    ];
-  };
+# Define a user account. Don't forget to set a password with ‘passwd’.
+users.users.demo = {
+   isNormalUser = true;
+   shell = pkgs.zsh;
+   extraGroups = [ "wheel"  "sudo" "docker" "vboxsf"];
+};
 
+# List packages installed in system profile. To search, run:
+# \$ nix search wget
+environment.systemPackages = with pkgs; [
+   ag
+   chezmoi
+   cmake
+   direnv
+   file
+   fzf
+   gcc
+   git
+   gnumake
+   htop
+   libffi
+   libnotify
+   lshw
+   mplayer
+   ncdu
 
-  # Set your time zone.
-  time.timeZone = "Europe/London";
+   nodejs
 
-  programs = {
-    bash.enableCompletion = true;
-    ssh.startAgent = true;
-  };
+   openjdk
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
-  environment = {
-    # For development purposes
-    pathsToLink = [
-      "/share/pkgconfig"
-    ];
+   openssl
+   pkg-config
+   tmux
+   tree
+   unzip
+   zeal
+   zathura
+   xclip
+   which
+   wget
 
-    profileRelativeEnvVars = {
-      # PKG_CONFIG_PATH is set by pkgconfig's setup hook. When you simply add
-      # package to systemPackages this hook does not run, and this is
-      # intentional.
-      # Run: nix-shell -p pkgconfig -p <pkg-name>
-      PKG_CONFIG_PATH = [ "/share/pkgconfig" ];
-    };
+   zsh
+   oh-my-zsh
 
-    variables = {
-      EDITOR = pkgs.lib.mkOverride 0 "vim";
-    };
-    systemPackages = with pkgs; [
-      # A code-searching tool similar to ack, but faster
-      ag
-      docker-compose
-      dmenu
-      emacs
-      file
-      firefox
-      gcc
-      git
-      # Source code tag system
-      global
-      htop
-      i3cat
-      i3lock-color
-      i3lock-fancy
-      i3lock-pixeled
-      i3status-rust
-      libffi
-      libnotify
-      lshw
-      mplayer
-      ncdu
-      openssl
-      pkg-config
-      # Required to build python driver (pg_config)
-      postgresql
-      (python36.withPackages(ps: with ps; [ pip tox cffi asn1crypto ]))
-      # Simple X Image Viewer
-      sxiv
-      tmux
-      tree
-      termite
-      unzip
-      vim
-      wget
-      which
-      xclip
-      xterm
-      # A highly customizable and functional PDF viewer
-      zathura
-      zeal
-    ];
-  };
+   gccStdenv
 
-  nixpkgs.config = {
-    allowUnfree = true;
-  };
+   tldr  # community-driven man pages
+   bat   # clone of cat
 
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = { enable = true; enableSSHSupport = true; };
+   stdenv.cc.cc.lib
 
-  # List services that you want to enable:
+   # ---- Configure
+  # ARandR is designed to provide a simple visual front end for XRandR. Relative monitor positions are shown graphically and can be changed in a drag-and-drop way.
+   # arandr
+   fortune
 
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-  services.locate.enable = true;
+   # ---- Desktop
+   brave
+   feh
+   dropbox
+   parcellite
 
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
+   # ---- Terminals
+   kitty
+   any-nix-shell
+   nushell
 
-  # Enable CUPS to print documents.
-  # services.printing.enable = true;
+   # ---- Python
+  (python39.withPackages(ps: with ps; [
+      pip
+      black
+      isort
+  ]))
 
-  # Enable sound.
-  sound.enable = true;
-  hardware.pulseaudio.enable = true;
+   # ---- Docker & K8S
+   #  teleport version 4.2.11 is needed to make it work with shipcat
+   (import (builtins.fetchTarball {
+     name = "nixos-21.05";
+     url = "https://github.com/NixOS/nixpkgs/archive/2fed8df61dc5f7a0f728947706c5114c36f04497.tar.gz";
+     # Hash obtained using `nix-prefetch-url --unpack <url>`
+     sha256 = "0n979s0v9wfn21fl5q3g0p58l85c35s7ajvq3cmzv0i8l8lfyghj";
+   }) {}).teleport
+   kubectl
+   dive  # tool to explore each layer of the docker image
+   docker
+   docker-compose
 
-  # Enable the X11 windowing system.
-  services.xserver = {
-    enable = true;
-    layout = "us";
-    videoDrivers = [ "VBoxSVGA" ];
-    windowManager.i3.enable = true;
-    displayManager.lightdm.enable = true;
-    displayManager.sessionCommands =  ''
-       xrdb "${pkgs.writeText  "xrdb.conf" ''
-          XTerm*faceName:             xft:Dejavu Sans Mono for Powerline:size=11
-          XTerm*utf8:                 2
-          Xft*dpi:                    149
-          ! Xft*dpi:                    96
-          ! Xft*antialias:              true
-          ! Xft*hinting:                full
-          Xft.autohint: 0
-          Xft.lcdfilter:  lcddefault
-          ! Xft.hintstyle:  hintfull
-          ! Xft.hinting: 1
-          ! Xft.antialias: 1
-       ''}"
-    '';
-  };
+   # ---- Editors & Co
+   aspellDicts.en
+   graphviz
+   global
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.vvitvitskyi = {
-     isNormalUser = true;
-     extraGroups = [ "wheel"  "sudo" "docker" "vboxsf"];
-  };
-
-  # This value determines the NixOS release with which your system is to be
-  # compatible, in order to avoid breaking some software such as database
-  # servers. You should change this only after NixOS release notes say you
-  # should.
-  system.stateVersion = "19.03"; # Did you read the comment?
+   ((emacsPackagesNgGen emacs27).emacsWithPackages (epkgs: [
+     epkgs.vterm
+   ]))
+   (
+        pkgs.neovim.override {
+          vimAlias = true;
+          configure = {
+            packages.myPlugins = with pkgs.vimPlugins; {
+              start = [
+                vim-lastplace
+                vim-nix
+                nerdcommenter #preservim/nerdcommenter
+                vim-sleuth #tpope/vim-sleuth
+                vim-surround #tpope/vim-surround
+                vim-test #janko/vim-test
+              ];
+              opt = [];
+            };
+            # customRC = builtins.readFile ./../dotfiles/.vimrc;
+          };
+        }
+   )
+];
 
   nix = {
     autoOptimiseStore = true;
-    buildCores = 4;
+    gc.automatic = false;
+    optimise.automatic = true;
   };
 
-  # VIRTUALISATION
-  virtualisation.docker.enable = true;
-  virtualisation.virtualbox.guest.enable = true;
+  documentation.man.enable = true;
+  # so we can install something like unrar that is free but not OSS
+  nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.allowUnsupportedSystem = false;
+  nixpkgs.config.permittedInsecurePackages = [
+    "electron-9.4.4"
+  ];
+
+
+  environment.variables = {
+    EDITOR = "vim";
+    LANG = "en_US.UTF-8";
+    LC_ALL = "en_US.UTF-8";
+    # source: http://itchyknowsdevs.me/blog/developing-golang-in-nixos/
+    GOROOT = [ "${pkgs.go.out}/share/go" ];
+    TERMINAL = "kitty";
+  };
+
+  # systemPath is not supported
+  # environment.systemPath = [
+  #   "$HOME/bin"
+  #   "$HOME/.npm/bin"
+  #   "$HOME/mutable_node_modules/bin"
+  # ];
+
+  # the link is required for i3
+  # see https://nixos.wiki/wiki/I3
+  environment.pathsToLink = [ "/libexec" ];
+
+  services.xserver = {
+    resolutions = [
+      # {x = 1440; y = 900;}
+      {x = 2560; y = 1600;}
+    ];
+
+    # xset r rate 200 25
+    autoRepeatDelay = 200;
+    layout = "us";
+   # displayManager.defaultSession = "gnome";
+   # windowManager.i3 = {
+   #     enable = true;
+   #     package = pkgs.i3-gaps;
+   #     extraPackages = with pkgs; [
+   #         i3status # gives you the default i3 status bar
+   #         i3lock #default i3 screen locker
+   #         rofi  # application launcher
+   #      ];
+   #   };
+  };
+
+  # programs.sway.enable = true;
+
+  environment.shellAliases = {
+    # Use emacsclient to open files in current emacs instance server
+    ec = "emacsclient -cn";
+
+    nixre = "darwin-rebuild switch";
+    nixgc = "nix-collect-garbage -d";
+  };
+
+  programs.zsh = {
+    enable = true;
+    enableCompletion = true;
+    # the paste is very slow with this option enabled
+    # autosuggestions.enable = true;
+    # https://github.com/nix-community/home-manager/issues/1226
+    ohMyZsh = {
+      enable = true;
+      customPkgs = [];
+      theme = "amuse";
+      # zsh-navigation-tools
+      plugins = [ "git" "tmux" "z" "docker" "colored-man-pages"];
+    };
+    interactiveShellInit = ''
+      source "$(fzf-share)/key-bindings.zsh"
+      source "$(fzf-share)/completion.zsh"
+      eval "$(direnv hook zsh)"
+      export DIRENV_LOG_FORMAT= # Silence direnv
+    '';
+    promptInit = ''
+      any-nix-shell zsh --info-right | source /dev/stdin
+    '';
+    syntaxHighlighting.enable = true;
+  };
+
+  fonts = {
+     fontDir.enable = true;
+     fontconfig.cache32Bit = true;
+     fonts = with pkgs; [
+        dejavu_fonts
+        go-font
+        ibm-plex
+        inconsolata
+        proggyfonts
+        emacs-all-the-icons-fonts
+     ];
+   };
+
+# Enable the OpenSSH daemon.
+# services.openssh.enable = true;
+# VIRTUALISATION
+virtualisation.docker.enable = true;
+virtualisation.vmware.guest.enable = true;
 }
