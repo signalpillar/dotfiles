@@ -217,6 +217,7 @@
                      spell-checking-enable-auto-dictionary nil
                      enable-flyspell-auto-completion nil
                      spell-checking-enable-by-default nil
+                     ispell-program-name "aspell"
                      ispell-dictionary "british"
       )
      restclient
@@ -286,7 +287,6 @@
         ;; not needed functionality
         pip-requirements
         pippel
-        yasnippet-snippets
 
         ;; I don't really need them
         define-word
@@ -331,7 +331,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(paper parchment modus-operandi) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light paper parchment modus-operandi) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -696,7 +696,7 @@ layers configuration."
   (interactive)
   ;; Insert image from clipboard in the org-mode headline.
   ;; use org-id.el to get or craete ID property.
-  ;; the function uses pngpaste
+  ;; the function uses pngpaste for OSX
   (let* (
         (caption (read-from-minibuffer "Image caption: "))
         (fname (read-from-minibuffer "Image fname (without ext): "))
@@ -704,11 +704,25 @@ layers configuration."
         (imagedir (concat default-directory "/data/" -headline-id))
         (file (concat imagedir "/" fname ".png")))
     (mkdir (concat "data/"-headline-id) default-directory)
-    (shell-command (concat "pngpaste " file))
+    (if (eq system-type 'darwin)
+      ;; osx
+      (shell-command (concat "pngpaste " file))
+      ;; linux
+      (sp/write-binary file (x-get-selection-internal 'PRIMARY 'image/png))
+      )
+
     (insert (concat "#+CAPTION: " caption "\n#+ATTR_ORG: :width 500\n[[" file "]]"))
     )
   (org-display-inline-images)
   )
+
+(defun sp/write-binary (file binary-data)
+  (with-temp-buffer
+    (toggle-enable-multibyte-characters)
+    (set-buffer-file-coding-system 'raw-text)
+    (seq-doseq (char binary-data)
+      (insert char))
+    (write-region nil nil file)))
 
 (defun sp/decode-jwt (start end)
   (interactive "r")
