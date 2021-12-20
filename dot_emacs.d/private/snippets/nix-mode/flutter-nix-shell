@@ -1,0 +1,23 @@
+# -*- mode: snippet -*-
+# name: flutter-nix-shell
+# key: <flutter-nix-shell
+# --
+
+{pkgs ? import <nixpkgs> {
+  config.android_sdk.accept_license = true;
+  config.allowUnsupportedSystem = true;
+}}:
+# let
+#   androidsdk = pkgs.androidsdk_9_0.overrideAttrs (oldAttrs: {
+#     useGoogleAPIs = true;
+#     includeSystemImages = true;
+#     includeEmulator = true;
+#   }); in
+pkgs.mkShell {
+  buildInputs = [
+    pkgs.gradle
+    $0
+  ];
+  # ANDROID_HOME = "${androidsdk}/libexec/android-sdk";
+}
+ 

@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: flutter-envrc
+# key: <flutter-envrc
+# --
+
+
+use_nix
+
+export PATH=$PATH:~/proj/flutter/bin:~/Library/Android/sdk/tools/bin/:~/Library/Android/sdk/platform-tools/
+export ANDROID_SDK_ROOT=/Users/volodymyrvitvitskyi/Library/Android/sdk
