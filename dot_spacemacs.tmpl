@@ -716,6 +716,9 @@ layers configuration."
   (org-display-inline-images)
   )
 
+(defun sp/org/attach (fname)
+  (format "%s/%s" (org-attach-dir-get-create) fname))
+
 (defun sp/write-binary (file binary-data)
   (with-temp-buffer
     (toggle-enable-multibyte-characters)
