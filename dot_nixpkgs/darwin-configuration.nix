@@ -250,6 +250,7 @@ in {
         inconsolata
         proggyfonts
         emacs-all-the-icons-fonts
+        go-font
      ];
    };
 }
