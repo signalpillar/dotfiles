@@ -74,6 +74,7 @@ Each entry is either:
     :config (spacemacs/set-leader-keys-for-minor-mode 'anki-editor-mode
               "mp" 'anki-editor-push-notes
               "mi" 'anki-editor-insert-note
+              "mr" 'anki-editor-retry-failure-notes
               )
     )
   )
