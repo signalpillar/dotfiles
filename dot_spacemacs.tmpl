@@ -547,6 +547,12 @@ layers configuration."
   ;;             )
 
   ;; Org-babel
+  ;; https://stackoverflow.com/questions/22888785/is-it-possible-to-get-org-mode-to-show-breadcrumbs-in-agenda-todo-list
+  ;; https://blog.ryuslash.org/archives/2012/12/19/orgagendaprefixformat
+  (setq org-agenda-prefix-format '((agenda . "%-25:(sp/org/agenda/partial-breadcrumb) % s")
+                                   (todo . " %i %-12:c")
+                                   (tags . " %i %-12:c")
+                                   (search . " %i %-12:c")))
 
   (org-babel-do-load-languages
    'org-babel-load-languages
@@ -718,6 +724,15 @@ layers configuration."
 
 (defun sp/org/attach (fname)
   (format "%s/%s" (org-attach-dir-get-create) fname))
+
+(defun sp/org/agenda/partial-breadcrumb ()
+  (let* (
+         (path (org-get-outline-path))
+         (final_path (org-format-outline-path (last path) nil nil "|"))
+         (min_length (min 25 (length final_path))))
+    (format "[%s]"(substring final_path (- min_length) nil))
+    )
+  )
 
 (defun sp/write-binary (file binary-data)
   (with-temp-buffer
