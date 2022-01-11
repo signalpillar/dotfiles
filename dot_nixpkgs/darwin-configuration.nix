@@ -1,10 +1,38 @@
 { config, pkgs, ... }:
 
-{
+let
+  pngpaste = pkgs.stdenv.mkDerivation {
+    name = "pngpaste_0.2.3";
+    version = "0.2.3";
+    outputs = [ "out" ];
+
+    src = pkgs.fetchFromGitHub {
+      owner = "jcsalterego";
+      repo = "pngpaste";
+      rev = "67c39829fedb97397b691617f10a68af75cf0867";
+      sha256 = "089rqjk7khphs011hz3f355c7z6rjd4ydb4qfygmb4x54z2s7xms";
+    };
+
+    buildInputs = [
+      pkgs.clang10Stdenv
+      pkgs.darwin.apple_sdk.frameworks.Foundation
+      pkgs.darwin.apple_sdk.frameworks.Cocoa
+    ];
+
+    buildPhase = "make all";
+
+    installPhase = ''
+      mkdir -p $out/bin
+      cp pngpaste $out/bin/
+    '';
+  };
+
+in {
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
   environment.systemPackages = with pkgs;
     [
+      pngpaste
       aspellDicts.en
 
       tldr  # community-driven man pages
