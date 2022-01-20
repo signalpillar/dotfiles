@@ -245,6 +245,7 @@
                                       {{- if eq .chezmoi.hostname "b-0309" }}
                                       (babylon :location local)
                                       {{- end}}
+                                      tango-plus-theme
                                       direnv
                                       blacken
                                       ;; to fix the editor issue when commiting
@@ -328,7 +329,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light paper parchment modus-operandi) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(tango-plus paper parchment modus-operandi) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -347,7 +348,8 @@
    ;; no major mode or minor modes are active. (default is 1)
    dotspacemacs-large-file-size 1
 
-   dotspacemacs-default-font '("Go Mono" :size 12)
+   ;; dotspacemacs-default-font '("Go Mono" :size 12)
+   dotspacemacs-default-font '("Inconsolata" :size 12)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -555,6 +557,7 @@ layers configuration."
    'org-babel-load-languages
    '(
      (async . t)
+     (plantuml . t)
      (awk . t)
      (dot . t)
      (emacs-lisp . t)
@@ -587,6 +590,8 @@ layers configuration."
         (concat  "%b - emacs@" (system-name)))
   ;; default to unified diffs
   (setq diff-switches "-u")
+  ;; plantuml
+  (setq org-plantuml-jar-path (expand-file-name "~/bin/plantuml.jar"))
 
   ;; use the built-in emacs prompt for passphrase when using gpg
   (setf epa-pinentry-mode 'loopback)
