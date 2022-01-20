@@ -53,6 +53,7 @@ environment.systemPackages = with pkgs; [
    nodejs
 
    # openjdk
+   adoptopenjdk-bin
 
    openssl
    pkg-config
@@ -174,10 +175,10 @@ environment.systemPackages = with pkgs; [
 
   services.xserver = {
     resolutions = [
-                  {x = 1920; y = 1200;}
+                  # {x = 1920; y = 1200;}
                   # {x = 1440; y = 900;}
                   # {x = 1920; y = 1200;}
-                  # {x = 2560; y = 1440; }
+                  {x = 2560; y = 1440; }
     ];
 
     # xset r rate 200 25
@@ -187,6 +188,11 @@ environment.systemPackages = with pkgs; [
     # By default, the NixOS VirtualBox demo image includes SDDM and Plasma.
     # If you prefer another desktop manager or display manager, you may want
     # to disable the default.
+
+    # Option 0 - xterm & headless
+    # desktopManager.xterm.enable = true;
+    # displayManager.defaultSession = "xterm";
+
     # Option 1 - KDE
     # enable = true;
     # displayManager.sddm.enable = true;
@@ -283,6 +289,8 @@ environment.systemPackages = with pkgs; [
 # Enable the OpenSSH daemon.
 services.openssh.enable = true;
 services.openssh.forwardX11 = true;
+services.openssh.openFirewall = true;
+
 # VIRTUALISATION
 virtualisation.docker = {
   enable = true;
