@@ -86,13 +86,17 @@
           lsp-enable-symbol-highlighting nil
           lsp-ui-doc-enable nil
           lsp-navigation 'peek
+          lsp-modeline-code-actions-enable nil
+          lsp-modeline-code-actions-segments nil
+          lsp-use-lsp-ui nil
+          lsp-lens-enable nil
           )
      (markdown :variables markdown-open-command "/Applications/Typora.app/Contents/MacOS/Typora")
-     ;; (dart :variables
-     ;;   dart-backend 'lsp
-     ;;   lsp-enable-on-type-formatting t
-     ;;   lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
-     ;; )
+     (dart :variables
+       dart-backend 'lsp
+       lsp-enable-on-type-formatting t
+       lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
+     )
      ;; nginx
      (org :variables
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
