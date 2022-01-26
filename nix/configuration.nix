@@ -282,6 +282,7 @@ environment.systemPackages = with pkgs; [
         ibm-plex
         inconsolata
         proggyfonts
+        jetbrains-mono
         emacs-all-the-icons-fonts
      ];
    };

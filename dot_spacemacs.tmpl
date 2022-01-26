@@ -349,7 +349,8 @@
    dotspacemacs-large-file-size 1
 
    ;; dotspacemacs-default-font '("Go Mono" :size 12)
-   dotspacemacs-default-font '("Inconsolata" :size 12)
+   ;; dotspacemacs-default-font '("Inconsolata" :size 12)
+   dotspacemacs-default-font '("JetBrains Mono" :size 14)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -512,6 +513,19 @@ layers configuration."
     (shell-command (format "open %s" path)))
 
   (add-to-list 'org-file-apps '("\\.jpeg\\'" . os-open))
+
+  ;; measured in bytes
+  (setq gc-cons-threshold (* 2 1000 1000))
+
+  ;; tmpdir --------
+  (defconst emacs-tmp-dir (expand-file-name (format "emacs%d" (user-uid)) temporary-file-directory))
+  (setq backup-directory-alist
+        `((".*" . ,emacs-tmp-dir)))
+  (setq auto-save-file-name-transforms
+        `((".*" ,emacs-tmp-dir t)))
+  (setq auto-save-list-file-prefix
+        emacs-tmp-dir)
+   ;; tmpdir --------
 
   (setq-default
    powerline-default-separator 'alternate
