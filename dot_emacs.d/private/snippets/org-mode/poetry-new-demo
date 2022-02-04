@@ -1,0 +1,72 @@
+# -*- mode: snippet -*-
+# name: poetry-new-demo
+# key: poetry-new-demo
+# --
+** Demo
+:PROPERTIES:
+:header-args: :session temp-session :results verbatim :var project_dir=(org-attach-dir)
+:END:
+
+#+begin_src nix :tangle (sp/org/attach "shell.nix")
+{pkgs ? import <nixpkgs> {}}:
+pkgs.mkShell {
+buildInputs = [
+pkgs.poetry
+pkgs.stdenv.cc.cc.lib
+];
+shellHook = ''
+export LD_LIBRARY_PATH=${pkgs.stdenv.cc.cc.lib}/lib
+'';
+}
+#+end_src
+
+#+begin_src python :tangle (sp/org/attach "service.py")
+#+end_src
+
+#+begin_src sh
+cd $project_dir
+nix-shell
+#+end_src
+
+#+begin_src sh
+rm pyproject.toml poetry.lock
+poetry init \
+--name nameko-injector-demo \
+--no-interaction \
+--dependency 'nameko-injector:1.1.2'
+# poetry install
+#+end_src
+** Demo
+:PROPERTIES:
+:header-args: :session temp-session :results verbatim :var project_dir=(org-attach-dir)
+:END:
+
+#+begin_src nix :tangle (sp/org/attach "shell.nix")
+{pkgs ? import <nixpkgs> {}}:
+pkgs.mkShell {
+buildInputs = [
+pkgs.poetry
+pkgs.stdenv.cc.cc.lib
+];
+shellHook = ''
+export LD_LIBRARY_PATH=\${pkgs.stdenv.cc.cc.lib}/lib
+'';
+}
+#+end_src
+
+#+begin_src python :tangle (sp/org/attach "service.py")
+#+end_src
+
+#+begin_src sh
+cd \$project_dir
+nix-shell
+#+end_src
+
+#+begin_src sh
+rm pyproject.toml poetry.lock
+poetry init \\
+--name nameko-injector-demo \\
+--no-interaction \\
+--dependency 'nameko-injector:1.1.2'
+# poetry install
+#+end_src
