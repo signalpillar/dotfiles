@@ -251,6 +251,7 @@ in {
         proggyfonts
         emacs-all-the-icons-fonts
         go-font
+        jetbrains-mono
      ];
    };
 }
