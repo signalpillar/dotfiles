@@ -19,6 +19,7 @@
 # Uncomment following line if you want red dots to be displayed while waiting for completion
 # COMPLETION_WAITING_DOTS="true"
 
+PROMPT='[%?] %* %B%~%b $ '
 DISABLE_MAGIC_FUNCTIONS="true"
 
 # aliases
@@ -33,7 +34,6 @@ alias ddc='docker-compose'
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
 alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
-alias ex='emacs -nw'
 alias gitk='gitk --date-order'
 alias gtime='gtime -f "real %E\nuser %U:%P\nmemory: %M\nI/O %I/%O"'
 
@@ -45,22 +45,6 @@ export LS_COLORS="ow=01;90:di=01;90:ln=04;90"
 export ALTERNATE_EDITOR=""
 export EDITOR=~/bin/ec
 
-
-function vw {
-  source $(pyenv which virtualenvwrapper.sh)
-}
-
-function pyenv-venvs {
-    eval "$(pyenv init -)"
-    eval "$(pyenv virtualenv-init -)"
-}
-
-function trinity {
-    source ~/bin/trinity.sh
-}
-
-alias setup="python setup.py"
-
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 setopt SHARE_HISTORY
@@ -70,11 +54,5 @@ bindkey '\e\e[C' forward-word
 bindkey '\e\e[D' backward-word
 
 alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.1'
-
-# OPAM configuration
-. /Users/signalpillar/.opam/opam-init/init.zsh > /dev/null 2> /dev/null || true
-alias opam2="OPAMROOT=~/.opam2 /Users/signalpillar/.opam/4.02.3/lib/opam-devel/opam"
-# Java configuration
-# export JAVA_HOME=$(/usr/libexec/java_home)
 
 eval "$(direnv hook zsh)"
