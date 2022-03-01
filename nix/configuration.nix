@@ -34,7 +34,9 @@ networking.hostName = "B-5014";
 # List packages installed in system profile. To search, run:
 # \$ nix search wget
 environment.systemPackages = with pkgs; [
-   ag
+  # search engines
+   ripgrep
+   # ....
    chezmoi
    cmake
    direnv
@@ -160,6 +162,7 @@ environment.systemPackages = with pkgs; [
     # source: http://itchyknowsdevs.me/blog/developing-golang-in-nixos/
     GOROOT = [ "${pkgs.go.out}/share/go" ];
     TERMINAL = "kitty";
+    RIPGREP_CONFIG_PATH = "~/.ripgreprc";
   };
 
   # systemPath is not supported
