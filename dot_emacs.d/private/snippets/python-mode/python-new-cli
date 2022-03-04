@@ -1,0 +1,33 @@
+# -*- mode: snippet -*-
+# name: python-new-cli
+# key: python-new-cli
+# --
+import sys
+import argparse
+
+
+Status = int
+
+
+def validate_cmd(args):
+    ...
+
+
+def main(args: argparse.Namespace) -> Status:
+    return args.func(args)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="subcommand", required=True)
+
+    validate_cmd_parser = subparsers.add_parser(
+        "validate", help="Validate",
+    )
+    validate_cmd_parser.set_defaults(func=validate_cmd)
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    sys.exit(main(args))
