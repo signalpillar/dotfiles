@@ -40,6 +40,7 @@ environment.systemPackages = with pkgs; [
    chezmoi
    cmake
    direnv
+   mc
    file
    fzf
    gcc
@@ -115,6 +116,8 @@ environment.systemPackages = with pkgs; [
    docker-compose
 
    # ---- Editors & Co
+   # https://github.com/errata-ai/vale
+   vale
    aspell
    aspellDicts.en
    graphviz
