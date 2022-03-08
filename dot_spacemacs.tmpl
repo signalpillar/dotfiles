@@ -21,7 +21,7 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
-     ivy
+     (ivy :variables ivy-enable-icons t)
      sp-anki
      chrome
      nixos
@@ -250,6 +250,7 @@
                                       (babylon :location local)
                                       {{- end}}
                                       tango-plus-theme
+                                      org-modern
                                       direnv
                                       blacken
                                       ;; to fix the editor issue when commiting
@@ -352,8 +353,8 @@
    ;; no major mode or minor modes are active. (default is 1)
    dotspacemacs-large-file-size 1
 
-   dotspacemacs-default-font '("Go Mono" :size 14)
-   ;; dotspacemacs-default-font '("Inconsolata" :size 12)
+   ;; dotspacemacs-default-font '("Go Mono" :size 14)
+   dotspacemacs-default-font '("Inconsolata" :size 16)
 
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
@@ -549,6 +550,7 @@ layers configuration."
   (setq flycheck-display-errors-function 'flycheck-display-error-messages-unless-error-list)
 
   ;; Miscellaneous
+  (add-hook 'org-mode-hook #'org-modern-mode)
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
 
