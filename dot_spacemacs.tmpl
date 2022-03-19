@@ -416,6 +416,8 @@
    require-final-newline t
    x-select-enable-clipboard t
 
+   undo-tree-auto-save-history nil
+
    ;; Backups
    backup-directory-alist `((".*" . ,temporary-file-directory))
    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
@@ -823,4 +825,5 @@ This function is called at the very end of Spacemacs initialization."
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(pytest-cmd-flags "-vv -x -s --color=no --doctest-modules"))
+ '(org-drawer ((t (:inherit font-lock-keyword-face :background "cornsilk" :foreground "black" :box (:line-width 1 :color "grey75" :style released-button)))))
 )
