@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=brave
+Comment=Brave web browser
+Terminal=false
+Exec=brave
+Categories=Network;WebBrowser
