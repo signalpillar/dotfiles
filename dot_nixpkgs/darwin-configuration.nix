@@ -30,6 +30,13 @@ let
 in {
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
+
+   nixpkgs.overlays = [
+      (import (builtins.fetchTarball {
+        url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+      }))
+   ];
+
   environment.systemPackages = with pkgs;
     [
       pngpaste
@@ -117,7 +124,9 @@ in {
           };
         }
       )
-      emacsMacport
+     ((emacsPackagesNgGen emacsUnstable).emacsWithPackages (epkgs: [
+       epkgs.vterm
+     ]))
 
       # Terms
       kitty
