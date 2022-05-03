@@ -5,3 +5,4 @@ Comment=Brave web browser
 Terminal=false
 Exec=brave
 Categories=Network;WebBrowser
+MimeType=x-scheme-handler/unknown;x-scheme-handler/about;x-scheme-handler/https;x-scheme-handler/http;text/html;

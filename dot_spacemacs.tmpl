@@ -329,11 +329,11 @@
    ;; when the current branch is not `develop'. (default t)
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
-   dotspacemacs-mode-line-theme 'doom
+   dotspacemacs-mode-line-theme 'vim-powerline
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(tango-plus paper parchment modus-operandi) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi tango-plus paper parchment modus-operandi) '(parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -496,16 +496,11 @@ layers configuration."
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . dark))
 
-
   ;; Neotree
   (with-eval-after-load 'neotree
     (add-to-list 'neo-hidden-regexp-list "TAGS$")
     (add-to-list 'neo-hidden-regexp-list "__pycache__")
   )
-  ;; auto-completion for python doesn't work
-  ;; https://github.com/syl20bnr/spacemacs/issues/10638
-  (eval-after-load "company"
-    '(add-to-list 'company-backends 'company-anaconda))
   ;; Enable custom neotree theme
   (setq neo-theme (if (display-graphic-p) 'icons 'arrow))
   (evil-leader/set-key "of" 'neotree-find)
@@ -555,7 +550,7 @@ layers configuration."
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
 
-  (add-hook 'python-mode-hook 'flycheck-mode)
+  ;; (add-hook 'python-mode-hook 'flycheck-mode)
   (add-hook 'python-mode-hook 'flyspell-prog-mode)
   (add-hook 'python-mode-hook 'auto-fill-mode)
   (add-hook 'python-mode-hook 'blacken-mode)
@@ -575,7 +570,7 @@ layers configuration."
   ;; Org-babel
   ;; https://stackoverflow.com/questions/22888785/is-it-possible-to-get-org-mode-to-show-breadcrumbs-in-agenda-todo-list
   ;; https://blog.ryuslash.org/archives/2012/12/19/orgagendaprefixformat
-  (setq org-agenda-prefix-format '((agenda . "%-25:(sp/org/agenda/partial-breadcrumb) % s")
+  (setq org-agenda-prefix-format '((agenda . "%-25:(sp/org/agenda/partial-breadcrumb) |")
                                    (todo . " %i %-12:c")
                                    (tags . " %i %-12:c")
                                    (search . " %i %-12:c")))

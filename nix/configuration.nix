@@ -30,10 +30,19 @@ users.users.demo = {
 };
 
 networking.hostName = "B-5014";
+networking.firewall.enable = false;
+
+#
+nixpkgs.overlays = [
+  (import (builtins.fetchTarball {
+    url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+  }))
+];
 
 # List packages installed in system profile. To search, run:
 # \$ nix search wget
 environment.systemPackages = with pkgs; [
+  # TODO: https://github.com/multiprocessio/dsq
   # search engines
    ripgrep
    # ....
@@ -52,6 +61,9 @@ environment.systemPackages = with pkgs; [
    lshw
    mplayer
    ncdu
+
+   pstree
+   ctop
 
    nodejs
 
@@ -123,8 +135,9 @@ environment.systemPackages = with pkgs; [
    graphviz
    global
 
-   ((emacsPackagesNgGen emacs27).emacsWithPackages (epkgs: [
+   ((emacsPackagesNgGen emacsUnstable).emacsWithPackages (epkgs: [
      epkgs.vterm
+     epkgs.pdf-tools
    ]))
    (
         pkgs.neovim.override {
@@ -165,7 +178,7 @@ environment.systemPackages = with pkgs; [
     # source: http://itchyknowsdevs.me/blog/developing-golang-in-nixos/
     GOROOT = [ "${pkgs.go.out}/share/go" ];
     TERMINAL = "kitty";
-    RIPGREP_CONFIG_PATH = "~/.ripgreprc";
+    RIPGREP_CONFIG_PATH = "/home/demo/.ripgreprc";
   };
 
   # systemPath is not supported
@@ -200,25 +213,25 @@ environment.systemPackages = with pkgs; [
     # displayManager.defaultSession = "xterm";
 
     # Option 1 - KDE
-    # enable = true;
-    # displayManager.sddm.enable = true;
-    # desktopManager.plasma5.enable = true;
-    # displayManager.defaultSession = "plasmawayland";
+    enable = true;
+    displayManager.sddm.enable = true;
+    desktopManager.plasma5.enable = true;
+    displayManager.defaultSession = "plasmawayland";
 
     # Option 2 - i3
-    enable = true;
-    displayManager.defaultSession = "none+i3";
+    # enable = true;
+    # displayManager.defaultSession = "none+i3";
 
-    windowManager.i3 = {
-        enable = true;
-        package = pkgs.i3-gaps;
-        extraPackages = with pkgs; [
-            i3-gaps
-            i3status # gives you the default i3 status bar
-            i3lock #default i3 screen locker
-            rofi  # application launcher
-         ];
-      };
+    # windowManager.i3 = {
+    #     enable = true;
+    #     package = pkgs.i3-gaps;
+    #     extraPackages = with pkgs; [
+    #         i3-gaps
+    #         i3status # gives you the default i3 status bar
+    #         i3lock #default i3 screen locker
+    #         rofi  # application launcher
+    #      ];
+    #   };
 
     # Option 3 - i3 & Sway
     # i3 config
@@ -228,7 +241,7 @@ environment.systemPackages = with pkgs; [
     # displayManager.lightdm.enable = true;
     # displayManager.defaultSession = "none+i3";
     # windowManager.i3.enable = true;
-    # windowManager.i3.configFile = ./i3-config;
+    # -0- option 3
 
     # Option 4 - gnome
     # enable = true;
@@ -243,7 +256,19 @@ environment.systemPackages = with pkgs; [
     # displayManager.defaultSession = "xfce";
   };
 
-  programs.sway.enable = true;
+
+  # programs.sway = {
+  #   enable = true;
+  #   wrapperFeatures.gtk = true; # so that gtk works properly
+  #   extraPackages = with pkgs; [
+  #     swaylock
+  #     swayidle
+  #     wl-clipboard
+  #     mako # notification daemon
+  #     dmenu # Dmenu is the default in the config but i recommend wofi since its wayland native
+  #   ];
+  # };
+
 
   environment.shellAliases = {
     # Use emacsclient to open files in current emacs instance server
