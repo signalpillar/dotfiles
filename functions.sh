@@ -2,6 +2,10 @@ function tailSysLog {
     tail -f /var/log/syslog -n 100
 }
 
+functions weather {
+   curl wttr.in
+}
+
 function getOSXVersion {
     sw_vers | grep ProductVersion | cut -d: -f2
 }
