@@ -2,8 +2,13 @@ function tailSysLog {
     tail -f /var/log/syslog -n 100
 }
 
-functions weather {
-   curl wttr.in
+function weather {
+    if [ $# -eq 0 ] # If no argument has been passed to this function
+    then
+        curl wttr.in
+    else
+        curl wttr.in/"$1" # Append location
+    fi
 }
 
 function getOSXVersion {
