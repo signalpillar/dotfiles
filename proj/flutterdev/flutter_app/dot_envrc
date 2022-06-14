@@ -1,0 +1,3 @@
+export CHROME_EXECUTABLE="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+export PATH=$PATH:~/proj/flutter/bin
+# export PATH=$PATH:~/proj/flutter/bin:~/Library/Android/sdk/tools/bin/:~/Library/Android/sdk/platform-tools/
