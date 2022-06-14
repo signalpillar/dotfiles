@@ -11,7 +11,7 @@ imports = [
 boot.loader.grub.fsIdentifier = "provided";
 # Add some more video drivers to give X11 a shot at working in
 # VMware and QEMU.
-services.xserver.videoDrivers = lib.mkOverride 40 [ "vmware" "cirrus" "vesa" "modesetting" ];
+services.xserver.videoDrivers = lib.mkOverride 40 [ "vmware" "cirrus" "vesa" "modesetting"];
 
 powerManagement.enable = false;
 system.stateVersion = lib.mkDefault "18.03";
@@ -26,7 +26,7 @@ system.autoUpgrade.enable = true;
 users.users.demo = {
    isNormalUser = true;
    shell = pkgs.zsh;
-   extraGroups = [ "wheel"  "sudo" "docker" "vboxsf"];
+   extraGroups = [ "wheel"  "sudo" "docker" "vboxsf" "dialout" "plugdev" "adbusers"];
 };
 
 networking.hostName = "B-5014";
@@ -61,6 +61,8 @@ environment.systemPackages = with pkgs; [
    lshw
    mplayer
    ncdu
+
+   android-udev-rules
 
    pstree
    ctop
@@ -97,6 +99,7 @@ environment.systemPackages = with pkgs; [
 
    # ---- Desktop
    brave
+   firefox
    feh
    dropbox
    parcellite
@@ -213,25 +216,25 @@ environment.systemPackages = with pkgs; [
     # displayManager.defaultSession = "xterm";
 
     # Option 1 - KDE
-    enable = true;
-    displayManager.sddm.enable = true;
-    desktopManager.plasma5.enable = true;
-    displayManager.defaultSession = "plasmawayland";
+    # enable = true;
+    # displayManager.sddm.enable = true;
+    # desktopManager.plasma5.enable = true;
+    # displayManager.defaultSession = "plasmawayland";
 
     # Option 2 - i3
-    # enable = true;
-    # displayManager.defaultSession = "none+i3";
+    enable = true;
+    displayManager.defaultSession = "none+i3";
 
-    # windowManager.i3 = {
-    #     enable = true;
-    #     package = pkgs.i3-gaps;
-    #     extraPackages = with pkgs; [
-    #         i3-gaps
-    #         i3status # gives you the default i3 status bar
-    #         i3lock #default i3 screen locker
-    #         rofi  # application launcher
-    #      ];
-    #   };
+    windowManager.i3 = {
+        enable = true;
+        package = pkgs.i3-gaps;
+        extraPackages = with pkgs; [
+            i3-gaps
+            i3status # gives you the default i3 status bar
+            i3lock #default i3 screen locker
+            rofi  # application launcher
+         ];
+      };
 
     # Option 3 - i3 & Sway
     # i3 config
@@ -270,6 +273,8 @@ environment.systemPackages = with pkgs; [
   # };
 
 
+  programs.adb.enable = true;
+
   environment.shellAliases = {
     # Use emacsclient to open files in current emacs instance server
     ec = "emacsclient -cn";
@@ -279,6 +284,7 @@ environment.systemPackages = with pkgs; [
   };
   programs.ssh.startAgent = true;
   programs.ssh.forwardX11 = true;
+  programs.mosh.enable = true;
   programs.zsh = {
     enable = true;
     enableCompletion = true;
@@ -309,6 +315,7 @@ environment.systemPackages = with pkgs; [
      fontconfig.cache32Bit = true;
      fonts = with pkgs; [
         dejavu_fonts
+        fira-code
         go-font
         ibm-plex
         inconsolata
