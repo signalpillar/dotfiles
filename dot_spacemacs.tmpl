@@ -21,7 +21,7 @@
 
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
-     (ivy :variables ivy-enable-icons t)
+     helm
      sp-anki
      chrome
      nixos
@@ -75,7 +75,7 @@
           magit-ediff-dwim-show-on-hunks t
           ;; to see the diff by words not whole lines
           magit-diff-refine-hunk nil)
-     gtags
+     ;; gtags
      html
      (lsp :variables
           ;; https://emacs-lsp.github.io/lsp-mode/tutorials/how-to-turn-off/
@@ -245,6 +245,10 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-only
    dotspacemacs-additional-packages `((hima :location local)
+                                      (alabaster :location (recipe
+                                                              :fetcher github
+                                                              :repo "uzhne/alabaster-emacs"))
+
                                       {{- if eq .chezmoi.hostname "b-0309" }}
                                       (babylon :location local)
                                       {{- end}}
@@ -298,6 +302,12 @@
         git-gutter+
         git-gutter-fringe
         git-gutter-fringe+
+
+        ;; https://github.com/syl20bnr/spacemacs/issues/9124
+        ;; it's not possible to change the compile buffer position
+        ;; and it works perfect now with pytest compilation window
+        window-purpose
+
         )
    ) ;; setq
   )
@@ -465,11 +475,12 @@ layers configuration."
   ;; https://github.com/emacsorphanage/popwin
   (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
 
-  (set-background-color "ivory")
+  ;; (set-background-color "ivory")
   (setq use-dialog-box nil)
   (setq sp/deft/dir-list '("~/Dropbox/notes"
    {{- if eq .chezmoi.hostname "B-5014" }}
                            "~/Dropbox/babylon-org-mode/notes"
+                           "~/Dropbox/notes/org-roam"
    {{- end}}
                            ))
 
