@@ -22,7 +22,7 @@
    '(
      (deft :variables deft-extensions '("org" "md" "txt"))
      helm
-     sp-anki
+     ;; sp-anki
      chrome
      nixos
 
@@ -55,10 +55,7 @@
      ;; (spacemacs-spaceline :location local)
      colors
      (dash :variables
-           helm-dash-browser-func 'eww)
-     (elm :variables
-           elm-format-on-save t
-           elm-sort-imports-on-save t)
+       helm-dash-browser-func 'eww)
 
      emacs-lisp
      javascript  ;; required for json support
@@ -68,6 +65,10 @@
           ;; but not the status buffer. If you do that, then the status buffer is only
           ;; refreshed automatically if it is the current buffer.
           ;; https://magit.vc/manual/magit/Performance.html#Performance
+          magit-diff-highlight-indentation nil
+          magit-diff-highlight-trailing nil
+          magit-diff-highlight-hunk-body nil
+          magit-diff-refine-hunk nil
           magit-refresh-status-buffer t
           ;; start with cursor on head section
           magit-status-initial-section nil
@@ -89,7 +90,7 @@
           lsp-use-lsp-ui nil
           lsp-lens-enable nil
           )
-     (markdown :variables markdown-open-command "/Applications/Typora.app/Contents/MacOS/Typora")
+     markdown
      (dart :variables
        dart-backend 'lsp
        lsp-enable-on-type-formatting t
@@ -101,9 +102,9 @@
           org-refile-targets '((nil :maxlevel . 10))
 
           org-modules '(org-habit)
-          org-enable-roam-support t
-          org-roam-v2-ack t
-          org-roam-directory "~/Dropbox/notes/org-roam"
+          ;; org-enable-roam-support t
+          ;; org-roam-v2-ack t
+          ;; org-roam-directory "~/Dropbox/notes/org-roam"
           ;; https://github.com/abo-abo/org-download
           org-download-method 'attach
           org-download-timestamp t
@@ -200,7 +201,6 @@
              lsp-prefer-flymake nil
              )
      (ranger :variables ranger-show-preview t)
-     theming
      (shell :variables
             shell-default-height 48
             shell-default-position 'bottom
@@ -258,7 +258,7 @@
                                       blacken
                                       ;; to fix the editor issue when commiting
                                       git-commit
-                                      magit-delta
+                                      ;; magit-delta
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       all-the-icons
                                       parchment-theme
@@ -307,7 +307,8 @@
         ;; it's not possible to change the compile buffer position
         ;; and it works perfect now with pytest compilation window
         window-purpose
-
+        ;; not using it
+        forge
         )
    ) ;; setq
   )
