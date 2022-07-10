@@ -356,12 +356,12 @@ if has("gui")
   "   T: enable toolbar on Win32
   set go=gmr
   " colorscheme mayansmoke
-  colorscheme default
+  colorscheme zellner
   "set guifont=Lucida_Console:h9:cANSI
   "set guifont=Monospace\ 9
   set guifont=Monaco\ 10
 else
-  colorscheme default
+  colorscheme zellner
 endif
 
 " ************************************************************************

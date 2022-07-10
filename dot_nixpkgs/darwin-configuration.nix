@@ -31,11 +31,12 @@ in {
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
 
-   nixpkgs.overlays = [
-      (import (builtins.fetchTarball {
-        url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
-      }))
-   ];
+   # I have performance issues with unstable version so far
+   # nixpkgs.overlays = [
+   #    (import (builtins.fetchTarball {
+   #      url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+   #    }))
+   # ];
 
   environment.systemPackages = with pkgs;
     [
@@ -49,7 +50,6 @@ in {
 
       dive  # tool to explore each layer of the docker image
 
-      ag
       ripgrep
       exa
       figlet # show banners
@@ -124,12 +124,12 @@ in {
           };
         }
       )
-     ((emacsPackagesNgGen emacsUnstable).emacsWithPackages (epkgs: [
+     ((emacsPackagesFor emacs).emacsWithPackages (epkgs: [
        epkgs.vterm
      ]))
 
       # Terms
-      kitty
+      # kitty
       oh-my-zsh
 
       # Java 11
