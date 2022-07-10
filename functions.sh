@@ -373,7 +373,7 @@ function android-start-emulator {
 function android-create-emulator-kitkat {
     local -r NAME=$1
     __set_android_classpath_for_java11
-    avdmanager --verbose create avd -n $NAME -k "system-images;android-19;google_apis;x86" --tag google_apis -d pixel
+    avdmanager --verbose create avd -n $NAME -k "system-images;android-21;google_apis;x86" --tag google_apis -d pixel
 }
 
 function android-create-emulator {
