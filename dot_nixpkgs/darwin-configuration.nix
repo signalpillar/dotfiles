@@ -31,12 +31,11 @@ in {
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
 
-   # I have performance issues with unstable version so far
-   # nixpkgs.overlays = [
-   #    (import (builtins.fetchTarball {
-   #      url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
-   #    }))
-   # ];
+  nixpkgs.overlays = [
+     (import (builtins.fetchTarball {
+       url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+     }))
+  ];
 
   environment.systemPackages = with pkgs;
     [
@@ -126,7 +125,7 @@ in {
           };
         }
       )
-     ((emacsPackagesFor emacs).emacsWithPackages (epkgs: [
+     ((emacsPackagesFor emacsUnstable).emacsWithPackages (epkgs: [
        epkgs.vterm
      ]))
 
@@ -254,7 +253,7 @@ in {
   };
 
   fonts = {
-     enableFontDir = true;
+     fontDir.enable = true;
      fonts = with pkgs; [
         dejavu_fonts
         ibm-plex

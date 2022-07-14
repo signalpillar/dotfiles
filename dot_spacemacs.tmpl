@@ -282,6 +282,9 @@
                                       jest-test-mode
                                       ;; access clipboard in OSX
                                       pbcopy
+                                      ;; themes
+                                      ;; https://github.com/erikbackman/mindre-theme
+                                      mindre-theme
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
@@ -346,7 +349,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi tango-plus paper parchment modus-operandi) '(parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi tango-plus paper parchment modus-operandi) '(mindre parchment modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -737,7 +740,7 @@ layers configuration."
     (progn
       (venv-set-location
        (if (> venv-dirs-length 1)
-           (ivy-read "Choose tox directory to workon" venv-dirs)
+           (helm-comp-read "Choose tox directory to workon" venv-dirs)
          (if (= venv-dirs-length 0)
              (error "The project doesn't have created tox virtual environments.")
            (car venv-dirs))))
