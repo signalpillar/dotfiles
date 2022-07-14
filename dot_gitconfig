@@ -48,11 +48,10 @@
 	diff = auto
 	interactive = auto
 	status = auto
-[diff]
-	tool = /Applications/DiffMerge.app/Contents/MacOS/DiffMerge
 [core]
 	excludesfile = ~/.gitignore
 	editor = vim
+  pager = delta
 [svn]
 	rmdir = true
 [gui]
@@ -71,12 +70,6 @@
 	name = Volodymyr Vitvitskyi
 [mergetool]
 	keepBackup = true
-[difftool "sourcetree"]
-	cmd = /Applications/DiffMerge.app/Contents/MacOS/DiffMerge --nosplash \"$LOCAL\" \"$REMOTE\"
-	path = 
-[mergetool "sourcetree"]
-	cmd = /usr/local/bin/ksdiff --merge --output \"$MERGED\" --base \"$BASE\" -- \"$LOCAL\" --snapshot \"$REMOTE\" --snapshot
-	trustExitCode = true
 [cola]
 	savewindowsettings = false
 [filter "media"]
@@ -97,3 +90,22 @@
 	includeIssuesSection = false
 [github]
 	user = signalpillar
+
+# https://scripter.co/using-git-delta-with-magit
+[interactive]
+    diffFilter = delta --color-only
+[add.interactive]
+    useBuiltin = false # required for git 2.37.0
+
+[diff]
+    colorMoved = default
+
+[delta]
+    # https://github.com/dandavison/magit-delta/issues/13
+    # line-numbers = true    # Don't do this.. messes up diffs in magit
+    #
+    side-by-side = true      # Display a side-by-side diff view instead of the traditional view
+    # navigate = true          # Activate diff navigation: use n to jump forwards and N to jump backwards
+    relative-paths = true    # Output all file paths relative to the current directory
+    file-style = yellow
+    hunk-header-style = line-number syntax

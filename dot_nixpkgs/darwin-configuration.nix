@@ -64,6 +64,8 @@ in {
       graphviz
 
       git
+      delta
+
       chezmoi
       fortune
       direnv
