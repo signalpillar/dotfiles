@@ -1,0 +1,138 @@
+# Example of the config: https://github.com/ipedrazas/dotfiles/blob/d00e1aa900f5ddeb8f73761aef17cdbc1ca61363/alacrity.yml
+# Consider: https://git.suckless.org/tabbed/file/README.html
+shell:
+  program: /bin/zsh
+  args:
+    - -l
+    - -c
+    - "tmux attach || tmux"
+
+window:
+  #
+  # Blank space added around the window in pixels. This padding is scaled
+  # by DPI and the specified value is always added at both opposing sides.
+  padding:
+    x: 7
+    y: 7
+
+  # Window decorations
+  #
+  # Values for `decorations`:
+  #     - full: Borders and title bar
+  #     - none: Neither borders nor title bar
+  #
+  # Values for `decorations` (macOS only):
+  #     - transparent: Title bar, transparent background and title bar buttons
+  #     - buttonless: Title bar, transparent background, but no title bar buttons
+  decorations: full
+
+# Font configuration
+font:
+  size: 14.0
+  # Normal (roman) font face
+  normal:
+    # Font family
+    #
+    # Default:
+    #   - (macOS) Menlo
+    #   - (Linux/BSD) monospace
+    #   - (Windows) Consolas
+    family: Go Mono
+
+    # The `style` can be specified to pick a specific face.
+    style: Regular
+
+  # # Bold font face
+  # bold:
+  #   # Font family
+  #   #
+  #   # If the bold family is not specified, it will fall back to the
+  #   # value specified for the normal font.
+  #   family: Cascadia Mono
+
+  #   # The `style` can be specified to pick a specific face.
+  #   style: Bold
+
+  # # Italic font face
+  # italic:
+  #   # Font family
+  #   #
+  #   # If the italic family is not specified, it will fall back to the
+  #   # value specified for the normal font.
+  #   family: Cascadia Mono
+    
+  #   # The `style` can be specified to pick a specific face.
+  #   style: Italic
+
+  # # Bold italic font face
+  # bold_italic:
+  #   # Font family
+  #   #
+  #   # If the bold italic family is not specified, it will fall back to the
+  #   # value specified for the normal font.
+  #   family: Cascadia Mono
+
+  #   # The `style` can be specified to pick a specific face.
+  #   style: Bold Italic
+
+  # Point size
+  #size: 11.0
+
+  # Offset is the extra space around each character. `offset.y` can be thought of
+  # as modifying the line spacing, and `offset.x` as modifying the letter spacing.
+  offset:
+    x: 1
+    y: 1
+
+  # Glyph offset determines the locations of the glyphs within their cells with
+  # the default being at the bottom. Increasing `x` moves the glyph to the right,
+  # increasing `y` moves the glyph upwards.
+  #glyph_offset:
+  #  x: 0
+  #  y: 0
+
+  # Thin stroke font rendering (macOS only)
+  #
+  # Thin strokes are suitable for retina displays, but for non-retina screens
+  # it is recommended to set `use_thin_strokes` to `false`
+  #
+  # macOS >= 10.14.x:
+  #
+  # If the font quality on non-retina display looks bad then set
+  # `use_thin_strokes` to `true` and enable font smoothing by running the
+  # following command:
+  #   `defaults write -g CGFontRenderingFontSmoothingDisabled -bool NO`
+  #
+  # This is a global setting and will require a log out or restart to take
+  # effect.
+  #use_thin_strokes: true
+
+# If `true`, bold text is drawn using the bright color variants.
+#draw_bold_text_with_bright_colors: false
+
+colors:
+  primary:
+    background: '#f8f8f8'
+    foreground: '#2a2b33'
+    cursor: '#bbbbbb'
+    selection_background: '#ececec'
+    color0: '#000000'
+    color8: '#000000'
+    color1: '#de3d35'
+    color9: '#de3d35'
+    color2: '#3e953a'
+    color10: '#3e953a'
+    color3: '#d2b67b'
+    color11: '#d2b67b'
+    color4: '#2f5af3'
+    color12: '#2f5af3'
+    color5: '#950095'
+    color13: '#a00095'
+    color6: '#3e953a'
+    color14: '#3e953a'
+    color7: '#bbbbbb'
+    color15: '#ffffff'
+    selection_foreground: '#f8f8f8'
+    
+# Allow terminal applications to change Alacritty's window title.
+dynamic_title: true
