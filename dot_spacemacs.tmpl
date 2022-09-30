@@ -20,8 +20,14 @@
    dotspacemacs-configuration-layers
 
    '(
+     (rust :variables rust-format-on-save t)
      (deft :variables deft-extensions '("org" "md" "txt"))
      helm
+     spacemacs-defaults
+     spacemacs-misc
+     lobsters
+     hackernews
+     copy-as-format
      ;; sp-anki
      chrome
      nixos
@@ -76,7 +82,6 @@
           magit-ediff-dwim-show-on-hunks t
           ;; to see the diff by words not whole lines
           magit-diff-refine-hunk nil
-          git-enable-magit-delta-plugin t
           )
      ;; gtags
      html
@@ -303,10 +308,10 @@
         define-word
         fancy-battery
 
-        git-gutter
-        git-gutter+
-        git-gutter-fringe
-        git-gutter-fringe+
+        ;; git-gutter
+        ;; git-gutter+
+        ;; git-gutter-fringe
+        ;; git-gutter-fringe+
 
         ;; https://github.com/syl20bnr/spacemacs/issues/9124
         ;; it's not possible to change the compile buffer position
@@ -349,7 +354,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi tango-plus paper parchment modus-operandi) '(mindre parchment modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi tango-plus paper parchment modus-operandi) '(parchment mindre modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -418,13 +423,20 @@
    ;; %z - mnemonics of buffer, terminal, and keyboard coding systems
    ;; %Z - like %z, but including the end-of-line format
    ;; (default "%I@%S")
-   dotspacemacs-frame-title-format "%a@%t"
+   dotspacemacs-frame-title-format "%b @ %t"
    ))
 
 (defun dotspacemacs/user-init ()
   ;; just in case if custom theme is added
   (add-to-list 'custom-theme-load-path "~/.emacs.d/private/local/")
   (setq-default
+   ;; Increase minimum severity level for displaying the warning buffer.
+   ;; It's an alternative way to supress warnings buffer to disabling warnings and errors from
+   ;; asynchronous native compilation.
+   ;; native-comp-async-report-warnings-errors nil
+   ;; See https://www.reddit.com/r/emacs/comments/l42oep/suppress_nativecomp_warnings_buffer/
+   warning-minimum-level :error
+
    ;; Increase space between the lines
    line-spacing 5
    ;; Miscellaneous
@@ -511,7 +523,7 @@ layers configuration."
   ;; ui
   ;; https://news.ycombinator.com/item?id=17172524
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
-  (add-to-list 'default-frame-alist '(ns-appearance . dark))
+  (add-to-list 'default-frame-alist '(ns-appearance . light))
 
   ;; Neotree
   (with-eval-after-load 'neotree
@@ -536,7 +548,7 @@ layers configuration."
     "Open the path with OS specific command"
     (shell-command (format "open %s" path)))
 
-  (add-to-list 'org-file-apps '("\\.jpeg\\'" . os-open))
+  ;; (add-to-list 'org-file-apps '("\\.jpeg\\'" . os-open))
 
   ;; measured in bytes
   (setq gc-cons-threshold (* 2 1000 1000))
@@ -731,6 +743,32 @@ layers configuration."
     (call-interactively 'lsp-workspace-restart)
     )
   )
+
+(defun sp/python/activate-current-project-venv ()
+  (interactive)
+    (progn
+      (call-interactively 'pyvenv-activate)
+      (message "Activated %s" python-shell-virtualenv-root)
+      (venv-set-location (file-name-directory (directory-file-name python-shell-virtualenv-root)))
+      (venv-workon)
+      (let ((python-exe (format "%s/bin/python3" python-shell-virtualenv-root)))
+        (message python-exe)
+        ;; (pytest.el) 'pytest-global-name', default value is py.test and it's used like
+        ;; executable in compilation mode. That approach doesn't when pytest is
+        ;; not installed globally and we need to use one from the virtual
+        ;; environment.
+        ;; We set this custom variable to run pytest with the venv python
+        ;; interpreter.
+        (setq pytest-global-name (format "%s -m pytest" python-exe))
+        (pythonic-activate python-exe)
+        (setq lsp-python-ms-python-executable python-exe)
+        )
+      (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
+      (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
+      (lsp-restart-workspace)
+      )
+    )
+
 
 (defun sp/tox/activate-current-project-tox-env ()
   (interactive)

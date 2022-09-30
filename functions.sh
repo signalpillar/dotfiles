@@ -439,3 +439,12 @@ function devider {
     base64 < "$1"
     printf '\a\n'
 }
+
+function try_py_package {
+    local -r env_name=$1
+    local -r pip_install_args=$2
+    cd ~/tmp
+    python -m venv "$env_name"
+    source "$env_name"/bin/activate
+    pip install $pip_install_args
+}

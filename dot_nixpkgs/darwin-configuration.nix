@@ -48,6 +48,7 @@ in {
       cloc
 
       dive  # tool to explore each layer of the docker image
+      ctop  # htop for docker
 
       ripgrep
       exa
@@ -125,7 +126,7 @@ in {
           };
         }
       )
-     ((emacsPackagesFor emacsUnstable).emacsWithPackages (epkgs: [
+     ((emacsPackagesFor emacsNativeComp).emacsWithPackages (epkgs: [
        epkgs.vterm
      ]))
 

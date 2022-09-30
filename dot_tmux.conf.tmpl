@@ -59,6 +59,7 @@ set-option -g default-command "which reattach-to-user-namespace > /dev/null && r
 unbind -T copy-mode-vi Enter
 
 set-option -ga terminal-overrides ',*:enacs@:smacs@:rmacs@:acsc@'
+set -ga terminal-overrides ",xterm-256color:Tc"
 
 # http://unix.stackexchange.com/questions/1045/getting-256-colors-to-work-in-tmux
 # set -g default-terminal "screen-256color-italic"
