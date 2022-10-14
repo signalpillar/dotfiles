@@ -1,0 +1,38 @@
+# -*- mode: snippet -*-
+# name: rust-nix-shell
+# key: <rust-nix-shell
+# --
+
+let
+  moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
+  nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
+  python-with-base-packages = nixpkgs.python39.withPackages(ps: with ps; [
+    poetry
+  ]);
+
+in nixpkgs.mkShell {
+    name = "test";
+
+    # https://github.com/mozilla/nixpkgs-mozilla#rust-overlay
+    buildInputs = [
+        # to use a specific nighly from the Docker file
+        (nixpkgs.rustChannelOf { date = "2022-08-31"; channel = "nightly"; }).rust
+        (nixpkgs.rustChannelOf { date = "2022-08-31"; channel = "nightly"; }).rust-analysis
+        (nixpkgs.rustChannelOf { date = "2022-08-31"; channel = "nightly"; }).rustc-dev
+        nixpkgs.rustfmt
+        nixpkgs.cmake
+        nixpkgs.cargo
+        nixpkgs.libiconv
+        nixpkgs.rustfmt
+        nixpkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+        python-with-base-packages
+    ];
+
+    # https://nixos.wiki/wiki/Rust
+    shellHook = ''
+    # Certain Rust tools won't work without this
+    # This can also be fixed by using oxalica/rust-overlay and specifying the rust-src extension
+    # See https://discourse.nixos.org/t/rust-src-not-found-and-other-misadventures-of-developing-rust-on-nixos/11570/3?u=samuela. for more details.
+    export RUST_SRC_PATH="${nixpkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+    '';
+}
