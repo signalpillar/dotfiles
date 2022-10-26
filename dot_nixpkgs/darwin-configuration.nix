@@ -174,6 +174,7 @@ in {
 
   environment.systemPath = [
     "$HOME/bin"
+    "$HOME/.rd/bin"
     "$HOME/.npm/bin"
     "$HOME/mutable_node_modules/bin"
   ];
@@ -275,3 +276,6 @@ in {
 
 # Inspiration:
 # - https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
+
+# Interesting list of apps in the Brewfile
+# https://github.com/biosan/dotfiles/blob/master/config/macos/Brewfile
