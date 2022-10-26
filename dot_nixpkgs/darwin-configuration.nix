@@ -43,6 +43,8 @@ in {
       aspell
       aspellDicts.en
 
+      fzf
+
       tldr  # community-driven man pages
 
       bat   # clone of cat
@@ -74,6 +76,7 @@ in {
       ffmpeg
       gdb
       jq
+      yq
       tree
       youtube-dl
 
@@ -163,6 +166,10 @@ in {
     LC_ALL = "en_US.UTF-8";
     # source: http://itchyknowsdevs.me/blog/developing-golang-in-nixos/
     GOROOT = [ "${pkgs.go.out}/share/go" ];
+
+    # editor
+    LS_COLORS = "ow=01;90:di=01;90:ln=04;90";
+    ALTERNATE_EDITOR = "";
   };
 
   environment.systemPath = [
@@ -201,6 +208,12 @@ in {
 
     nixre = "darwin-rebuild switch";
     nixgc = "nix-collect-garbage -d";
+
+    ll = "ls -althF";
+    la = "ls -A";
+    l = "ls -CF";
+    tmux = "tmux -2";
+    ddc = "docker-compose";
   };
 
   system.defaults = {
