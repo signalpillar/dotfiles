@@ -194,6 +194,15 @@ in {
     enableCompletion = true;
     enableFzfCompletion = true;
     enableSyntaxHighlighting = true;
+    # https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
+    interactiveShellInit = ''
+      # Turn on when measuring plugin performance
+      # zmodload zsh/zprof
+      HISTSIZE=10000
+      SAVEHIST=10000
+      setopt autocd # auto cd when only path is entered
+      setopt nomatch # throw an error on glob matching nothing
+    '';
   };
 
   # programs.fish.enable = true;
