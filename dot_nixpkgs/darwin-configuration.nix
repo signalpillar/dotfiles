@@ -40,6 +40,7 @@ in {
   environment.systemPackages = with pkgs;
     [
       pngpaste
+      aspell
       aspellDicts.en
 
       tldr  # community-driven man pages
@@ -122,7 +123,7 @@ in {
               ];
               opt = [];
             };
-            # customRC = builtins.readFile ./../dotfiles/.vimrc;
+            customRC = builtins.readFile ~/.vimrc;
           };
         }
       )
@@ -184,25 +185,8 @@ in {
   programs.zsh = {
     enable = true;
     enableCompletion = true;
-    # oh-my-zsh.enable = true;
-    # https://github.com/nix-community/home-manager/issues/1226
-    # ohMyZsh = {
-    #   enable = true;
-    #   customPkgs = [];
-    #   theme = "amuse";
-    #   # zsh-navigation-tools
-    #   plugins = [ "git" "tmux" "z" "docker" "colored-man-pages" "zsh-autosuggestions"];
-    # };
-    # interactiveShellInit = ''
-    #   source "$(fzf-share)/key-bindings.zsh"
-    #   source "$(fzf-share)/completion.zsh"
-    #   eval "$(direnv hook zsh)"
-    #   export DIRENV_LOG_FORMAT= # Silence direnv
-    # '';
-    # promptInit = ''
-    #   any-nix-shell zsh --info-right | source /dev/stdin
-    # '';
-    # syntaxHighlighting.enable = true;
+    enableFzfCompletion = true;
+    enableSyntaxHighlighting = true;
   };
 
   # programs.fish.enable = true;
