@@ -1,0 +1,32 @@
+# -*- mode: snippet -*-
+# name: python-nix-shell
+# key: <python-nix-shell
+# --
+{ pkgs ? import <nixpkgs> {} }:
+
+let
+python-with-base-packages = pkgs.python38.withPackages(ps: with ps; [
+  tox
+]);
+
+# Make a new shell
+in pkgs.mkShell {
+  name = "demo";
+
+  # The packages in the `buildInputs` list will be added to the PATH in our shell
+  buildInputs = with pkgs; [
+    # ssl
+    libressl
+    # root CA certificates
+    cacert
+    which
+    # postgresql
+    python-with-base-packages
+    autoconf
+    poetry
+  ];
+  shellHook = ''
+  # set SOURCE_DATE_EPOCH so that we can use python wheels
+  export SOURCE_DATE_EPOCH=$(date +%s)
+  '';
+}
