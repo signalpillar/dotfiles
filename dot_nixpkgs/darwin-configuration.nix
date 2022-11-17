@@ -39,6 +39,8 @@ in {
 
   environment.systemPackages = with pkgs;
     [
+      (import (fetchTarball https://github.com/cachix/devenv/archive/v0.2.tar.gz))
+
       pngpaste
       aspell
       aspellDicts.en
@@ -81,6 +83,7 @@ in {
       youtube-dl
 
       watch
+      curl
       wget
 
       # 1.16.4
@@ -214,7 +217,8 @@ in {
 
   environment.shellAliases = {
     # Use emacsclient to open files in current emacs instance server
-    ec = "emacsclient -cn";
+    ec = "emacsclient -nw";
+    ecw = "emacsclient -cn";
 
     nixre = "darwin-rebuild switch";
     nixgc = "nix-collect-garbage -d";

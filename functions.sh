@@ -448,3 +448,15 @@ function try_py_package {
     source "$env_name"/bin/activate
     pip install $pip_install_args
 }
+
+# 1password functions
+function op_save_file {
+    local -r filename=$1
+    local -r title=$2
+    op create document $filename --title $title
+}
+
+function op_get_file {
+    local -r title=$1
+    op get document $title
+}

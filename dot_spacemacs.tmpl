@@ -224,8 +224,8 @@
                      spell-checking-enable-auto-dictionary nil
                      enable-flyspell-auto-completion nil
                      spell-checking-enable-by-default nil
-                     ispell-program-name "aspell"
-                     ispell-dictionary "british"
+                     ;; ispell-program-name "aspell"
+                     ;; ispell-dictionary "british"
       )
      restclient
      react
@@ -235,6 +235,13 @@
               typescript-fmt-on-save t
               typescript-backend 'tide
               )
+
+     (javascript :variables
+                 javascript-backend 'tide
+                 javascript-lsp-linter nil
+                 javascript-fmt-tool 'prettier
+                 javascript-repl 'nodejs)
+
      (version-control :variables
                       ;; diff-hl is slow
                       ;; version-control-diff-tool 'diff-hl
@@ -252,14 +259,13 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-only
    dotspacemacs-additional-packages `((hima :location local)
-                                      (alabaster :location (recipe
-                                                              :fetcher github
-                                                              :repo "uzhne/alabaster-emacs"))
-
+                                      parchment-theme
+                                      paper-theme
+                                      ef-themes
+                                      tango-plus-theme
                                       {{- if eq .chezmoi.hostname "b-0309" }}
                                       (babylon :location local)
                                       {{- end}}
-                                      tango-plus-theme
                                       org-modern
                                       direnv
                                       blacken
@@ -268,8 +274,6 @@
                                       ;; magit-delta
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       all-the-icons
-                                      parchment-theme
-                                      paper-theme
 
                                       flycheck-mypy
                                       poetry
@@ -331,7 +335,10 @@
 
   (setq-default
    dotspacemacs-folding-method 'evil  ;; origami
-   dotspacemacs-mode-line-unicode-symbols t
+   ;; I replaced 'vim-powerline with 'vanilla as I get more value when there are many windows
+   ;; dotspacemacs-mode-line-theme 'vim-powerline
+   dotspacemacs-mode-line-unicode-symbols nil
+   dotspacemacs-mode-line-theme 'vanilla
    dotspacemacs-highlight-delimiters 'nil
 
    dotspacemacs-line-numbers '(
@@ -351,7 +358,6 @@
    ;; when the current branch is not `develop'. (default t)
 	 dotspacemacs-check-for-update nil
    dotspacemacs-editing-style 'vim
-   dotspacemacs-mode-line-theme 'vim-powerline
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
@@ -475,9 +481,21 @@
 
    ;; Flycheck
    flycheck-check-syntax-automatically '(save mode-enabled)
+   ;; simple mode line
+   mode-line-format (list
+                     ;; %p     percent of buffer above top of window
+                     "%p > "
+                     ;; position line:column
+                     "%l:%c > "
+                     ;; buffer name
+                     "[ %b ] "
+                     ;; name of major mode
+                     "%m| "
+                     ;; buffer size - auto-scaled
+                     "size %I |"
+                     "%-"
+                     )
 
-   ;; powerline doom theme
-   doom-modeline-buffer-file-name-style 'truncate-all
    ))
 
 (defun dotspacemacs/user-config ()
