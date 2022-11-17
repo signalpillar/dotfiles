@@ -81,3 +81,4 @@ An attempt to adopt Nix package manager.
 # NixOS
 
 - `xset r rate 200 25`
+- `npm config set prefix '~/mutable_node_modules'`
