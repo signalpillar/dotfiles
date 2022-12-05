@@ -39,7 +39,7 @@ in {
 
   environment.systemPackages = with pkgs;
     [
-      (import (fetchTarball https://github.com/cachix/devenv/archive/v0.2.tar.gz))
+      (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.3.tar.gz))
 
       pngpaste
       aspell
@@ -102,6 +102,7 @@ in {
 
       ncdu
       tmux
+      tmuxp
       just
       # terminal-notifier # https://github.com/julienXX/terminal-notifier
       # synergy
