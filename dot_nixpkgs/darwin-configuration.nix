@@ -44,6 +44,7 @@ in {
       pngpaste
       aspell
       aspellDicts.en
+      aspellDicts.en-computers
 
       fzf
 
@@ -174,6 +175,8 @@ in {
     # editor
     LS_COLORS = "ow=01;90:di=01;90:ln=04;90";
     ALTERNATE_EDITOR = "";
+    # https://github.com/NixOS/nixpkgs/issues/4521#issuecomment-59080831
+    ASPELL_CONF = "dict-dir ${pkgs.aspellDicts.en.out}/lib/aspell";
   };
 
   environment.systemPath = [
