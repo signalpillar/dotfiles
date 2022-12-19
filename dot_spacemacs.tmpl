@@ -22,7 +22,13 @@
    '(
      (rust :variables rust-format-on-save t)
      (deft :variables deft-extensions '("org" "md" "txt"))
-     helm
+     (helm :variables
+           helm-completion-style 'emacs
+           )
+     ;; (compleseus :variables
+     ;;             compleseus-engine 'vertico
+     ;;             )
+     tabs
      spacemacs-defaults
      spacemacs-misc
      lobsters
@@ -259,13 +265,18 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-only
    dotspacemacs-additional-packages `((hima :location local)
-                                      parchment-theme
-                                      paper-theme
-                                      ef-themes
+                                      ;; --------- completion / search
+                                      ;; fussy & liquidmetal are related
+                                      ;; [jojojames/fussy](https://github.com/jojojames/fussy)
+                                      fussy
+                                      liquidmetal
+
+                                      ;; --------- themes
+                                      ;; parchment-theme
+                                      ;; paper-theme
+                                      ;; ef-themes
                                       tango-plus-theme
-                                      {{- if eq .chezmoi.hostname "b-0309" }}
-                                      (babylon :location local)
-                                      {{- end}}
+
                                       org-modern
                                       direnv
                                       blacken
@@ -292,9 +303,6 @@
                                       jest-test-mode
                                       ;; access clipboard in OSX
                                       pbcopy
-                                      ;; themes
-                                      ;; https://github.com/erikbackman/mindre-theme
-                                      mindre-theme
                                       )
    dotspacemacs-excluded-packages `(
         importmagic
@@ -361,7 +369,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(parchment tango-plus paper modus-operandi) '(parchment mindre modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(tango-plus paper modus-operandi) '(tango-plus mindre modus-operandi))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -502,6 +510,10 @@
   "Configuration function.
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
+
+  (push 'fussy completion-styles)
+  (setq fussy-score-fn 'fussy-liquidmetal-score)
+
   ;; function from pbcopy package to manage clipboard when running in Terminal
   (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
       (turn-on-pbcopy))
@@ -609,13 +621,28 @@ layers configuration."
                                    (setq-default live-py-version (executable-find "python"))
                                    (live-py-update-all))))
   ;; [A trick to speed up projectile-find-file in a large monorepo - Emacs TIL](https://emacstil.com/til/2022/10/01/a-trick-to-speed-up-projectilefindfile-in-a-large-monorepo/)
-  (setq projectile-indexing-method 'alien)
+  ;; (setq projectile-indexing-method 'alien)
+  (setq
+   ;; For example, project-find-file uses 'project-files which uses
+   ;; substring completion by default. Set to nil to make sure it's using
+   ;; flx.
+   completion-category-defaults nil
+   completion-category-overrides nil
+   )
 
   ;; .envrc files are setting now PYTHONPATH
   ;; (advice-add 'pyenv-mode-set
   ;;             :after
   ;;             (lambda (_) (setenv "PYTHONPATH" (format "%s/src" (projectile-project-root))))
   ;;             )
+
+  ;; Org attachment ID & path
+  ;; [Org ID, Org Attach & Better Folder Names · The Art of Not Asking Why](https://helpdeskheadesk.net/2022-03-13/)
+  (setq org-id-method 'ts)
+  (setq org-attach-id-to-path-function-list
+        '(org-attach-id-ts-folder-format
+          org-attach-id-uuid-folder-format))
+
 
   ;; Org-babel
   ;; https://stackoverflow.com/questions/22888785/is-it-possible-to-get-org-mode-to-show-breadcrumbs-in-agenda-todo-list
