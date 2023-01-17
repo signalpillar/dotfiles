@@ -20,40 +20,27 @@
    dotspacemacs-configuration-layers
 
    '(
-     (rust :variables rust-format-on-save t)
+     ;; (rust :variables rust-format-on-save t)
      (deft :variables deft-extensions '("org" "md" "txt"))
      (helm :variables
            helm-completion-style 'emacs
            )
-     ;; (compleseus :variables
-     ;;             compleseus-engine 'vertico
-     ;;             )
-     tabs
-     spacemacs-defaults
-     spacemacs-misc
-     lobsters
-     hackernews
-     copy-as-format
-     ;; sp-anki
      chrome
+     (treemacs :packages nil)
      nixos
 
      helpful
-     (ibuffer :variables ibuffer-group-buffers-by 'projects)
-     imenu-list
 
      ;; semantic
-     pdf
-     ;; racket
      neotree
      csv
      graphviz
-     (go :variables
-         go-backend 'lsp
-         ;; go-backend 'go-mode
-         go-format-before-save t
-         go-tab-width 4
-       )
+     ;; (go :variables
+     ;;     go-backend 'lsp
+     ;;     ;; go-backend 'go-mode
+     ;;     go-format-before-save t
+     ;;     go-tab-width 4
+     ;;   )
      (auto-completion :variables
                       company-quickhelp-delay 0.8
                       auto-completion-enable-help-tooltip t
@@ -65,13 +52,8 @@
      ;; It slows down the navigation in the buffer
      ;; https://github.com/turnspike/spacemacs-spaceline
      ;; (spacemacs-spaceline :location local)
-     colors
-     (dash :variables
-       helm-dash-browser-func 'eww)
 
      emacs-lisp
-     javascript  ;; required for json support
-     ;; eyebrowse
      (git :variables
           ;; tell Magit to only automatically refresh the current Magit buffer,
           ;; but not the status buffer. If you do that, then the status buffer is only
@@ -104,11 +86,11 @@
           lsp-lens-enable nil
           )
      markdown
-     (dart :variables
-       dart-backend 'lsp
-       lsp-enable-on-type-formatting t
-       lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
-     )
+     ;; (dart :variables
+     ;;   dart-backend 'lsp
+     ;;   lsp-enable-on-type-formatting t
+     ;;   lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
+     ;; )
      ;; nginx
      (org :variables
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
@@ -195,9 +177,9 @@
      ;; There is nothing in the layer that I would use.
      ;; Delete to trash integration also causes issues when Emacs is run in the
      ;;terminal. Error code -1700.
-     ;; osx
+     osx
 
-     dap
+     ;; dap
      (python :variables
              python-shell-interpreter "python3"
              ;; python-backend 'anaconda
@@ -213,19 +195,12 @@
              lsp-enable-snippet nil
              lsp-prefer-flymake nil
              )
-     (ranger :variables ranger-show-preview t)
      (shell :variables
             shell-default-height 48
             shell-default-position 'bottom
             shell-default-term-shell "zsh"
             shell-default-shell 'vterm
             )
-     (syntax-checking :variables
-                     syntax-checking-enable-by-default t)
-     (theming :variables
-              theming-headings-inherit-from-default 'all
-              theming-headings-same-size 'all
-              theming-headings-bold 'all)
      (spell-checking :variables
                      spell-checking-enable-auto-dictionary nil
                      enable-flyspell-auto-completion nil
@@ -248,10 +223,10 @@
                  javascript-fmt-tool 'prettier
                  javascript-repl 'nodejs)
 
-     (version-control :variables
-                      ;; diff-hl is slow
-                      ;; version-control-diff-tool 'diff-hl
-                      git-magit-status-fullscreen t)
+     ;; (version-control :variables
+     ;;                  ;; diff-hl is slow
+     ;;                  ;; version-control-diff-tool 'diff-hl
+     ;;                  git-magit-status-fullscreen t)
      yaml
      ;; own layer to configure tree-sitter for syntax highlight
      sp-tree-sitter
@@ -263,33 +238,34 @@
    ;; `used-but-keep-unused' installs only the used packages but won't uninstall
    ;; them if they become unused. `all' installs *all* packages supported by
    ;; Spacemacs and never uninstall them. (default is `used-only')
-   dotspacemacs-install-packages 'used-only
+   dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `((hima :location local)
                                       ;; --------- completion / search
                                       ;; fussy & liquidmetal are related
                                       ;; [jojojames/fussy](https://github.com/jojojames/fussy)
-                                      fussy
-                                      liquidmetal
+                                      ;; fussy
+                                      ;; liquidmetal
 
                                       ;; --------- themes
                                       ;; parchment-theme
                                       ;; paper-theme
                                       ;; ef-themes
-                                      tango-plus-theme
+                                      ;; tango-plus-theme
 
                                       org-modern
                                       direnv
                                       blacken
+
                                       ;; to fix the editor issue when commiting
-                                      git-commit
+                                      ;; git-commit
+
                                       ;; magit-delta
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       all-the-icons
 
-                                      flycheck-mypy
                                       poetry
-                                      protobuf-mode
-                                      eval-sexp-fu
+                                      ;; protobuf-mode
+                                      ;; eval-sexp-fu
                                       virtualenvwrapper
                                       ob-restclient
                                       ob-graphql
@@ -342,7 +318,7 @@
    before layers configuration."
 
   (setq-default
-   dotspacemacs-folding-method 'evil  ;; origami
+   dotspacemacs-folding-method 'origami
    ;; I replaced 'vim-powerline with 'vanilla as I get more value when there are many windows
    ;; dotspacemacs-mode-line-theme 'vim-powerline
    dotspacemacs-mode-line-unicode-symbols nil
@@ -369,7 +345,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(tango-plus paper modus-operandi) '(tango-plus mindre modus-operandi))
+   dotspacemacs-themes (if (display-graphic-p) '(tango-plus paper modus-operandi) '(modus-operandi tango-plus mindre))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -511,12 +487,9 @@
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
 
-  (push 'fussy completion-styles)
-  (setq fussy-score-fn 'fussy-liquidmetal-score)
-
-  ;; function from pbcopy package to manage clipboard when running in Terminal
-  (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
-      (turn-on-pbcopy))
+  ;; ;; function from pbcopy package to manage clipboard when running in Terminal
+  ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
+  ;;     (turn-on-pbcopy))
 
   (direnv-mode)
   (config-visuals)
@@ -524,7 +497,7 @@ layers configuration."
   ;; https://github.com/emacsorphanage/popwin
   (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
 
-  ;; (set-background-color "ivory")
+  (set-background-color "ivory")
   (setq use-dialog-box nil)
   (setq sp/deft/dir-list '("~/Dropbox/notes"
    {{- if eq .chezmoi.hostname "B-5014" }}
@@ -621,7 +594,8 @@ layers configuration."
                                    (setq-default live-py-version (executable-find "python"))
                                    (live-py-update-all))))
   ;; [A trick to speed up projectile-find-file in a large monorepo - Emacs TIL](https://emacstil.com/til/2022/10/01/a-trick-to-speed-up-projectilefindfile-in-a-large-monorepo/)
-  ;; (setq projectile-indexing-method 'alien)
+  (setq projectile-indexing-method 'alien)
+  (setq projectile-enable-caching t)
   (setq
    ;; For example, project-find-file uses 'project-files which uses
    ;; substring completion by default. Set to nil to make sure it's using
@@ -696,13 +670,6 @@ layers configuration."
   ;; use the built-in emacs prompt for passphrase when using gpg
   (setf epa-pinentry-mode 'loopback)
 
-  (require 'flycheck-mypy)
-  (flycheck-add-next-checker 'python-flake8 'python-mypy t)
-  (setq flycheck-python-mypy-args
-        '("--strict-optional" "--ignore-missing-imports"))
-  ;; There must be an alternative with ivy
-  ;; (dolist (f '("GPATH" "GTAGS" "GRTAGS" ".*"))
-  ;;   (add-to-list 'helm-grep-ignored-files f))
 
   ;; setup jest (test tool)
   (dolist (major-mode '(typescript-mode js2-mode typescript-tsx-mode))
@@ -731,7 +698,11 @@ layers configuration."
 
   (spacemacs/toggle-highlight-current-line-globally-off)
   (add-hook 'semantic-mode-hook 'sp/fight-stickyfunc)
-  (setq-default highlight-indent-guides-method 'character)
+
+  ;; [DarthFennec/highlight-indent-guides: Emacs minor mode to highlight indentation](https://github.com/DarthFennec/highlight-indent-guides)
+  (add-hook 'prog-mode-hook 'highlight-indentation-mode)
+  (setq-default highlight-indent-guides-method 'bitmap)
+
   (unless (display-graphic-p)
     (set-face-background 'default "unspecified-bg" (selected-frame)))
 
@@ -911,20 +882,6 @@ layers configuration."
   (when (executable-find "fortune")
     (shell-command "fortune -ec" t)))
 
-{{- if eq .chezmoi.hostname "B-5014" }}
-(defun djangoapp/set-cms-evars ()
-  (interactive)
-  (setenv "DATABASE_NAME" "monitor-cms")
-  (setenv "DATABASE_HOST" "localhost")
-  (setenv "DATABASE_PORT" "6603")
-  (setenv "DATABASE_USER" "user")
-  (setenv "DATABASE_PASSWORD" "password")
-  (setenv "SECRET_KEY" "secret-key")
-  (setenv "LOG_LEVEL" "INFO")
-  )
-
-{{- end}}
-
 (defun dotspacemacs/emacs-custom-settings ()
   "Emacs custom settings.
 This is an auto-generated function, do not modify its content directly, use
@@ -935,6 +892,13 @@ This function is called at the very end of Spacemacs initialization."
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(package-selected-packages
+   '(graphql keycast command-log-mode vs-light-theme counsel-gtags counsel swiper ivy ggtags helm-gtags racer vscode-dark-plus-theme yasnippet-snippets yapfify yaml-mode xterm-color ws-butler writeroom-mode writegood-mode winum which-key web-mode web-beautify volatile-highlights virtualenvwrapper vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil tree-sitter-langs toml-mode toc-org tide terminal-here term-cursor tango-plus-theme tagedit symon symbol-overlay string-inflection string-edit-at-point sphinx-doc spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc smeargle slim-mode shell-pop scss-mode sass-mode rust-mode ron-mode rjsx-mode restclient-helm restart-emacs ranger rainbow-mode rainbow-identifiers rainbow-delimiters quickrun pytest pylookup pyenv-mode pydoc py-isort pug-mode protobuf-mode prettier-js powerthesaurus popwin poetry pipenv pdf-view-restore pcre2el pbcopy password-generator paradox ox-twbs ox-hugo ox-gfm overseer orgit org-superstar org-rich-yank org-re-reveal org-projectile org-present org-pomodoro org-modern org-mime org-journal org-download org-contrib org-cliplink open-junk-file ob-restclient ob-http ob-graphql ob-async npm-mode nose nodejs-repl nix-mode neotree nameless multi-vterm multi-term multi-line mmm-mode mindre-theme markdown-toc macrostep lsp-python-ms lsp-pyright lsp-origami lsp-dart lorem-ipsum livid-mode live-py-mode liquidmetal link-hint json-reformat json-navigator json-mode js2-refactor js-doc jest-test-mode inspector info+ indent-guide impatient-mode ibuffer-projectile hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt helpful help-fns+ helm-xref helm-themes helm-swoop helm-pydoc helm-purpose helm-projectile helm-org-rifle helm-org helm-nixos-options helm-mode-manager helm-make helm-lsp helm-ls-git helm-lobsters helm-git-grep helm-descbinds helm-dash helm-css-scss helm-company helm-c-yasnippet helm-ag hackernews graphviz-dot-mode google-translate golden-ratio godoctor go-tag go-rename go-impl go-guru go-gen-test go-fill-struct go-eldoc gnuplot gmail-message-mode gitignore-templates git-timemachine git-modes git-messenger git-link git-gutter-fringe gh-md fuzzy fussy font-lock+ flyspell-correct-helm flymd flycheck-rust flycheck-pos-tip flycheck-package flycheck-mypy flycheck-elsa flx-ido flutter fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-org evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu eshell-z eshell-prompt-extras esh-help emr emmet-mode elisp-slime-nav elisp-def editorconfig edit-server easy-hugo dumb-jump drag-stuff dotenv-mode direnv dired-quick-sort diminish devdocs deft define-word dash-at-point cython-mode csv-mode copy-as-format company-web company-restclient company-quickhelp company-nixos-options company-go company-anaconda column-enforce-mode color-identifiers-mode code-cells clean-aindent-mode centered-cursor-mode centaur-tabs cargo browse-at-remote blacken auto-yasnippet auto-highlight-symbol auto-dictionary auto-compile aggressive-indent ace-link ace-jump-helm-line ac-ispell))
  '(pytest-cmd-flags "-vv -x -s --color=no --doctest-modules"))
- '(org-drawer ((t (:inherit font-lock-keyword-face :background "cornsilk" :foreground "black" :box (:line-width 1 :color "grey75" :style released-button)))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
 )
