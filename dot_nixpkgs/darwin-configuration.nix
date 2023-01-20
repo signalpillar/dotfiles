@@ -39,7 +39,7 @@ in {
 
   environment.systemPackages = with pkgs;
     [
-      (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.3.tar.gz))
+      (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
 
       pngpaste
       aspell
