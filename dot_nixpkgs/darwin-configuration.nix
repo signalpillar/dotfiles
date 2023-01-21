@@ -114,6 +114,7 @@ in {
       # https://github.com/tmux/tmux/issues/543#issuecomment-248980734
       # https://github.com/tmux/tmux/issues/543
       reattach-to-user-namespace
+      pkgs.neovim
 
       # Editors
       (
@@ -166,7 +167,7 @@ in {
   nixpkgs.config.allowUnsupportedSystem = false;
 
   environment.variables = {
-    EDITOR = "vim";
+    EDITOR = "nvim";
     LANG = "en_US.UTF-8";
     LC_ALL = "en_US.UTF-8";
     # source: http://itchyknowsdevs.me/blog/developing-golang-in-nixos/
