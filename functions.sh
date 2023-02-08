@@ -282,6 +282,15 @@ function docker-remove-all-containers {
     docker rm `docker ps -a -q`
 }
 
+function docker-remove-dangling-imagines {
+    # [Finding the Layers and Layer Sizes for a Docker Image | Baeldung](https://www.baeldung.com/ops/docker-image-layers-sizes)
+    # Dangling images are image layers that are created during image formation.
+    # However, after image creation, these layers won't have any relationship
+    # with any tagged images. So it's safe to remove all those images as they
+    # consume unnecessary disk space.
+    docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi
+}
+
 function install-anaconda-dependencies {
     wget -o ~/tmp/anaconda-requirements.txt https://raw.githubusercontent.com/proofit404/anaconda-mode/master/requirements.txt
     pip install -r ~/tmp/anaconda-requirements.txt
@@ -458,5 +467,5 @@ function op_save_file {
 
 function op_get_file {
     local -r title=$1
-    op get document $title
+    op document get $title
 }
