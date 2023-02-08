@@ -547,6 +547,9 @@ layers configuration."
   (global-set-key [f5] 'sp/org-insert-clipboard-image)
   (global-set-key [f6] 'sp/insert-fortune-cookie)
   (global-set-key [f2] 'sp/org/add-note-to-last-clocked)
+  ;; candidate for ,a(pplication)s(end)r(egion)
+  ;; C-r C-r doesn't work in org-mode
+  (global-set-key (kbd "C-c C-r") 'tws-region-to-process)
 
   (defun os-open (path &optional link)
     "Open the path with OS specific command"
@@ -693,6 +696,32 @@ layers configuration."
   (add-to-list 'flycheck-checkers 'vale 'append)
 
   )
+;; [Send region to shell in another buffer - Emacs Stack Exchange](https://emacs.stackexchange.com/questions/37887/send-region-to-shell-in-another-buffer)
+(defun tws-region-to-process (arg beg end)
+  "Send the current region to a process buffer.
+The first time it's called, will prompt for the buffer to
+send to. Subsequent calls send to the same buffer, unless a
+prefix argument is used (C-u), or the buffer no longer has an
+active process."
+  (interactive "P\nr")
+  (if (or arg ;; user asks for selection
+          (not (boundp 'tws-process-target)) ;; target not set
+          ;; or target is not set to an active process:
+          (not (process-live-p (get-buffer-process
+                                tws-process-target)))) 
+      (setq tws-process-target
+            (completing-read
+             "Process: "
+             (seq-map (lambda (el) (buffer-name (process-buffer el)))
+                      (process-list)))))
+  ;; [Emacs Shell mode: how to send region to shell? - Stack Overflow](https://stackoverflow.com/questions/6286579/emacs-shell-mode-how-to-send-region-to-shell)
+  ;; (with-current-buffer tws-process-target
+  ;;   (goto-char (process-mark proc))
+  ;;   (insert command)
+  ;;   (move-marker (process-mark proc) (point))
+  ;;   )
+  (message "target %s beg %s end %s" tws-process-target beg end)
+  (process-send-region tws-process-target beg end))
 
 (defun config-visuals ()
 
