@@ -709,7 +709,7 @@ active process."
           ;; or target is not set to an active process:
           (not (process-live-p (get-buffer-process
                                 tws-process-target)))) 
-      (setq tws-process-target
+      (setq-local tws-process-target
             (completing-read
              "Process: "
              (seq-map (lambda (el) (buffer-name (process-buffer el)))
