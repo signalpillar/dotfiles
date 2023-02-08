@@ -3,14 +3,16 @@
 set nocompatible
 colorscheme zellner
 filetype off
+let mapleader = ","
 
+echo "loading"
 " set the runtime path to include Vundle and initialize
 set rtp+=~/.vim/bundle/Vundle.vim
 call vundle#begin()
 " alternatively, pass a path where Vundle should install plugins
 " "call vundle#begin('~/some/path/here')
-
 " Plugins " {{{
+Plugin 'slarwise/vim-tmux-send'
 " let Vundle manage Vundle, required
 Plugin 'VundleVim/Vundle.vim'
 " Git integration
@@ -245,9 +247,33 @@ command! CD cd %:p:h
 " ************************************************************************
 " K E Y   M A P P I N G S
 "
+"
+"
+" windows
+nnoremap <Leader>wk <C-w>k
+nnoremap <Leader>wj <C-w>j
+nnoremap <Leader>wh <C-w>h
+nnoremap <Leader>wl <C-w>l
+
+map <Leader>wd :q<CR>
+map <Leader>wS :split<CR>
+map <Leader>wV :vsplit<CR>
+
+" buffer
+map <Leader>bd :q<CR>
+map <Leader>tl :set wrap<CR>
+map <Leader>bb :b 
+
+" file
+map <Leader>fs :w<CR>
+map <Leader>ff <C-p>
+
+map <Leader>sm :SendMakeCmd<CR>
+map <Leader>ss :SendLine<CR>
+map <Leader>s :set operatorfunc=SendSelection<CR>g@ 
 
 map <Leader>e :Explore<cr>
-map <Leader>s :Sexplore<cr>
+" map <Leader>s :Sexplore<cr>
 
 " pressing < or > will let you indent/unident selected lines
 
