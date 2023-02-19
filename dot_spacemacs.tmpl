@@ -789,6 +789,18 @@ active process."
     (setq pytest-global-name (format "%s -m pytest" python-exe))
     (pythonic-activate python-exe)
     (setq lsp-python-ms-python-executable python-exe)
+    ;; support for python.el.gz
+    (setq python-shell-process-environment
+          (list
+           (format "PATH=%s" (mapconcat
+                              'identity
+                              (reverse
+                               (cons (getenv "PATH")
+                                     (list (format "%s/bin" lsp-pyright-venv-path))))
+                              ":"))
+           (format "VIRTUAL_ENV=%s" lsp-pyright-venv-path)))
+    (message "python shell process env: %s" python-shell-process-environment)
+
     (call-interactively 'lsp-workspace-restart)
     )
   )
