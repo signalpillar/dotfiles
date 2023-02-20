@@ -143,6 +143,10 @@ function showInterfaceRateInKbPerSec {
     while [ /bin/true ]; do OLD=$NEW; NEW=`cat /proc/net/dev | grep eth0 | tr -s ' ' | cut -d' ' -f "3 11"`; echo $NEW $OLD | awk '{printf("\rin: % 9.2g\t\tout: % 9.2g", ($1-$3)/1024, ($2-$4)/1024)}'; sleep 1; done
 }
 
+function showCpuTemperature {
+    sudo powermetrics --samplers smc
+}
+
 function showResourcesForProcess {
     if [ -z "${1}" ]; then
         echo "show CPU usage, RSS and VSZ memory for processes by name";

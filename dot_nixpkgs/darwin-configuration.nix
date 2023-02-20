@@ -99,6 +99,8 @@ in {
 
       nodejs
 
+      pandoc
+
       _1password
 
       ncdu
