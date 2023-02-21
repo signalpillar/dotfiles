@@ -20,7 +20,7 @@
    dotspacemacs-configuration-layers
 
    '(
-     ;; (rust :variables rust-format-on-save t)
+     (rust :variables rust-format-on-save t)
      (deft :variables deft-extensions '("org" "md" "txt"))
      (helm :variables
            helm-completion-style 'emacs
@@ -252,6 +252,7 @@
                                       ;; ef-themes
                                       ;; tango-plus-theme
 
+                                      nano-modeline
                                       org-modern
                                       direnv
                                       blacken
@@ -345,7 +346,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(tango-plus paper modus-operandi) '(modus-operandi tango-plus mindre))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(modus-operandi tango-plus mindre))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -497,7 +498,9 @@ layers configuration."
   ;; https://github.com/emacsorphanage/popwin
   (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
 
-  (set-background-color "ivory")
+  (nano-modeline-mode)
+
+  ;; (set-background-color "ivory")
   (setq use-dialog-box nil)
   (setq sp/deft/dir-list '("~/Dropbox/notes"
    {{- if eq .chezmoi.hostname "B-5014" }}
