@@ -554,9 +554,7 @@ layers configuration."
   (global-set-key [f5] 'sp/org-insert-clipboard-image)
   (global-set-key [f6] 'sp/insert-fortune-cookie)
   (global-set-key [f2] 'sp/org/add-note-to-last-clocked)
-  ;; candidate for ,a(pplication)s(end)r(egion)
-  ;; C-r C-r doesn't work in org-mode
-  (global-set-key (kbd "C-c C-r") 'tws-region-to-process)
+  (spacemacs/set-leader-keys "xsr" 'tws-region-to-process)
 
   (defun os-open (path &optional link)
     "Open the path with OS specific command"
