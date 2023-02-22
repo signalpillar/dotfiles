@@ -182,6 +182,9 @@
      ;; dap
      (python :variables
              python-shell-interpreter "python3"
+             ;; no need to guess identation
+             python-indent-guess-indent-offset nil
+             python-guess-indent nil
              ;; python-backend 'anaconda
              python-backend 'lsp
              python-lsp-server 'pyright
@@ -252,6 +255,7 @@
                                       ;; ef-themes
                                       ;; tango-plus-theme
 
+                                      reformatter
                                       nano-modeline
                                       org-modern
                                       direnv
@@ -724,7 +728,7 @@ active process."
   ;;   (move-marker (process-mark proc) (point))
   ;;   )
   (message "target %s beg %s end %s" tws-process-target beg end)
-  (process-send-region tws-process-target beg end))
+  (process-send-string tws-process-target (format "%s\n"(buffer-substring beg end))))
 
 (defun config-visuals ()
 
