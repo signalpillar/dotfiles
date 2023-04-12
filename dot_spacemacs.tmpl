@@ -81,9 +81,23 @@
           lsp-ui-doc-enable nil
           lsp-navigation 'peek
           lsp-modeline-code-actions-enable nil
+          lsp-modeline-diagnostics-enable nil
           lsp-modeline-code-actions-segments nil
           lsp-use-lsp-ui nil
           lsp-lens-enable nil
+          lsp-auto-guess-root t
+          lsp-log-io nil
+          lsp-restart 'auto-restart
+          lsp-keep-workspace-alive nil
+          lsp-enable-on-type-formatting nil
+          lsp-signature-auto-activate nil
+          lsp-signature-render-documentation nil
+          lsp-eldoc-hook nil
+          lsp-semantic-tokens-enable nil
+          lsp-enable-folding nil
+          ;; (https://github.com/emacs-lsp/lsp-pyright/issues/69#issuecomment-1432999642)
+          read-process-output-max (* 1024 1024) ;; 1MB
+          lsp-idle-delay 0.1
           )
      markdown
      ;; (dart :variables
@@ -219,7 +233,7 @@
               typescript-fmt-on-save t
               typescript-backend 'tide
               )
-
+     java
      (javascript :variables
                  javascript-backend 'tide
                  javascript-lsp-linter nil
@@ -254,10 +268,10 @@
                                       ;; paper-theme
                                       ;; ef-themes
                                       ;; tango-plus-theme
+                                      doom-themes
 
                                       reformatter
-                                      nano-modeline
-                                      org-modern
+                                      org-superstar
                                       direnv
                                       blacken
 
@@ -330,10 +344,11 @@
    dotspacemacs-mode-line-theme 'vanilla
    dotspacemacs-highlight-delimiters 'nil
 
+   display-line-numbers-width 3
    dotspacemacs-line-numbers '(
      :relative t
      :visual t
-     :enabled-for-modes python-mode typescript-mode markdown-mode
+     :enabled-for-modes python-mode typescript-mode markdown-mode org-mode
      :size-limit-kb 1000)
 
 
@@ -350,7 +365,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(modus-operandi tango-plus mindre))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(doom-rouge modus-operandi tango-plus mindre))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -400,6 +415,8 @@
    ;; scrolling overrides the default behavior of Emacs which recenters point
    ;; when it reaches the top or bottom of the screen. (default t)
    dotspacemacs-smooth-scrolling t
+   truncate-lines -1
+
    dotspacemacs-search-tools '("rg" "ag" "grep")
 
    ;; Format specification for setting the frame title.
@@ -499,10 +516,16 @@ layers configuration."
   (direnv-mode)
   (config-visuals)
 
+  ;; scrolling configuration
+  (setq
+   scroll-conservatively 1000
+   maximum-scroll-margin 0.5
+   scroll-margin 10
+   truncate-partial-width-windows nil
+   )
+
   ;; https://github.com/emacsorphanage/popwin
   (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
-
-  (nano-modeline-mode)
 
   ;; (set-background-color "ivory")
   (setq use-dialog-box nil)
@@ -529,6 +552,10 @@ layers configuration."
   ;; for any theme I wan to be able to see the borders of the windows.
   (set-frame-parameter (selected-frame) 'internal-border-width 15)
 
+  ;; [[https://github.com/gboncoffee/emacs][gboncoffee/emacs: My Emacs configuration]]
+  (set-frame-parameter (selected-frame) 'alpha-background 90)
+  (add-to-list 'default-frame-alist '(alpha-background . 90))
+
   (fset 'evil-visual-update-x-selection 'ignore)
 
   ;; ui
@@ -554,6 +581,8 @@ layers configuration."
   (global-set-key [f5] 'sp/org-insert-clipboard-image)
   (global-set-key [f6] 'sp/insert-fortune-cookie)
   (global-set-key [f2] 'sp/org/add-note-to-last-clocked)
+  ;; candidate for ,a(pplication)s(end)r(egion)
+  ;; C-r C-r doesn't work in org-mode
   (spacemacs/set-leader-keys "xsr" 'tws-region-to-process)
 
   (defun os-open (path &optional link)
@@ -587,7 +616,7 @@ layers configuration."
   (setq flycheck-display-errors-function 'flycheck-display-error-messages-unless-error-list)
 
   ;; Miscellaneous
-  (add-hook 'org-mode-hook #'org-modern-mode)
+  (add-hook 'org-mode-hook #'org-superstar-mode)
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
 
@@ -726,7 +755,8 @@ active process."
   ;;   (move-marker (process-mark proc) (point))
   ;;   )
   (message "target %s beg %s end %s" tws-process-target beg end)
-  (process-send-string tws-process-target (format "%s\n"(buffer-substring beg end))))
+  (process-send-string tws-process-target (format "%s\n"(buffer-substring beg end)))
+  )
 
 (defun config-visuals ()
 
