@@ -2,34 +2,24 @@ This project contains all my dotfiles that are moved from box to box.
 
 Manually installed
 
-- Appcleaner
-- iTerm
+- [Raycast](https://www.raycast.com/)
+- [AppCleaner](https://freemacsoft.net/appcleaner/)
+- [kitty](https://sw.kovidgoyal.net/kitty/)
 - Brave browser
 - Signal
 - Slack
 - Clipy
 - Docker
 - VirtualBox
-- Joplin
+- [Logseq: A privacy-first, open-source knowledge base](https://logseq.com/)
 - Dropbox
-- Karabine-Elements
-  - It stopped working in Big Sur
-    - Use internal tool to generate the mapping file
-      - [Great Blog Post from Rakhesh Sasidharan](https://rakhesh.com/mac/using-hidutil-to-map-macos-keyboard-keys/)
-      - [Remapping File Generator](https://hidutil-generator.netlify.app/)
 - [Android Command line tools](https://developer.android.com/studio#cmdline-tools)
 - [super-productivity](https://github.com/johannesjo/super-productivity)
 - [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
 - [Kap](https://getkap.co/)
+- [Nix & NixOS | Reproducible builds and deployments](https://nixos.org/)
 - mplayer
 
-## iTerm ([source](https://www.mathiaspolligkeit.de/dev/exploring-nix-on-macos/))
-iTerm2 has an option to load the preferences from a custom location (iTerm2 →
-`Preferences → General → Preferences → Load preferences` from a custom folder or
-URL).
-
-You can set the location to `~/.config/iterm2`, click Save Current Settings to
-Folder and add the config to the repo.
 
 ## Android Command line tools
 - Download and unpack the dir `~/proj/cmdline-tools/latest`.
@@ -56,6 +46,9 @@ Folder and add the config to the repo.
 - [NixOS in VMWare Fusion](https://dev.to/ryuheechul/quickest-way-to-run-nixos-on-your-vmware-fusion-4dn7)
 
 ## History
+
+# June 2023
+nix-shell and darwin-nix
 
 # Sept 2021
 Development happens only in NixOS running in VMWare Fusion. I feel I am far from
