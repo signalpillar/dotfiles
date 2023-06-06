@@ -191,7 +191,7 @@ function trueuniq {
 # pip install --upgrade --force-reinstall "git+https://github.com/ytdl-org/youtube-dl.git"
 function convertUtubeVideoToMp3 {
     local -r VIDEO_URL="$1"
-    youtube-dl -t --extract-audio --audio-format mp3 $VIDEO_URL
+    youtube-dl --verbose -t --extract-audio --audio-format mp3 "$VIDEO_URL"
 }
 
 # start command and kill it if still running after 5 secs

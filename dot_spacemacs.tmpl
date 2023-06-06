@@ -20,12 +20,15 @@
    dotspacemacs-configuration-layers
 
    '(
+     ;; ansible
+     ;; copilot
+     ;; compleseus
+     terraform
      (rust :variables rust-format-on-save t)
      (deft :variables deft-extensions '("org" "md" "txt"))
      (helm :variables
            helm-completion-style 'emacs
            )
-     chrome
      (treemacs :packages nil)
      nixos
 
@@ -33,8 +36,8 @@
 
      ;; semantic
      neotree
-     csv
-     graphviz
+     ;; csv
+     ;; graphviz
      ;; (go :variables
      ;;     go-backend 'lsp
      ;;     ;; go-backend 'go-mode
@@ -72,21 +75,21 @@
           magit-diff-refine-hunk nil
           )
      ;; gtags
-     html
+     ;; html
      (lsp :variables
           ;; https://emacs-lsp.github.io/lsp-mode/tutorials/how-to-turn-off/
           lsp-headerline-breadcrumb-enable nil
           lsp-enable-file-watchers nil
           lsp-enable-symbol-highlighting nil
-          lsp-ui-doc-enable nil
+          lsp-ui-doc-enable t
           lsp-navigation 'peek
           lsp-modeline-code-actions-enable nil
           lsp-modeline-diagnostics-enable nil
           lsp-modeline-code-actions-segments nil
-          lsp-use-lsp-ui nil
-          lsp-lens-enable nil
+          lsp-use-lsp-ui t
+          lsp-lens-enable t
           lsp-auto-guess-root t
-          lsp-log-io nil
+          lsp-log-io t
           lsp-restart 'auto-restart
           lsp-keep-workspace-alive nil
           lsp-enable-on-type-formatting nil
@@ -188,10 +191,8 @@
           )
      ;; ocaml
 
-     ;; There is nothing in the layer that I would use.
-     ;; Delete to trash integration also causes issues when Emacs is run in the
-     ;;terminal. Error code -1700.
-     osx
+     (osx :variables
+        mac-system-move-file-to-trash-use-finder nil)
 
      ;; dap
      (python :variables
@@ -233,7 +234,25 @@
               typescript-fmt-on-save t
               typescript-backend 'tide
               )
-     java
+     (java :variables java-backend 'lsp
+           lsp-enable-indentation t
+           lsp-java-import-maven-enabled t
+           lsp-java-maven-download-sources t
+           lsp-java-boot-lens-mode t
+           lsp-java-vmargs
+           (list "-Xms1000m"
+                 "-Dlog.protocol=true"
+                 "-Dlog.level=DEBUG"
+                 "-Xmx2G"
+                 "-XX:+UnlockExperimentalVMOptions"
+                 "-XX:+UseZGC"
+                 "-XX:+UseStringDeduplication"
+                 "-XX:AdaptiveSizePolicyWeight=90"
+                 "-Dsun.zip.disableMemoryMapping=true"
+                 "-javaagent:~/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar"
+                 ;; "-Xbootclasspath/a:~/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar"
+                 )
+           )
      (javascript :variables
                  javascript-backend 'tide
                  javascript-lsp-linter nil
@@ -256,7 +275,9 @@
    ;; them if they become unused. `all' installs *all* packages supported by
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
-   dotspacemacs-additional-packages `((hima :location local)
+   dotspacemacs-additional-packages `(
+                                      org-ai
+                                      ;; (hima :location local)
                                       ;; --------- completion / search
                                       ;; fussy & liquidmetal are related
                                       ;; [jojojames/fussy](https://github.com/jojojames/fussy)
@@ -266,9 +287,8 @@
                                       ;; --------- themes
                                       ;; parchment-theme
                                       ;; paper-theme
-                                      ;; ef-themes
-                                      ;; tango-plus-theme
-                                      doom-themes
+                                      ef-themes
+                                      tango-plus-theme
 
                                       reformatter
                                       org-superstar
@@ -300,6 +320,8 @@
                                       pbcopy
                                       )
    dotspacemacs-excluded-packages `(
+        inspector
+        vim-powerline
         importmagic
         auto-highlight-symbol
         org-plus-contrib
@@ -365,7 +387,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(doom-rouge modus-operandi tango-plus mindre))
+   dotspacemacs-themes (if (display-graphic-p) '(tango-plus modus-operandi) '(tango-plus mindre))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -461,7 +483,7 @@
    ;; Backups
    backup-directory-alist `((".*" . ,temporary-file-directory))
    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
-   backup-by-copying t
+   backup-by-copying nil
    delete-old-versions t
    kept-new-versions 6
    kept-old-versions 2
@@ -508,7 +530,6 @@
   "Configuration function.
  This function is called at the very end of Spacemacs initialization after
 layers configuration."
-
   ;; ;; function from pbcopy package to manage clipboard when running in Terminal
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
@@ -523,6 +544,11 @@ layers configuration."
    scroll-margin 10
    truncate-partial-width-windows nil
    )
+
+  ;; https://stackoverflow.com/questions/7251784/how-do-i-adjust-the-left-margin-in-emacs-nox
+  (add-hook 'window-configuration-change-hook
+            (lambda ()
+              (set-window-margins nil 2)))
 
   ;; https://github.com/emacsorphanage/popwin
   (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
@@ -730,6 +756,7 @@ layers configuration."
   (add-to-list 'flycheck-checkers 'vale 'append)
 
   )
+
 ;; [Send region to shell in another buffer - Emacs Stack Exchange](https://emacs.stackexchange.com/questions/37887/send-region-to-shell-in-another-buffer)
 (defun tws-region-to-process (arg beg end)
   "Send the current region to a process buffer.

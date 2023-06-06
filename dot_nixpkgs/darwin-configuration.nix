@@ -1,6 +1,22 @@
-{ config, pkgs, ... }:
+{ config, pkgs ? import (builtins.fetchTarball {
+     name = "nixos-22.11-master";
+     url = "https://github.com/NixOS/nixpkgs/archive/15b75800dce80225b44f067c9012b09de37dfad2.tar.gz";
+     # Hash obtained using `nix-prefetch-url --unpack <url>`
+     sha256 = "0xmza136qf0hssh2a4dq62w7w1xs6rdfxs314pqxqjvvqibf1qb2";
+   }) {}, lib, ... }:
 
 let
+  # Using of the latest packages
+  # edge = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/master.tar.gz") { };
+  # Then in system dependencies:
+  # (with edge; [
+  #   # go
+  #   go_1_17
+  #   # placeholder
+  #   # graalvm8-ce
+  #   # clang_12
+  # ])
+
   pngpaste = pkgs.stdenv.mkDerivation {
     name = "pngpaste_0.2.3";
     version = "0.2.3";
@@ -31,15 +47,19 @@ in {
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
 
-  nixpkgs.overlays = [
-     (import (builtins.fetchTarball {
-       url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
-     }))
-  ];
+  # nixpkgs.overlays = [
+  #    (import (builtins.fetchTarball {
+  #      url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+  #      sha256 = "1268rw5c1vzl71pd4cmc8izig01rxw6kvmlpl3cyz3x1cf4wc115";
+  #    }))
+  # ];
 
   environment.systemPackages = with pkgs;
     [
+      terraform
+      vault
       (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
+      lorri
 
       pngpaste
       aspell
@@ -47,6 +67,16 @@ in {
       aspellDicts.en-computers
 
       fzf
+      entr
+
+      # like jq or yq but for HTML
+      pup
+      jq
+      yq
+      # [johnkerl/miller: Miller is like awk, sed, cut, join, and sort for name-indexed data such as CSV, TSV, and tabular JSON](https://github.com/johnkerl/miller)
+      miller
+
+      rlwrap
 
       tldr  # community-driven man pages
 
@@ -78,8 +108,6 @@ in {
       coreutils
       ffmpeg
       gdb
-      jq
-      yq
       tree
       youtube-dl
 
@@ -116,7 +144,6 @@ in {
       # https://github.com/tmux/tmux/issues/543#issuecomment-248980734
       # https://github.com/tmux/tmux/issues/543
       reattach-to-user-namespace
-      pkgs.neovim
 
       # Editors
       (
@@ -138,8 +165,8 @@ in {
           };
         }
       )
-     ((emacsPackagesFor emacsNativeComp).emacsWithPackages (epkgs: [
-       epkgs.vterm
+     ((emacsPackagesFor emacsMacport).emacsWithPackages (epkgs: [
+      epkgs.vterm
      ]))
 
       # Terms
@@ -161,11 +188,13 @@ in {
     # Auto upgrade nix package and the daemon service.
     # DO NOT ENABLE DAEMON
     nix-daemon.enable = false;
+    lorri.enable = true;
   };
 
   programs.man.enable = true;
   # so we can install something like unrar that is free but not OSS
   nixpkgs.config.allowUnfree = true;
+
   nixpkgs.config.allowUnsupportedSystem = false;
 
   environment.variables = {
@@ -249,7 +278,7 @@ in {
     # finder.FXEnableExtensionChangeWarning = false;
 
     # Increase window resize animation speed
-    NSGlobalDomain.NSWindowResizeTime = "0.001";
+    NSGlobalDomain.NSWindowResizeTime = 0.001;
 
     ## Keyboard
     # Enable full keyboard access for all controls (e.g. enable Tab in modal dialogs)
@@ -272,7 +301,7 @@ in {
   };
 
   fonts = {
-     fontDir.enable = true;
+     fontDir.enable = false;
      fonts = with pkgs; [
         (nerdfonts.override { fonts = [ "JetBrainsMono" "DroidSansMono" ]; })
         dejavu_fonts
