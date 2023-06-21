@@ -144,28 +144,10 @@ in {
       # https://github.com/tmux/tmux/issues/543#issuecomment-248980734
       # https://github.com/tmux/tmux/issues/543
       reattach-to-user-namespace
+      neovim
 
       # Editors
-      (
-        pkgs.neovim.override {
-          vimAlias = true;
-          configure = {
-            packages.myPlugins = with pkgs.vimPlugins; {
-              start = [
-                vim-lastplace
-                vim-nix
-                nerdcommenter #preservim/nerdcommenter
-                vim-sleuth #tpope/vim-sleuth
-                vim-surround #tpope/vim-surround
-                vim-test #janko/vim-test
-              ];
-              opt = [];
-            };
-            customRC = builtins.readFile ~/.vimrc;
-          };
-        }
-      )
-     ((emacsPackagesFor emacsMacport).emacsWithPackages (epkgs: [
+     ((emacsPackagesFor emacs29).emacsWithPackages (epkgs: [
       epkgs.vterm
      ]))
 
@@ -264,6 +246,7 @@ in {
     l = "ls -CF";
     tmux = "tmux -2";
     ddc = "docker-compose";
+    vim = "nvim";
   };
 
   system.defaults = {
