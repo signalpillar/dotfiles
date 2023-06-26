@@ -1,3 +1,7 @@
+function cdtemp {
+    cd $(mktemp -d)
+}
+
 function tailSysLog {
     tail -f /var/log/syslog -n 100
 }
