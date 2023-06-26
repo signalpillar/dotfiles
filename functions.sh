@@ -192,6 +192,8 @@ function trueuniq {
 
 # youtube-dl has this functionality built in. If you're running an older version
 # of youtube-dl, you can update it using `youtube-dl -U`
+# nix-shell -p python3
+# try_py_package youtube-dl youtube-dl
 # pip install --upgrade --force-reinstall "git+https://github.com/ytdl-org/youtube-dl.git"
 function convertUtubeVideoToMp3 {
     local -r VIDEO_URL="$1"
