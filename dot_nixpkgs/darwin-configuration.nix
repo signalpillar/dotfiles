@@ -60,6 +60,7 @@ in {
       vault
       (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
       lorri
+      babashka
 
       pngpaste
       aspell
@@ -85,6 +86,7 @@ in {
 
       dive  # tool to explore each layer of the docker image
       ctop  # htop for docker
+      kubectl
 
       ripgrep
       exa
@@ -287,6 +289,9 @@ in {
      fontDir.enable = false;
      fonts = with pkgs; [
         (nerdfonts.override { fonts = [ "JetBrainsMono" "DroidSansMono" ]; })
+        comic-mono
+        iosevka
+        iosevka-comfy.comfy-wide
         dejavu_fonts
         ibm-plex
         inconsolata
