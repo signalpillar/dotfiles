@@ -10,7 +10,7 @@
    dotspacemacs-use-spacelpa nil
 
    dotspacemacs-auto-resume-layouts nil
-   dotspacemacs-delete-orphan-packages nil
+   dotspacemacs-delete-orphan-packages t
    dotspacemacs-distribution 'spacemacs
 
    ;; If non-nil then Spacemacs will ask for confirmation before installing
@@ -19,9 +19,15 @@
 
    dotspacemacs-configuration-layers
 
-   '(
+   '(sql
+     clojure
+     protobuf
+     (dash :variables helm-dash-browser-func 'eww)
+     (spacemacs-layouts
+      :variables
+      spacemacs-layouts-restrict-spc-tab t
+      persp-autokill-buffer-on-remove 'kill-weak)
      ;; ansible
-     ;; copilot
      ;; compleseus
      terraform
      (rust :variables rust-format-on-save t)
@@ -83,7 +89,7 @@
           lsp-enable-symbol-highlighting nil
           lsp-ui-doc-enable t
           lsp-navigation 'peek
-          lsp-modeline-code-actions-enable nil
+          lsp-modeline-code-actions-enable t
           lsp-modeline-diagnostics-enable nil
           lsp-modeline-code-actions-segments nil
           lsp-use-lsp-ui t
@@ -112,49 +118,11 @@
      (org :variables
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
           org-refile-targets '((nil :maxlevel . 10))
-
-          org-modules '(org-habit)
-          ;; org-enable-roam-support t
-          ;; org-roam-v2-ack t
-          ;; org-roam-directory "~/Dropbox/notes/org-roam"
-          ;; https://github.com/abo-abo/org-download
           org-download-method 'attach
           org-download-timestamp t
           org-enable-bootstrap-support t
-          org-enable-org-journal-support t
-          org-enable-hugo-support t
           org-startup-indented t
-          org-journal-dir "~/Dropbox/org-mode/journal/"
-          org-agenda-files (quote ("~/Dropbox/org-mode/"
-     {{- if eq .chezmoi.hostname "B-5014" }}
-          "~/Dropbox/babylon-org-mode"
-          "~/Dropbox/babylon-org-mode/notes"
-     {{- end}}
-          ))
           org-hide-emphasis-markers t
-          ;; this is to open only the task in the follow mode in agenda (F)
-          org-agenda-follow-indirect t
-          org-capture-templates
-          '(;; other entries
-            ("j" "Journal entry" plain
-             (file+datetree+prompt "~/Dropbox/org-mode/journal.org")
-             "**** %?")
-     {{- if eq .chezmoi.hostname "B-5014" }}
-            ("i" "Interview entry" plain
-             (file+datetree+prompt "~/Dropbox/babylon-org-mode/interviews.org")
-             "**** TODO Interview %?        :interview:\nSCHEDULED: %t")
-            ("t" "Journal todo" plain
-             (file+datetree+prompt "~/Dropbox/babylon-org-mode/journal.org")
-             "**** TODO %?\nSCHEDULED: %t")
-            ("d" "Babylon day" plain
-             (file+datetree+prompt "~/Dropbox/babylon-org-mode/babylon.org")
-             "%T\n%?"
-             :prepend t
-             :empty-lines 0
-             )
-     {{- end}}
-            )
-
           org-cycle-separator-lines -2
           org-fontify-whole-heading-lines t
           org-blank-before-new-entry '(
@@ -162,28 +130,10 @@
                                        (plain-list-item . nil))
           org-export-babel-evaluate nil
           org-src-preserve-indentation t
-          org-todo-keywords (quote
-                   ((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d@/!)")
-                    (sequence "WAITING(w@/!)" "REVIEW(r)"
-                        "HOLD(h@/!)" "|" "CANCELLED(c@/!)" "MERGED(m)" "MEETING(g@/!)")))
-          org-todo-keyword-faces (quote
-                                  (
-                                   ("TODO" :foreground "red" :width bold)
-                                   ("NEXT" :foreground "blue" :width bold)
-                                   ("DONE" :foreground "forest green" :width bold)
-                                   ("WAITING" :foreground "orange" :width bold)
-                                   ("REVIEW" :foreground "orange" :width bold)
-                                   ("MEETING" :foreground "orange" :width bold)
-                                   ("HOLD" :foreground "magenta" :width bold)
-                                   ("CANCELLED" :foreground "forest gree" :width bold)
-                                   ("MERGED" :foreground "forest green" :width bold)))
           org-log-done (quote time)
           org-log-into-drawer t
           org-log-state-notes-insert-after-drawers nil
           org-hide-emphasis-markers t
-          org-enable-github-support t
-          org-enable-bootstrap-support t
-          org-enable-reveal-js-support t
           ;; Syntax highlighting in #+BEGIN_SRC blocks
           org-src-fontify-natively t
           ;; Don't prompt before running code in org
@@ -249,8 +199,8 @@
                  "-XX:+UseStringDeduplication"
                  "-XX:AdaptiveSizePolicyWeight=90"
                  "-Dsun.zip.disableMemoryMapping=true"
-                 "-javaagent:~/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar"
-                 ;; "-Xbootclasspath/a:~/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar"
+                 (format "-javaagent:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
+                 (format "-Xbootclasspath/a:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
                  )
            )
      (javascript :variables
@@ -285,8 +235,7 @@
                                       ;; liquidmetal
 
                                       ;; --------- themes
-                                      ;; parchment-theme
-                                      ;; paper-theme
+                                      parchment-theme
                                       ef-themes
                                       tango-plus-theme
 
@@ -300,7 +249,7 @@
 
                                       ;; magit-delta
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
-                                      all-the-icons
+                                      ;; all-the-icons
 
                                       poetry
                                       ;; protobuf-mode
@@ -318,6 +267,10 @@
                                       jest-test-mode
                                       ;; access clipboard in OSX
                                       pbcopy
+                                      (copilot :location (recipe
+                                                          :fetcher github
+                                                          :repo "zerolfx/copilot.el"
+                                                          :files ("*.el" "dist")))
                                       )
    dotspacemacs-excluded-packages `(
         inspector
@@ -359,6 +312,8 @@
    before layers configuration."
 
   (setq-default
+   spacemacs-theme-comment-italic t
+   spacemacs-theme-keyword-italic t
    dotspacemacs-folding-method 'origami
    ;; I replaced 'vim-powerline with 'vanilla as I get more value when there are many windows
    ;; dotspacemacs-mode-line-theme 'vim-powerline
@@ -387,7 +342,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(tango-plus modus-operandi) '(tango-plus mindre))
+   dotspacemacs-themes (if (display-graphic-p) '(tango-plus modus-operandi) '(tango-plus))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -407,8 +362,9 @@
    dotspacemacs-large-file-size 1
 
    ;; dotspacemacs-default-font '("Go Mono" :size 14)
-   dotspacemacs-default-font '("Inconsolata" :size 16)
-
+   ;; dotspacemacs-default-font '("Inconsolata" :size 16)
+   ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
+   dotspacemacs-default-font '("Monaco" :size 14)
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
    dotspacemacs-major-mode-leader-key "SPC"
@@ -534,6 +490,23 @@ layers configuration."
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
 
+
+  ;; --------- copilot
+  ;; accept completion from copilot and fallback to company
+  (with-eval-after-load 'company
+    ;; disable inline previews
+    (delq 'company-preview-if-just-one-frontend company-frontends))
+  (with-eval-after-load 'copilot
+    (define-key copilot-completion-map (kbd "<tab>") 'copilot-accept-completion)
+    (define-key copilot-completion-map (kbd "TAB") 'copilot-accept-completion)
+    (define-key copilot-completion-map (kbd "C-TAB") 'copilot-accept-completion-by-word)
+    (define-key copilot-completion-map (kbd "C-<tab>") 'copilot-accept-completion-by-word))
+
+  (add-hook 'prog-mode-hook 'copilot-mode)
+
+  ;; --------- copilot
+
+
   (direnv-mode)
   (config-visuals)
 
@@ -555,14 +528,9 @@ layers configuration."
 
   ;; (set-background-color "ivory")
   (setq use-dialog-box nil)
-  (setq sp/deft/dir-list '("~/Dropbox/notes"
-   {{- if eq .chezmoi.hostname "B-5014" }}
-                           "~/Dropbox/babylon-org-mode/notes"
-                           "~/Dropbox/notes/org-roam"
-   {{- end}}
-                           ))
+  (setq sp/deft/dir-list '("~/notes"))
 
-  (setq deft-directory "~/Dropbox/notes")
+  (setq deft-directory "~/notes")
   ;; pytest
   ;; (add-to-list 'pytest-project-root-files "pyproject.toml")
 
@@ -785,6 +753,16 @@ active process."
   (process-send-string tws-process-target (format "%s\n"(buffer-substring beg end)))
   )
 
+(defun sp/workflows/mark-git-branch-as-done (main-branch)
+  ;; depends on magit
+  (interactive (list (read-string "Main branch: " "master")))
+
+  (let ((branch-to-delete (magit-get-current-branch)))
+    (magit-branch-checkout main-branch)
+    (call-interactively 'magit-branch-delete branch-to-delete)
+    (call-interactively 'magit-pull))
+  )
+
 (defun config-visuals ()
 
   (spacemacs/toggle-highlight-current-line-globally-off)
@@ -848,7 +826,7 @@ active process."
     (message "Activated python - %s" python-exe)
     (setq lsp-pyright-venv-path (poetry-get-virtualenv))
     (message "LPS pyright venv path: %s" lsp-pyright-venv-path)
-    (setq pytest-global-name (format "%s -m pytest" python-exe))
+    (setq pytest-global-name (format "%s --module -m pytest" python-exe))
     (pythonic-activate python-exe)
     (setq lsp-python-ms-python-executable python-exe)
     ;; support for python.el.gz
