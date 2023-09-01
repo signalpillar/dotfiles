@@ -1,0 +1,51 @@
+# -*- mode: snippet -*-
+# name: coding task
+# key: <coding
+# --
+Problem:
+
+*Description*
+
+Example 1:
+
+#+begin_example
+#+end_example
+
+*Constraints*:
+
+#+begin_example
+2 <= nums.length <= 104
+-109 <= nums[i] <= 109
+-109 <= target <= 109
+#+end_example
+
+
+*Follow-up*: ???
+* Solution 1
+#+begin_src python
+import timeit
+from typing import List
+from unittest import TestCase
+
+class Solution:
+  def solution(self) -> None:
+    ...
+
+
+class Test(TestCase):
+    def test(self):
+        self.assertEqual(, Solution().solution())
+
+timeit.timeit(Test().test, number=1)
+#+end_src
+
+** Time complexity
+O(n^2) - for each element, we try to find its complement by looping through the
+rest of the array which takes O(n) time. Therefore, the time complexity is O(n^2)
+
+** Space complexity
+The space required doesn ot depend on the size of the input array, so only
+constant space is used.
+[[https://leetcode.com/problems/two-sum/][Two Sum - LeetCode]]
+Given an array of integers nums and an integer target, return indices of the two
+numbers such that they add up to target.
