@@ -290,6 +290,7 @@ function nix-show-package-info {
 }
 
 function docker-remove-all-containers {
+    # Run 'docker container prune' to remove all stopped containers
     docker rm `docker ps -a -q`
 }
 
@@ -299,6 +300,7 @@ function docker-remove-dangling-imagines {
     # However, after image creation, these layers won't have any relationship
     # with any tagged images. So it's safe to remove all those images as they
     # consume unnecessary disk space.
+    # > docker system df
     docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi
 }
 

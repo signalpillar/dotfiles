@@ -60,6 +60,7 @@ in {
       vault
       (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
       lorri
+      babashka
 
       pngpaste
       aspell
@@ -85,6 +86,7 @@ in {
 
       dive  # tool to explore each layer of the docker image
       ctop  # htop for docker
+      kubectl
 
       ripgrep
       exa
@@ -144,28 +146,10 @@ in {
       # https://github.com/tmux/tmux/issues/543#issuecomment-248980734
       # https://github.com/tmux/tmux/issues/543
       reattach-to-user-namespace
+      neovim
 
       # Editors
-      (
-        pkgs.neovim.override {
-          vimAlias = true;
-          configure = {
-            packages.myPlugins = with pkgs.vimPlugins; {
-              start = [
-                vim-lastplace
-                vim-nix
-                nerdcommenter #preservim/nerdcommenter
-                vim-sleuth #tpope/vim-sleuth
-                vim-surround #tpope/vim-surround
-                vim-test #janko/vim-test
-              ];
-              opt = [];
-            };
-            customRC = builtins.readFile ~/.vimrc;
-          };
-        }
-      )
-     ((emacsPackagesFor emacsMacport).emacsWithPackages (epkgs: [
+     ((emacsPackagesFor emacs29).emacsWithPackages (epkgs: [
       epkgs.vterm
      ]))
 
@@ -264,6 +248,7 @@ in {
     l = "ls -CF";
     tmux = "tmux -2";
     ddc = "docker-compose";
+    vim = "nvim";
   };
 
   system.defaults = {
@@ -304,6 +289,9 @@ in {
      fontDir.enable = false;
      fonts = with pkgs; [
         (nerdfonts.override { fonts = [ "JetBrainsMono" "DroidSansMono" ]; })
+        comic-mono
+        iosevka
+        iosevka-comfy.comfy-wide
         dejavu_fonts
         ibm-plex
         inconsolata
