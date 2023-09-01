@@ -27,14 +27,21 @@
       :variables
       spacemacs-layouts-restrict-spc-tab t
       persp-autokill-buffer-on-remove 'kill-weak)
-     ;; ansible
-     ;; compleseus
      terraform
+
+     (elfeed :variables
+             rmh-elfeed-org-files (list "~/notes/main-elfeed.org")
+             elfeed-enable-web-interface t
+             )
+     (clojure :variables
+              clojure-enable-fancify-symbols t
+              clojure-backend 'cider)
      (rust :variables rust-format-on-save t)
      (deft :variables deft-extensions '("org" "md" "txt"))
      (helm :variables
            helm-completion-style 'emacs
            )
+     chrome
      (treemacs :packages nil)
      nixos
 
@@ -42,8 +49,8 @@
 
      ;; semantic
      neotree
-     ;; csv
-     ;; graphviz
+     csv
+     graphviz
      ;; (go :variables
      ;;     go-backend 'lsp
      ;;     ;; go-backend 'go-mode
@@ -81,29 +88,29 @@
           magit-diff-refine-hunk nil
           )
      ;; gtags
-     ;; html
+     html
      (lsp :variables
           ;; https://emacs-lsp.github.io/lsp-mode/tutorials/how-to-turn-off/
           lsp-headerline-breadcrumb-enable nil
           lsp-enable-file-watchers nil
           lsp-enable-symbol-highlighting nil
           lsp-ui-doc-enable t
-          lsp-navigation 'peek
-          lsp-modeline-code-actions-enable t
+          lsp-navigation 'both
+          lsp-modeline-code-actions-enable nil
           lsp-modeline-diagnostics-enable nil
-          lsp-modeline-code-actions-segments nil
-          lsp-use-lsp-ui t
+          lsp-modeline-code-actions-segments t
+          lsp-use-lsp-ui nil
           lsp-lens-enable t
           lsp-auto-guess-root t
-          lsp-log-io t
+          lsp-log-io nil
           lsp-restart 'auto-restart
           lsp-keep-workspace-alive nil
           lsp-enable-on-type-formatting nil
           lsp-signature-auto-activate nil
           lsp-signature-render-documentation nil
-          lsp-eldoc-hook nil
-          lsp-semantic-tokens-enable nil
-          lsp-enable-folding nil
+          lsp-eldoc-hook t
+          lsp-semantic-tokens-enable t
+          lsp-enable-folding t
           ;; (https://github.com/emacs-lsp/lsp-pyright/issues/69#issuecomment-1432999642)
           read-process-output-max (* 1024 1024) ;; 1MB
           lsp-idle-delay 0.1
@@ -235,9 +242,11 @@
                                       ;; liquidmetal
 
                                       ;; --------- themes
-                                      parchment-theme
+                                      ;; parchment-theme
+                                      ;; paper-theme
                                       ef-themes
-                                      tango-plus-theme
+                                      ;; tango-plus-theme
+                                      ;; hippo-themes
 
                                       reformatter
                                       org-superstar
@@ -342,7 +351,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(tango-plus modus-operandi) '(tango-plus))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(modus-operandi tango-plus mindre))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -362,9 +371,8 @@
    dotspacemacs-large-file-size 1
 
    ;; dotspacemacs-default-font '("Go Mono" :size 14)
-   ;; dotspacemacs-default-font '("Inconsolata" :size 16)
-   ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
-   dotspacemacs-default-font '("Monaco" :size 14)
+   dotspacemacs-default-font '("Inconsolata" :size 16)
+
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
    dotspacemacs-major-mode-leader-key "SPC"
@@ -421,6 +429,7 @@
   ;; just in case if custom theme is added
   (add-to-list 'custom-theme-load-path "~/.emacs.d/private/local/")
   (setq-default
+   spell-checking-enable-by-default nil
    ;; Increase minimum severity level for displaying the warning buffer.
    ;; It's an alternative way to supress warnings buffer to disabling warnings and errors from
    ;; asynchronous native compilation.
@@ -439,7 +448,7 @@
    ;; Backups
    backup-directory-alist `((".*" . ,temporary-file-directory))
    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
-   backup-by-copying nil
+   backup-by-copying t
    delete-old-versions t
    kept-new-versions 6
    kept-old-versions 2
