@@ -1,0 +1,45 @@
+# -*- mode: snippet -*-
+#name : android-screen-mirror-nix-shell
+#key : android-screen-mirror-nix-shell
+#contributor : Volodymyr Vitvitskyi
+# --
+{ pkgs ? import <nixpkgs> {} }:
+with pkgs;
+
+let
+  android-nixpkgs = callPackage (import (builtins.fetchGit {
+    url = "https://github.com/tadfisher/android-nixpkgs.git";
+  })) {
+    # Default; can also choose "beta", "preview", or "canary".
+    channel = "stable";
+  };
+
+  android-sdk = android-nixpkgs.sdk (sdkPkgs: with sdkPkgs; [
+    cmdline-tools-latest
+    build-tools-30-0-2
+    platform-tools
+    platforms-android-31
+    platforms-android-33
+    emulator
+    system-images-android-31-google-apis-playstore-x86-64
+  ]);
+in pkgs.mkShell {
+  buildInputs = [
+    scrcpy
+    android-sdk
+  ];
+  shellHook = ''
+  function show-installed-android-sdk {
+    sdkmanager --list_installed
+  }
+  function create-emulator {
+    avdmanager --verbose create avd -n test -k "system-images;android-31;google_apis_playstore;x86_64" --device "pixel"
+  }
+  function start-emulator {
+    emulator -avd test
+  }
+  function mirror {
+    scrcpy --audio-codec=aac --audio-encoder='OMX.google.aac.encoder'
+  }
+  '';
+}
