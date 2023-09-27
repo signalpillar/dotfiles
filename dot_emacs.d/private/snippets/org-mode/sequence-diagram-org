@@ -1,0 +1,14 @@
+# -*- mode: snippet -*-
+#name : sequence-diagram-org
+#key : <sequence-diagram-org
+# --
+* workflow
+#+begin_src plantuml :file image_tmp.svg
+@startuml
+skinparam handwritten false
+autonumber
+participant client
+participant service
+client -> service: call
+@enduml
+#+end_src
