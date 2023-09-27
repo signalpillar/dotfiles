@@ -1,0 +1,20 @@
+let mapleader=","
+map <leader>t <Action>(RunClass)
+map <leader>d <Action>(Debug)
+map <leader>z <Action>(ToggleDistractionFreeMode)
+map <leader>en <Action>(GotoNextError)
+
+" [ideavim/doc/ideajoin-examples.md at master · JetBrains/ideavim](https://github.com/JetBrains/ideavim/blob/master/doc/ideajoin-examples.md)
+set ideajoin
+
+Plug 'preservim/nerdtree'
+map <leader>pt :NERDTreeToggle
+
+Plug 'tpope/vim-surround'
+set surround
+
+Plug 'tpope/vim-commentary'
+set commentary
+
+" Do incremental searching.
+set incsearch
