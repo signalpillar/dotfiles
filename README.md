@@ -19,6 +19,7 @@ Manually installed
 - [Kap](https://getkap.co/)
 - [Nix & NixOS | Reproducible builds and deployments](https://nixos.org/)
 - mplayer
+- [Hammerspoon](https://www.hammerspoon.org/)
 
 
 ## Android Command line tools
