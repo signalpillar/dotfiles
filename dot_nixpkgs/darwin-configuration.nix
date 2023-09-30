@@ -56,6 +56,8 @@ in {
 
   environment.systemPackages = with pkgs;
     [
+      mplayer
+
       terraform
       vault
       (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
@@ -159,6 +161,7 @@ in {
 
       # Java 11
       adoptopenjdk-bin
+      clojure
 
       (python39.withPackages(ps: with ps; [
           pip
