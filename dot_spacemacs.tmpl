@@ -155,7 +155,7 @@
      (python :variables
              python-shell-interpreter "python3"
              ;; no need to guess identation
-             python-indent-guess-indent-offset nil
+             python-indent-guess-indent-offset t
              python-guess-indent nil
              ;; python-backend 'anaconda
              python-backend 'lsp
@@ -233,6 +233,7 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
+                                      atomic-chrome
                                       org-ai
                                       ;; (hima :location local)
                                       ;; --------- completion / search
@@ -499,6 +500,12 @@ layers configuration."
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
 
+  ;; Ghost text
+  (setq atomic-chrome-url-major-mode-alist
+        '(("github\\.com" . gfm-mode)
+          ("hackerrank\\.com" . python-mode)
+          ("leetcode\\.com" . python-mode)
+          ("redmine" . textile-mode)))
 
   ;; --------- copilot
   ;; accept completion from copilot and fallback to company
@@ -515,6 +522,8 @@ layers configuration."
 
   ;; --------- copilot
 
+  ;; when editing source blocks enable auto-completion
+  (add-hook 'org-src-mode-hook (lambda () (auto-complete-mode 1)))
 
   (direnv-mode)
   (config-visuals)
@@ -617,6 +626,11 @@ layers configuration."
   (global-set-key (kbd "C--") 'zoom-frm-out)
   (setq clojure-enable-fancify-symbols t)
   (setq flycheck-display-errors-function 'flycheck-display-error-messages-unless-error-list)
+
+  ;; lisp
+  (add-hook 'clojure-mode 'electric-pair-mode)
+  (add-hook 'clojure-mode 'rainbow-delimiters-mode)
+  ;; (spacemacs/toggle-evil-safe-lisp-structural-editing-on-register-hooks)
 
   ;; Miscellaneous
   (add-hook 'org-mode-hook #'org-superstar-mode)
