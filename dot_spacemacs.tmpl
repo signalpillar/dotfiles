@@ -91,31 +91,33 @@
      html
      (lsp :variables
           ;; https://emacs-lsp.github.io/lsp-mode/tutorials/how-to-turn-off/
-          lsp-headerline-breadcrumb-enable nil
+          lsp-headerline-breadcrumb-enable t
           lsp-enable-file-watchers nil
           lsp-enable-symbol-highlighting nil
           lsp-ui-doc-enable t
-          lsp-navigation 'both
-          lsp-modeline-code-actions-enable nil
+          lsp-navigation 'peek
+          lsp-modeline-code-actions-enable t
           lsp-modeline-diagnostics-enable nil
-          lsp-modeline-code-actions-segments t
-          lsp-use-lsp-ui nil
+          lsp-modeline-code-actions-segments nil
+          lsp-use-lsp-ui t
           lsp-lens-enable t
           lsp-auto-guess-root t
-          lsp-log-io nil
+          lsp-log-io t
           lsp-restart 'auto-restart
           lsp-keep-workspace-alive nil
           lsp-enable-on-type-formatting nil
           lsp-signature-auto-activate nil
           lsp-signature-render-documentation nil
-          lsp-eldoc-hook t
-          lsp-semantic-tokens-enable t
-          lsp-enable-folding t
+          lsp-eldoc-hook nil
+          lsp-semantic-tokens-enable nil
+          lsp-enable-folding nil
+          lsp-disabled-clients '(semgrep-ls)
           ;; (https://github.com/emacs-lsp/lsp-pyright/issues/69#issuecomment-1432999642)
           read-process-output-max (* 1024 1024) ;; 1MB
-          lsp-idle-delay 0.1
+          lsp-idle-delay 1.5
           )
-     markdown
+     (markdown :variables
+               markdown-live-preview-engine 'vmd)
      ;; (dart :variables
      ;;   dart-backend 'lsp
      ;;   lsp-enable-on-type-formatting t
@@ -198,16 +200,18 @@
            lsp-java-boot-lens-mode t
            lsp-java-vmargs
            (list "-Xms1000m"
+                 "-noverify"
+                 "--enable-preview"
                  "-Dlog.protocol=true"
                  "-Dlog.level=DEBUG"
-                 "-Xmx2G"
+                 "-Xmx4G"
                  "-XX:+UnlockExperimentalVMOptions"
                  "-XX:+UseZGC"
                  "-XX:+UseStringDeduplication"
                  "-XX:AdaptiveSizePolicyWeight=90"
                  "-Dsun.zip.disableMemoryMapping=true"
-                 (format "-javaagent:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
-                 (format "-Xbootclasspath/a:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
+                 (format "-javaagent:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.22//9c08ea24c6eb714e2d6170e8122c069a0ba9aacf/lombok-1.18.22.jar" (expand-file-name "~"))
+                 ;; (format "-Xbootclasspath/a:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
                  )
            )
      (javascript :variables
@@ -234,6 +238,8 @@
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
                                       atomic-chrome
+                                      helm-icons
+                                      highlight-indent-guides
                                       org-ai
                                       ;; (hima :location local)
                                       ;; --------- completion / search
@@ -283,8 +289,9 @@
                                                           :files ("*.el" "dist")))
                                       )
    dotspacemacs-excluded-packages `(
+        ;; use highlight-indent-guides instead
+        highlight-indentation
         inspector
-        vim-powerline
         importmagic
         auto-highlight-symbol
         org-plus-contrib
@@ -302,9 +309,9 @@
         fancy-battery
 
         ;; git-gutter
-        ;; git-gutter+
-        ;; git-gutter-fringe
-        ;; git-gutter-fringe+
+        git-gutter+
+        git-gutter-fringe
+        git-gutter-fringe+
 
         ;; https://github.com/syl20bnr/spacemacs/issues/9124
         ;; it's not possible to change the compile buffer position
@@ -325,10 +332,8 @@
    spacemacs-theme-comment-italic t
    spacemacs-theme-keyword-italic t
    dotspacemacs-folding-method 'origami
-   ;; I replaced 'vim-powerline with 'vanilla as I get more value when there are many windows
-   ;; dotspacemacs-mode-line-theme 'vim-powerline
-   dotspacemacs-mode-line-unicode-symbols nil
-   dotspacemacs-mode-line-theme 'vanilla
+   dotspacemacs-mode-line-theme 'doom
+   dotspacemacs-mode-line-unicode-symbols t
    dotspacemacs-highlight-delimiters 'nil
 
    display-line-numbers-width 3
@@ -352,7 +357,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(modus-operandi tango-plus mindre))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi) '(ef-duo-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -372,8 +377,9 @@
    dotspacemacs-large-file-size 1
 
    ;; dotspacemacs-default-font '("Go Mono" :size 14)
-   dotspacemacs-default-font '("Inconsolata" :size 16)
-
+   ;; dotspacemacs-default-font '("Inconsolata" :size 16)
+   ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
+   dotspacemacs-default-font '("Monaco" :size 12)
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
    dotspacemacs-major-mode-leader-key "SPC"
@@ -449,7 +455,7 @@
    ;; Backups
    backup-directory-alist `((".*" . ,temporary-file-directory))
    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
-   backup-by-copying t
+   backup-by-copying nil
    delete-old-versions t
    kept-new-versions 6
    kept-old-versions 2
@@ -776,6 +782,15 @@ active process."
   (process-send-string tws-process-target (format "%s\n"(buffer-substring beg end)))
   )
 
+(defun sp/auth-info-host-user (host)
+  "Find user for the host"
+  (plist-get (car (auth-source-search :max 1 :host host :require '(:user))) :user))
+
+(defun sp/auth-info-host-password (host)
+  "Find password for the host"
+  (auth-info-password (car (auth-source-search :max 1 :host host :require '(:secret)))))
+
+
 (defun sp/workflows/mark-git-branch-as-done (main-branch)
   ;; depends on magit
   (interactive (list (read-string "Main branch: " "master")))
@@ -787,13 +802,12 @@ active process."
   )
 
 (defun config-visuals ()
-
   (spacemacs/toggle-highlight-current-line-globally-off)
   (add-hook 'semantic-mode-hook 'sp/fight-stickyfunc)
 
   ;; [DarthFennec/highlight-indent-guides: Emacs minor mode to highlight indentation](https://github.com/DarthFennec/highlight-indent-guides)
-  (add-hook 'prog-mode-hook 'highlight-indentation-mode)
-  (setq-default highlight-indent-guides-method 'bitmap)
+  (add-hook 'prog-mode-hook 'highlight-indent-guides-mode)
+  (setq-default highlight-indent-guides-method 'character)
 
   (unless (display-graphic-p)
     (set-face-background 'default "unspecified-bg" (selected-frame)))
@@ -998,7 +1012,41 @@ This function is called at the very end of Spacemacs initialization."
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    '(graphql keycast command-log-mode vs-light-theme counsel-gtags counsel swiper ivy ggtags helm-gtags racer vscode-dark-plus-theme yasnippet-snippets yapfify yaml-mode xterm-color ws-butler writeroom-mode writegood-mode winum which-key web-mode web-beautify volatile-highlights virtualenvwrapper vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil tree-sitter-langs toml-mode toc-org tide terminal-here term-cursor tango-plus-theme tagedit symon symbol-overlay string-inflection string-edit-at-point sphinx-doc spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc smeargle slim-mode shell-pop scss-mode sass-mode rust-mode ron-mode rjsx-mode restclient-helm restart-emacs ranger rainbow-mode rainbow-identifiers rainbow-delimiters quickrun pytest pylookup pyenv-mode pydoc py-isort pug-mode protobuf-mode prettier-js powerthesaurus popwin poetry pipenv pdf-view-restore pcre2el pbcopy password-generator paradox ox-twbs ox-hugo ox-gfm overseer orgit org-superstar org-rich-yank org-re-reveal org-projectile org-present org-pomodoro org-modern org-mime org-journal org-download org-contrib org-cliplink open-junk-file ob-restclient ob-http ob-graphql ob-async npm-mode nose nodejs-repl nix-mode neotree nameless multi-vterm multi-term multi-line mmm-mode mindre-theme markdown-toc macrostep lsp-python-ms lsp-pyright lsp-origami lsp-dart lorem-ipsum livid-mode live-py-mode liquidmetal link-hint json-reformat json-navigator json-mode js2-refactor js-doc jest-test-mode inspector info+ indent-guide impatient-mode ibuffer-projectile hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt helpful help-fns+ helm-xref helm-themes helm-swoop helm-pydoc helm-purpose helm-projectile helm-org-rifle helm-org helm-nixos-options helm-mode-manager helm-make helm-lsp helm-ls-git helm-lobsters helm-git-grep helm-descbinds helm-dash helm-css-scss helm-company helm-c-yasnippet helm-ag hackernews graphviz-dot-mode google-translate golden-ratio godoctor go-tag go-rename go-impl go-guru go-gen-test go-fill-struct go-eldoc gnuplot gmail-message-mode gitignore-templates git-timemachine git-modes git-messenger git-link git-gutter-fringe gh-md fuzzy fussy font-lock+ flyspell-correct-helm flymd flycheck-rust flycheck-pos-tip flycheck-package flycheck-mypy flycheck-elsa flx-ido flutter fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-org evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu eshell-z eshell-prompt-extras esh-help emr emmet-mode elisp-slime-nav elisp-def editorconfig edit-server easy-hugo dumb-jump drag-stuff dotenv-mode direnv dired-quick-sort diminish devdocs deft define-word dash-at-point cython-mode csv-mode copy-as-format company-web company-restclient company-quickhelp company-nixos-options company-go company-anaconda column-enforce-mode color-identifiers-mode code-cells clean-aindent-mode centered-cursor-mode centaur-tabs cargo browse-at-remote blacken auto-yasnippet auto-highlight-symbol auto-dictionary auto-compile aggressive-indent ace-link ace-jump-helm-line ac-ispell))
- '(pytest-cmd-flags "-vv -x -s --color=no --doctest-modules"))
+ '(helm-icons-provider 'nerd-icons)
+ '(pytest-cmd-flags "-vv -x -s --color=no --doctest-modules")
+ '((eval setq lsp-java-java-path
+           (format "%s/%s"
+                   (getenv "JAVA_HOME")
+                   "/bin/java")
+           lsp-java-import-gradle-java-home
+           (format "%s/%s"
+                   (getenv "JAVA_HOME")
+                   "/bin/java")
+           lsp-java-import-gradle-enabled t lsp-java-vmargs
+           (list "-noverify" "--enable-preview")
+           lsp-java-configuration-runtimes
+           '[(:name "JavaSE-17" :path
+                    (getenv "JAVA_HOME")
+                    :default t)])
+     (eval setq lsp-java-java-path
+           (format "%s/%s"
+                   (getenv "JAVA_HOME")
+                   "/bin/java")
+           lsp-java-import-gradle-java-home
+           (format "%s/%s"
+                   (getenv "JAVA_HOME")
+                   "/bin/java")
+           lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
+           '[(:name "JavaSE-17" :path
+                    (getenv "JAVA_HOME")
+                    :default t)])
+     (typescript-backend . tide)
+     (typescript-backend . lsp)
+     (javascript-backend . tide)
+     (javascript-backend . tern)
+     (javascript-backend . lsp))
+
+)
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
