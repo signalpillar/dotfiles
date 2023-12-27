@@ -78,7 +78,7 @@ function whoListenPort {
 }
 
 function shareCurrentFolder {
-    python -m http.server
+    python3 -m http.server
 }
 
 function getExternalIp {
@@ -243,7 +243,7 @@ function emacsOpen {
 
 
 function pretty_print_xml  {
-    cat $1 | python -c 'import sys; import xml.dom.minidom; s=sys.stdin.read(); print(xml.dom.minidom.parseString(s).toprettyxml())'
+    cat $1 | python3 -c 'import sys; import xml.dom.minidom; s=sys.stdin.read(); print(xml.dom.minidom.parseString(s).toprettyxml())'
 }
 
 function simple_chat {
@@ -306,7 +306,7 @@ function docker-remove-dangling-imagines {
 
 function install-anaconda-dependencies {
     wget -o ~/tmp/anaconda-requirements.txt https://raw.githubusercontent.com/proofit404/anaconda-mode/master/requirements.txt
-    pip install -r ~/tmp/anaconda-requirements.txt
+    python3 -m pip -- install -r ~/tmp/anaconda-requirements.txt
 }
 
 
@@ -466,9 +466,9 @@ function try_py_package {
     local -r env_name=$1
     local -r pip_install_args=$2
     cd ~/tmp
-    python -m venv "$env_name"
+    python3 -m venv "$env_name"
     source "$env_name"/bin/activate
-    pip install $pip_install_args
+    python3 -m pip -- install $pip_install_args
 }
 
 # 1password functions
