@@ -60,7 +60,8 @@ in {
 
       terraform
       vault
-      (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
+      devbox
+      # (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
       lorri
       babashka
 
@@ -302,6 +303,7 @@ in {
         emacs-all-the-icons-fonts
         go-font
         jetbrains-mono
+        iosevka
      ];
    };
 }
