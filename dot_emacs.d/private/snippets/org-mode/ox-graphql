@@ -1,0 +1,24 @@
+# -*- mode: snippet -*-
+#name : ox-graphql
+#key : ox-graphql
+# --
+#+NAME: headers
+#+begin_src emacs-lisp
+  '(("Authorization" . "Bearer <TOKEN>"))
+#+end_src
+
+#+NAME: my-variables
+#+begin_example
+{"resource_id": "value"}
+#+end_example
+
+#+BEGIN_SRC graphql :url https://url/graph :headers headers :variables my-variables
+query Query($resource_uuid: ID!) {
+  resource(id: $resource_uuid) {
+    ... on Resource {
+      foo
+      bar
+    }
+  }
+}
+#+END_SRC
