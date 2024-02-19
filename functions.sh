@@ -192,12 +192,10 @@ function trueuniq {
 
 # youtube-dl has this functionality built in. If you're running an older version
 # of youtube-dl, you can update it using `youtube-dl -U`
-# nix-shell -p python3
-# try_py_package youtube-dl youtube-dl
-# pip install --upgrade --force-reinstall "git+https://github.com/ytdl-org/youtube-dl.git"
+# pip install --upgrade --force-reinstall "git+https://github.com/ytdl-org/ytdl-nightly.git"
 function convertUtubeVideoToMp3 {
     local -r VIDEO_URL="$1"
-    youtube-dl --verbose -t --extract-audio --audio-format mp3 "$VIDEO_URL"
+    youtube-dl -F --flat-playlist --cookies --verbose -t --extract-audio --audio-format mp3 "$VIDEO_URL"
 }
 
 # start command and kill it if still running after 5 secs
@@ -446,7 +444,7 @@ function git-clone-project {
 function debug-http-server {
     local -r port=${1:-8004}
     echo "Start debug server on port '$port' that will respond with 200 status code"
-    for i in `seq 5`; do { echo -e "HTTP/1.1 200 OK\r\n\n{\"nc_response_number\": $i}";  } | nc -l 8004; done
+    for i in `seq 5`; do { echo -ne "HTTP/1.1 200 OK\r\n\n"; cat -; } | nc -l 8004; done
 }
 
 
@@ -481,4 +479,26 @@ function op_save_file {
 function op_get_file {
     local -r title=$1
     op document get $title
+}
+
+function osx_keyboard_list_mappings {
+    # https://developer.apple.com/library/archive/technotes/tn2450/_index.html
+    sudo hidutil property --get UserKeyMapping
+}
+
+function osx_keyboard_setup_mappings {
+    # 1-2 Swap ~ and ±
+    # 3   Set right Options key to behave as Ctrl
+    # More codes can be found in the link below
+    # All you need is to add 0x700000000 with the code in the table
+    # https://developer.apple.com/library/archive/technotes/tn2450/_index.html
+    # Easy way to get the codes is to use the following website
+    # https://hidutil-generator.netlify.app/
+    # Nice article about the topic
+    # https://rakhesh.com/mac/using-hidutil-to-map-macos-keyboard-keys/
+    sudo hidutil property --set '{"UserKeyMapping":[
+{"HIDKeyboardModifierMappingSrc":0x700000035,"HIDKeyboardModifierMappingDst":0x700000064},
+{"HIDKeyboardModifierMappingSrc":0x700000064,"HIDKeyboardModifierMappingDst":0x700000035},
+{"HIDKeyboardModifierMappingSrc":0x7000000E6,"HIDKeyboardModifierMappingDst":0x7000000E4}
+]}'
 }
