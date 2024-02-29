@@ -1,0 +1,9 @@
+# -*- mode: snippet -*-
+#name : org-ai
+#key : org-ai
+#contributor : Volodymyr Vitvitskyi
+# --
+#+begin_ai
+[SYS]: $0
+[ME]: $1
+#+end_ai
