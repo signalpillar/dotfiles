@@ -19,7 +19,9 @@
 
    dotspacemacs-configuration-layers
 
-   '(protobuf
+   '(csv
+     protobuf
+     themes-megapack
      (spacemacs-layouts
       :variables
       spacemacs-layouts-restrict-spc-tab t
@@ -44,7 +46,9 @@
 
      helpful
 
+     ;; semantic
      neotree
+     ;; csv
      graphviz
      ;; (go :variables
      ;;     go-backend 'lsp
@@ -172,7 +176,8 @@
      (shell :variables
             shell-default-height 48
             shell-default-position 'bottom
-            shell-default-shell 'shell
+            ;; shell-default-term-shell "zsh"
+            shell-default-shell 'vterm
             )
      (spell-checking :variables
                      spell-checking-enable-auto-dictionary nil
@@ -251,6 +256,7 @@
                                       ;; protobuf-mode
                                       ;; eval-sexp-fu
                                       virtualenvwrapper
+                                      ox-gfm
                                       ob-restclient
                                       ob-graphql
                                       ;; allows to not block on org source-block
@@ -784,7 +790,7 @@ active process."
   ;; https://stackoverflow.com/questions/7251784/how-do-i-adjust-the-left-margin-in-emacs-nox
   (add-hook 'window-configuration-change-hook
             (lambda ()
-              (set-window-margins nil 0 2)))
+              (set-window-margins nil 2 2)))
 
   (spacemacs/toggle-highlight-current-line-globally-off)
   (add-hook 'semantic-mode-hook 'sp/fight-stickyfunc)
