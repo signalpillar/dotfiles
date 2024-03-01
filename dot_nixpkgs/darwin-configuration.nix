@@ -1,8 +1,8 @@
 { config, pkgs ? import (builtins.fetchTarball {
-     name = "nixos-22.11-master";
-     url = "https://github.com/NixOS/nixpkgs/archive/15b75800dce80225b44f067c9012b09de37dfad2.tar.gz";
+     name = "nixos-23.11";
+     url = "https://github.com/NixOS/nixpkgs/archive/068d4db604958d05d0b46c47f79b507d84dbc069.tar.gz";
      # Hash obtained using `nix-prefetch-url --unpack <url>`
-     sha256 = "0xmza136qf0hssh2a4dq62w7w1xs6rdfxs314pqxqjvvqibf1qb2";
+     sha256 = "03ql9z5pqfnkyrlg9pj1xz20fxs522p35nrywg1y9a8zr7y5fawz";
    }) {}, lib, ... }:
 
 let
@@ -56,7 +56,7 @@ in {
 
   environment.systemPackages = with pkgs;
     [
-      mplayer
+      # mplayer
 
       terraform
       vault
@@ -92,7 +92,7 @@ in {
       kubectl
 
       ripgrep
-      exa
+      eza
       figlet # show banners
 
       global
@@ -136,7 +136,7 @@ in {
 
       _1password
 
-      ncdu
+      # ncdu
       tmux
       tmuxp
       just
@@ -220,16 +220,54 @@ in {
   programs.zsh = {
     enable = true;
     enableCompletion = true;
+    enableGlobalCompInit = false;
     enableFzfCompletion = true;
     enableSyntaxHighlighting = true;
     # https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
+
+    # screenshots of the prompts: https://bneijt.nl/blog/zsh-themes-for-prompts-screenshots/
+    promptInit = "autoload -U promptinit && promptinit && prompt adam2 && setopt prompt_sp";
+
+    loginShellInit = ''
+
+    export PATH=$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:$PATH
+
+    export PIP_DOWNLOAD_CACHE=$HOME/Library/Caches/pip-downloads
+    export GPG_TTY=$(tty)
+
+    source ~/functions.sh
+    source ~/.env.sh
+
+    export NVM_DIR="$HOME/.nvm"
+
+    function load_nvm {
+      [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+    }
+
+    '';
     interactiveShellInit = ''
+      ZSH_THEME=rkj
+
+      PROMPT='[%?] %* %B%~%b $ '
+      DISABLE_MAGIC_FUNCTIONS="true"
+
       # Turn on when measuring plugin performance
       # zmodload zsh/zprof
       HISTSIZE=10000
       SAVEHIST=10000
       setopt autocd # auto cd when only path is entered
       setopt nomatch # throw an error on glob matching nothing
+
+      setopt SHARE_HISTORY
+
+      bindkey -e
+      bindkey '\e\e[C' forward-word
+      bindkey '\e\e[D' backward-word
+
+      alias route_gprs='sudo rounte delete default; sudo route add default 192.168.44.1'
+
+      eval "$(direnv hook zsh)"
     '';
   };
 
