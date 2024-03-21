@@ -15,11 +15,12 @@
 
    ;; If non-nil then Spacemacs will ask for confirmation before installing
    ;; a layer lazily. (default t)
-   dotspacemacs-ask-for-lazy-installation t
+   dotspacemacs-ask-for-lazy-installation nil
 
    dotspacemacs-configuration-layers
 
-   '(csv
+   '(rust
+     csv
      protobuf
      themes-megapack
      (spacemacs-layouts
@@ -176,7 +177,7 @@
      (shell :variables
             shell-default-height 48
             shell-default-position 'bottom
-            ;; shell-default-term-shell "zsh"
+            shell-default-term-shell "zsh"
             shell-default-shell 'vterm
             )
      (spell-checking :variables
@@ -262,6 +263,7 @@
                                       ;; allows to not block on org source-block
                                       ;; execution
                                       ob-async
+                                      reverso
                                       ;; writegood-mode requires configuration
                                       powerthesaurus
                                       ;; run tests in TS and TSX
@@ -992,10 +994,8 @@ This is an auto-generated function, do not modify its content directly, use
 Emacs customize menu instead.
 This function is called at the very end of Spacemacs initialization."
 (custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
+ ;; by defualt the files are shortened to 20 characters, 70 is way better
+ '(helm-buffer-max-length 70)
  '(helm-icons-provider 'nerd-icons)
  '(lsp-pyright-multi-root nil)
  '(package-selected-packages
