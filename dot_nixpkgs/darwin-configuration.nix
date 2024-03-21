@@ -168,6 +168,8 @@ in {
           pip
           black
           isort
+          requests
+          pytest
           tox
       ]))
   ];
