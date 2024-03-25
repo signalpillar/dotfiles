@@ -78,13 +78,13 @@ in {
       jq
       yq
       # [johnkerl/miller: Miller is like awk, sed, cut, join, and sort for name-indexed data such as CSV, TSV, and tabular JSON](https://github.com/johnkerl/miller)
-      miller
+      # miller
 
       rlwrap
 
       tldr  # community-driven man pages
 
-      bat   # clone of cat
+      # bat   # clone of cat
       cloc
 
       dive  # tool to explore each layer of the docker image
@@ -114,7 +114,7 @@ in {
       ffmpeg
       gdb
       tree
-      youtube-dl
+      # youtube-dl
 
       watch
       curl
@@ -166,6 +166,7 @@ in {
 
       (python39.withPackages(ps: with ps; [
           pip
+          pytest
           black
           isort
           requests
