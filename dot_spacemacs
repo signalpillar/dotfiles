@@ -19,10 +19,10 @@
 
    dotspacemacs-configuration-layers
 
-   '(rust
-     csv
+   '(dart
+     sql
      protobuf
-     themes-megapack
+     (dash :variables helm-dash-browser-func 'eww)
      (spacemacs-layouts
       :variables
       spacemacs-layouts-restrict-spc-tab t
@@ -34,6 +34,9 @@
      ;;         elfeed-enable-web-interface t
      ;;         )
      (clojure :variables
+              clojure-backend 'cider
+              clojure-enable-clj-refactor t
+              clojure-enable-linters 'clj-kondo
               clojure-enable-fancify-symbols t
               clojure-backend 'cider)
      ;; (rust :variables rust-format-on-save t)
@@ -257,7 +260,6 @@
                                       ;; protobuf-mode
                                       ;; eval-sexp-fu
                                       virtualenvwrapper
-                                      ox-gfm
                                       ob-restclient
                                       ob-graphql
                                       ;; allows to not block on org source-block
@@ -617,6 +619,11 @@ layers configuration."
   (global-set-key (kbd "C-=") 'zoom-frm-in)
   (global-set-key (kbd "C--") 'zoom-frm-out)
   (setq clojure-enable-fancify-symbols t)
+
+  ;; disable additional bindings so they aren't bound when the package loads
+  ;; https://github.com/emacs-evil/evil-cleverparens/issues/58#issuecomment-717412151
+  (setq evil-cleverparens-use-additional-bindings nil)
+
   (setq flycheck-display-errors-function 'flycheck-display-error-messages-unless-error-list)
 
   ;; lisp
@@ -678,6 +685,7 @@ layers configuration."
    '(
      (async . t)
      (plantuml . t)
+     (clojure . t)
      (awk . t)
      (dot . t)
      (emacs-lisp . t)
@@ -796,6 +804,10 @@ active process."
 
   (spacemacs/toggle-highlight-current-line-globally-off)
   (add-hook 'semantic-mode-hook 'sp/fight-stickyfunc)
+
+  ;; [DarthFennec/highlight-indent-guides: Emacs minor mode to highlight indentation](https://github.com/DarthFennec/highlight-indent-guides)
+  ;; (add-hook 'prog-mode-hook 'highlight-indent-guides-mode)
+  ;; (setq-default highlight-indent-guides-method 'character)
 
   (unless (display-graphic-p)
     (set-face-background 'default "unspecified-bg" (selected-frame)))
