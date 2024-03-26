@@ -1,8 +1,8 @@
 { config, pkgs ? import (builtins.fetchTarball {
      name = "nixos-23.11";
-     url = "https://github.com/NixOS/nixpkgs/archive/068d4db604958d05d0b46c47f79b507d84dbc069.tar.gz";
+     url = "https://github.com/NixOS/nixpkgs/archive/476a33c53da66a2a77a89bb9bcf54d5e3c232c3d.tar.gz";
      # Hash obtained using `nix-prefetch-url --unpack <url>`
-     sha256 = "03ql9z5pqfnkyrlg9pj1xz20fxs522p35nrywg1y9a8zr7y5fawz";
+     sha256 = "1swmx7i83z305srqg9ifv1wgcnrl9ah5y76f1vf38b5aihfr9m33";
    }) {}, lib, ... }:
 
 let
@@ -61,7 +61,10 @@ in {
       terraform
       vault
       devbox
-      # (import (fetchTarball https://github.com/cachix/devenv/archive/refs/tags/v0.5.tar.gz))
+      # (import (fetchTarball {
+      #   url = https://github.com/cachix/devenv/archive/refs/tags/v1.0.1.tar.gz;
+      #   sha256 = "0kc8m9xsl6mbf787zb566swx0dczb9d06zl5y3spiacn89xwdfgl";
+      # }))
       lorri
       babashka
 
@@ -250,9 +253,7 @@ in {
 
     '';
     interactiveShellInit = ''
-      ZSH_THEME=rkj
-
-      PROMPT='[%?] %* %B%~%b $ '
+      PROMPT='[%?] %* %B%~%b 🌳 '
       DISABLE_MAGIC_FUNCTIONS="true"
 
       # Turn on when measuring plugin performance
