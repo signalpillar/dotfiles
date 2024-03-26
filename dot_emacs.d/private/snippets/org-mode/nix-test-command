@@ -1,0 +1,19 @@
+# -*- mode: snippet -*-
+#name : nix-test-command
+#key : nix-test-command
+# --
+* test command with nix
+:PROPERTIES:
+:header-args: :session test-command :results verbatim
+:END:
+
+- =org-babel-switch-to-session (,mbz)=
+
+#+begin_src sh
+nix-shell -p duckdb
+PROMPT_COMMAND=;PS1="org_babel_sh_prompt> ";PS2=
+#+end_src
+
+#+begin_src sh
+duckdb --help
+#+end_src
