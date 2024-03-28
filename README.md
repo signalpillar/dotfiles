@@ -21,6 +21,8 @@ Manually installed
 - mplayer
 - [Hammerspoon](https://www.hammerspoon.org/)
 
+## AI
+- [GitHub - j178/chatgpt: An elegant interactive CLI for ChatGPT](https://github.com/j178/chatgpt)
 
 ## Android Command line tools
 - Download and unpack the dir `~/proj/cmdline-tools/latest`.

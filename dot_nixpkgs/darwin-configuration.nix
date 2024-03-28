@@ -95,7 +95,6 @@ in {
       kubectl
 
       ripgrep
-      eza
       figlet # show banners
 
       global
@@ -108,6 +107,7 @@ in {
       graphviz
 
       git
+      difftastic
       delta
 
       chezmoi
@@ -167,6 +167,7 @@ in {
       adoptopenjdk-bin
       clojure
 
+      pipx
       (python39.withPackages(ps: with ps; [
           pip
           pytest
@@ -174,6 +175,8 @@ in {
           isort
           requests
           pytest
+          pyflakes
+          isort
           tox
       ]))
   ];
@@ -203,6 +206,7 @@ in {
     ALTERNATE_EDITOR = "";
     # https://github.com/NixOS/nixpkgs/issues/4521#issuecomment-59080831
     ASPELL_CONF = "dict-dir ${pkgs.aspellDicts.en.out}/lib/aspell";
+    GIT_EXTERNAL_DIFF = "difft";
   };
 
   environment.systemPath = [
@@ -226,7 +230,6 @@ in {
   programs.zsh = {
     enable = true;
     enableCompletion = true;
-    enableGlobalCompInit = false;
     enableFzfCompletion = true;
     enableSyntaxHighlighting = true;
     # https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
