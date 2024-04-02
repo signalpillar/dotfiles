@@ -232,7 +232,7 @@ in {
     # https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
 
     # screenshots of the prompts: https://bneijt.nl/blog/zsh-themes-for-prompts-screenshots/
-    promptInit = "autoload -U promptinit && promptinit && prompt adam2 && setopt prompt_sp";
+    promptInit = "autoload -U promptinit && promptinit && prompt bart && setopt prompt_sp";
 
     loginShellInit = ''
 
@@ -244,16 +244,13 @@ in {
     source ~/functions.sh
     source ~/.env.sh
 
-    export NVM_DIR="$HOME/.nvm"
-
-    function load_nvm {
+    function init-nvm() {
+      export NVM_DIR="$HOME/.nvm"
       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-      [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
     }
-
     '';
     interactiveShellInit = ''
-      PROMPT='[%?] %* %B%~%b 🌳 '
+      PROMPT='[%?] %* %B%~%b £ '
       DISABLE_MAGIC_FUNCTIONS="true"
 
       # Turn on when measuring plugin performance
