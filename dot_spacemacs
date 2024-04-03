@@ -64,6 +64,8 @@
      ;;     go-tab-width 4
      ;;   )
      (auto-completion :variables
+                      company-minimum-prefix-length 1
+                      company-idle-delay 0.0
                       company-quickhelp-delay 0.8
                       auto-completion-minimum-prefix-length 1
                       auto-completion-enable-help-tooltip t
@@ -168,6 +170,8 @@
 
      ;; dap
      (python :variables
+             lsp-python-ms-python-executable "python3"
+             python-interpreter "python3"
              python-shell-interpreter "python3"
              ;; no need to guess identation
              python-indent-guess-indent-offset t
@@ -248,7 +252,8 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
-                                      atomic-chrome
+                                      magit-delta
+                                      ;; atomic-chrome
                                       ;; disabled as I use emacs 99.9% of the time in the terminal
                                       ;; helm-icons
                                       org-ai
@@ -260,7 +265,6 @@
                                       ;; to fix the editor issue when commiting
                                       ;; git-commit
 
-                                      ;; magit-delta
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       ;; all-the-icons
 
@@ -501,6 +505,8 @@ layers configuration."
   ;; ;; function from pbcopy package to manage clipboard when running in Terminal
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
+  ;; magit-delta
+  (add-hook 'magit-mode-hook (lambda () (magit-delta-mode +1)))
 
   ;; Ghost text
   (setq atomic-chrome-url-major-mode-alist
@@ -737,6 +743,8 @@ layers configuration."
       "tn" 'jest-test-run
       "tt" 'jest-test-run-at-point)
     (spacemacs/declare-prefix-for-mode major-mode "mt" "test"))
+
+  (setq open-junk-file-format "~/.tmp/%Y/%m/%d-%H%M%S.")
 
   ;; Add vale to the flycheck checkers
   (flycheck-define-checker vale
