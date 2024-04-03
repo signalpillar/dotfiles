@@ -123,6 +123,7 @@ in {
       curl
       wget
 
+      gnupg
       # 1.16.4
       go
 
