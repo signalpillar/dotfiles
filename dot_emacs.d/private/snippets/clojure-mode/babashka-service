@@ -1,0 +1,104 @@
+# -*- mode: snippet -*-
+#name : babashka-service
+#key : babashka-service
+# --
+#!/usr/bin/env bb
+(ns playwithhtmx)
+
+(require '[babashka.deps :as deps])
+(deps/add-deps '{:deps {org.clojars.askonomm/ruuter {:mvn/version "1.3.2"}}})
+
+
+(require '[org.httpkit.server :as srv]
+         '[clojure.java.browse :as browse]
+         '[ruuter.core :as ruuter]
+         '[clojure.pprint :refer [cl-format]]
+         '[clojure.string :as str]
+         '[hiccup.core :as h])
+
+(import '[java.net URLDecoder])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Config
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def port 3000)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Mimic DB (in-memory)
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; "DB" queries
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Template and components
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn template []
+  (list
+   "<!DOCTYPE html>"
+   (h/html
+    [:head
+     [:meta {:charset "UTF-8"}]
+     [:title "Htmx template"]
+     [:link {:href "https://unpkg.com/todomvc-app-css@2.4.1/index.css" :rel "stylesheet"}]
+     [:script {:src "https://unpkg.com/htmx.org@1.5.0/dist/htmx.min.js" :defer true}]
+     [:script {:src "https://unpkg.com/hyperscript.org@0.8.1/dist/_hyperscript.min.js" :defer true}]
+     ]
+    [:body
+     [:button {:hx-post "/clicked" :hx-swap "outerHTML"}
+      "Click Me"]
+
+     ])))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Helpers
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn parse-body [body]
+  (-> body
+      slurp
+      (str/split #"=")
+      second
+      URLDecoder/decode))
+
+(defn parse-query-string [query-string]
+  (when query-string
+    (-> query-string
+        (str/split #"=")
+        second)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Handlers
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn render [handler & [status]]
+  {:status (or status 200)
+   :body (h/html handler)})
+
+(defn app-index [{:keys [query-string headers]}]
+  (render (template)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Routes
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(def routes [{:path     "/"
+              :method   :get
+              :response app-index}])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Server
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(when (= *file* (System/getProperty "babashka.file"))
+  (let [url (str "http://localhost:" port "/")]
+    (srv/run-server #(ruuter/route routes %) {:port port})
+    (println "serving" url)
+    (browse/browse-url url)
+    @(promise)))
