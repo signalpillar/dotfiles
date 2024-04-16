@@ -1,0 +1,34 @@
+# -*- mode: snippet -*-
+#name : java-project
+#key : java-project
+# --
+# nixpkgs version is 23.11
+# https://github.com/NixOS/nixpkgs/commit/057f9aecfb71c4437d2b27d3323df7f93c010b7e
+
+{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/057f9aecfb71c4437d2b27d3323df7f93c010b7e.tar.gz") {} }:
+
+let
+    # https://lazamar.co.uk/nix-versions/?package=nodejs&version=12.22.12&fullName=nodejs-12.22.12&keyName=nodejs-12_x&revision=f597e7e9fcf37d8ed14a12835ede0a7d362314bd&channel=nixos-22.11#instructions
+    nixos22_11_pkgs = import (builtins.fetchTarball {
+        url = "https://github.com/NixOS/nixpkgs/archive/f597e7e9fcf37d8ed14a12835ede0a7d362314bd.tar.gz";
+    }) {
+      config = {
+        permittedInsecurePackages = [
+          "nodejs-12.22.12"
+        ];
+      };
+    };
+
+in pkgs.mkShell {
+  buildInputs = [
+    pkgs.openjdk11
+    nixos22_11_pkgs.nodejs-12_x
+
+  ];
+  shellHook = ''
+  export JAVA_HOME=${pkgs.openjdk11}/zulu-11.jdk/Contents/Home/
+  '';
+}
+
+
+# Add --debug to gradlew bootRun to enable DEBUG logging
