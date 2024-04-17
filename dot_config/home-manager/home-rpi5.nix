@@ -15,10 +15,20 @@ in {
     allowUnfree = true;
     allowUnfreePredicate = (_: true);
     allowBroken = false;
+    overlays = [
+      (import (builtins.fetchTarball {
+        url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
+        sha256 = "0jxhbwsx1pb2y4rw9ycripm65kcjf25r39qav22hfv5606szl102";
+      }))
+    ];
   };
 
+  # https://github.com/wimpysworld/nix-config/blob/main/home-manager/default.nix
   home.packages = [
     pkgs.btop
+    ((pkgs.emacsPackagesFor pkgs.emacs29-nox).emacsWithPackages (epkgs: [
+     epkgs.vterm
+    ]))
   ];
 
   programs = {

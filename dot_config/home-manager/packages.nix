@@ -41,7 +41,8 @@ in {
     # asciinema # Terminal recorder
     pkgs.bmon # Modern Unix `iftop`
     pkgs.bandwhich # Modern Unix `iftop`
-    pkgs.cpufetch # Terminal CPU info
+    # Not supported on rpi5
+    # pkgs.cpufetch # Terminal CPU info
     pkgs.croc # Terminal file transfer
     pkgs.entr # Modern Unix `watch`
     pkgs.fastfetch # Modern Unix system info
