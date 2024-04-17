@@ -8,7 +8,7 @@ let
 in {
   home.packages = [
     pkgs.bashInteractive
-    pkgs.bat
+    pkgs.bat  # alt cat
     pkgs.comma
     pkgs.coreutils
     pkgs.gnugrep
@@ -28,5 +28,28 @@ in {
     pkgs.watch
     pkgs.wget
     ftn
+    pkgs.jq
+    pkgs.dysk  # alt df
+    pkgs.du-dust # alt du
+    pkgs.typos
+    # https://github.com/sharkdp/hyperfine
+    # https://github.com/gitleaks/gitleaks
+
+    # https://github.com/wimpysworld/nix-config/blob/main/home-manager/default.nix
+    # asciicam # Terminal webcam
+    # asciinema-agg # Convert asciinema to .gif
+    # asciinema # Terminal recorder
+    pkgs.bmon # Modern Unix `iftop`
+    pkgs.bandwhich # Modern Unix `iftop`
+    pkgs.cpufetch # Terminal CPU info
+    pkgs.croc # Terminal file transfer
+    pkgs.entr # Modern Unix `watch`
+    pkgs.fastfetch # Modern Unix system info
+    pkgs.mtr # Modern Unix `traceroute`
+    pkgs.onefetch # Terminal git project info
+    pkgs.tldr # Modern Unix `man`
+    pkgs.unzip # Terminal ZIP extractor
+    # upterm # Terminal sharing
+    pkgs.yq-go # Terminal `jq` for YAML
   ];
 }

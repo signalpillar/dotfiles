@@ -1,4 +1,7 @@
-{ pkgs, ... }: {
+{ pkgs, ... }:
+let
+  inherit (pkgs.stdenv) isDarwin isLinux;
+in {
   home.username = "ubuntu";
   home.homeDirectory = "/home/ubuntu";
   home.stateVersion = "23.11";
@@ -18,6 +21,24 @@
     pkgs.btop
   ];
 
+  programs = {
+    nix-index.enable = true;
+    yt-dlp = {
+      enable = true;
+      package = pkgs.yt-dlp;
+      settings ={
+        audio-format = "best";
+        audio-quality = 0;
+        embed-chapters = true;
+        embed-metadata = true;
+        embed-subs = true;
+        embed-thumbnail = true;
+        remux-video = "aac>m4a/mov>mp4/mkv";
+        sponsorblock-mark = "sponsor";
+        sub-langs = "all";
+      };
+    };
+  };
   programs.fzf = {
     enable = true;
     enableBashIntegration = true;
@@ -56,10 +77,9 @@
       PROMPT_COMMAND = "echo";
       EDITOR = "vim";
       SHELL = "${pkgs.bashInteractive}/bin/bash";
-      # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
-      HISTSIZE = 1000;
-      HISTFILESIZE = 2000;
     };
+    historySize = 100000;
+    historyFileSize = 4200000;
     shellAliases = {
       ll = "eza -alF";
       ls = "eza -F";
@@ -84,5 +104,26 @@
       "nocaseglob"
     ];
     initExtra = builtins.readFile ./bashrc;
+    historyIgnore = [
+      "cd"
+      "pushd"
+      "popd"
+      "z"
+      "ls"
+      "ll"
+      "la"
+      "rm"
+      "rmdir"
+      "git show"
+      "tldr"
+      "exit"
+    ];
+    logoutExtra = ''
+      # when leaving the console clear the screen to increase privacy
+
+      if [ "$SHLVL" = 1 ]; then
+        [ -x /usr/bin/clear_console ] && /usr/bin/clear_console -q
+      fi
+    '';
   };
 }
