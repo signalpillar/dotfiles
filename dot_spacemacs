@@ -208,7 +208,7 @@
               typescript-linter 'tslint
               typescript-fmt-tool 'prettier
               typescript-fmt-on-save t
-              typescript-backend 'tide
+              typescript-backend 'lsp
               )
      (java :variables java-backend 'lsp
            lsp-enable-indentation t
@@ -252,7 +252,6 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
-                                      magit-delta
                                       ;; atomic-chrome
                                       ;; disabled as I use emacs 99.9% of the time in the terminal
                                       ;; helm-icons
@@ -505,8 +504,6 @@ layers configuration."
   ;; ;; function from pbcopy package to manage clipboard when running in Terminal
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
-  ;; magit-delta
-  (add-hook 'magit-mode-hook (lambda () (magit-delta-mode +1)))
 
   ;; Ghost text
   (setq atomic-chrome-url-major-mode-alist
@@ -1042,10 +1039,6 @@ This function is called at the very end of Spacemacs initialization."
                     (getenv "JAVA_HOME")
                     :default t)])
      (org-image-actual-width)
-     (typescript-backend . tide)
-     (typescript-backend . lsp)
-     (javascript-backend . tide)
-     (javascript-backend . tern)
      (javascript-backend . lsp))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.

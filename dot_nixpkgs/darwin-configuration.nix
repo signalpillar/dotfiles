@@ -236,7 +236,7 @@ in {
     # https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
 
     # screenshots of the prompts: https://bneijt.nl/blog/zsh-themes-for-prompts-screenshots/
-    promptInit = "autoload -U promptinit && promptinit && prompt bart && setopt prompt_sp";
+    promptInit = "autoload -U promptinit && promptinit && prompt fire && setopt prompt_sp";
 
     loginShellInit = ''
 

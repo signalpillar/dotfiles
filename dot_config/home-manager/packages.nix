@@ -7,6 +7,7 @@ let
   });
 in {
   home.packages = [
+    pkgs.git
     pkgs.bashInteractive
     pkgs.bat  # alt cat
     pkgs.comma
@@ -52,5 +53,8 @@ in {
     pkgs.unzip # Terminal ZIP extractor
     # upterm # Terminal sharing
     pkgs.yq-go # Terminal `jq` for YAML
+    # pkgs.pup   # likq jq or yq but for HTML
+    # [johnkerl/miller: Miller is like awk, sed, cut, join, and sort for name-indexed data such as CSV, TSV, and tabular JSON](https://github.com/johnkerl/miller)
+    # pkgs.miller
   ];
 }

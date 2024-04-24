@@ -16,6 +16,10 @@
 
   outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, ... }: {
     homeConfigurations = {
+      "B-5014" = home-manager.lib.homeManagerConfiguration {
+          pkgs = nixpkgs.legacyPackages.x86_64-darwin;
+          modules = [ ./home-b-5014.nix ];
+      };
       "ubuntu@ubuntu" = home-manager.lib.homeManagerConfiguration {
           pkgs = nixpkgs.legacyPackages.aarch64-linux;
           modules = [ ./home-rpi5.nix ];
@@ -24,6 +28,7 @@
 
     defaultPackage = {
       aarch64-linux = home-manager.defaultPackage.aarch64-linux;
+      x86_64-darwin = home-manager.defaultPackage.x86_64-darwin;
     };
 
   };
