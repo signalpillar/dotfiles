@@ -604,7 +604,16 @@ layers configuration."
   ;; (add-to-list 'org-file-apps '("\\.jpeg\\'" . os-open))
 
   ;; measured in bytes
-  (setq gc-cons-threshold (* 2 1000 1000))
+  ;; Keep in mind the higher the threshold = less frequent but longer pause.
+  ;; https://bling.github.io/blog/2016/01/18/why-are-you-changing-gc-cons-threshold/
+  (defun my-minibuffer-setup-hook ()
+    (setq gc-cons-threshold most-positive-fixnum))
+
+  (defun my-minibuffer-exit-hook ()
+    (setq gc-cons-threshold 800000))
+
+  (add-hook 'minibuffer-setup-hook #'my-minibuffer-setup-hook)
+  (add-hook 'minibuffer-exit-hook #'my-minibuffer-exit-hook)
 
   ;; tmpdir --------
   (defconst emacs-tmp-dir (expand-file-name (format "emacs%d" (user-uid)) temporary-file-directory))
