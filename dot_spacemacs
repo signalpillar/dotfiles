@@ -604,16 +604,16 @@ layers configuration."
   ;; (add-to-list 'org-file-apps '("\\.jpeg\\'" . os-open))
 
   ;; measured in bytes
-  ;; Keep in mind the higher the threshold = less frequent but longer pause.
-  ;; https://bling.github.io/blog/2016/01/18/why-are-you-changing-gc-cons-threshold/
-  (defun my-minibuffer-setup-hook ()
+  ;; https://www.reddit.com/r/emacs/comments/yzb77m/an_easy_trick_i_found_to_improve_emacs_startup/
+  (defun config:defer-gc ()
     (setq gc-cons-threshold most-positive-fixnum))
+  (defun config:-do-restore-gc ()
+    (setq gc-cons-threshold 16777216))
+  (defun config:restore-gc ()
+    (run-at-time 1 nil #'config:-do-restore-gc))
 
-  (defun my-minibuffer-exit-hook ()
-    (setq gc-cons-threshold 800000))
-
-  (add-hook 'minibuffer-setup-hook #'my-minibuffer-setup-hook)
-  (add-hook 'minibuffer-exit-hook #'my-minibuffer-exit-hook)
+  (add-hook 'minibuffer-setup #'config:defer-gc)
+  (add-hook 'minibuffer-exit #'config:restore-gc)
 
   ;; tmpdir --------
   (defconst emacs-tmp-dir (expand-file-name (format "emacs%d" (user-uid)) temporary-file-directory))
