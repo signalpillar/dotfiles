@@ -1,8 +1,8 @@
 { config, pkgs ? import (builtins.fetchTarball {
      name = "nixos-23.11";
-     url = "https://github.com/NixOS/nixpkgs/archive/476a33c53da66a2a77a89bb9bcf54d5e3c232c3d.tar.gz";
+     url = "https://github.com/NixOS/nixpkgs/archive/27c13997bf450a01219899f5a83bd6ffbfc70d3c.tar.gz";
      # Hash obtained using `nix-prefetch-url --unpack <url>`
-     sha256 = "1swmx7i83z305srqg9ifv1wgcnrl9ah5y76f1vf38b5aihfr9m33";
+     sha256 = "0k408257avb7v209q6hy38szabwj5n7gh9ddxfffgxz3055hrb10";
    }) {}, lib, ... }:
 
 let
@@ -192,7 +192,10 @@ in {
   programs.man.enable = true;
   # so we can install something like unrar that is free but not OSS
   nixpkgs.config.allowUnfree = true;
-
+  nixpkgs.config.permittedInsecurePackages = [
+    # - CVE-2024-2660
+    "vault-1.14.10"
+  ];
   nixpkgs.config.allowUnsupportedSystem = false;
 
   environment.variables = {
