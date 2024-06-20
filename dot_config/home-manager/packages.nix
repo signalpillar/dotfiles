@@ -8,6 +8,8 @@ let
 in {
   home.packages = [
     pkgs.git
+    pkgs.mosh
+    pkgs.chatgpt-cli
     pkgs.bashInteractive
     pkgs.bat  # alt cat
     pkgs.comma
