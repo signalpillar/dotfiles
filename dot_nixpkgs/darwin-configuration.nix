@@ -58,7 +58,8 @@ in {
     [
       awscli2
       starship
-      terraform-ls
+      terraform-ls       # official terraform language server
+      hadolint           # Dockerfile linter
       # mplayer
 
       terraform
