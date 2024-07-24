@@ -58,6 +58,7 @@ in {
     [
       awscli2
       starship
+      terraform-ls
       # mplayer
 
       terraform
