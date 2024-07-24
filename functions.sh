@@ -198,6 +198,11 @@ function convertUtubeVideoToMp3 {
     youtube-dl -F --flat-playlist --cookies --verbose -t --extract-audio --audio-format mp3 "$VIDEO_URL"
 }
 
+function downloadUtubeAudio {
+    nix-shell -p yt-dlp
+    yt-dlp  --extract-audio "$1"
+}
+
 # start command and kill it if still running after 5 secs
 # > timeout 5s <command>
 

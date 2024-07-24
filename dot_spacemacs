@@ -20,7 +20,6 @@
    dotspacemacs-configuration-layers
 
    '(csv
-     dart
      github-copilot
      llm-client
      sql
@@ -158,15 +157,15 @@
           ;; Don't prompt before running code in org
           org-confirm-babel-evaluate nil
           org-capture-templates
-          '(("t" "Todo" entry (file+headline "~/Documents/today.org" "Tasks")
+          '(("t" "Todo" entry (file+headline "~/gsync-docs/today.org" "Tasks")
              "* TODO %?\n  %i\n  %a")
-            ("j" "Journal" entry (file+datetree "~/Documents/today.org")
+            ("j" "Journal" entry (file+datetree "~/gsync-docs/today.org")
              "* %?\nEntered on %U\n  %i\n  %a"))
           )
      ;; ocaml
 
      (osx :variables
-        mac-system-move-file-to-trash-use-finder nil)
+          mac-system-move-file-to-trash-use-finder nil)
 
      ;; dap
      (python :variables
@@ -201,15 +200,15 @@
                      spell-checking-enable-by-default nil
                      ;; ispell-program-name "aspell"
                      ;; ispell-dictionary "british"
-      )
+                     )
      restclient
      react
      (typescript :variables
-              typescript-linter 'tslint
-              typescript-fmt-tool 'prettier
-              typescript-fmt-on-save t
-              typescript-backend 'lsp
-              )
+                 typescript-linter 'tslint
+                 typescript-fmt-tool 'prettier
+                 typescript-fmt-on-save t
+                 typescript-backend 'lsp
+                 )
      (java :variables java-backend 'lsp
            lsp-enable-indentation t
            lsp-java-import-maven-enabled t
@@ -252,6 +251,8 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
+                                      nerd-icons
+                                      denote
                                       ;; atomic-chrome
                                       ;; disabled as I use emacs 99.9% of the time in the terminal
                                       ;; helm-icons
@@ -260,6 +261,8 @@
                                       ;; org-superstar
                                       direnv
                                       blacken
+                                      igist
+                                      ef-themes
 
                                       ;; to fix the editor issue when commiting
                                       ;; git-commit
@@ -288,37 +291,37 @@
                                       ;;                     :repo "dalanicolai/robot-framework-layer"))
                                       )
    dotspacemacs-excluded-packages `(
-        ;; ;; use highlight-indent-guides instead
-        ;; highlight-indentation
-        ;; inspector
-        ;; importmagic
-        ;; auto-highlight-symbol
-        ;; org-plus-contrib
-        ;; evil-search-highlight-persist
-        ;; eval-sexp-fu
-        ;; info+
-        ;; ;; smooth-scrolling
-        ;; rainbow-delimiters
-        ;; ;; not needed functionality
-        ;; pip-requirements
-        ;; pippel
+                                    ;; ;; use highlight-indent-guides instead
+                                    ;; highlight-indentation
+                                    ;; inspector
+                                    ;; importmagic
+                                    ;; auto-highlight-symbol
+                                    ;; org-plus-contrib
+                                    ;; evil-search-highlight-persist
+                                    ;; eval-sexp-fu
+                                    ;; info+
+                                    ;; ;; smooth-scrolling
+                                    ;; rainbow-delimiters
+                                    ;; ;; not needed functionality
+                                    ;; pip-requirements
+                                    ;; pippel
 
-        ;; ;; I don't really need them
-        ;; define-word
-        ;; fancy-battery
+                                    ;; ;; I don't really need them
+                                    ;; define-word
+                                    ;; fancy-battery
 
-        ;; ;; git-gutter
-        ;; git-gutter+
-        ;; git-gutter-fringe
-        ;; git-gutter-fringe+
+                                    ;; ;; git-gutter
+                                    ;; git-gutter+
+                                    ;; git-gutter-fringe
+                                    ;; git-gutter-fringe+
 
-        ;; ;; https://github.com/syl20bnr/spacemacs/issues/9124
-        ;; ;; it's not possible to change the compile buffer position
-        ;; ;; and it works perfect now with pytest compilation window
-        ;; window-purpose
-        ;; ;; not using it
-        ;; forge
-        )
+                                    ;; ;; https://github.com/syl20bnr/spacemacs/issues/9124
+                                    ;; ;; it's not possible to change the compile buffer position
+                                    ;; ;; and it works perfect now with pytest compilation window
+                                    ;; window-purpose
+                                    ;; ;; not using it
+                                    ;; forge
+                                    )
    ) ;; setq
   )
 
@@ -337,10 +340,10 @@
 
    display-line-numbers-width 3
    dotspacemacs-line-numbers '(
-     :relative t
-     :visual t
-     :enabled-for-modes python-mode typescript-mode markdown-mode org-mode
-     :size-limit-kb 1000)
+                               :relative nil
+                               :visual t
+                               :enabled-for-modes python-mode typescript-mode markdown-mode org-mode typescript-tsx-mode
+                               :size-limit-kb 1000)
 
 
    ;; True if the home buffer should respond to resize events. (default t)
@@ -356,7 +359,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light) '(leuven wheatgrass tango spacemacs-light))
+   dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light) '(ef-reverie leuven wheatgrass tango spacemacs-light))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -378,7 +381,7 @@
    ;; dotspacemacs-default-font '("Go Mono" :size 14)
    ;; dotspacemacs-default-font '("Inconsolata" :size 16)
    ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
-   dotspacemacs-default-font '("Monaco" :size 12)
+   ;; dotspacemacs-default-font '("Monaco" :size 12)
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
    dotspacemacs-major-mode-leader-key "SPC"
@@ -505,6 +508,14 @@ layers configuration."
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
 
+  (setq show-paren-style 'expression)
+
+  ;; configure denote
+  (setq
+   denote-directory (expand-file-name "~/notes")
+   denote-known-keywords '("emacs" "denote" "testing")
+   )
+
   ;; Ghost text
   (setq atomic-chrome-url-major-mode-alist
         '(("github\\.com" . gfm-mode)
@@ -579,9 +590,11 @@ layers configuration."
   (with-eval-after-load 'neotree
     (add-to-list 'neo-hidden-regexp-list "TAGS$")
     (add-to-list 'neo-hidden-regexp-list "__pycache__")
-  )
+    )
   ;; Enable custom neotree theme
-  (setq neo-theme (if (display-graphic-p) 'icons 'arrow))
+  (require 'nerd-icons)
+  (setq nerd-icons-font-family "JetBrainsMono Nerd Font")
+  (setq neo-theme 'nerd-icons)
   (evil-leader/set-key "of" 'neotree-find)
 
   (defun jao-toggle-selective-display ()
@@ -605,12 +618,12 @@ layers configuration."
 
   ;; measured in bytes
   ;; https://www.reddit.com/r/emacs/comments/yzb77m/an_easy_trick_i_found_to_improve_emacs_startup/
-  (defun config:defer-gc ()
-    (setq gc-cons-threshold most-positive-fixnum))
-  (defun config:-do-restore-gc ()
-    (setq gc-cons-threshold 16777216))
-  (defun config:restore-gc ()
-    (run-at-time 1 nil #'config:-do-restore-gc))
+  ;; (defun config:defer-gc ()
+  ;;   (setq gc-cons-threshold most-positive-fixnum))
+  ;; (defun config:-do-restore-gc ()
+  ;;   (setq gc-cons-threshold 16777216))
+  ;; (defun config:restore-gc ()
+  ;;   (run-at-time 1 nil #'config:-do-restore-gc))
 
   (add-hook 'minibuffer-setup #'config:defer-gc)
   (add-hook 'minibuffer-exit #'config:restore-gc)
@@ -623,7 +636,7 @@ layers configuration."
         `((".*" ,emacs-tmp-dir t)))
   (setq auto-save-list-file-prefix
         emacs-tmp-dir)
-   ;; tmpdir --------
+  ;; tmpdir --------
 
   (setq-default
    powerline-default-separator 'alternate
@@ -749,6 +762,7 @@ layers configuration."
       "tn" 'jest-test-run
       "tt" 'jest-test-run-at-point)
     (spacemacs/declare-prefix-for-mode major-mode "mt" "test"))
+  (add-to-list 'auto-mode-alist '("\\.tsx\\'" . typescript-tsx-mode))
 
   (setq open-junk-file-format "~/.tmp/%Y/%m/%d-%H%M%S.")
 
@@ -780,10 +794,10 @@ active process."
           (not (process-live-p (get-buffer-process
                                 tws-process-target)))) 
       (setq-local tws-process-target
-            (completing-read
-             "Process: "
-             (seq-map (lambda (el) (buffer-name (process-buffer el)))
-                      (process-list)))))
+                  (completing-read
+                   "Process: "
+                   (seq-map (lambda (el) (buffer-name (process-buffer el)))
+                            (process-list)))))
   ;; [Emacs Shell mode: how to send region to shell? - Stack Overflow](https://stackoverflow.com/questions/6286579/emacs-shell-mode-how-to-send-region-to-shell)
   ;; (with-current-buffer tws-process-target
   ;;   (goto-char (process-mark proc))
@@ -901,28 +915,28 @@ active process."
 
 (defun sp/python/activate-current-project-venv ()
   (interactive)
-    (progn
-      (call-interactively 'pyvenv-activate)
-      (message "Activated %s" python-shell-virtualenv-root)
-      (venv-set-location (file-name-directory (directory-file-name python-shell-virtualenv-root)))
-      (venv-workon)
-      (let ((python-exe (format "%s/bin/python3" python-shell-virtualenv-root)))
-        (message python-exe)
-        ;; (pytest.el) 'pytest-global-name', default value is py.test and it's used like
-        ;; executable in compilation mode. That approach doesn't when pytest is
-        ;; not installed globally and we need to use one from the virtual
-        ;; environment.
-        ;; We set this custom variable to run pytest with the venv python
-        ;; interpreter.
-        (setq pytest-global-name (format "%s -m pytest" python-exe))
-        (pythonic-activate python-exe)
-        (setq lsp-python-ms-python-executable python-exe)
-        )
-      (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
-      (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
-      (lsp-restart-workspace)
+  (progn
+    (call-interactively 'pyvenv-activate)
+    (message "Activated %s" python-shell-virtualenv-root)
+    (venv-set-location (file-name-directory (directory-file-name python-shell-virtualenv-root)))
+    (venv-workon)
+    (let ((python-exe (format "%s/bin/python3" python-shell-virtualenv-root)))
+      (message python-exe)
+      ;; (pytest.el) 'pytest-global-name', default value is py.test and it's used like
+      ;; executable in compilation mode. That approach doesn't when pytest is
+      ;; not installed globally and we need to use one from the virtual
+      ;; environment.
+      ;; We set this custom variable to run pytest with the venv python
+      ;; interpreter.
+      (setq pytest-global-name (format "%s -m pytest" python-exe))
+      (pythonic-activate python-exe)
+      (setq lsp-python-ms-python-executable python-exe)
       )
+    (add-to-list 'python-shell-extra-pythonpaths (projectile-project-root))
+    (add-to-list 'python-shell-extra-pythonpaths (format "%s/src" (projectile-project-root)))
+    (lsp-restart-workspace)
     )
+  )
 
 
 (defun sp/tox/activate-current-project-tox-env ()
@@ -958,15 +972,15 @@ active process."
   ;; use org-id.el to get or craete ID property.
   ;; the function uses pngpaste for OSX
   (let* (
-        (caption (read-from-minibuffer "Image caption: "))
-        (fname (read-from-minibuffer "Image fname (without ext): "))
-        (-headline-id (org-id-get nil 'create))
-        (imagedir (concat default-directory "/data/" -headline-id))
-        (file (concat imagedir "/" fname ".png")))
+         (caption (read-from-minibuffer "Image caption: "))
+         (fname (read-from-minibuffer "Image fname (without ext): "))
+         (-headline-id (org-id-get nil 'create))
+         (imagedir (concat "./data/" -headline-id))
+         (file (concat imagedir "/" fname ".png")))
     (mkdir (concat "data/"-headline-id) default-directory)
     (if (eq system-type 'darwin)
-      ;; osx
-      (shell-command (concat "pngpaste " file))
+        ;; osx
+        (shell-command (concat "pngpaste " file))
       ;; linux
       (sp/write-binary file (x-get-selection-internal 'PRIMARY 'image/png))
       )
@@ -1022,37 +1036,37 @@ active process."
 This is an auto-generated function, do not modify its content directly, use
 Emacs customize menu instead.
 This function is called at the very end of Spacemacs initialization."
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(helm-buffer-max-length 70)
- '(helm-icons-provider 'nerd-icons)
- '(jest-test-command-string "cd .. && npx %s jest %s %s")
- '(lsp-pyright-multi-root nil)
- '(package-selected-packages
-   '(gptel tommyh-theme company-posframe afternoon-theme alect-themes ample-theme ample-zen-theme anti-zenburn-theme apropospriate-theme badwolf-theme birds-of-paradise-plus-theme bubbleberry-theme busybee-theme cherry-blossom-theme chocolate-theme clues-theme color-theme-sanityinc-solarized color-theme-sanityinc-tomorrow cyberpunk-theme dakrone-theme darkmine-theme darkokai-theme darktooth-theme django-theme doom-themes dracula-theme espresso-theme exotica-theme eziam-themes farmhouse-themes flatland-theme flatui-theme gandalf-theme gotham-theme grandshell-theme gruber-darker-theme gruvbox-theme hc-zenburn-theme hemisu-theme heroku-theme inkpot-theme ir-black-theme jazz-theme jbeans-theme kaolin-themes light-soap-theme lush-theme madhat2r-theme majapahit-themes material-theme minimal-theme modus-themes moe-theme molokai-theme monokai-theme mustang-theme naquadah-theme noctilux-theme obsidian-theme occidental-theme oldlace-theme omtose-phellack-theme organic-green-theme phoenix-dark-mono-theme phoenix-dark-pink-theme planet-theme professional-theme purple-haze-theme railscasts-theme rebecca-theme reverse-theme seti-theme smyx-theme soft-charcoal-theme soft-morning-theme soft-stone-theme solarized-theme soothe-theme autothemer spacegray-theme subatomic-theme subatomic256-theme sublime-themes sunny-day-theme tango-2-theme tangotango-theme tao-theme toxi-theme twilight-anti-bright-theme twilight-bright-theme twilight-theme ujelly-theme underwater-theme white-sand-theme zen-and-art-theme zenburn-theme intellij-theme monochrome-theme quasi-monochrome-theme sexy-monochrome-theme spacious-padding vs-light-theme robot-mode robot-framework flexoki-themes pumpkin-spice-theme halloweenie-theme cider clojure-mode code-cells company dap-mode doom-modeline elfeed-org eshell-prompt-extras evil-collection evil-goggles smartparens evil-matchit expand-region helm-org helm-projectile helm helm-core helpful lsp-mode treemacs markdown-mode magit git-commit transient magit-section vterm ob-restclient restclient projectile persp-mode tree-sitter-langs yasnippet-snippets yapfify yaml-mode ws-butler writeroom-mode writegood-mode with-editor winum which-key wfnames web-mode web-beautify volatile-highlights vmd-mode virtualenvwrapper vim-powerline vi-tilde-fringe uuidgen undo-tree typescript-mode tree-sitter toml-mode toc-org tide terminal-here term-cursor tango-plus-theme tagedit symon symbol-overlay string-inflection string-edit-at-point sql-indent sphinx-doc spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc smeargle slim-mode shrink-path shell-pop sesman scss-mode sass-mode rustic ron-mode rjsx-mode reveal-in-osx-finder restclient-helm restart-emacs reformatter rainbow-delimiters quickrun pytest pylookup pyenv-mode pydoc py-isort pug-mode protobuf-mode prettier-js powerthesaurus powershell poetry pipenv pfuture pcre2el pbcopy password-generator parseedn parchment-theme paradox ox-twbs overseer osx-trash osx-dictionary osx-clipboard orgit org-superstar org-rich-yank org-projectile org-present org-pomodoro org-mime org-download org-contrib org-cliplink org-ai open-junk-file ob-http ob-graphql ob-async npm-mode nose nodejs-repl nix-mode neotree nameless mvn multi-vterm multi-term multi-line mmm-mode maven-test-mode markdown-toc macrostep lsp-ui lsp-treemacs lsp-python-ms lsp-pyright lsp-origami lsp-java lsp-docker lorem-ipsum livid-mode live-py-mode launchctl json-reformat json-navigator json-mode js2-refactor js-doc jinja2-mode jest-test-mode indent-guide impatient-mode hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indent-guides hide-comnt helm-xref helm-themes helm-swoop helm-pydoc helm-purpose helm-org-rifle helm-nixos-options helm-mode-manager helm-make helm-lsp helm-ls-git helm-icons helm-git-grep helm-descbinds helm-dash helm-css-scss helm-company helm-cider helm-c-yasnippet helm-ag groovy-mode groovy-imports graphviz-dot-mode google-translate golden-ratio gnuplot gmail-message-mode gitignore-templates git-timemachine git-modes git-messenger git-link gh-md fuzzy flyspell-correct-helm flymd flycheck-pos-tip flycheck-package flycheck-elsa flx-ido eyebrowse evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-org evil-numbers evil-nerd-commenter evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-exchange evil-evilified-state evil-escape evil-easymotion evil-cleverparens evil-args evil-anzu eshell-z esh-help emr emmet-mode elisp-slime-nav elisp-refs elisp-def elfeed-web elfeed-goodies ef-themes editorconfig edit-server easy-hugo dumb-jump drag-stuff dotenv-mode direnv dired-quick-sort diminish devdocs deft dash-at-point cython-mode csv-mode company-web company-terraform company-restclient company-quickhelp company-nixos-options company-lua company-ansible company-anaconda column-enforce-mode clojure-snippets clean-aindent-mode cider-eval-sexp-fu cfrs centered-cursor-mode bui bmx-mode blacken auto-yasnippet auto-dictionary auto-compile atomic-chrome ansible-doc ansible annalist all-the-icons-nerd-fonts aggressive-indent ace-window ace-link ace-jump-helm-line ac-ispell))
- '(pytest-cmd-flags "-vv -x -s --doctest-modules")
- '(safe-local-variable-values
-   '((eval setq lsp-java-java-path
-           (format "%s/%s"
-                   (getenv "JAVA_HOME")
-                   "/bin/java")
-           lsp-java-import-gradle-java-home
-           (format "%s/%s"
-                   (getenv "JAVA_HOME")
-                   "/bin/java")
-           lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
-           '[(:name "JavaSE-17" :path
-                    (getenv "JAVA_HOME")
-                    :default t)])
-     (org-image-actual-width)
-     (javascript-backend . lsp))))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(default ((t (:background nil)))))
-)
+  (custom-set-variables
+   ;; custom-set-variables was added by Custom.
+   ;; If you edit it by hand, you could mess it up, so be careful.
+   ;; Your init file should contain only one such instance.
+   ;; If there is more than one, they won't work right.
+   '(helm-buffer-max-length 70)
+   '(helm-icons-provider 'nerd-icons)
+   '(jest-test-command-string " npx jest --detectOpenHandles %s %s")
+   '(lsp-pyright-multi-root nil)
+   '(package-selected-packages
+     '(treemacs-nerd-icons docker igist nano-theme avk-emacs-themes eink-theme paper-theme plan9-theme fzf iosevka-theme evenok tomorrow-night-deepblue-theme github-theme github-modern-theme github-dark-vscode-theme denote counsel-gtags counsel swiper ivy ggtags lua-mode nerd-icons-dired all-the-icons-dired monotropic-theme gptel tommyh-theme company-posframe afternoon-theme alect-themes ample-theme ample-zen-theme anti-zenburn-theme apropospriate-theme badwolf-theme birds-of-paradise-plus-theme bubbleberry-theme busybee-theme cherry-blossom-theme chocolate-theme clues-theme color-theme-sanityinc-solarized color-theme-sanityinc-tomorrow cyberpunk-theme dakrone-theme darkmine-theme darkokai-theme darktooth-theme django-theme doom-themes dracula-theme espresso-theme exotica-theme eziam-themes farmhouse-themes flatland-theme flatui-theme gandalf-theme gotham-theme grandshell-theme gruber-darker-theme gruvbox-theme hc-zenburn-theme hemisu-theme heroku-theme inkpot-theme ir-black-theme jazz-theme jbeans-theme kaolin-themes light-soap-theme lush-theme madhat2r-theme majapahit-themes material-theme minimal-theme modus-themes moe-theme molokai-theme monokai-theme mustang-theme naquadah-theme noctilux-theme obsidian-theme occidental-theme oldlace-theme omtose-phellack-theme organic-green-theme phoenix-dark-mono-theme phoenix-dark-pink-theme planet-theme professional-theme purple-haze-theme railscasts-theme rebecca-theme reverse-theme seti-theme smyx-theme soft-charcoal-theme soft-morning-theme soft-stone-theme solarized-theme soothe-theme autothemer spacegray-theme subatomic-theme subatomic256-theme sublime-themes sunny-day-theme tango-2-theme tangotango-theme tao-theme toxi-theme twilight-anti-bright-theme twilight-bright-theme twilight-theme ujelly-theme underwater-theme white-sand-theme zen-and-art-theme zenburn-theme intellij-theme monochrome-theme quasi-monochrome-theme sexy-monochrome-theme spacious-padding vs-light-theme robot-mode robot-framework flexoki-themes pumpkin-spice-theme halloweenie-theme cider clojure-mode code-cells company dap-mode doom-modeline elfeed-org eshell-prompt-extras evil-collection evil-goggles smartparens evil-matchit expand-region helm-org helm-projectile helm helm-core helpful lsp-mode treemacs markdown-mode magit git-commit transient magit-section vterm ob-restclient restclient projectile persp-mode tree-sitter-langs yasnippet-snippets yapfify yaml-mode ws-butler writeroom-mode writegood-mode with-editor winum which-key wfnames web-mode web-beautify volatile-highlights vmd-mode virtualenvwrapper vim-powerline vi-tilde-fringe uuidgen undo-tree typescript-mode tree-sitter toml-mode toc-org tide terminal-here term-cursor tango-plus-theme tagedit symon symbol-overlay string-inflection string-edit-at-point sql-indent sphinx-doc spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc smeargle slim-mode shrink-path shell-pop sesman scss-mode sass-mode rustic ron-mode rjsx-mode reveal-in-osx-finder restclient-helm restart-emacs reformatter rainbow-delimiters quickrun pytest pylookup pyenv-mode pydoc py-isort pug-mode protobuf-mode prettier-js powerthesaurus powershell poetry pipenv pfuture pcre2el pbcopy password-generator parseedn parchment-theme paradox ox-twbs overseer osx-trash osx-dictionary osx-clipboard orgit org-superstar org-rich-yank org-projectile org-present org-pomodoro org-mime org-download org-contrib org-cliplink org-ai open-junk-file ob-http ob-graphql ob-async npm-mode nose nodejs-repl nix-mode neotree nameless mvn multi-vterm multi-term multi-line mmm-mode maven-test-mode markdown-toc macrostep lsp-ui lsp-treemacs lsp-python-ms lsp-pyright lsp-origami lsp-java lsp-docker lorem-ipsum livid-mode live-py-mode launchctl json-reformat json-navigator json-mode js2-refactor js-doc jinja2-mode jest-test-mode indent-guide impatient-mode hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indent-guides hide-comnt helm-xref helm-themes helm-swoop helm-pydoc helm-purpose helm-org-rifle helm-nixos-options helm-mode-manager helm-make helm-lsp helm-ls-git helm-icons helm-git-grep helm-descbinds helm-dash helm-css-scss helm-company helm-cider helm-c-yasnippet helm-ag groovy-mode groovy-imports graphviz-dot-mode google-translate golden-ratio gnuplot gmail-message-mode gitignore-templates git-timemachine git-modes git-messenger git-link gh-md fuzzy flyspell-correct-helm flymd flycheck-pos-tip flycheck-package flycheck-elsa flx-ido eyebrowse evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-org evil-numbers evil-nerd-commenter evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-exchange evil-evilified-state evil-escape evil-easymotion evil-cleverparens evil-args evil-anzu eshell-z esh-help emr emmet-mode elisp-slime-nav elisp-refs elisp-def elfeed-web elfeed-goodies ef-themes editorconfig edit-server easy-hugo dumb-jump drag-stuff dotenv-mode direnv dired-quick-sort diminish devdocs deft dash-at-point cython-mode csv-mode company-web company-terraform company-restclient company-quickhelp company-nixos-options company-lua company-ansible company-anaconda column-enforce-mode clojure-snippets clean-aindent-mode cider-eval-sexp-fu cfrs centered-cursor-mode bui bmx-mode blacken auto-yasnippet auto-dictionary auto-compile atomic-chrome ansible-doc ansible annalist all-the-icons-nerd-fonts aggressive-indent ace-window ace-link ace-jump-helm-line ac-ispell))
+   '(pytest-cmd-flags "-vv -x -s --doctest-modules")
+   '(safe-local-variable-values
+     '((eval setq lsp-java-java-path
+             (format "%s/%s"
+                     (getenv "JAVA_HOME")
+                     "/bin/java")
+             lsp-java-import-gradle-java-home
+             (format "%s/%s"
+                     (getenv "JAVA_HOME")
+                     "/bin/java")
+             lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
+             '[(:name "JavaSE-17" :path
+                      (getenv "JAVA_HOME")
+                      :default t)])
+       (org-image-actual-width)
+       (javascript-backend . lsp))))
+  (custom-set-faces
+   ;; custom-set-faces was added by Custom.
+   ;; If you edit it by hand, you could mess it up, so be careful.
+   ;; Your init file should contain only one such instance.
+   ;; If there is more than one, they won't work right.
+   '(default ((t (:background nil)))))
+  )

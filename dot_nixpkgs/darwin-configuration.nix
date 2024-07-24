@@ -56,11 +56,13 @@ in {
 
   environment.systemPackages = with pkgs;
     [
+      awscli2
+      starship
       # mplayer
 
       terraform
       vault
-      devbox
+      # devbox # now installed through sh
       # (import (fetchTarball {
       #   url = https://github.com/cachix/devenv/archive/refs/tags/v1.0.1.tar.gz;
       #   sha256 = "0kc8m9xsl6mbf787zb566swx0dczb9d06zl5y3spiacn89xwdfgl";
@@ -239,7 +241,7 @@ in {
     # https://github.com/ben-z/dotfiles/blob/master/nixpkgs/darwin-configuration.nix
 
     # screenshots of the prompts: https://bneijt.nl/blog/zsh-themes-for-prompts-screenshots/
-    promptInit = "autoload -U promptinit && promptinit && prompt fire && setopt prompt_sp";
+    promptInit = "autoload -U promptinit && promptinit && prompt suse && setopt prompt_sp";
 
     loginShellInit = ''
 

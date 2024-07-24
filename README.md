@@ -72,7 +72,7 @@ An attempt to adopt Nix package manager.
 * Moved to [spacemacs](https://github.com/syl20bnr/spacemacs) as a replacement for Prelude.
   It is a Emacs Kit, focused on integration with Evil mode.
 
-* No need to use `nsenter` to enter docker container, using `docker exec` instead. 
+* No need to use `nsenter` to enter docker container, using `docker exec` instead.
 
 # NixOS
 
