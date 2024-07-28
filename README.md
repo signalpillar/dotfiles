@@ -20,6 +20,7 @@ Manually installed
 - [Nix & NixOS | Reproducible builds and deployments](https://nixos.org/)
 - mplayer
 - [Hammerspoon](https://www.hammerspoon.org/)
+- https://matthewpalmer.net/vanilla/
 
 ## AI
 - [GitHub - j178/chatgpt: An elegant interactive CLI for ChatGPT](https://github.com/j178/chatgpt)
