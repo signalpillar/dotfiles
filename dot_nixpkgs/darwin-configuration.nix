@@ -340,8 +340,7 @@ in {
   };
 
   fonts = {
-     fontDir.enable = false;
-     fonts = with pkgs; [
+     packages = with pkgs; [
         (nerdfonts.override { fonts = [ "JetBrainsMono" "DroidSansMono" ]; })
         comic-mono
         iosevka
