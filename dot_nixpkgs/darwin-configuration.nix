@@ -1,49 +1,12 @@
 { config, pkgs ? import (builtins.fetchTarball {
-     name = "nixos-23.11";
-     url = "https://github.com/NixOS/nixpkgs/archive/27c13997bf450a01219899f5a83bd6ffbfc70d3c.tar.gz";
+     name = "nixpkgs-24.05-darwin-stable";
+     # https://github.com/NixOS/nixpkgs/commit/37df9bcf93431c7f9f9358aec2d7ed0a52d7ba1d
+     url = "https://github.com/NixOS/nixpkgs/archive/37df9bcf93431c7f9f9358aec2d7ed0a52d7ba1d.tar.gz";
      # Hash obtained using `nix-prefetch-url --unpack <url>`
-     sha256 = "0k408257avb7v209q6hy38szabwj5n7gh9ddxfffgxz3055hrb10";
+     sha256 = "1c404j7p2qapccyik0a40rx9n98s27vbx50r0i8d0m3zas6gd25f";
    }) {}, lib, ... }:
 
-let
-  # Using of the latest packages
-  # edge = import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/master.tar.gz") { };
-  # Then in system dependencies:
-  # (with edge; [
-  #   # go
-  #   go_1_17
-  #   # placeholder
-  #   # graalvm8-ce
-  #   # clang_12
-  # ])
-
-  pngpaste = pkgs.stdenv.mkDerivation {
-    name = "pngpaste_0.2.3";
-    version = "0.2.3";
-    outputs = [ "out" ];
-
-    src = pkgs.fetchFromGitHub {
-      owner = "jcsalterego";
-      repo = "pngpaste";
-      rev = "67c39829fedb97397b691617f10a68af75cf0867";
-      sha256 = "089rqjk7khphs011hz3f355c7z6rjd4ydb4qfygmb4x54z2s7xms";
-    };
-
-    buildInputs = [
-      pkgs.clang10Stdenv
-      pkgs.darwin.apple_sdk.frameworks.Foundation
-      pkgs.darwin.apple_sdk.frameworks.Cocoa
-    ];
-
-    buildPhase = "make all";
-
-    installPhase = ''
-      mkdir -p $out/bin
-      cp pngpaste $out/bin/
-    '';
-  };
-
-in {
+{
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
 
@@ -86,6 +49,8 @@ in {
       yq
       # [johnkerl/miller: Miller is like awk, sed, cut, join, and sort for name-indexed data such as CSV, TSV, and tabular JSON](https://github.com/johnkerl/miller)
       # miller
+
+      starship
 
       rlwrap
 
@@ -173,7 +138,7 @@ in {
       clojure
 
       pipx
-      (python39.withPackages(ps: with ps; [
+      (python312.withPackages(ps: with ps; [
           pip
           pytest
           black
@@ -221,6 +186,7 @@ in {
     "$HOME/bin"
     "$HOME/.rd/bin"
     "$HOME/.npm/bin"
+    "$HOME/.deno/bin"
     "$HOME/mutable_node_modules/bin"
   ];
 

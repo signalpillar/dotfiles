@@ -21,6 +21,7 @@ Manually installed
 - mplayer
 - [Hammerspoon](https://www.hammerspoon.org/)
 - https://matthewpalmer.net/vanilla/
+- https://shottr.cc/ (Best screeshot software)
 
 ## AI
 - [GitHub - j178/chatgpt: An elegant interactive CLI for ChatGPT](https://github.com/j178/chatgpt)
