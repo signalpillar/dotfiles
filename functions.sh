@@ -491,6 +491,10 @@ function osx_keyboard_list_mappings {
     sudo hidutil property --get UserKeyMapping
 }
 
+function osx_keyboard_clear {
+    sudo hidutil property --set '{"UserKeyMapping":[]}'
+}
+
 function osx_keyboard_setup_mappings {
     # 1-2 Swap ~ and ±
     # 3   Set right Options key to behave as Ctrl
