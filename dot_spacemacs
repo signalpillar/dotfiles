@@ -4,327 +4,317 @@
 (defun dotspacemacs/layers ()
   (setq-default
 
-    ;; If non-nil then Spacelpa repository is the primary source to install
-    ;; a locked version of packages. If nil then Spacemacs will install the lastest
-    ;; version of packages from MELPA. (default nil)
-    dotspacemacs-use-spacelpa nil
+   ;; If non-nil then Spacelpa repository is the primary source to install
+   ;; a locked version of packages. If nil then Spacemacs will install the lastest
+   ;; version of packages from MELPA. (default nil)
+   dotspacemacs-use-spacelpa nil
 
-    dotspacemacs-auto-resume-layouts nil
-    dotspacemacs-delete-orphan-packages t
-    dotspacemacs-distribution 'spacemacs
+   dotspacemacs-auto-resume-layouts nil
+   dotspacemacs-delete-orphan-packages t
+   dotspacemacs-distribution 'spacemacs
 
-    ;; If non-nil then Spacemacs will ask for confirmation before installing
-    ;; a layer lazily. (default t)
-    dotspacemacs-ask-for-lazy-installation nil
+   ;; If non-nil then Spacemacs will ask for confirmation before installing
+   ;; a layer lazily. (default t)
+   dotspacemacs-ask-for-lazy-installation nil
 
-    dotspacemacs-configuration-layers
+   dotspacemacs-configuration-layers
 
-    '(csv
-       docker
-       github-copilot
-       llm-client
-       sql
-       protobuf
-       (dash :variables helm-dash-browser-func 'eww)
-       (spacemacs-layouts
-         :variables
-         spacemacs-layouts-restrict-spc-tab t
-         persp-autokill-buffer-on-remove t)
-       terraform
+   '(csv
+     docker
+     github-copilot
+     llm-client
+     sql
+     protobuf
+     (spacemacs-layouts
+      :variables
+      spacemacs-layouts-restrict-spc-tab t
+      persp-autokill-buffer-on-remove t)
+     terraform
 
-       ;; (elfeed :variables
-       ;;         rmh-elfeed-org-files (list "~/notes/main-elfeed.org")
-       ;;         elfeed-enable-web-interface t
-       ;;         )
-       (clojure :variables
-         clojure-backend 'cider
-         clojure-enable-clj-refactor t
-         clojure-enable-linters 'clj-kondo
-         clojure-enable-fancify-symbols t
-         clojure-backend 'cider)
-       ;; (rust :variables rust-format-on-save t)
-       (deft :variables deft-extensions '("org" "md" "txt"))
-       (helm :variables
-         helm-completion-style 'emacs
-         )
-       chrome
-       (treemacs :packages nil)
-       nixos
+     ;; (elfeed :variables
+     ;;         rmh-elfeed-org-files (list "~/notes/main-elfeed.org")
+     ;;         elfeed-enable-web-interface t
+     ;;         )
+     (clojure :variables
+              clojure-backend 'cider
+              clojure-enable-clj-refactor t
+              clojure-enable-linters 'clj-kondo
+              clojure-enable-fancify-symbols t
+              clojure-backend 'cider)
+     ;; (rust :variables rust-format-on-save t)
+     (deft :variables deft-extensions '("org" "md" "txt"))
+     (ivy :variables ivy-enable-icons t)
+     (treemacs :packages nil)
+     nixos
+     helpful
+     ;; semantic
+     neotree
+     ;; csv
+     graphviz
+     ;; (go :variables
+     ;;     go-backend 'lsp
+     ;;     ;; go-backend 'go-mode
+     ;;     go-format-before-save t
+     ;;     go-tab-width 4
+     ;;   )
+     (auto-completion :variables
+                      company-minimum-prefix-length 1
+                      company-idle-delay 0.0
+                      company-quickhelp-delay 0.8
+                      auto-completion-minimum-prefix-length 1
+                      auto-completion-enable-help-tooltip t
+                      auto-completion-return-key-behavior 'complete
+                      auto-completion-private-snippets-directory nil
+                      auto-completion-enable-snippets-in-popup t
+                      auto-completion-tab-key-behavior 'cycle
+                      auto-completion-complete-with-key-sequence-delay 0.1
+                      :disabled-for org)
+     ;; It slows down the navigation in the buffer
+     ;; https://github.com/turnspike/spacemacs-spaceline
+     ;; (spacemacs-spaceline :location local)
 
-       helpful
-
-       ;; semantic
-       neotree
-       ;; csv
-       graphviz
-       ;; (go :variables
-       ;;     go-backend 'lsp
-       ;;     ;; go-backend 'go-mode
-       ;;     go-format-before-save t
-       ;;     go-tab-width 4
-       ;;   )
-       (auto-completion :variables
-         company-minimum-prefix-length 1
-         company-idle-delay 0.0
-         company-quickhelp-delay 0.8
-         auto-completion-minimum-prefix-length 1
-         auto-completion-enable-help-tooltip t
-         auto-completion-return-key-behavior 'complete
-         auto-completion-private-snippets-directory nil
-         auto-completion-enable-snippets-in-popup t
-         auto-completion-tab-key-behavior 'cycle
-         auto-completion-complete-with-key-sequence-delay 0.1
-         :disabled-for org)
-       ;; It slows down the navigation in the buffer
-       ;; https://github.com/turnspike/spacemacs-spaceline
-       ;; (spacemacs-spaceline :location local)
-
-       emacs-lisp
-       (git :variables
-         ;; tell Magit to only automatically refresh the current Magit buffer,
-         ;; but not the status buffer. If you do that, then the status buffer is only
-         ;; refreshed automatically if it is the current buffer.
-         ;; https://magit.vc/manual/magit/Performance.html#Performance
-         magit-diff-highlight-indentation nil
-         magit-diff-highlight-trailing nil
-         magit-diff-highlight-hunk-body nil
-         magit-diff-refine-hunk nil
-         magit-refresh-status-buffer t
-         ;; start with cursor on head section
-         magit-status-initial-section nil
-         ;; to see only 2-panes in the diff-window instead of 3
-         magit-ediff-dwim-show-on-hunks t
-         ;; to see the diff by words not whole lines
-         magit-diff-refine-hunk nil
-         )
-       ;; gtags
-       html
-       (lsp :variables
-         ;; https://emacs-lsp.github.io/lsp-mode/tutorials/how-to-turn-off/
-         lsp-headerline-breadcrumb-enable t
-         lsp-enable-file-watchers nil
-         lsp-enable-symbol-highlighting t
-         lsp-ui-doc-enable t
-         lsp-navigation 'peek
-         lsp-modeline-code-actions-enable t
-         lsp-modeline-diagnostics-enable nil
-         lsp-modeline-code-actions-segments t
-         lsp-use-lsp-ui t
-         lsp-lens-enable t
-         lsp-auto-guess-root t
-         lsp-log-io t
-         lsp-restart 'auto-restart
-         lsp-keep-workspace-alive t
-         lsp-enable-on-type-formatting nil
-         lsp-signature-auto-activate nil
-         lsp-signature-render-documentation nil
-         lsp-eldoc-hook nil
-         lsp-semantic-tokens-enable nil
-         lsp-enable-folding nil
-         lsp-disabled-clients '(semgrep-ls)
-         ;; (https://github.com/emacs-lsp/lsp-pyright/issues/69#issuecomment-1432999642)
-         read-process-output-max (* 1024 1024) ;; 1MB
-         lsp-idle-delay 1.5
-         )
-       (markdown :variables
-         markdown-live-preview-engine 'vmd)
-       ;; (dart :variables
-       ;;   dart-backend 'lsp
-       ;;   lsp-enable-on-type-formatting t
-       ;;   lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
-       ;; )
-       ;; nginx
-       (org :variables
-         ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
-         org-refile-targets '((nil :maxlevel . 10))
-         org-download-method 'attach
-         org-download-timestamp t
-         org-enable-bootstrap-support t
-         org-startup-indented t
-         org-hide-emphasis-markers t
-         org-cycle-separator-lines -2
-         org-fontify-whole-heading-lines t
-         org-blank-before-new-entry '(
+     emacs-lisp
+     (git :variables
+          ;; tell Magit to only automatically refresh the current Magit buffer,
+          ;; but not the status buffer. If you do that, then the status buffer is only
+          ;; refreshed automatically if it is the current buffer.
+          ;; https://magit.vc/manual/magit/Performance.html#Performance
+          magit-diff-highlight-indentation nil
+          magit-diff-highlight-trailing nil
+          magit-diff-highlight-hunk-body nil
+          magit-diff-refine-hunk nil
+          magit-refresh-status-buffer t
+          ;; start with cursor on head section
+          magit-status-initial-section nil
+          ;; to see only 2-panes in the diff-window instead of 3
+          magit-ediff-dwim-show-on-hunks t
+          ;; to see the diff by words not whole lines
+          magit-diff-refine-hunk nil
+          )
+     ;; gtags
+     html
+     (lsp :variables
+          ;; https://emacs-lsp.github.io/lsp-mode/tutorials/how-to-turn-off/
+          lsp-headerline-breadcrumb-enable t
+          lsp-enable-file-watchers nil
+          lsp-enable-symbol-highlighting t
+          lsp-ui-doc-enable t
+          lsp-navigation 'peek
+          lsp-modeline-code-actions-enable t
+          lsp-modeline-diagnostics-enable nil
+          lsp-modeline-code-actions-segments t
+          lsp-use-lsp-ui nil
+          lsp-lens-enable t
+          lsp-auto-guess-root t
+          lsp-log-io t
+          lsp-restart 'auto-restart
+          lsp-keep-workspace-alive t
+          lsp-enable-on-type-formatting nil
+          lsp-signature-auto-activate nil
+          lsp-signature-render-documentation nil
+          lsp-eldoc-hook nil
+          lsp-semantic-tokens-enable nil
+          lsp-enable-folding nil
+          lsp-disabled-clients '(semgrep-ls)
+          ;; (https://github.com/emacs-lsp/lsp-pyright/issues/69#issuecomment-1432999642)
+          read-process-output-max (* 1024 1024) ;; 1MB
+          lsp-idle-delay 1.5
+          )
+     (markdown :variables
+               markdown-live-preview-engine 'vmd)
+     ;; (dart :variables
+     ;;   dart-backend 'lsp
+     ;;   lsp-enable-on-type-formatting t
+     ;;   lsp-dart-sdk-dir (expand-file-name "~/proj/flutter/bin/cache/dart-sdk/")
+     ;; )
+     ;; nginx
+     (org :variables
+          ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
+          org-refile-targets '((nil :maxlevel . 10))
+          org-download-method 'attach
+          org-download-timestamp t
+          org-enable-bootstrap-support t
+          org-startup-indented t
+          org-hide-emphasis-markers t
+          org-cycle-separator-lines -2
+          org-fontify-whole-heading-lines t
+          org-blank-before-new-entry '(
                                        (heading . nil)
                                        (plain-list-item . nil))
-         org-export-babel-evaluate nil
-         org-src-preserve-indentation t
-         org-log-done (quote time)
-         org-log-into-drawer t
-         org-log-state-notes-insert-after-drawers nil
-         org-hide-emphasis-markers t
-         ;; Syntax highlighting in #+BEGIN_SRC blocks
-         org-src-fontify-natively t
-         ;; Don't prompt before running code in org
-         org-confirm-babel-evaluate nil
-         org-capture-templates
-         '(("t" "Todo" entry (file+headline "~/gsync-docs/today.org" "Tasks")
+          org-export-babel-evaluate nil
+          org-src-preserve-indentation t
+          org-log-done (quote time)
+          org-log-into-drawer t
+          org-log-state-notes-insert-after-drawers nil
+          org-hide-emphasis-markers t
+          ;; Syntax highlighting in #+BEGIN_SRC blocks
+          org-src-fontify-natively t
+          ;; Don't prompt before running code in org
+          org-confirm-babel-evaluate nil
+          org-capture-templates
+          '(("t" "Todo" entry (file+headline "~/gsync-docs/today.org" "Tasks")
              "* TODO %?\n  %i\n  %a")
             ("j" "Journal" entry (file+datetree "~/gsync-docs/today.org")
-              "* %?\nEntered on %U\n  %i\n  %a"))
-         )
-       ;; ocaml
+             "* %?\nEntered on %U\n  %i\n  %a"))
+          )
+     ;; ocaml
 
-       (osx :variables
-         mac-system-move-file-to-trash-use-finder nil)
+     (osx :variables
+          mac-system-move-file-to-trash-use-finder nil)
 
-       ;; dap
-       (python :variables
-         lsp-python-ms-python-executable "python3"
-         python-interpreter "python3"
-         python-shell-interpreter "python3"
-         ;; no need to guess identation
-         python-indent-guess-indent-offset t
-         python-guess-indent nil
-         python-backend 'lsp
-         python-lsp-server 'pyright
-         lsp-pyright-multi-root nil
-         python-fill-docstring-style 'pep-257-nn
-         python-fill-column 88
-         python-test-runner 'pytest
-         python-format-on-save t
-         python-formatter 'black
-         python-auto-set-local-pyvenv-virtualenv 'on-project-switch
-         python-indent-offset 4
-         lsp-enable-snippet t
-         lsp-prefer-flymake nil
-         )
-       (shell :variables
-         shell-default-height 48
-         shell-default-position 'bottom
-         shell-default-term-shell "zsh"
-         shell-default-shell 'vterm
-         )
-       (spell-checking :variables
-         spell-checking-enable-auto-dictionary nil
-         enable-flyspell-auto-completion nil
-         spell-checking-enable-by-default nil
-         ;; ispell-program-name "aspell"
-         ;; ispell-dictionary "british"
-         )
-       restclient
-       react
-       (typescript :variables
-         typescript-linter 'tslint
-         typescript-fmt-tool 'prettier
-         typescript-fmt-on-save t
-         typescript-backend 'lsp
-         )
-       (java :variables java-backend 'lsp
-         lsp-enable-indentation t
-         lsp-java-import-maven-enabled t
-         lsp-java-maven-download-sources t
-         lsp-java-boot-lens-mode t
-         lsp-java-vmargs
-         (list "-Xms1000m"
-           "-noverify"
-           "--enable-preview"
-           "-Dlog.protocol=true"
-           "-Dlog.level=DEBUG"
-           "-Xmx4G"
-           "-XX:+UnlockExperimentalVMOptions"
-           "-XX:+UseZGC"
-           "-XX:+UseStringDeduplication"
-           "-XX:AdaptiveSizePolicyWeight=90"
-           "-Dsun.zip.disableMemoryMapping=true"
-           (format "-javaagent:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.22//9c08ea24c6eb714e2d6170e8122c069a0ba9aacf/lombok-1.18.22.jar" (expand-file-name "~"))
-           ;; (format "-Xbootclasspath/a:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
+     ;; dap
+     (python :variables
+             lsp-python-ms-python-executable "python3"
+             python-interpreter "python3"
+             python-shell-interpreter "python3"
+             ;; no need to guess identation
+             python-indent-guess-indent-offset t
+             python-guess-indent nil
+             python-backend 'lsp
+             python-lsp-server 'pyright
+             lsp-pyright-multi-root nil
+             python-fill-docstring-style 'pep-257-nn
+             python-fill-column 88
+             python-test-runner 'pytest
+             python-format-on-save t
+             python-formatter 'black
+             python-auto-set-local-pyvenv-virtualenv 'on-project-switch
+             python-indent-offset 4
+             lsp-enable-snippet t
+             lsp-prefer-flymake nil
+             )
+     (shell :variables
+            shell-default-height 48
+            shell-default-position 'bottom
+            shell-default-term-shell "bash"
+            shell-default-shell 'vterm
+            )
+     (spell-checking :variables
+                     spell-checking-enable-auto-dictionary nil
+                     enable-flyspell-auto-completion nil
+                     spell-checking-enable-by-default nil
+                     ;; ispell-program-name "aspell"
+                     ;; ispell-dictionary "british"
+                     )
+     restclient
+     react
+     (typescript :variables
+                 typescript-linter 'tslint
+                 typescript-fmt-tool 'prettier
+                 typescript-fmt-on-save t
+                 typescript-backend 'tide
+                 ;; typescript-backend 'lsp
+                 )
+     (java :variables java-backend 'lsp
+           lsp-enable-indentation t
+           lsp-java-import-maven-enabled t
+           lsp-java-maven-download-sources t
+           lsp-java-boot-lens-mode t
+           lsp-java-vmargs
+           (list "-Xms1000m"
+                 "-noverify"
+                 "--enable-preview"
+                 "-Dlog.protocol=true"
+                 "-Dlog.level=DEBUG"
+                 "-Xmx4G"
+                 "-XX:+UnlockExperimentalVMOptions"
+                 "-XX:+UseZGC"
+                 "-XX:+UseStringDeduplication"
+                 "-XX:AdaptiveSizePolicyWeight=90"
+                 "-Dsun.zip.disableMemoryMapping=true"
+                 (format "-javaagent:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.22//9c08ea24c6eb714e2d6170e8122c069a0ba9aacf/lombok-1.18.22.jar" (expand-file-name "~"))
+                 ;; (format "-Xbootclasspath/a:%s/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.24/13a394eed5c4f9efb2a6d956e2086f1d81e857d9/lombok-1.18.24.jar" (expand-file-name "~"))
+                 )
            )
-         )
-       (javascript :variables
-         javascript-backend 'tide
-         javascript-lsp-linter nil
-         javascript-fmt-tool 'prettier
-         javascript-repl 'nodejs)
+     (javascript :variables
+                 javascript-backend 'tide
+                 javascript-lsp-linter nil
+                 javascript-fmt-tool 'prettier
+                 javascript-repl 'nodejs)
 
-       ;; (version-control :variables
-       ;;                  ;; diff-hl is slow
-       ;;                  ;; version-control-diff-tool 'diff-hl
-       ;;                  git-magit-status-fullscreen t)
-       yaml
-       )
-    ;; Defines the behaviour of Spacemacs when installing packages.
-    ;; Possible values are `used-only', `used-but-keep-unused' and `all'.
-    ;; `used-only' installs only explicitly used packages and uninstall any
-    ;; unused packages as well as their unused dependencies.
-    ;; `used-but-keep-unused' installs only the used packages but won't uninstall
-    ;; them if they become unused. `all' installs *all* packages supported by
-    ;; Spacemacs and never uninstall them. (default is `used-only')
-    dotspacemacs-install-packages 'used-but-keep-unused
-    dotspacemacs-additional-packages `(
-                                        helm-icons
-                                        nerd-icons
-                                        denote
-                                        ;; atomic-chrome
-                                        ;; disabled as I use emacs 99.9% of the time in the terminal
-                                        ;; helm-icons
-                                        org-ai
-                                        reformatter
-                                        ;; org-superstar
-                                        direnv
-                                        blacken
-                                        igist
-                                        ef-themes
+     ;; (version-control :variables
+     ;;                  ;; diff-hl is slow
+     ;;                  ;; version-control-diff-tool 'diff-hl
+     ;;                  git-magit-status-fullscreen t)
+     yaml
+     )
+   ;; Defines the behaviour of Spacemacs when installing packages.
+   ;; Possible values are `used-only', `used-but-keep-unused' and `all'.
+   ;; `used-only' installs only explicitly used packages and uninstall any
+   ;; unused packages as well as their unused dependencies.
+   ;; `used-but-keep-unused' installs only the used packages but won't uninstall
+   ;; them if they become unused. `all' installs *all* packages supported by
+   ;; Spacemacs and never uninstall them. (default is `used-only')
+   dotspacemacs-install-packages 'used-but-keep-unused
+   dotspacemacs-additional-packages `(
+                                      nerd-icons
+                                      org-ai
+                                      reformatter
+                                      direnv
+                                      blacken
+                                      igist
+                                      ef-themes
 
-                                        ;; to fix the editor issue when commiting
-                                        ;; git-commit
+                                      ;; to fix the editor issue when commiting
+                                      ;; git-commit
 
-                                        ;; call all-the-icons-install-fonts to install the fonts on the system
-                                        ;; all-the-icons
+                                      ;; call all-the-icons-install-fonts to install the fonts on the system
+                                      ;; all-the-icons
 
-                                        poetry
-                                        ;; protobuf-mode
-                                        ;; eval-sexp-fu
-                                        virtualenvwrapper
-                                        ob-restclient
-                                        ob-graphql
-                                        ;; allows to not block on org source-block
-                                        ;; execution
-                                        ob-async
-                                        reverso
-                                        ;; writegood-mode requires configuration
-                                        powerthesaurus
-                                        ;; run tests in TS and TSX
-                                        jest-test-mode
-                                        ;; access clipboard in OSX
-                                        pbcopy
-                                        ;; (robot-framework :location (recipe
-                                        ;;                     :fetcher github
-                                        ;;                     :repo "dalanicolai/robot-framework-layer"))
-                                        )
-    dotspacemacs-excluded-packages `(
-                                      ;; ;; use highlight-indent-guides instead
-                                      ;; highlight-indentation
-                                      ;; inspector
-                                      ;; importmagic
-                                      ;; auto-highlight-symbol
-                                      ;; org-plus-contrib
-                                      ;; evil-search-highlight-persist
+                                      poetry
+                                      ;; protobuf-mode
                                       ;; eval-sexp-fu
-                                      ;; info+
-                                      ;; ;; smooth-scrolling
-                                      ;; rainbow-delimiters
-                                      ;; ;; not needed functionality
-                                      ;; pip-requirements
-                                      ;; pippel
-
-                                      ;; ;; I don't really need them
-                                      ;; define-word
-                                      ;; fancy-battery
-
-                                      ;; ;; git-gutter
-                                      ;; git-gutter+
-                                      ;; git-gutter-fringe
-                                      ;; git-gutter-fringe+
-
-                                      ;; ;; https://github.com/syl20bnr/spacemacs/issues/9124
-                                      ;; ;; it's not possible to change the compile buffer position
-                                      ;; ;; and it works perfect now with pytest compilation window
-                                      ;; window-purpose
-                                      ;; ;; not using it
-                                      ;; forge
+                                      virtualenvwrapper
+                                      ob-restclient
+                                      ob-graphql
+                                      ;; allows to not block on org source-block
+                                      ;; execution
+                                      ob-async
+                                      reverso
+                                      ;; writegood-mode requires configuration
+                                      powerthesaurus
+                                      ;; run tests in TS and TSX
+                                      jest-test-mode
+                                      ;; access clipboard in OSX
+                                      pbcopy
+                                      ;; (robot-framework :location (recipe
+                                      ;;                     :fetcher github
+                                      ;;                     :repo "dalanicolai/robot-framework-layer"))
+                                      org-modern
                                       )
-    ) ;; setq
+   dotspacemacs-excluded-packages `(
+                                    ;; ;; use highlight-indent-guides instead
+                                    ;; highlight-indentation
+                                    ;; inspector
+                                    ;; importmagic
+                                    ;; auto-highlight-symbol
+                                    ;; org-plus-contrib
+                                    ;; evil-search-highlight-persist
+                                    ;; eval-sexp-fu
+                                    ;; info+
+                                    ;; ;; smooth-scrolling
+                                    ;; rainbow-delimiters
+                                    ;; ;; not needed functionality
+                                    ;; pip-requirements
+                                    ;; pippel
+
+                                    ;; ;; I don't really need them
+                                    ;; define-word
+                                    ;; fancy-battery
+
+                                    ;; ;; git-gutter
+                                    ;; git-gutter+
+                                    ;; git-gutter-fringe
+                                    ;; git-gutter-fringe+
+
+                                    ;; ;; https://github.com/syl20bnr/spacemacs/issues/9124
+                                    ;; ;; it's not possible to change the compile buffer position
+                                    ;; ;; and it works perfect now with pytest compilation window
+                                    ;; window-purpose
+                                    ;; ;; not using it
+                                    ;; forge
+                                    )
+   ) ;; setq
   )
 
 (defun dotspacemacs/init ()
@@ -333,174 +323,170 @@
    before layers configuration."
 
   (setq-default
-    spacemacs-theme-comment-italic t
-    spacemacs-theme-keyword-italic t
-    dotspacemacs-folding-method 'origami
-    dotspacemacs-mode-line-theme 'doom
-    dotspacemacs-mode-line-unicode-symbols t
-    dotspacemacs-highlight-delimiters 'nil
+   spacemacs-theme-comment-italic t
+   spacemacs-theme-keyword-italic t
+   dotspacemacs-folding-method 'origami
+   dotspacemacs-mode-line-theme 'doom
+   dotspacemacs-mode-line-unicode-symbols t
+   dotspacemacs-highlight-delimiters 'nil
 
-    display-line-numbers-width 3
-    dotspacemacs-line-numbers '(
-                                 :relative nil
-                                 :visual t
-                                 :enabled-for-modes python-mode typescript-mode markdown-mode org-mode typescript-tsx-mode
-                                 :size-limit-kb 1000)
-
-
-    ;; True if the home buffer should respond to resize events. (default t)
-    dotspacemacs-startup-buffer-responsive t
-
-    ;; exec-path-from-shell-arguments '("-l")
-    dotspacemacs-elpa-https t
-    dotspacemacs-elpa-timeout 5
-    ;; If non nil then spacemacs will check for updates at startup
-    ;; when the current branch is not `develop'. (default t)
-	  dotspacemacs-check-for-update nil
-    dotspacemacs-editing-style 'vim
-    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
-    dotspacemacs-verbose-loading nil
-
-    dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light) '(ef-reverie leuven wheatgrass tango spacemacs-light))
-
-    ;; If non nil the cursor color matches the state color.
-    dotspacemacs-colorize-cursor-according-to-state t
-
-    ;; Location where to auto-save files. Possible values are `original' to
-    ;; auto-save the file in-place, `cache' to auto-save the file to another
-    ;; file stored in the cache directory and `nil' to disable auto-saving.
-    ;; (default 'cache)
-    dotspacemacs-auto-save-file-location 'cache
-
-    ;; Maximum number of rollback slots to keep in the cache. (default 5)
-    dotspacemacs-max-rollback-slots 5
-
-    ;; Size (in MB) above which spacemacs will prompt to open the large file
-    ;; literally to avoid performance issues. Opening a file literally means that
-    ;; no major mode or minor modes are active. (default is 1)
-    dotspacemacs-large-file-size 1
-
-    ;; dotspacemacs-default-font '("Go Mono" :size 14)
-    ;; dotspacemacs-default-font '("Inconsolata" :size 16)
-    ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
-    ;; dotspacemacs-default-font '("Monaco" :size 12)
-    dotspacemacs-leader-key ","
-    dotspacemacs-emacs-leader-key "M-m"
-    dotspacemacs-major-mode-leader-key "SPC"
-    dotspacemacs-major-mode-emacs-leader-key "C-M-m"
-
-    dotspacemacs-command-key ":"
-    dotspacemacs-remap-Y-to-y$ t
-    dotspacemacs-use-ido nil
-
-    ;; If non-nil, `helm' will try to minimize the space it uses. (default t)
-    dotspacemacs-helm-resize nil
-    dotspacemacs-helm-no-header t
-    ;; If non-nil, `helm' will try to remove duplicates in history (default nil)
-    history-delete-duplicates t
+   display-line-numbers-width 3
+   dotspacemacs-line-numbers '(
+                               :relative nil
+                               :visual t
+                               :enabled-for-modes python-mode typescript-mode markdown-mode org-mode typescript-tsx-mode
+                               :size-limit-kb 1000)
 
 
-    ;; Which-key delay in seconds. The which-key buffer is the popup listing
-    ;; the commands bound to the current keystroke sequence. (default 0.4)
-    dotspacemacs-which-key-delay 0.4
+   ;; True if the home buffer should respond to resize events. (default t)
+   dotspacemacs-startup-buffer-responsive t
 
-    ;; If non-nil `spacemacs/toggle-fullscreen' will not use native fullscreen.
-    ;; Use to disable fullscreen animations in OSX. (default nil)
-    dotspacemacs-fullscreen-use-non-native nil
+   ;; exec-path-from-shell-arguments '("-l")
+   dotspacemacs-elpa-https t
+   dotspacemacs-elpa-timeout 5
+   ;; If non nil then spacemacs will check for updates at startup
+   ;; when the current branch is not `develop'. (default t)
+	 dotspacemacs-check-for-update nil
+   dotspacemacs-editing-style 'vim
+   ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
+   dotspacemacs-verbose-loading nil
 
-    ;; If non-nil smooth scrolling (native-scrolling) is enabled. Smooth
-    ;; scrolling overrides the default behavior of Emacs which recenters point
-    ;; when it reaches the top or bottom of the screen. (default t)
-    dotspacemacs-smooth-scrolling t
-    truncate-lines -1
+   dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light) '(spacemacs-light ef-reverie leuven wheatgrass tango))
 
-    dotspacemacs-search-tools '("rg" "ag" "grep")
+   ;; If non nil the cursor color matches the state color.
+   dotspacemacs-colorize-cursor-according-to-state t
 
-    ;; Format specification for setting the frame title.
-    ;; %a - the `abbreviated-file-name', or `buffer-name'
-    ;; %t - `projectile-project-name'
-    ;; %I - `invocation-name'
-    ;; %S - `system-name'
-    ;; %U - contents of $USER
-    ;; %b - buffer name
-    ;; %f - visited file name
-    ;; %F - frame name
-    ;; %s - process status
-    ;; %p - percent of buffer above top of window, or Top, Bot or All
-    ;; %P - percent of buffer above bottom of window, perhaps plus Top, or Bot or All
-    ;; %m - mode name
-    ;; %n - Narrow if appropriate
-    ;; %z - mnemonics of buffer, terminal, and keyboard coding systems
-    ;; %Z - like %z, but including the end-of-line format
-    ;; (default "%I@%S")
-    dotspacemacs-frame-title-format "%b @ %t"
-    ))
+   ;; Location where to auto-save files. Possible values are `original' to
+   ;; auto-save the file in-place, `cache' to auto-save the file to another
+   ;; file stored in the cache directory and `nil' to disable auto-saving.
+   ;; (default 'cache)
+   dotspacemacs-auto-save-file-location 'cache
+
+   ;; Maximum number of rollback slots to keep in the cache. (default 5)
+   dotspacemacs-max-rollback-slots 5
+
+   ;; Size (in MB) above which spacemacs will prompt to open the large file
+   ;; literally to avoid performance issues. Opening a file literally means that
+   ;; no major mode or minor modes are active. (default is 1)
+   dotspacemacs-large-file-size 1
+
+   ;; dotspacemacs-default-font '("Go Mono" :size 14)
+   ;; dotspacemacs-default-font '("Inconsolata" :size 16)
+   ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
+   ;; dotspacemacs-default-font '("Monaco" :size 12)
+   dotspacemacs-leader-key ","
+   dotspacemacs-emacs-leader-key "M-m"
+   dotspacemacs-major-mode-leader-key "SPC"
+   dotspacemacs-major-mode-emacs-leader-key "C-M-m"
+
+   dotspacemacs-command-key ":"
+   dotspacemacs-remap-Y-to-y$ t
+   dotspacemacs-use-ido nil
+
+   history-delete-duplicates t
+
+
+   ;; Which-key delay in seconds. The which-key buffer is the popup listing
+   ;; the commands bound to the current keystroke sequence. (default 0.4)
+   dotspacemacs-which-key-delay 0.4
+
+   ;; If non-nil `spacemacs/toggle-fullscreen' will not use native fullscreen.
+   ;; Use to disable fullscreen animations in OSX. (default nil)
+   dotspacemacs-fullscreen-use-non-native nil
+
+   ;; If non-nil smooth scrolling (native-scrolling) is enabled. Smooth
+   ;; scrolling overrides the default behavior of Emacs which recenters point
+   ;; when it reaches the top or bottom of the screen. (default t)
+   dotspacemacs-smooth-scrolling t
+   truncate-lines -1
+
+   dotspacemacs-search-tools '("rg" "ag" "grep")
+
+   ;; Format specification for setting the frame title.
+   ;; %a - the `abbreviated-file-name', or `buffer-name'
+   ;; %t - `projectile-project-name'
+   ;; %I - `invocation-name'
+   ;; %S - `system-name'
+   ;; %U - contents of $USER
+   ;; %b - buffer name
+   ;; %f - visited file name
+   ;; %F - frame name
+   ;; %s - process status
+   ;; %p - percent of buffer above top of window, or Top, Bot or All
+   ;; %P - percent of buffer above bottom of window, perhaps plus Top, or Bot or All
+   ;; %m - mode name
+   ;; %n - Narrow if appropriate
+   ;; %z - mnemonics of buffer, terminal, and keyboard coding systems
+   ;; %Z - like %z, but including the end-of-line format
+   ;; (default "%I@%S")
+   dotspacemacs-frame-title-format "%b @ %t"
+   ))
 
 (defun dotspacemacs/user-init ()
   ;; just in case if custom theme is added
   (add-to-list 'custom-theme-load-path "~/.emacs.d/private/local/")
   (setq-default
-    spell-checking-enable-by-default nil
-    ;; Increase minimum severity level for displaying the warning buffer.
-    ;; It's an alternative way to supress warnings buffer to disabling warnings and errors from
-    ;; asynchronous native compilation.
-    ;; native-comp-async-report-warnings-errors nil
-    ;; See https://www.reddit.com/r/emacs/comments/l42oep/suppress_nativecomp_warnings_buffer/
-    warning-minimum-level :error
+   spell-checking-enable-by-default nil
+   ;; Increase minimum severity level for displaying the warning buffer.
+   ;; It's an alternative way to supress warnings buffer to disabling warnings and errors from
+   ;; asynchronous native compilation.
+   ;; native-comp-async-report-warnings-errors nil
+   ;; See https://www.reddit.com/r/emacs/comments/l42oep/suppress_nativecomp_warnings_buffer/
+   warning-minimum-level :error
 
-    ;; Increase space between the lines
-    line-spacing 7
-    ;; Miscellaneous
-    require-final-newline t
-    x-select-enable-clipboard t
+   ;; Increase space between the lines
+   line-spacing 7
+   ;; Miscellaneous
+   require-final-newline t
+   x-select-enable-clipboard t
 
-    undo-tree-auto-save-history nil
+   undo-tree-auto-save-history nil
 
-    ;; Backups
-    backup-directory-alist `((".*" . ,temporary-file-directory))
-    auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
-    backup-by-copying nil
-    delete-old-versions t
-    kept-new-versions 6
-    kept-old-versions 2
-    make-backup-files nil
+   ;; Backups
+   backup-directory-alist `((".*" . ,temporary-file-directory))
+   auto-save-file-name-transforms `((".*" ,temporary-file-directory t))
+   backup-by-copying nil
+   delete-old-versions t
+   kept-new-versions 6
+   kept-old-versions 2
+   make-backup-files nil
 
-    ;; Evil
-    evil-shift-round nil
-    evil-want-C-i-jump nil
-    ;; do not put replaced text in clipboard
-    evil-kill-on-visual-paste nil
+   ;; Evil
+   evil-shift-round nil
+   evil-want-C-i-jump nil
+   ;; do not put replaced text in clipboard
+   evil-kill-on-visual-paste nil
 
-    ;; Whitespace mode
-    whitespace-style '(face tabs tab-mark newline-mark)
-    whitespace-display-mappings
-    '((newline-mark 10 [172 10])
-       (tab-mark 9 [9655 9]))
+   ;; Whitespace mode
+   whitespace-style '(face tabs tab-mark newline-mark)
+   whitespace-display-mappings
+   '((newline-mark 10 [172 10])
+     (tab-mark 9 [9655 9]))
 
-    ;; Wait 0.5seconds before automatically highlitghting
-    ahs-idle-interval 0.5
+   ;; Wait 0.5seconds before automatically highlitghting
+   ahs-idle-interval 0.5
 
-    ;; Avy
-    avy-all-windows 'all-frames
+   ;; Avy
+   avy-all-windows 'all-frames
 
-    ;; Flycheck
-    flycheck-check-syntax-automatically '(save mode-enabled)
-    ;; simple mode line
-    mode-line-format (list
-                       ;; %p     percent of buffer above top of window
-                       "%p > "
-                       ;; position line:column
-                       "%l:%c > "
-                       ;; buffer name
-                       "[ %b ] "
-                       ;; name of major mode
-                       "%m| "
-                       ;; buffer size - auto-scaled
-                       "size %I |"
-                       "%-"
-                       )
+   ;; Flycheck
+   flycheck-check-syntax-automatically '(save mode-enabled)
+   ;; simple mode line
+   mode-line-format (list
+                     ;; %p     percent of buffer above top of window
+                     "%p > "
+                     ;; position line:column
+                     "%l:%c > "
+                     ;; buffer name
+                     "[ %b ] "
+                     ;; name of major mode
+                     "%m| "
+                     ;; buffer size - auto-scaled
+                     "size %I |"
+                     "%-"
+                     )
 
-    ))
+   ))
 
 (defun dotspacemacs/user-config ()
   "Configuration function.
@@ -510,23 +496,26 @@ layers configuration."
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
 
+  (setq editorconfig-exclude-modes '(org-mode))
+
   (setq show-paren-style 'expression)
 
   ;; configure denote
   (setq
-    denote-directory (expand-file-name "~/notes")
-    denote-known-keywords '("emacs" "denote" "testing")
-    )
+   denote-directory (expand-file-name "~/notes")
+   denote-known-keywords '("emacs" "denote" "testing")
+   )
 
   ;; Ghost text
   (setq atomic-chrome-url-major-mode-alist
-    '(("github\\.com" . gfm-mode)
-       ("hackerrank\\.com" . python-mode)
-       ("leetcode\\.com" . python-mode)
-       ("redmine" . textile-mode)))
+        '(("github\\.com" . gfm-mode)
+          ("hackerrank\\.com" . python-mode)
+          ("leetcode\\.com" . python-mode)
+          ("redmine" . textile-mode)))
 
   ;; org-ai
   (setq org-ai-default-chat-model "gpt-4")
+  ;; (add-hook 'org-mode-hook 'org-modern-mode)
 
   ;; --------- copilot
   ;; accept completion from copilot and fallback to company
@@ -539,21 +528,18 @@ layers configuration."
     (define-key copilot-completion-map (kbd "C-TAB") 'copilot-accept-completion-by-word)
     (define-key copilot-completion-map (kbd "C-<tab>") 'copilot-accept-completion-by-word))
 
-  (add-hook 'prog-mode-hook 'copilot-mode)
-
-  ;; when editing source blocks enable auto-completion
-  (add-hook 'org-src-mode-hook (lambda () (auto-complete-mode 1)))
+  ;; (add-hook 'prog-mode-hook 'copilot-mode)
 
   (direnv-mode)
   (config-visuals)
 
   ;; scrolling configuration
   (setq
-    scroll-conservatively 1000
-    maximum-scroll-margin 0.5
-    scroll-margin 10
-    truncate-partial-width-windows nil
-    )
+   scroll-conservatively 1000
+   maximum-scroll-margin 0.5
+   scroll-margin 10
+   truncate-partial-width-windows nil
+   )
 
   ;; https://github.com/emacsorphanage/popwin
   (push '(compilation-mode :noselect t :position bottom) popwin:special-display-config)
@@ -588,8 +574,6 @@ layers configuration."
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
   (add-to-list 'default-frame-alist '(ns-appearance . light))
 
-  ;; Helm
-  (helm-icons-enable)
   ;; Neotree
   (with-eval-after-load 'neotree
     (add-to-list 'neo-hidden-regexp-list "TAGS$")
@@ -635,17 +619,17 @@ layers configuration."
   ;; tmpdir --------
   (defconst emacs-tmp-dir (expand-file-name (format "emacs%d" (user-uid)) temporary-file-directory))
   (setq backup-directory-alist
-    `((".*" . ,emacs-tmp-dir)))
+        `((".*" . ,emacs-tmp-dir)))
   (setq auto-save-file-name-transforms
-    `((".*" ,emacs-tmp-dir t)))
+        `((".*" ,emacs-tmp-dir t)))
   (setq auto-save-list-file-prefix
-    emacs-tmp-dir)
+        emacs-tmp-dir)
   ;; tmpdir --------
 
   (setq-default
-    powerline-default-separator 'alternate
-    guide-key/popup-window-position :right
-    )
+   powerline-default-separator 'alternate
+   guide-key/popup-window-position :right
+   )
 
   (set-fill-column 100)
   (global-set-key (kbd "C-=") 'zoom-frm-in)
@@ -664,7 +648,6 @@ layers configuration."
   ;; (spacemacs/toggle-evil-safe-lisp-structural-editing-on-register-hooks)
 
   ;; Miscellaneous
-  (add-hook 'org-mode-hook #'org-superstar-mode)
   (add-hook 'text-mode-hook 'auto-fill-mode)
   (add-hook 'makefile-mode-hook 'whitespace-mode)
 
@@ -683,12 +666,12 @@ layers configuration."
   (setq projectile-indexing-method 'alien)
   (setq projectile-enable-caching t)
   (setq
-    ;; For example, project-find-file uses 'project-files which uses
-    ;; substring completion by default. Set to nil to make sure it's using
-    ;; flx.
-    completion-category-defaults nil
-    completion-category-overrides nil
-    )
+   ;; For example, project-find-file uses 'project-files which uses
+   ;; substring completion by default. Set to nil to make sure it's using
+   ;; flx.
+   completion-category-defaults nil
+   completion-category-overrides nil
+   )
 
   ;; .envrc files are setting now PYTHONPATH
   ;; (advice-add 'pyenv-mode-set
@@ -700,44 +683,44 @@ layers configuration."
   ;; [Org ID, Org Attach & Better Folder Names · The Art of Not Asking Why](https://helpdeskheadesk.net/2022-03-13/)
   (setq org-id-method 'ts)
   (setq org-attach-id-to-path-function-list
-    '(org-attach-id-ts-folder-format
-       org-attach-id-uuid-folder-format))
+        '(org-attach-id-ts-folder-format
+          org-attach-id-uuid-folder-format))
 
 
   ;; Org-babel
   ;; https://stackoverflow.com/questions/22888785/is-it-possible-to-get-org-mode-to-show-breadcrumbs-in-agenda-todo-list
   ;; https://blog.ryuslash.org/archives/2012/12/19/orgagendaprefixformat
   (setq org-agenda-prefix-format '((agenda . "%-25:(sp/org/agenda/partial-breadcrumb) |")
-                                    (todo . " %i %-12:c")
-                                    (tags . " %i %-12:c")
-                                    (search . " %i %-12:c")))
+                                   (todo . " %i %-12:c")
+                                   (tags . " %i %-12:c")
+                                   (search . " %i %-12:c")))
 
   (org-babel-do-load-languages
-    'org-babel-load-languages
-    '(
-       (async . t)
-       (plantuml . t)
-       (clojure . t)
-       (awk . t)
-       (dot . t)
-       (emacs-lisp . t)
-       (restclient . t)
-       (graphql . t)
-       (gnuplot . t)
-       (makefile . t)
-       (ocaml . t)
-       (org . t)
-       (perl . t)
-       (python . t)
-       (shell . t)
-       (sql . t)
-       (sqlite . t)))
+   'org-babel-load-languages
+   '(
+     (async . t)
+     (plantuml . t)
+     (clojure . t)
+     (awk . t)
+     (dot . t)
+     (emacs-lisp . t)
+     (restclient . t)
+     (graphql . t)
+     (gnuplot . t)
+     (makefile . t)
+     (ocaml . t)
+     (org . t)
+     (perl . t)
+     (python . t)
+     (shell . t)
+     (sql . t)
+     (sqlite . t)))
 
   ;; Open only task sub-tree on org-agdenda-goto from agenda
   ;; https://emacs.stackexchange.com/questions/17797/how-to-narrow-to-subtree-in-org-agenda-follow-mode
   (advice-add 'org-agenda-goto :after
-    (lambda (&rest args)
-      (org-narrow-to-subtree)))
+              (lambda (&rest args)
+                (org-narrow-to-subtree)))
 
   ;; Disable smartparens highlighting
   (with-eval-after-load 'smartparens
@@ -748,7 +731,7 @@ layers configuration."
   (setq transient-mark-mode t)
   ;; default to better frame titles
   (setq frame-title-format
-    (concat  "%b - emacs@" (system-name)))
+        (concat  "%b - emacs@" (system-name)))
   ;; default to unified diffs
   (setq diff-switches "-u")
   ;; plantuml
@@ -774,7 +757,7 @@ layers configuration."
   (flycheck-define-checker vale
     "A checker for prose"
     :command ("vale" "--output" "line"
-               source)
+              source)
     :standard-input nil
     :error-patterns
     ((error line-start (file-name) ":" line ":" column ":" (id (one-or-more (not (any ":")))) ":" (message) line-end))
@@ -793,15 +776,15 @@ prefix argument is used (C-u), or the buffer no longer has an
 active process."
   (interactive "P\nr")
   (if (or arg ;; user asks for selection
-        (not (boundp 'tws-process-target)) ;; target not set
-        ;; or target is not set to an active process:
-        (not (process-live-p (get-buffer-process
-                               tws-process-target)))) 
-    (setq-local tws-process-target
-      (completing-read
-        "Process: "
-        (seq-map (lambda (el) (buffer-name (process-buffer el)))
-          (process-list)))))
+          (not (boundp 'tws-process-target)) ;; target not set
+          ;; or target is not set to an active process:
+          (not (process-live-p (get-buffer-process
+                                tws-process-target)))) 
+      (setq-local tws-process-target
+                  (completing-read
+                   "Process: "
+                   (seq-map (lambda (el) (buffer-name (process-buffer el)))
+                            (process-list)))))
   ;; [Emacs Shell mode: how to send region to shell? - Stack Overflow](https://stackoverflow.com/questions/6286579/emacs-shell-mode-how-to-send-region-to-shell)
   ;; (with-current-buffer tws-process-target
   ;;   (goto-char (process-mark proc))
@@ -834,8 +817,8 @@ active process."
 (defun config-visuals ()
   ;; https://stackoverflow.com/questions/7251784/how-do-i-adjust-the-left-margin-in-emacs-nox
   (add-hook 'window-configuration-change-hook
-    (lambda ()
-      (set-window-margins nil 2 2)))
+            (lambda ()
+              (set-window-margins nil 2 2)))
 
   (spacemacs/toggle-highlight-current-line-globally-off)
   (add-hook 'semantic-mode-hook 'sp/fight-stickyfunc)
@@ -844,9 +827,8 @@ active process."
   ;; (add-hook 'prog-mode-hook 'highlight-indent-guides-mode)
   ;; (setq-default highlight-indent-guides-method 'character)
 
-  (unless (display-graphic-p)
-    (set-background-color "ivory"))
-
+  ;; (unless (display-graphic-p)
+  ;;   (set-background-color "ivory"))
   )
 
 ;; copied from https://github.com/adamseyfarth/dotfiles/blob/70cd5f7d6961097926142af1e8c6c33b20eedfa2/spacemacs/.spacemacs#L344
@@ -854,15 +836,15 @@ active process."
   "Do whatever it takes to disable semantic-stickyfunc-mode"
   (with-eval-after-load 'semantic
     (setq-default semantic-default-submodes
-      (remove 'global-semantic-stickyfunc-mode
-        semantic-default-submodes))
+                  (remove 'global-semantic-stickyfunc-mode
+                          semantic-default-submodes))
     (spacemacs/toggle-semantic-stickyfunc-globally-off)))
 
 (defun sp/deft/pick-dir ()
   "Select directories from a list"
   (interactive)
   (setq deft-directory 
-    (ido-completing-read "Select directory: " sp/deft/dir-list))
+        (ido-completing-read "Select directory: " sp/deft/dir-list))
   (deft-refresh))
 
 (defun sp/path/parent-dir (dir)
@@ -872,11 +854,11 @@ active process."
 
   (defun -find-toxenv-bin-dirs (root)
     (projectile-files-via-ext-command
-      root
-      (format "find %s -type d -name 'bin' -path '*/.tox/*/bin' -print0" root)))
+     root
+     (format "find %s -type d -name 'bin' -path '*/.tox/*/bin' -print0" root)))
 
   (-map (lambda (file) (sp/path/parent-dir (sp/path/parent-dir file)))
-    (-find-toxenv-bin-dirs project-root-dir)))
+        (-find-toxenv-bin-dirs project-root-dir)))
 
 (defun sp/tox/activate-tox-env-lsp ()
   (interactive)
@@ -903,14 +885,14 @@ active process."
     (setq lsp-python-ms-python-executable python-exe)
     ;; support for python.el.gz
     (setq python-shell-process-environment
-      (list
-        (format "PATH=%s" (mapconcat
-                            'identity
-                            (reverse
-                              (cons (getenv "PATH")
-                                (list (format "%s/bin" lsp-pyright-venv-path))))
-                            ":"))
-        (format "VIRTUAL_ENV=%s" lsp-pyright-venv-path)))
+          (list
+           (format "PATH=%s" (mapconcat
+                              'identity
+                              (reverse
+                               (cons (getenv "PATH")
+                                     (list (format "%s/bin" lsp-pyright-venv-path))))
+                              ":"))
+           (format "VIRTUAL_ENV=%s" lsp-pyright-venv-path)))
     (message "python shell process env: %s" python-shell-process-environment)
 
     (call-interactively 'lsp-workspace-restart)
@@ -946,15 +928,15 @@ active process."
 (defun sp/tox/activate-current-project-tox-env ()
   (interactive)
   (let* (
-          (venv-dirs (sp/tox/find-tox-dirs-in-project (projectile-project-root)))
-          (venv-dirs-length (length venv-dirs)))
+         (venv-dirs (sp/tox/find-tox-dirs-in-project (projectile-project-root)))
+         (venv-dirs-length (length venv-dirs)))
     (progn
       (venv-set-location
-        (if (> venv-dirs-length 1)
-          (helm-comp-read "Choose tox directory to workon" venv-dirs)
-          (if (= venv-dirs-length 0)
-            (error "The project doesn't have created tox virtual environments.")
-            (car venv-dirs))))
+       (if (> venv-dirs-length 1)
+           (helm-comp-read "Choose tox directory to workon" venv-dirs)
+         (if (= venv-dirs-length 0)
+             (error "The project doesn't have created tox virtual environments.")
+           (car venv-dirs))))
       (venv-workon)
       (let ((python-exe (format "%s/%s/bin/python3" venv-location venv-current-name)))
         ;; (pytest.el) 'pytest-global-name', default value is py.test and it's used like
@@ -976,15 +958,15 @@ active process."
   ;; use org-id.el to get or craete ID property.
   ;; the function uses pngpaste for OSX
   (let* (
-          (caption (read-from-minibuffer "Image caption: "))
-          (fname (read-from-minibuffer "Image fname (without ext): "))
-          (-headline-id (org-id-get nil 'create))
-          (imagedir (concat "./data/" -headline-id))
-          (file (concat imagedir "/" fname ".png")))
+         (caption (read-from-minibuffer "Image caption: "))
+         (fname (read-from-minibuffer "Image fname (without ext): "))
+         (-headline-id (org-id-get nil 'create))
+         (imagedir (concat "./data/" -headline-id))
+         (file (concat imagedir "/" fname ".png")))
     (mkdir (concat "data/"-headline-id) default-directory)
     (if (eq system-type 'darwin)
-      ;; osx
-      (shell-command (concat "pngpaste " file))
+        ;; osx
+        (shell-command (concat "pngpaste " file))
       ;; linux
       (sp/write-binary file (x-get-selection-internal 'PRIMARY 'image/png))
       )
@@ -1008,9 +990,9 @@ active process."
 
 (defun sp/org/agenda/partial-breadcrumb ()
   (let* (
-          (path (org-get-outline-path))
-          (final_path (org-format-outline-path (last path) nil nil "|"))
-          (min_length (min 25 (length final_path))))
+         (path (org-get-outline-path))
+         (final_path (org-format-outline-path (last path) nil nil "|"))
+         (min_length (min 25 (length final_path))))
     (format "[%s]"(substring final_path (- min_length) nil))
     )
   )
@@ -1026,8 +1008,8 @@ active process."
 (defun sp/decode-jwt (start end)
   (interactive "r")
   (let* ((selected (buffer-substring start end))
-          (cmd (format "pyjwt decode --no-verify '%s'" selected))
-          (output (shell-command-to-string cmd)))
+         (cmd (format "pyjwt decode --no-verify '%s'" selected))
+         (output (shell-command-to-string cmd)))
     (kill-new output)))
 
 (defun sp/insert-fortune-cookie ()
@@ -1041,36 +1023,125 @@ This is an auto-generated function, do not modify its content directly, use
 Emacs customize menu instead.
 This function is called at the very end of Spacemacs initialization."
   (custom-set-variables
-    ;; custom-set-variables was added by Custom.
-    ;; If you edit it by hand, you could mess it up, so be careful.
-    ;; Your init file should contain only one such instance.
-    ;; If there is more than one, they won't work right.
-    '(helm-buffer-max-length 70)
-    '(helm-icons-provider 'nerd-icons)
-    '(jest-test-command-string " npx jest --detectOpenHandles %s %s")
-    '(lsp-pyright-multi-root nil)
-    '(package-selected-packages
-       '(treemacs-nerd-icons docker igist nano-theme avk-emacs-themes eink-theme paper-theme plan9-theme fzf iosevka-theme evenok tomorrow-night-deepblue-theme github-theme github-modern-theme github-dark-vscode-theme denote counsel-gtags counsel swiper ivy ggtags lua-mode nerd-icons-dired all-the-icons-dired monotropic-theme gptel tommyh-theme company-posframe afternoon-theme alect-themes ample-theme ample-zen-theme anti-zenburn-theme apropospriate-theme badwolf-theme birds-of-paradise-plus-theme bubbleberry-theme busybee-theme cherry-blossom-theme chocolate-theme clues-theme color-theme-sanityinc-solarized color-theme-sanityinc-tomorrow cyberpunk-theme dakrone-theme darkmine-theme darkokai-theme darktooth-theme django-theme doom-themes dracula-theme espresso-theme exotica-theme eziam-themes farmhouse-themes flatland-theme flatui-theme gandalf-theme gotham-theme grandshell-theme gruber-darker-theme gruvbox-theme hc-zenburn-theme hemisu-theme heroku-theme inkpot-theme ir-black-theme jazz-theme jbeans-theme kaolin-themes light-soap-theme lush-theme madhat2r-theme majapahit-themes material-theme minimal-theme modus-themes moe-theme molokai-theme monokai-theme mustang-theme naquadah-theme noctilux-theme obsidian-theme occidental-theme oldlace-theme omtose-phellack-theme organic-green-theme phoenix-dark-mono-theme phoenix-dark-pink-theme planet-theme professional-theme purple-haze-theme railscasts-theme rebecca-theme reverse-theme seti-theme smyx-theme soft-charcoal-theme soft-morning-theme soft-stone-theme solarized-theme soothe-theme autothemer spacegray-theme subatomic-theme subatomic256-theme sublime-themes sunny-day-theme tango-2-theme tangotango-theme tao-theme toxi-theme twilight-anti-bright-theme twilight-bright-theme twilight-theme ujelly-theme underwater-theme white-sand-theme zen-and-art-theme zenburn-theme intellij-theme monochrome-theme quasi-monochrome-theme sexy-monochrome-theme spacious-padding vs-light-theme robot-mode robot-framework flexoki-themes pumpkin-spice-theme halloweenie-theme cider clojure-mode code-cells company dap-mode doom-modeline elfeed-org eshell-prompt-extras evil-collection evil-goggles smartparens evil-matchit expand-region helm-org helm-projectile helm helm-core helpful lsp-mode treemacs markdown-mode magit git-commit transient magit-section vterm ob-restclient restclient projectile persp-mode tree-sitter-langs yasnippet-snippets yapfify yaml-mode ws-butler writeroom-mode writegood-mode with-editor winum which-key wfnames web-mode web-beautify volatile-highlights vmd-mode virtualenvwrapper vim-powerline vi-tilde-fringe uuidgen undo-tree typescript-mode tree-sitter toml-mode toc-org tide terminal-here term-cursor tango-plus-theme tagedit symon symbol-overlay string-inflection string-edit-at-point sql-indent sphinx-doc spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc smeargle slim-mode shrink-path shell-pop sesman scss-mode sass-mode rustic ron-mode rjsx-mode reveal-in-osx-finder restclient-helm restart-emacs reformatter rainbow-delimiters quickrun pytest pylookup pyenv-mode pydoc py-isort pug-mode protobuf-mode prettier-js powerthesaurus powershell poetry pipenv pfuture pcre2el pbcopy password-generator parseedn parchment-theme paradox ox-twbs overseer osx-trash osx-dictionary osx-clipboard orgit org-superstar org-rich-yank org-projectile org-present org-pomodoro org-mime org-download org-contrib org-cliplink org-ai open-junk-file ob-http ob-graphql ob-async npm-mode nose nodejs-repl nix-mode neotree nameless mvn multi-vterm multi-term multi-line mmm-mode maven-test-mode markdown-toc macrostep lsp-ui lsp-treemacs lsp-python-ms lsp-pyright lsp-origami lsp-java lsp-docker lorem-ipsum livid-mode live-py-mode launchctl json-reformat json-navigator json-mode js2-refactor js-doc jinja2-mode jest-test-mode indent-guide impatient-mode hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indent-guides hide-comnt helm-xref helm-themes helm-swoop helm-pydoc helm-purpose helm-org-rifle helm-nixos-options helm-mode-manager helm-make helm-lsp helm-ls-git helm-icons helm-git-grep helm-descbinds helm-dash helm-css-scss helm-company helm-cider helm-c-yasnippet helm-ag groovy-mode groovy-imports graphviz-dot-mode google-translate golden-ratio gnuplot gmail-message-mode gitignore-templates git-timemachine git-modes git-messenger git-link gh-md fuzzy flyspell-correct-helm flymd flycheck-pos-tip flycheck-package flycheck-elsa flx-ido eyebrowse evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-org evil-numbers evil-nerd-commenter evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-exchange evil-evilified-state evil-escape evil-easymotion evil-cleverparens evil-args evil-anzu eshell-z esh-help emr emmet-mode elisp-slime-nav elisp-refs elisp-def elfeed-web elfeed-goodies ef-themes editorconfig edit-server easy-hugo dumb-jump drag-stuff dotenv-mode direnv dired-quick-sort diminish devdocs deft dash-at-point cython-mode csv-mode company-web company-terraform company-restclient company-quickhelp company-nixos-options company-lua company-ansible company-anaconda column-enforce-mode clojure-snippets clean-aindent-mode cider-eval-sexp-fu cfrs centered-cursor-mode bui bmx-mode blacken auto-yasnippet auto-dictionary auto-compile atomic-chrome ansible-doc ansible annalist all-the-icons-nerd-fonts aggressive-indent ace-window ace-link ace-jump-helm-line ac-ispell))
-    '(pytest-cmd-flags "-vv -x -s --doctest-modules")
-    '(safe-local-variable-values
-       '((eval setq lsp-java-java-path
-           (format "%s/%s"
-             (getenv "JAVA_HOME")
-             "/bin/java")
-           lsp-java-import-gradle-java-home
-           (format "%s/%s"
-             (getenv "JAVA_HOME")
-             "/bin/java")
-           lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
-           '[(:name "JavaSE-17" :path
-               (getenv "JAVA_HOME")
-               :default t)])
-          (org-image-actual-width)
-          (javascript-backend . lsp))))
+   ;; custom-set-variables was added by Custom.
+   ;; If you edit it by hand, you could mess it up, so be careful.
+   ;; Your init file should contain only one such instance.
+   ;; If there is more than one, they won't work right.
+   '(helm-buffer-max-length 70)
+   '(helm-icons-provider 'nerd-icons)
+   '(jest-test-command-string
+     " npx jest --workerThreads=1 --runInBand --detectOpenHandles %s %s %s")
+   '(lsp-pyright-multi-root nil t)
+   '(package-selected-packages
+     '(org-modern treemacs-nerd-icons docker igist nano-theme avk-emacs-themes
+                  eink-theme paper-theme plan9-theme fzf iosevka-theme evenok
+                  tomorrow-night-deepblue-theme github-theme github-modern-theme
+                  github-dark-vscode-theme denote counsel-gtags counsel swiper ivy
+                  ggtags lua-mode nerd-icons-dired all-the-icons-dired
+                  monotropic-theme gptel tommyh-theme company-posframe
+                  afternoon-theme alect-themes ample-theme ample-zen-theme
+                  anti-zenburn-theme apropospriate-theme badwolf-theme
+                  birds-of-paradise-plus-theme bubbleberry-theme busybee-theme
+                  cherry-blossom-theme chocolate-theme clues-theme
+                  color-theme-sanityinc-solarized color-theme-sanityinc-tomorrow
+                  cyberpunk-theme dakrone-theme darkmine-theme darkokai-theme
+                  darktooth-theme django-theme doom-themes dracula-theme
+                  espresso-theme exotica-theme eziam-themes farmhouse-themes
+                  flatland-theme flatui-theme gandalf-theme gotham-theme
+                  grandshell-theme gruber-darker-theme gruvbox-theme
+                  hc-zenburn-theme hemisu-theme heroku-theme inkpot-theme
+                  ir-black-theme jazz-theme jbeans-theme kaolin-themes
+                  light-soap-theme lush-theme madhat2r-theme majapahit-themes
+                  material-theme minimal-theme modus-themes moe-theme
+                  molokai-theme monokai-theme mustang-theme naquadah-theme
+                  noctilux-theme obsidian-theme occidental-theme oldlace-theme
+                  omtose-phellack-theme organic-green-theme
+                  phoenix-dark-mono-theme phoenix-dark-pink-theme planet-theme
+                  professional-theme purple-haze-theme railscasts-theme
+                  rebecca-theme reverse-theme seti-theme smyx-theme
+                  soft-charcoal-theme soft-morning-theme soft-stone-theme
+                  solarized-theme soothe-theme autothemer spacegray-theme
+                  subatomic-theme subatomic256-theme sublime-themes
+                  sunny-day-theme tango-2-theme tangotango-theme tao-theme
+                  toxi-theme twilight-anti-bright-theme twilight-bright-theme
+                  twilight-theme ujelly-theme underwater-theme white-sand-theme
+                  zen-and-art-theme zenburn-theme intellij-theme monochrome-theme
+                  quasi-monochrome-theme sexy-monochrome-theme spacious-padding
+                  vs-light-theme robot-mode robot-framework flexoki-themes
+                  pumpkin-spice-theme halloweenie-theme cider clojure-mode
+                  code-cells company dap-mode doom-modeline elfeed-org
+                  eshell-prompt-extras evil-collection evil-goggles smartparens
+                  evil-matchit expand-region helm-org helm-projectile helm
+                  helm-core helpful lsp-mode treemacs markdown-mode magit
+                  git-commit transient magit-section vterm ob-restclient
+                  restclient projectile persp-mode tree-sitter-langs
+                  yasnippet-snippets yapfify yaml-mode ws-butler writeroom-mode
+                  writegood-mode with-editor winum which-key wfnames web-mode
+                  web-beautify volatile-highlights vmd-mode virtualenvwrapper
+                  vim-powerline vi-tilde-fringe uuidgen undo-tree typescript-mode
+                  tree-sitter toml-mode toc-org tide terminal-here term-cursor
+                  tango-plus-theme tagedit symon symbol-overlay string-inflection
+                  string-edit-at-point sql-indent sphinx-doc
+                  spacemacs-whitespace-cleanup spacemacs-purpose-popwin
+                  spaceline-all-the-icons space-doc smeargle slim-mode shrink-path
+                  shell-pop sesman scss-mode sass-mode rustic ron-mode rjsx-mode
+                  reveal-in-osx-finder restclient-helm restart-emacs reformatter
+                  rainbow-delimiters quickrun pytest pylookup pyenv-mode pydoc
+                  py-isort pug-mode protobuf-mode prettier-js powerthesaurus
+                  powershell poetry pipenv pfuture pcre2el pbcopy
+                  password-generator parseedn parchment-theme paradox ox-twbs
+                  overseer osx-trash osx-dictionary osx-clipboard orgit
+                  org-superstar org-rich-yank org-projectile org-present
+                  org-pomodoro org-mime org-download org-contrib org-cliplink
+                  org-ai open-junk-file ob-http ob-graphql ob-async npm-mode nose
+                  nodejs-repl nix-mode neotree nameless mvn multi-vterm multi-term
+                  multi-line mmm-mode maven-test-mode markdown-toc macrostep
+                  lsp-ui lsp-treemacs lsp-python-ms lsp-pyright lsp-origami
+                  lsp-java lsp-docker lorem-ipsum livid-mode live-py-mode
+                  launchctl json-reformat json-navigator json-mode js2-refactor
+                  js-doc jinja2-mode jest-test-mode indent-guide impatient-mode
+                  hybrid-mode hungry-delete holy-mode hl-todo
+                  highlight-parentheses highlight-numbers highlight-indent-guides
+                  hide-comnt helm-xref helm-themes helm-swoop helm-pydoc
+                  helm-purpose helm-org-rifle helm-nixos-options helm-mode-manager
+                  helm-make helm-lsp helm-ls-git helm-icons helm-git-grep
+                  helm-descbinds helm-dash helm-css-scss helm-company helm-cider
+                  helm-c-yasnippet helm-ag groovy-mode groovy-imports
+                  graphviz-dot-mode google-translate golden-ratio gnuplot
+                  gmail-message-mode gitignore-templates git-timemachine git-modes
+                  git-messenger git-link gh-md fuzzy flyspell-correct-helm flymd
+                  flycheck-pos-tip flycheck-package flycheck-elsa flx-ido
+                  eyebrowse evil-visualstar evil-visual-mark-mode evil-unimpaired
+                  evil-tutor evil-textobj-line evil-surround evil-org evil-numbers
+                  evil-nerd-commenter evil-lisp-state evil-lion evil-indent-plus
+                  evil-iedit-state evil-exchange evil-evilified-state evil-escape
+                  evil-easymotion evil-cleverparens evil-args evil-anzu eshell-z
+                  esh-help emr emmet-mode elisp-slime-nav elisp-refs elisp-def
+                  elfeed-web elfeed-goodies ef-themes editorconfig edit-server
+                  easy-hugo dumb-jump drag-stuff dotenv-mode direnv
+                  dired-quick-sort diminish devdocs deft dash-at-point cython-mode
+                  csv-mode company-web company-terraform company-restclient
+                  company-quickhelp company-nixos-options company-lua
+                  company-ansible company-anaconda column-enforce-mode
+                  clojure-snippets clean-aindent-mode cider-eval-sexp-fu cfrs
+                  centered-cursor-mode bui bmx-mode blacken auto-yasnippet
+                  auto-dictionary auto-compile atomic-chrome ansible-doc ansible
+                  annalist all-the-icons-nerd-fonts aggressive-indent ace-window
+                  ace-link ace-jump-helm-line ac-ispell))
+   '(pytest-cmd-flags "-vv -x -s --doctest-modules")
+   '(safe-local-variable-values
+     '((hcl-indent-level . 2) (evil-shift-width . 2)
+       (eval setq lsp-java-java-path
+             (format "%s/%s" (getenv "JAVA_HOME") "/bin/java")
+             lsp-java-import-gradle-java-home
+             (format "%s/%s" (getenv "JAVA_HOME") "/bin/java")
+             lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
+             '[(:name "JavaSE-17" :path (getenv "JAVA_HOME") :default t)])
+       (org-image-actual-width) (javascript-backend . lsp))))
   (custom-set-faces
-    ;; custom-set-faces was added by Custom.
-    ;; If you edit it by hand, you could mess it up, so be careful.
-    ;; Your init file should contain only one such instance.
-    ;; If there is more than one, they won't work right.
-    '(default ((t (:background nil)))))
+   ;; custom-set-faces was added by Custom.
+   ;; If you edit it by hand, you could mess it up, so be careful.
+   ;; Your init file should contain only one such instance.
+   ;; If there is more than one, they won't work right.
+   )
   )
