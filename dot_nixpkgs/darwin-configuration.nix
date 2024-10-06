@@ -68,6 +68,8 @@
 
       global
 
+      duf   # modern df
+      broot # modern tree
       # file manager
       mc
 
