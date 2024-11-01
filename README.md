@@ -50,6 +50,9 @@ Manually installed
   - `nix-env -f '<nixpkgs>' -iA nixUnstable`
 - [NixOS in VMWare Fusion](https://dev.to/ryuheechul/quickest-way-to-run-nixos-on-your-vmware-fusion-4dn7)
 
+## Maybe Later
+- [sq | wrangle data](https://sq.io/) (like jq/yq but for SQL)
+
 ## History
 
 # June 2023
