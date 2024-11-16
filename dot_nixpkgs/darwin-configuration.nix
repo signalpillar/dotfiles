@@ -33,7 +33,6 @@
       #   sha256 = "0kc8m9xsl6mbf787zb566swx0dczb9d06zl5y3spiacn89xwdfgl";
       # }))
       lorri
-      babashka
 
       pngpaste
       aspell
@@ -189,6 +188,7 @@
     "$HOME/.rd/bin"
     "$HOME/.npm/bin"
     "$HOME/.deno/bin"
+    "$HOME/.cargo/bin"
     "$HOME/mutable_node_modules/bin"
   ];
 
