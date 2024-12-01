@@ -149,6 +149,9 @@
           pyflakes
           isort
           tox
+          jedi
+          json-rpc
+          service_factory
       ]))
   ];
 

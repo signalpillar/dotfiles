@@ -22,6 +22,7 @@ Manually installed
 - [Hammerspoon](https://www.hammerspoon.org/)
 - https://matthewpalmer.net/vanilla/
 - https://shottr.cc/ (Best screeshot software)
+- [Proxyman · Debug, intercept & mock HTTP with Proxyman](https://proxyman.io/)
 
 ## AI
 - [GitHub - j178/chatgpt: An elegant interactive CLI for ChatGPT](https://github.com/j178/chatgpt)
