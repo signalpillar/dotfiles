@@ -103,7 +103,7 @@
           lsp-modeline-code-actions-enable t
           lsp-modeline-diagnostics-enable nil
           lsp-modeline-code-actions-segments t
-          lsp-use-lsp-ui nil
+          lsp-use-lsp-ui t
           lsp-lens-enable t
           lsp-auto-guess-root t
           lsp-log-io nil
@@ -154,6 +154,8 @@
           org-capture-templates
           '(("t" "Todo" entry (file+headline "~/gsync-docs/today.org" "Tasks")
              "* TODO %?\n  %i\n  %a")
+            ("w" "Work Journal" entry (file+datetree "~/Documents/work.org")
+             "* %?\nEntered on %U\n  %i\n  %a")
             ("j" "Journal" entry (file+datetree "~/gsync-docs/today.org")
              "* %?\nEntered on %U\n  %i\n  %a"))
           )
@@ -170,8 +172,8 @@
              ;; no need to guess identation
              python-indent-guess-indent-offset t
              python-guess-indent nil
-             python-backend 'lsp
-             python-lsp-server 'pyright
+             python-backend 'anaconda
+             ;; python-lsp-server 'pyright
              lsp-pyright-multi-root nil
              python-fill-docstring-style 'pep-257-nn
              python-fill-column 88
@@ -187,7 +189,7 @@
             shell-default-height 48
             shell-default-position 'bottom
             shell-default-term-shell "bash"
-            shell-default-shell 'vterm
+            ;; shell-default-shell 'vterm
             )
      (spell-checking :variables
                      spell-checking-enable-auto-dictionary nil
@@ -247,6 +249,9 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
+                                      multi-web-mode
+                                      atomic-chrome
+                                      dumber-jump
                                       highlight-indent-guides
                                       edit-server
                                       nerd-icons
@@ -353,7 +358,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(spacemacs-light) '(ef-reverie leuven wheatgrass tango))
+   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi-tinted spacemacs-light) '(modus-operandi-tinted ef-reverie leuven wheatgrass tango))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -516,7 +521,41 @@ layers configuration."
           ("redmine" . textile-mode)))
 
   ;; org-ai
-  (setq org-ai-default-chat-model "gpt-4")
+  (setq org-ai-default-chat-model "gpt-4o-mini")
+
+  (let* ((variable-tuple (cond ((x-list-fonts "Monaco") '(:font "Monaco"))
+                               ((x-list-fonts "Lucida Grande")   '(:font "Lucida Grande"))
+                               ((x-list-fonts "Verdana")         '(:font "Verdana"))
+                               ((x-family-fonts "Sans Serif")    '(:family "Sans Serif"))
+                               (nil (warn "Cannot find Monaco.  Install Monaco."))))
+         (base-font-color     (face-foreground 'default nil 'default))
+         (headline           `(:inherit default :weight bold :foreground ,base-font-color)))
+
+    (custom-theme-set-faces 'user
+                            `(org-level-8 ((t (,@headline ,@variable-tuple))))
+                            `(org-level-7 ((t (,@headline ,@variable-tuple))))
+                            `(org-level-6 ((t (,@headline ,@variable-tuple))))
+                            `(org-level-5 ((t (,@headline ,@variable-tuple))))
+                            `(org-level-4 ((t (,@headline ,@variable-tuple :height 1.1))))
+                            `(org-level-3 ((t (,@headline ,@variable-tuple :height 1.25))))
+                            `(org-level-2 ((t (,@headline ,@variable-tuple :height 1.5))))
+                            `(org-level-1 ((t (,@headline ,@variable-tuple :height 1.75))))
+                            `(org-document-title ((t (,@headline ,@variable-tuple :height 2.0 :underline nil))))))
+
+  (custom-theme-set-faces
+   'user
+   '(org-block ((t (:inherit fixed-pitch))))
+   '(org-code ((t (:inherit (shadow fixed-pitch)))))
+   '(org-document-info ((t (:foreground "dark orange"))))
+   '(org-document-info-keyword ((t (:inherit (shadow fixed-pitch)))))
+   '(org-indent ((t (:inherit (org-hide fixed-pitch)))))
+   '(org-link ((t (:foreground "royal blue" :underline t))))
+   '(org-meta-line ((t (:inherit (font-lock-comment-face fixed-pitch)))))
+   '(org-property-value ((t (:inherit fixed-pitch))) t)
+   '(org-special-keyword ((t (:inherit (font-lock-comment-face fixed-pitch)))))
+   '(org-table ((t (:inherit fixed-pitch :foreground "#83a598"))))
+   '(org-tag ((t (:inherit (shadow fixed-pitch) :weight bold :height 0.8))))
+   '(org-verbatim ((t (:inherit (shadow fixed-pitch))))))
 
   ;; --------- copilot
   ;; accept completion from copilot and fallback to company
@@ -552,7 +591,9 @@ layers configuration."
   ;; pytest
   ;; (add-to-list 'pytest-project-root-files "pyproject.toml")
 
-  (add-to-list 'spacemacs-default-jump-handlers 'dumb-jump-go)
+  ;; (add-to-list 'spacemacs-default-jump-handlers 'dumb-jump-go)
+  ;; (add-hook 'xref-backend-functions #'dumb-jump-xref-activate)
+  (add-hook 'xref-backend-functions #'dumber-jump-xref-activate)
 
   ;; hugo
   ;; note: tailing slash is important
@@ -710,6 +751,7 @@ layers configuration."
      (gnuplot . t)
      (makefile . t)
      (ocaml . t)
+     (js . t)
      (org . t)
      (perl . t)
      (python . t)
@@ -1027,6 +1069,10 @@ This function is called at the very end of Spacemacs initialization."
    ;; If you edit it by hand, you could mess it up, so be careful.
    ;; Your init file should contain only one such instance.
    ;; If there is more than one, they won't work right.
+   '(blink-cursor-mode nil)
+   '(column-number-mode t)
+   '(display-line-numbers-type 'visual)
+   '(global-display-line-numbers-mode t)
    '(helm-buffer-max-length 70)
    '(helm-icons-provider 'nerd-icons)
    '(jest-test-command-string
@@ -1089,16 +1135,16 @@ This function is called at the very end of Spacemacs initialization."
                  material-theme maven-test-mode mermaid-mode minimal-theme
                  mmm-mode modus-themes moe-theme molokai-theme monochrome-theme
                  monokai-theme monotropic-theme multi-line multi-term multi-vterm
-                 mustang-theme mvn nameless nano-theme naquadah-theme neotree
-                 nerd-icons-dired nix-mode noctilux-theme nodejs-repl nose
-                 npm-mode ob-async ob-graphql ob-http ob-restclient obsidian-theme
-                 occidental-theme oldlace-theme omtose-phellack-theme
-                 open-junk-file org-ai org-cliplink org-contrib org-download
-                 org-mime org-pomodoro org-present org-projectile org-rich-yank
-                 org-superstar organic-green-theme orgit osx-clipboard
-                 osx-dictionary osx-trash overseer ox-twbs paper-theme paradox
-                 parchment-theme parseedn password-generator pbcopy pcre2el
-                 persp-mode pfuture phoenix-dark-mono-theme
+                 multi-web-mode mustang-theme mvn nameless nano-theme
+                 naquadah-theme neotree nerd-icons-dired nix-mode noctilux-theme
+                 nodejs-repl nose npm-mode ob-async ob-graphql ob-http
+                 ob-restclient obsidian-theme occidental-theme oldlace-theme
+                 omtose-phellack-theme open-junk-file org-ai org-cliplink
+                 org-contrib org-download org-mime org-pomodoro org-present
+                 org-projectile org-rich-yank org-superstar organic-green-theme
+                 orgit osx-clipboard osx-dictionary osx-trash overseer ox-twbs
+                 paper-theme paradox parchment-theme parseedn password-generator
+                 pbcopy pcre2el persp-mode pfuture phoenix-dark-mono-theme
                  phoenix-dark-pink-theme pipenv plan9-theme planet-theme
                  plantuml-mode poetry powershell powerthesaurus prettier-js
                  professional-theme projectile protobuf-mode pug-mode
@@ -1113,20 +1159,20 @@ This function is called at the very end of Spacemacs initialization."
                  solarized-theme soothe-theme space-doc spacegray-theme
                  spaceline-all-the-icons spacemacs-purpose-popwin
                  spacemacs-whitespace-cleanup spacious-padding sphinx-doc
-                 sql-indent string-edit-at-point string-inflection subatomic-theme
-                 subatomic256-theme sublime-themes sunny-day-theme swiper
-                 symbol-overlay symon tagedit tango-2-theme tango-plus-theme
-                 tangotango-theme tao-theme term-cursor terminal-here tide toc-org
-                 toml-mode tommyh-theme tomorrow-night-deepblue-theme toxi-theme
-                 transient tree-sitter tree-sitter-langs treemacs
-                 treemacs-nerd-icons twilight-anti-bright-theme
-                 twilight-bright-theme twilight-theme typescript-mode ujelly-theme
-                 underwater-theme undo-tree uuidgen vi-tilde-fringe vim-powerline
-                 virtualenvwrapper vmd-mode volatile-highlights vs-light-theme
-                 vterm web-beautify web-mode wfnames which-key white-sand-theme
-                 winum with-editor writegood-mode writeroom-mode ws-butler
-                 yaml-mode yapfify yasnippet-snippets zen-and-art-theme
-                 zenburn-theme))
+                 sql-indent sticky-scroll-mode string-edit-at-point
+                 string-inflection subatomic-theme subatomic256-theme
+                 sublime-themes sunny-day-theme swiper symbol-overlay symon
+                 tagedit tango-2-theme tango-plus-theme tangotango-theme tao-theme
+                 term-cursor terminal-here tide toc-org toml-mode tommyh-theme
+                 tomorrow-night-deepblue-theme toxi-theme transient tree-sitter
+                 tree-sitter-langs treemacs treemacs-nerd-icons
+                 twilight-anti-bright-theme twilight-bright-theme twilight-theme
+                 typescript-mode ujelly-theme underwater-theme undo-tree uuidgen
+                 vi-tilde-fringe vim-powerline virtualenvwrapper vmd-mode
+                 volatile-highlights vs-light-theme vscode-dark-plus-theme vterm
+                 web-beautify web-mode wfnames which-key white-sand-theme winum
+                 with-editor writegood-mode writeroom-mode ws-butler yaml-mode
+                 yapfify yasnippet-snippets zen-and-art-theme zenburn-theme))
    '(pytest-cmd-flags "-vv -x -s --doctest-modules")
    '(safe-local-variable-values
      '((hcl-indent-level . 2) (evil-shift-width . 2)
@@ -1136,11 +1182,23 @@ This function is called at the very end of Spacemacs initialization."
              (format "%s/%s" (getenv "JAVA_HOME") "/bin/java")
              lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
              '[(:name "JavaSE-17" :path (getenv "JAVA_HOME") :default t)])
-       (org-image-actual-width) (javascript-backend . lsp))))
+       (org-image-actual-width) (javascript-backend . lsp)))
+   '(show-paren-mode nil)
+   '(tool-bar-mode nil))
   (custom-set-faces
    ;; custom-set-faces was added by Custom.
    ;; If you edit it by hand, you could mess it up, so be careful.
    ;; Your init file should contain only one such instance.
    ;; If there is more than one, they won't work right.
-   )
+   '(default ((t (:family "IBM Plex Mono" :foundry "nil" :slant normal :weight medium :height 120 :width normal))))
+   '(counsel-outline-1 ((t (:inherit org-level-1 :family "Futura"))))
+   '(org-document-title ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.5 :underline nil))))
+   '(org-level-1 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.75))))
+   '(org-level-2 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.5))))
+   '(org-level-3 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.25))))
+   '(org-level-4 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.1))))
+   '(org-level-5 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande"))))
+   '(org-level-6 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande"))))
+   '(org-level-7 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande"))))
+   '(org-level-8 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande")))))
   )
