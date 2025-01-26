@@ -5,6 +5,7 @@ Manually installed
 - [Raycast](https://www.raycast.com/)
 - [AppCleaner](https://freemacsoft.net/appcleaner/)
 - [kitty](https://sw.kovidgoyal.net/kitty/)
+- [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
 - Brave browser
 - Signal
 - Slack
