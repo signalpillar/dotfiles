@@ -1,21 +1,28 @@
-{ config, pkgs ? import (builtins.fetchTarball {
-     name = "nixpkgs-24.05-darwin-stable";
-     # https://github.com/NixOS/nixpkgs/commit/37df9bcf93431c7f9f9358aec2d7ed0a52d7ba1d
-     url = "https://github.com/NixOS/nixpkgs/archive/37df9bcf93431c7f9f9358aec2d7ed0a52d7ba1d.tar.gz";
-     # Hash obtained using `nix-prefetch-url --unpack <url>`
-     sha256 = "1c404j7p2qapccyik0a40rx9n98s27vbx50r0i8d0m3zas6gd25f";
-   }) {}, lib, ... }:
+{ config,
+  pkgs ? import (builtins.fetchTarball {
+    name = "nixpkgs-24.05-darwin-stable";
+    # https://github.com/NixOS/nixpkgs/commit/37df9bcf93431c7f9f9358aec2d7ed0a52d7ba1d
+    url = "https://github.com/NixOS/nixpkgs/archive/37df9bcf93431c7f9f9358aec2d7ed0a52d7ba1d.tar.gz";
+    # Hash obtained using `nix-prefetch-url --unpack <url>`
+    sha256 = "1c404j7p2qapccyik0a40rx9n98s27vbx50r0i8d0m3zas6gd25f";
+  }) {},
+  lib, ... }:
 
-{
+let
+  unstable = import (builtins.fetchTarball {
+    name = "nixpkgs-stable";
+    url = "https://github.com/NixOS/nixpkgs/archive/30439d93eb8b19861ccbe3e581abf97bdc91b093.tar.gz";
+    sha256 = "1fa67745sf5f9mdz4slkk814dzn93bi72k25wafi21w74mw43id3";
+  }) {};
+in {
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
-
-  # nixpkgs.overlays = [
-  #    (import (builtins.fetchTarball {
-  #      url = https://github.com/nix-community/emacs-overlay/archive/master.tar.gz;
-  #      sha256 = "1268rw5c1vzl71pd4cmc8izig01rxw6kvmlpl3cyz3x1cf4wc115";
-  #    }))
-  # ];
+  # https://github.com/nix-community/emacs-overlay/blob/master/overlays/emacs.nix#L94-L106
+  nixpkgs.overlays = [
+    (import (builtins.fetchTarball {
+      url = "https://github.com/nix-community/emacs-overlay/archive/master.tar.gz";
+    }))
+  ];
 
   environment.systemPackages = with pkgs;
     [
@@ -50,6 +57,7 @@
       # miller
 
       starship
+      lsd
 
       rlwrap
 
@@ -58,9 +66,10 @@
       # bat   # clone of cat
       cloc
 
-      dive  # tool to explore each layer of the docker image
       ctop  # htop for docker
       kubectl
+
+      bottom # btm command
 
       ripgrep
       figlet # show banners
@@ -125,11 +134,6 @@
       reattach-to-user-namespace
       neovim
 
-      # Editors
-     ((emacsPackagesFor emacs29).emacsWithPackages (epkgs: [
-      epkgs.vterm
-     ]))
-
       # Terms
       # kitty
       oh-my-zsh
@@ -151,9 +155,14 @@
           tox
           jedi
           json-rpc
-          service_factory
+          # service-factory
       ]))
-  ];
+  ]
+    ++ (with unstable; [
+   ((emacsPackagesFor emacs30).emacsWithPackages (epkgs: [
+    epkgs.vterm
+   ]))
+  ]);
 
   services = {
     # Auto upgrade nix package and the daemon service.
@@ -264,6 +273,8 @@
     # Use emacsclient to open files in current emacs instance server
     ec = "emacsclient -nw";
     ecw = "emacsclient -cn";
+    # dive installed via nixpkgs cannot open locally built (not pushed) images
+    dive = "docker run -ti --rm  -v /var/run/docker.sock:/var/run/docker.sock wagoodman/dive";
 
     nixre = "darwin-rebuild switch";
     nixgc = "nix-collect-garbage -d";
@@ -274,6 +285,7 @@
     tmux = "tmux -2";
     ddc = "docker-compose";
     vim = "nvim";
+    ls  = "lsd";
   };
 
   system.defaults = {
@@ -324,6 +336,8 @@
         go-font
         jetbrains-mono
         iosevka
+        # https://github.com/adam7/delugia-code/releases
+        # delugia
      ];
    };
 }
