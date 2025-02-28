@@ -19,8 +19,15 @@
 
    dotspacemacs-configuration-layers
 
-   '(docker
+   '(toml
+     docker
      github-copilot
+     (tree-sitter :variables
+                  spacemacs-tree-sitter-hl-black-list '(js2-mode rjsx-mode)
+                  tree-sitter-syntax-highlight-enable t
+                  tree-sitter-fold-enable t
+                  tree-sitter-fold-indicators-enable nil)
+
      (llm-client :variables
                  llm-client-enable-gptel t)
      sql
@@ -153,11 +160,11 @@
           org-confirm-babel-evaluate nil
           org-capture-templates
           '(("t" "Todo" entry (file+headline "~/gsync-docs/today.org" "Tasks")
-             "* TODO %?\n  %i\n  %a")
+             "* TODO %?\n  %i")
             ("w" "Work Journal" entry (file+datetree "~/Documents/work.org")
-             "* %?\nEntered on %U\n  %i\n  %a")
+             "* %?\nEntered on %U\n  %i")
             ("j" "Journal" entry (file+datetree "~/gsync-docs/today.org")
-             "* %?\nEntered on %U\n  %i\n  %a"))
+             "* %?\nEntered on %U\n  %i"))
           )
      ;; ocaml
 
@@ -206,6 +213,7 @@
                  typescript-fmt-on-save t
                  ;; typescript-backend 'tide
                  typescript-backend 'lsp
+                 typescript-indent-level 4
                  )
      (java :variables java-backend 'lsp
            lsp-enable-indentation t
@@ -249,6 +257,11 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
+                                      ;; good for usage with kitty (M-S-: works now)
+                                      naysayer-theme
+                                      eclipse-theme
+                                      dakrone-light-theme
+                                      kkp
                                       multi-web-mode
                                       atomic-chrome
                                       dumber-jump
@@ -261,6 +274,7 @@
                                       blacken
                                       igist
                                       ef-themes
+                                      molokai-theme
 
                                       ;; to fix the editor issue when commiting
                                       ;; git-commit
@@ -268,7 +282,8 @@
                                       ;; call all-the-icons-install-fonts to install the fonts on the system
                                       ;; all-the-icons
 
-                                      poetry
+                                      ;; not used in favour of 'uv'
+                                      ;; poetry
                                       ;; protobuf-mode
                                       ;; eval-sexp-fu
                                       virtualenvwrapper
@@ -277,9 +292,9 @@
                                       ;; allows to not block on org source-block
                                       ;; execution
                                       ob-async
-                                      reverso
+                                      ;; reverso - not used
                                       ;; writegood-mode requires configuration
-                                      powerthesaurus
+                                      ;; powerthesaurus - not used
                                       ;; run tests in TS and TSX
                                       jest-test-mode
                                       ;; access clipboard in OSX
@@ -358,7 +373,7 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(modus-operandi-tinted spacemacs-light) '(modus-operandi-tinted ef-reverie leuven wheatgrass tango))
+   dotspacemacs-themes (if (display-graphic-p) '(naysayer eclipse modus-operandi-tinted spacemacs-light) '(naysayer eclipse modus-operandi-tinted molokai modus-vivendi-tinted leuven wheatgrass tango))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -380,7 +395,7 @@
    ;; dotspacemacs-default-font '("Go Mono" :size 14)
    ;; dotspacemacs-default-font '("Inconsolata" :size 16)
    ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
-   ;; dotspacemacs-default-font '("Monaco" :size 12)
+   dotspacemacs-default-font '("Fira Code" :size 12)
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
    dotspacemacs-major-mode-leader-key "SPC"
@@ -523,24 +538,24 @@ layers configuration."
   ;; org-ai
   (setq org-ai-default-chat-model "gpt-4o-mini")
 
-  (let* ((variable-tuple (cond ((x-list-fonts "Monaco") '(:font "Monaco"))
-                               ((x-list-fonts "Lucida Grande")   '(:font "Lucida Grande"))
-                               ((x-list-fonts "Verdana")         '(:font "Verdana"))
-                               ((x-family-fonts "Sans Serif")    '(:family "Sans Serif"))
-                               (nil (warn "Cannot find Monaco.  Install Monaco."))))
-         (base-font-color     (face-foreground 'default nil 'default))
-         (headline           `(:inherit default :weight bold :foreground ,base-font-color)))
+  ;; (let* ((variable-tuple (cond ((x-list-fonts "Monaco") '(:font "Monaco"))
+  ;;                              ((x-list-fonts "Lucida Grande")   '(:font "Lucida Grande"))
+  ;;                              ((x-list-fonts "Verdana")         '(:font "Verdana"))
+  ;;                              ((x-family-fonts "Sans Serif")    '(:family "Sans Serif"))
+  ;;                              (nil (warn "Cannot find Monaco.  Install Monaco."))))
+  ;;        (base-font-color     (face-foreground 'default nil 'default))
+  ;;        (headline           `(:inherit default :weight bold :foreground ,base-font-color)))
 
-    (custom-theme-set-faces 'user
-                            `(org-level-8 ((t (,@headline ,@variable-tuple))))
-                            `(org-level-7 ((t (,@headline ,@variable-tuple))))
-                            `(org-level-6 ((t (,@headline ,@variable-tuple))))
-                            `(org-level-5 ((t (,@headline ,@variable-tuple))))
-                            `(org-level-4 ((t (,@headline ,@variable-tuple :height 1.1))))
-                            `(org-level-3 ((t (,@headline ,@variable-tuple :height 1.25))))
-                            `(org-level-2 ((t (,@headline ,@variable-tuple :height 1.5))))
-                            `(org-level-1 ((t (,@headline ,@variable-tuple :height 1.75))))
-                            `(org-document-title ((t (,@headline ,@variable-tuple :height 2.0 :underline nil))))))
+  ;;    (custom-theme-set-faces 'user
+  ;;                            `(org-level-8 ((t (,@headline ,@variable-tuple))))
+  ;;                            `(org-level-7 ((t (,@headline ,@variable-tuple))))
+  ;;                            `(org-level-6 ((t (,@headline ,@variable-tuple))))
+  ;;                            `(org-level-5 ((t (,@headline ,@variable-tuple))))
+  ;;                            `(org-level-4 ((t (,@headline ,@variable-tuple :height 1.1))))
+  ;;                            `(org-level-3 ((t (,@headline ,@variable-tuple :height 1.25))))
+  ;;                            `(org-level-2 ((t (,@headline ,@variable-tuple :height 1.5))))
+  ;;                            `(org-level-1 ((t (,@headline ,@variable-tuple :height 1.75))))
+  ;;                            `(org-document-title ((t (,@headline ,@variable-tuple :height 2.0 :underline nil))))))
 
   (custom-theme-set-faces
    'user
@@ -568,14 +583,15 @@ layers configuration."
     (define-key copilot-completion-map (kbd "C-TAB") 'copilot-accept-completion-by-word)
     (define-key copilot-completion-map (kbd "C-<tab>") 'copilot-accept-completion-by-word))
 
-  ;; (add-hook 'prog-mode-hook 'copilot-mode)
+  (add-hook 'prog-mode-hook 'electric-pair-mode 'copilot-mode)
 
   (direnv-mode)
   (config-visuals)
 
   ;; scrolling configuration
   (setq
-   scroll-conservatively 1000
+   scroll-conservatively 101
+   scroll-preserve-screen-position t
    maximum-scroll-margin 0.5
    scroll-margin 10
    truncate-partial-width-windows nil
@@ -610,11 +626,6 @@ layers configuration."
   (add-to-list 'default-frame-alist '(alpha-background . 90))
 
   (fset 'evil-visual-update-x-selection 'ignore)
-
-  ;; ui
-  ;; https://news.ycombinator.com/item?id=17172524
-  (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
-  (add-to-list 'default-frame-alist '(ns-appearance . light))
 
   ;; Neotree
   (with-eval-after-load 'neotree
@@ -867,7 +878,29 @@ active process."
 
   ;; [DarthFennec/highlight-indent-guides: Emacs minor mode to highlight indentation](https://github.com/DarthFennec/highlight-indent-guides)
   ;; (add-hook 'prog-mode-hook 'highlight-indent-guides-mode)
-  (setq-default highlight-indent-guides-method 'column)
+  (require 'highlight-indent-guides)
+  (setq highlight-indent-guides-method 'column
+        highlight-indent-guides-responsive nil)
+
+  (set-face-attribute 'highlight-indent-guides-odd-face nil
+                      :foreground "gray45"
+                      :weight 'light
+                      :height 10)
+
+  (set-face-attribute 'highlight-indent-guides-even-face nil
+                      :foreground "gray80"
+                      :weight 'light
+                      :height 10)
+
+  ;; it eats the indentation
+  ;; (add-hook 'prog-mode-hook 'highlight-indent-guides-mode)
+
+  (set-face-attribute 'line-number-current-line nil
+                      ;; disable custom weight and height as it introduces a weird-looking effect
+                      ;; when running GUI emacs.
+                      ;; :weight 'bold
+                      ;; :height 120
+                      )
 
   ;; (unless (display-graphic-p)
   ;;   (set-background-color "ivory"))
@@ -1076,8 +1109,9 @@ This function is called at the very end of Spacemacs initialization."
    '(helm-buffer-max-length 70)
    '(helm-icons-provider 'nerd-icons)
    '(jest-test-command-string
-     " npx jest --workerThreads=1 --runInBand --detectOpenHandles %s %s %s")
+     " yarn run jest --testRegex \".*/.*\\.ts\" --coverage=false --detectOpenHandles %s %s --testPathPattern %s")
    '(lsp-pyright-multi-root nil t)
+   '(org-agenda-files '("~/gsync-docs/today.org"))
    '(package-selected-packages
      '(ac-ispell ace-jump-helm-line ace-link ace-window afternoon-theme
                  aggressive-indent alect-themes all-the-icons-dired
@@ -1085,66 +1119,70 @@ This function is called at the very end of Spacemacs initialization."
                  ansible ansible-doc anti-zenburn-theme apropospriate-theme
                  atomic-chrome auto-compile auto-dictionary auto-yasnippet
                  autothemer avk-emacs-themes badwolf-theme
-                 birds-of-paradise-plus-theme blacken bmx-mode bubbleberry-theme
-                 bui busybee-theme centered-cursor-mode cfrs cherry-blossom-theme
-                 chocolate-theme cider cider-eval-sexp-fu clean-aindent-mode
-                 clojure-mode clojure-snippets clues-theme code-cells
+                 birds-of-paradise-plus-theme blacken bmx-mode brutalist-theme
+                 bubbleberry-theme bui busybee-theme catppuccin-theme
+                 centered-cursor-mode cfrs cherry-blossom-theme chocolate-theme
+                 cider cider-eval-sexp-fu clean-aindent-mode clojure-mode
+                 clojure-snippets clues-theme code-cells
                  color-theme-sanityinc-solarized color-theme-sanityinc-tomorrow
                  column-enforce-mode company company-anaconda company-ansible
                  company-lua company-nixos-options company-posframe
                  company-quickhelp company-restclient company-terraform
                  company-web counsel counsel-gtags csv-mode cyberpunk-theme
-                 cython-mode dakrone-theme dap-mode darkmine-theme darkokai-theme
-                 darktooth-theme dash-at-point deft denote devdocs diminish
-                 dired-quick-sort direnv django-theme docker doom-modeline
-                 doom-themes dotenv-mode dracula-theme drag-stuff dumb-jump
-                 easy-hugo editorconfig ef-themes eink-theme elfeed-goodies
-                 elfeed-org elfeed-web elisp-def elisp-refs elisp-slime-nav
-                 emmet-mode emr esh-help eshell-prompt-extras eshell-z
-                 espresso-theme evenok evil-anzu evil-args evil-cleverparens
-                 evil-collection evil-easymotion evil-escape evil-evilified-state
-                 evil-exchange evil-goggles evil-iedit-state evil-indent-plus
-                 evil-lion evil-lisp-state evil-matchit evil-nerd-commenter
-                 evil-numbers evil-org evil-surround evil-textobj-line evil-tutor
-                 evil-unimpaired evil-visual-mark-mode evil-visualstar
-                 exotica-theme expand-region eyebrowse eziam-themes
-                 farmhouse-themes flatland-theme flatui-theme flexoki-themes
-                 flx-ido flycheck-elsa flycheck-package flycheck-pos-tip flymd
-                 flyspell-correct-helm fuzzy fzf gandalf-theme ggtags gh-md
-                 git-commit git-link git-messenger git-modes git-timemachine
-                 github-dark-vscode-theme github-modern-theme github-theme
-                 gitignore-templates gmail-message-mode gnuplot golden-ratio
-                 google-translate gotham-theme gptel grandshell-theme
-                 graphviz-dot-mode groovy-imports groovy-mode gruber-darker-theme
-                 gruvbox-theme halloweenie-theme hc-zenburn-theme helm helm-ag
-                 helm-c-yasnippet helm-cider helm-company helm-core helm-css-scss
-                 helm-dash helm-descbinds helm-git-grep helm-icons helm-ls-git
-                 helm-lsp helm-make helm-mode-manager helm-nixos-options helm-org
+                 cython-mode dakrone-light-theme dakrone-theme dap-mode
+                 darkmine-theme darkokai-theme darktooth-theme dash-at-point deft
+                 denote devdocs diminish dired-quick-sort direnv django-theme
+                 docker doom-modeline dotenv-mode dracula-theme
+                 drag-stuff dumb-jump easy-hugo eclipse-theme editorconfig
+                 ef-themes eink-theme elfeed-goodies elfeed-org elfeed-web
+                 elisp-def elisp-refs elisp-slime-nav emmet-mode emr esh-help
+                 eshell-prompt-extras eshell-z espresso-theme evenok evil-anzu
+                 evil-args evil-cleverparens evil-collection evil-easymotion
+                 evil-escape evil-evilified-state evil-exchange evil-goggles
+                 evil-iedit-state evil-indent-plus evil-lion evil-lisp-state
+                 evil-matchit evil-nerd-commenter evil-numbers evil-org
+                 evil-surround evil-textobj-line evil-tutor evil-unimpaired
+                 evil-visual-mark-mode evil-visualstar exotica-theme expand-region
+                 eyebrowse eziam-themes farmhouse-themes flatland-theme
+                 flatui-theme flexoki-themes flucui-themes flx-ido flycheck-elsa
+                 flycheck-package flycheck-pos-tip flymd flyspell-correct-helm
+                 fuzzy fzf gandalf-theme ggtags gh-md git-commit git-link
+                 git-messenger git-modes git-timemachine github-dark-vscode-theme
+                 github-modern-theme github-theme gitignore-templates
+                 gmail-message-mode gnuplot golden-ratio google-translate
+                 gotham-theme gptel grandshell-theme graphviz-dot-mode
+                 groovy-imports groovy-mode gruber-darker-theme gruvbox-theme
+                 halloweenie-theme hc-zenburn-theme helm helm-ag helm-c-yasnippet
+                 helm-cider helm-company helm-core helm-css-scss helm-dash
+                 helm-descbinds helm-git-grep helm-icons helm-ls-git helm-lsp
+                 helm-make helm-mode-manager helm-nixos-options helm-org
                  helm-org-rifle helm-projectile helm-purpose helm-pydoc helm-swoop
                  helm-themes helm-xref helpful hemisu-theme heroku-theme
                  hide-comnt highlight-indent-guides highlight-numbers
-                 highlight-parentheses hl-todo holy-mode hungry-delete hybrid-mode
-                 igist impatient-mode indent-guide inkpot-theme intellij-theme
-                 iosevka-theme ir-black-theme ivy jazz-theme jbeans-theme
-                 jest-test-mode jinja2-mode js-doc js2-refactor json-mode
-                 json-navigator json-reformat kaolin-themes launchctl
-                 light-soap-theme live-py-mode livid-mode lorem-ipsum lsp-docker
-                 lsp-java lsp-mode lsp-origami lsp-pyright lsp-python-ms
-                 lsp-treemacs lsp-ui lua-mode lush-theme macrostep madhat2r-theme
-                 magit magit-section majapahit-themes markdown-mode markdown-toc
-                 material-theme maven-test-mode mermaid-mode minimal-theme
-                 mmm-mode modus-themes moe-theme molokai-theme monochrome-theme
+                 highlight-parentheses hl-todo holy-mode humanoid-themes
+                 hungry-delete hybrid-mode igist impatient-mode indent-guide
+                 inkpot-theme intellij-theme iosevka-theme ir-black-theme ivy
+                 jazz-theme jbeans-theme jest-test-mode jinja2-mode js-doc
+                 js2-refactor json-mode json-navigator json-reformat kaolin-themes
+                 kkp lab-themes launchctl light-soap-theme live-py-mode livid-mode
+                 lorem-ipsum lsp-docker lsp-java lsp-mode lsp-origami lsp-pyright
+                 lsp-python-ms lsp-treemacs lsp-ui lua-mode lush-theme macrostep
+                 madhat2r-theme magit magit-section majapahit-themes markdown-mode
+                 markdown-toc material-theme maven-test-mode mermaid-mode
+                 minimal-theme mmm-mode modus-themes moe-theme molokai-theme
+                 monochrome-theme monokai-alt-theme monokai-pro-theme
                  monokai-theme monotropic-theme multi-line multi-term multi-vterm
                  multi-web-mode mustang-theme mvn nameless nano-theme
-                 naquadah-theme neotree nerd-icons-dired nix-mode noctilux-theme
-                 nodejs-repl nose npm-mode ob-async ob-graphql ob-http
-                 ob-restclient obsidian-theme occidental-theme oldlace-theme
-                 omtose-phellack-theme open-junk-file org-ai org-cliplink
-                 org-contrib org-download org-mime org-pomodoro org-present
-                 org-projectile org-rich-yank org-superstar organic-green-theme
-                 orgit osx-clipboard osx-dictionary osx-trash overseer ox-twbs
-                 paper-theme paradox parchment-theme parseedn password-generator
-                 pbcopy pcre2el persp-mode pfuture phoenix-dark-mono-theme
+                 naquadah-theme naysayer-theme neotree nerd-icons-dired nix-mode
+                 noctilux-theme nodejs-repl nose notink-theme npm-mode ob-async
+                 ob-graphql ob-http ob-restclient obsidian-theme occidental-theme
+                 oldlace-theme omtose-phellack-theme omtose-phellack-themes
+                 open-junk-file org-ai org-cliplink org-contrib org-download
+                 org-mime org-pomodoro org-present org-projectile org-rich-yank
+                 org-superstar organic-green-theme orgit osx-clipboard
+                 osx-dictionary osx-trash overseer ox-twbs paper-theme paradox
+                 parchment-theme parseedn password-generator pbcopy pcre2el
+                 persp-mode pfuture phoenix-dark-mono-theme
                  phoenix-dark-pink-theme pipenv plan9-theme planet-theme
                  plantuml-mode poetry powershell powerthesaurus prettier-js
                  professional-theme projectile protobuf-mode pug-mode
@@ -1154,12 +1192,12 @@ This function is called at the very end of Spacemacs initialization."
                  restclient restclient-helm reveal-in-osx-finder reverse-theme
                  rjsx-mode robot-framework robot-mode ron-mode rustic sass-mode
                  scss-mode sesman seti-theme sexy-monochrome-theme shell-pop
-                 shrink-path slim-mode smartparens smeargle smyx-theme
+                 shrink-path slack slim-mode smartparens smeargle smyx-theme
                  soft-charcoal-theme soft-morning-theme soft-stone-theme
                  solarized-theme soothe-theme space-doc spacegray-theme
                  spaceline-all-the-icons spacemacs-purpose-popwin
                  spacemacs-whitespace-cleanup spacious-padding sphinx-doc
-                 sql-indent sticky-scroll-mode string-edit-at-point
+                 sql-indent sticky-scroll-mode stillness-mode string-edit-at-point
                  string-inflection subatomic-theme subatomic256-theme
                  sublime-themes sunny-day-theme swiper symbol-overlay symon
                  tagedit tango-2-theme tango-plus-theme tangotango-theme tao-theme
@@ -1169,13 +1207,32 @@ This function is called at the very end of Spacemacs initialization."
                  twilight-anti-bright-theme twilight-bright-theme twilight-theme
                  typescript-mode ujelly-theme underwater-theme undo-tree uuidgen
                  vi-tilde-fringe vim-powerline virtualenvwrapper vmd-mode
-                 volatile-highlights vs-light-theme vscode-dark-plus-theme vterm
-                 web-beautify web-mode wfnames which-key white-sand-theme winum
-                 with-editor writegood-mode writeroom-mode ws-butler yaml-mode
-                 yapfify yasnippet-snippets zen-and-art-theme zenburn-theme))
+                 volatile-highlights vs-light-theme vscdark-theme
+                 vscode-dark-plus-theme vterm web-beautify web-mode wfnames
+                 which-key white-sand-theme winum with-editor writegood-mode
+                 writeroom-mode ws-butler yaml-mode yapfify yasnippet-snippets
+                 zen-and-art-theme zenburn-theme))
    '(pytest-cmd-flags "-vv -x -s --doctest-modules")
    '(safe-local-variable-values
-     '((hcl-indent-level . 2) (evil-shift-width . 2)
+     '((eval let ((project-directory (car (dir-locals-find-file default-directory))))
+             (setq lsp-clients-typescript-server-args
+                   `("--tsserver-path" ".yarn/sdks/typescript/bin/tsserver"
+                     "--stdio")))
+       (eval let
+             ((project-directory (car (dir-locals-find-file default-directory))))
+             (setq lsp-clients-typescript-server-args
+                   `("--tsserver-path"
+                     ,(concat project-directory
+                              "../../.yarn/sdks/typescript/bin/tsserver")
+                     "--stdio")))
+       (eval let
+             ((project-directory (car (dir-locals-find-file default-directory))))
+             (setq lsp-clients-typescript-server-args
+                   `("--tsserver-path"
+                     ,(concat project-directory
+                              ".yarn/sdks/typescript/bin/tsserver")
+                     "--stdio")))
+       (hcl-indent-level . 2) (evil-shift-width . 2)
        (eval setq lsp-java-java-path
              (format "%s/%s" (getenv "JAVA_HOME") "/bin/java")
              lsp-java-import-gradle-java-home
@@ -1183,6 +1240,7 @@ This function is called at the very end of Spacemacs initialization."
              lsp-java-import-gradle-enabled t lsp-java-configuration-runtimes
              '[(:name "JavaSE-17" :path (getenv "JAVA_HOME") :default t)])
        (org-image-actual-width) (javascript-backend . lsp)))
+   '(shell-file-name "/run/current-system/sw/bin/bash")
    '(show-paren-mode nil)
    '(tool-bar-mode nil))
   (custom-set-faces
@@ -1190,15 +1248,27 @@ This function is called at the very end of Spacemacs initialization."
    ;; If you edit it by hand, you could mess it up, so be careful.
    ;; Your init file should contain only one such instance.
    ;; If there is more than one, they won't work right.
-   '(default ((t (:family "IBM Plex Mono" :foundry "nil" :slant normal :weight medium :height 120 :width normal))))
+   '(default ((t (:background nil))))
    '(counsel-outline-1 ((t (:inherit org-level-1 :family "Futura"))))
-   '(org-document-title ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.5 :underline nil))))
-   '(org-level-1 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.75))))
-   '(org-level-2 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.5))))
-   '(org-level-3 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.25))))
-   '(org-level-4 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande" :height 1.1))))
-   '(org-level-5 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande"))))
-   '(org-level-6 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande"))))
-   '(org-level-7 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande"))))
-   '(org-level-8 ((t (:inherit default :weight bold :foreground "#000000" :font "Lucida Grande")))))
+   '(org-block ((t (:inherit fixed-pitch))))
+   '(org-code ((t (:inherit (shadow fixed-pitch)))))
+   '(org-document-info ((t (:foreground "dark orange"))))
+   '(org-document-info-keyword ((t (:inherit (shadow fixed-pitch)))))
+   '(org-document-title ((t (:inherit default :weight bold :font "Lucida Grande" :height 1.5 :underline nil))))
+   '(org-indent ((t (:inherit (org-hide fixed-pitch)))))
+   '(org-level-1 ((t (:inherit default :weight bold :font "Lucida Grande" :height 1.75))))
+   '(org-level-2 ((t (:inherit default :weight bold :font "Lucida Grande" :height 1.5))))
+   '(org-level-3 ((t (:inherit default :weight bold :font "Lucida Grande" :height 1.25))))
+   '(org-level-4 ((t (:inherit default :weight bold :font "Lucida Grande" :height 1.1))))
+   '(org-level-5 ((t (:inherit default :weight bold :font "Lucida Grande"))))
+   '(org-level-6 ((t (:inherit default :weight bold :font "Lucida Grande"))))
+   '(org-level-7 ((t (:inherit default :weight bold :font "Lucida Grande"))))
+   '(org-level-8 ((t (:inherit default :weight bold :font "Lucida Grande"))))
+   '(org-link ((t (:foreground "royal blue" :underline t))))
+   '(org-meta-line ((t (:inherit (font-lock-comment-face fixed-pitch)))))
+   '(org-property-value ((t (:inherit fixed-pitch))))
+   '(org-special-keyword ((t (:inherit (font-lock-comment-face fixed-pitch)))))
+   '(org-table ((t (:inherit fixed-pitch :foreground "#83a598"))))
+   '(org-tag ((t (:inherit (shadow fixed-pitch) :weight bold :height 0.8))))
+   '(org-verbatim ((t (:inherit (shadow fixed-pitch))))))
   )
