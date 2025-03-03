@@ -26,6 +26,8 @@ in {
 
   environment.systemPackages = with pkgs;
     [
+      mpv
+
       awscli2
       starship
       terraform-ls       # official terraform language server
@@ -113,11 +115,11 @@ in {
 
       htop
 
-      nodejs
+      # nodejs
 
       pandoc
 
-      _1password
+      _1password-cli
 
       # ncdu
       tmux
@@ -139,7 +141,7 @@ in {
       oh-my-zsh
 
       # Java 11
-      adoptopenjdk-bin
+      temurin-bin
       clojure
 
       pipx
@@ -167,7 +169,7 @@ in {
   services = {
     # Auto upgrade nix package and the daemon service.
     # DO NOT ENABLE DAEMON
-    nix-daemon.enable = false;
+    nix-daemon.enable = true;
     lorri.enable = true;
   };
 
@@ -336,6 +338,7 @@ in {
         go-font
         jetbrains-mono
         iosevka
+        fira-code
         # https://github.com/adam7/delugia-code/releases
         # delugia
      ];
