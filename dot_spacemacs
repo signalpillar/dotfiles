@@ -29,6 +29,7 @@
                   tree-sitter-fold-indicators-enable nil)
 
      (llm-client :variables
+                 gptel-default-mode 'org-mode
                  llm-client-enable-gptel t)
      sql
      (spacemacs-layouts
@@ -257,6 +258,7 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-but-keep-unused
    dotspacemacs-additional-packages `(
+                                      hyperbole
                                       ;; good for usage with kitty (M-S-: works now)
                                       naysayer-theme
                                       eclipse-theme
@@ -273,7 +275,6 @@
                                       direnv
                                       blacken
                                       igist
-                                      ef-themes
                                       molokai-theme
 
                                       ;; to fix the editor issue when commiting
@@ -304,6 +305,8 @@
                                       ;;                     :repo "dalanicolai/robot-framework-layer"))
                                       )
    dotspacemacs-excluded-packages `(
+                                    ;; ignore temporarely as it cannot be loaded
+                                    plz-media-type
                                     json-navigator
                                     ;; ;; use highlight-indent-guides instead
                                     ;; highlight-indentation
@@ -373,7 +376,9 @@
    ;; If non nil output loading progress in `*Messages*' buffer. (default nil)
    dotspacemacs-verbose-loading nil
 
-   dotspacemacs-themes (if (display-graphic-p) '(naysayer eclipse modus-operandi-tinted spacemacs-light) '(naysayer eclipse modus-operandi-tinted molokai modus-vivendi-tinted leuven wheatgrass tango))
+   dotspacemacs-themes (if (display-graphic-p)
+                           '(naysayer eclipse modus-operandi-tinted spacemacs-light)
+                         '(leuven-dark naysayer eclipse modus-operandi-tinted molokai modus-vivendi-tinted leuven wheatgrass tango))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
