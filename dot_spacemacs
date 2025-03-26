@@ -159,11 +159,16 @@
           org-src-fontify-natively t
           ;; Don't prompt before running code in org
           org-confirm-babel-evaluate nil
+          org-todo-keywords
+          '((sequence "TODO(t)" "ONIT(o)" "WAITING(w@)" "REVIEW(r@)" "|" "DONE(d@)")
+            (sequence "|" "CANCELED(c)"))
           org-capture-templates
           '(("t" "Todo" entry (file+headline "~/gsync-docs/today.org" "Tasks")
-             "* TODO %?\n  %i")
+             "* TODO %?\nEntered on %U\n  %i")
             ("w" "Work Journal" entry (file+datetree "~/Documents/work.org")
              "* %?\nEntered on %U\n  %i")
+            ("W" "Work todo" entry (file+headline "~/Documents/work.org" "Tasks")
+             "* TODO %?\nEntered on %U\n  %i")
             ("j" "Journal" entry (file+datetree "~/gsync-docs/today.org")
              "* %?\nEntered on %U\n  %i"))
           )
@@ -344,8 +349,8 @@
 
 (defun dotspacemacs/init ()
   "Initialization function.
-   This function is called at the very startup of Spacemacs initialization
-   before layers configuration."
+  This function is called at the very startup of Spacemacs initialization
+  before layers configuration."
 
   (setq-default
    spacemacs-theme-comment-italic t
@@ -355,7 +360,7 @@
    dotspacemacs-mode-line-unicode-symbols t
    dotspacemacs-highlight-delimiters 'nil
 
-   display-line-numbers-width 3
+   display-line-numbers-width 1
    dotspacemacs-line-numbers '(
                                :relative nil
                                :visual t
@@ -377,8 +382,8 @@
    dotspacemacs-verbose-loading nil
 
    dotspacemacs-themes (if (display-graphic-p)
-                           '(naysayer eclipse modus-operandi-tinted spacemacs-light)
-                         '(leuven-dark naysayer eclipse modus-operandi-tinted molokai modus-vivendi-tinted leuven wheatgrass tango))
+                           '(naysayer eclipse spacemacs-light)
+                         '(naysayer eclipse molokai leuven wheatgrass tango))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -517,8 +522,8 @@
 
 (defun dotspacemacs/user-config ()
   "Configuration function.
- This function is called at the very end of Spacemacs initialization after
-layers configuration."
+  This function is called at the very end of Spacemacs initialization after
+  layers configuration."
   ;; ;; function from pbcopy package to manage clipboard when running in Terminal
   ;; (if (and (spacemacs/system-is-mac) (not (display-graphic-p)))
   ;;     (turn-on-pbcopy))
@@ -828,10 +833,10 @@ layers configuration."
 ;; [Send region to shell in another buffer - Emacs Stack Exchange](https://emacs.stackexchange.com/questions/37887/send-region-to-shell-in-another-buffer)
 (defun tws-region-to-process (arg beg end)
   "Send the current region to a process buffer.
-The first time it's called, will prompt for the buffer to
-send to. Subsequent calls send to the same buffer, unless a
-prefix argument is used (C-u), or the buffer no longer has an
-active process."
+  The first time it's called, will prompt for the buffer to
+  send to. Subsequent calls send to the same buffer, unless a
+  prefix argument is used (C-u), or the buffer no longer has an
+  active process."
   (interactive "P\nr")
   (if (or arg ;; user asks for selection
           (not (boundp 'tws-process-target)) ;; target not set
@@ -1111,10 +1116,11 @@ This function is called at the very end of Spacemacs initialization."
    '(column-number-mode t)
    '(display-line-numbers-type 'visual)
    '(global-display-line-numbers-mode t)
+   '(gptel-default-mode 'org-mode)
    '(helm-buffer-max-length 70)
    '(helm-icons-provider 'nerd-icons)
    '(jest-test-command-string
-     " yarn run jest --testRegex \".*/.*\\.ts\" --coverage=false --detectOpenHandles %s %s --testPathPattern %s")
+     " yarn run jest --testRegex \".*/.*\\.ts\" --coverage=false %s %s --testPathPattern %s")
    '(lsp-pyright-multi-root nil t)
    '(org-agenda-files '("~/gsync-docs/today.org"))
    '(package-selected-packages

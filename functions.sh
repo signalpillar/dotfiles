@@ -537,3 +537,8 @@ function extractany {
         echo "'$1' is not a valid file"
     fi
 }
+
+function osx-fix-xcode {
+    # Fix 'Xcode must be fully installed before you can continue' type of issue
+    sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+}
