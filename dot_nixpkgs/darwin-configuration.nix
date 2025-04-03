@@ -122,6 +122,7 @@ in {
       _1password-cli
 
       # ncdu
+      gdu # modern ncdu
       tmux
       tmuxp
       just
