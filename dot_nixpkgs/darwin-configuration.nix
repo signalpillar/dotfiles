@@ -60,6 +60,7 @@ in {
 
       starship
       lsd
+      yazi  # https://github.com/sxyazi/yazi
 
       rlwrap
 
