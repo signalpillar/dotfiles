@@ -3,9 +3,11 @@ This project contains all my dotfiles that are moved from box to box.
 Manually installed
 
 - [Raycast](https://www.raycast.com/)
+- [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
+- [MeetingBar - Simplify Meetings on macOS with One-Click Access](https://meetingbar.app/)
+- [dwarvesf/hidden: An ultra-light MacOS utility that helps hide menu bar icons](https://github.com/dwarvesf/hidden)
 - [AppCleaner](https://freemacsoft.net/appcleaner/)
 - [kitty](https://sw.kovidgoyal.net/kitty/)
-- [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
 - Brave browser
 - Signal
 - Slack
