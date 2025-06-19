@@ -3,12 +3,14 @@ This project contains all my dotfiles that are moved from box to box.
 Manually installed
 
 - [Raycast](https://www.raycast.com/)
+- [AltTab - Windows alt-tab on macOS](https://alt-tab-macos.netlify.app/)
 - [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
 - [MeetingBar - Simplify Meetings on macOS with One-Click Access](https://meetingbar.app/)
 - [dwarvesf/hidden: An ultra-light MacOS utility that helps hide menu bar icons](https://github.com/dwarvesf/hidden)
+- [Nix & NixOS | Reproducible builds and deployments](https://nixos.org/)
+- Brave browser
 - [AppCleaner](https://freemacsoft.net/appcleaner/)
 - [kitty](https://sw.kovidgoyal.net/kitty/)
-- Brave browser
 - Signal
 - Slack
 - Clipy
@@ -20,7 +22,6 @@ Manually installed
 - [super-productivity](https://github.com/johannesjo/super-productivity)
 - [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
 - [Kap](https://getkap.co/)
-- [Nix & NixOS | Reproducible builds and deployments](https://nixos.org/)
 - mplayer
 - [Hammerspoon](https://www.hammerspoon.org/)
 - https://matthewpalmer.net/vanilla/
