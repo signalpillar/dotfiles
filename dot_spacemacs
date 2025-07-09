@@ -120,9 +120,9 @@
           lsp-enable-symbol-highlighting t
           lsp-ui-doc-enable t
           lsp-navigation 'peek
-          lsp-modeline-code-actions-enable t
+          lsp-modeline-code-actions-enable nil
           lsp-modeline-diagnostics-enable nil
-          lsp-modeline-code-actions-segments t
+          lsp-modeline-code-actions-segments nil
           lsp-use-lsp-ui t
           lsp-lens-enable t
           lsp-auto-guess-root t
@@ -251,6 +251,8 @@
                  ;; typescript-backend 'tide
                  typescript-backend 'lsp
                  typescript-indent-level 4
+                 lsp-javascript-implicit-project-config-experimental-decorators t
+                 lsp-clients-typescript-prefer-use-project-ts-server t
                  )
      ;; (java :variables java-backend 'lsp
      ;;       lsp-enable-indentation t
@@ -294,6 +296,11 @@
    ;; Spacemacs and never uninstall them. (default is `used-only')
    dotspacemacs-install-packages 'used-only
    dotspacemacs-additional-packages `(
+                                      doric-themes
+                                      reddigg
+                                      hnreader
+                                      ;; Has a bug "virtual-comment--get-buffer-data: Args out of range"
+                                      ;; virtual-comment
                                       ;; themes
                                       parchment-theme
                                       brutalist-theme
@@ -332,6 +339,7 @@
                                       ;; protobuf-mode
                                       ;; eval-sexp-fu
                                       virtualenvwrapper
+                                      ob-mermaid
                                       ob-restclient
                                       ob-graphql
                                       ;; allows to not block on org source-block
@@ -344,10 +352,6 @@
                                       jest-test-mode
                                       ;; access clipboard in OSX
                                       pbcopy
-                                      (vs-light-theme :location (recipe
-                                                                 :fetcher github
-                                                                 :repo "emacs-vs/vs-light-theme"))
-
                                       ;; (robot-framework :location (recipe
                                       ;;                     :fetcher github
                                       ;;                     :repo "dalanicolai/robot-framework-layer"))
@@ -426,8 +430,8 @@
    dotspacemacs-verbose-loading nil
 
    dotspacemacs-themes (if (display-graphic-p)
-                           '(leuven naysayer eclipse spacemacs-light)
-                         '(leuven parchment monotropic eclipse molokai wheatgrass tango))
+                           '(doric-light leuven naysayer eclipse spacemacs-light)
+                         '(parchment monotropic eclipse molokai wheatgrass tango))
 
    ;; If non nil the cursor color matches the state color.
    dotspacemacs-colorize-cursor-according-to-state t
@@ -446,10 +450,10 @@
    ;; no major mode or minor modes are active. (default is 1)
    dotspacemacs-large-file-size 1
 
-   ;; dotspacemacs-default-font '("Go Mono" :size 14)
+   dotspacemacs-default-font '("Go Mono" :size 14)
    ;; dotspacemacs-default-font '("Inconsolata" :size 16)
    ;; dotspacemacs-default-font '("Cascadia Code Light" :size 12)
-   dotspacemacs-default-font '("Monaco" :size 12)
+   ;; dotspacemacs-default-font '("Monaco" :size 12)
    dotspacemacs-leader-key ","
    dotspacemacs-emacs-leader-key "M-m"
    dotspacemacs-major-mode-leader-key "SPC"
@@ -719,6 +723,8 @@
   ;; candidate for ,a(pplication)s(end)r(egion)
   ;; C-r C-r doesn't work in org-mode
   (spacemacs/set-leader-keys "xsr" 'tws-region-to-process)
+  (spacemacs/set-leader-keys "anr" 'remember)
+  (spacemacs/set-leader-keys "anl" 'remember-notes)
 
   (defun os-open (path &optional link)
     "Open the path with OS specific command"
@@ -787,7 +793,7 @@
                                    (setq-default live-py-version (executable-find "python"))
                                    (live-py-update-all))))
   ;; [A trick to speed up projectile-find-file in a large monorepo - Emacs TIL](https://emacstil.com/til/2022/10/01/a-trick-to-speed-up-projectilefindfile-in-a-large-monorepo/)
-  (setq projectile-indexing-method 'alien)
+  (setq projectile-indexing-method 'hybrid)
   (setq projectile-enable-caching t)
   (setq
    ;; For example, project-find-file uses 'project-files which uses
@@ -819,11 +825,14 @@
                                    (tags . " %i %-12:c")
                                    (search . " %i %-12:c")))
 
+  (setq ob-mermaid-cli-path (executable-find "mmdc"))
+
   (org-babel-do-load-languages
    'org-babel-load-languages
    '(
      (async . t)
      (plantuml . t)
+     (mermaid . t)
      (clojure . t)
      (awk . t)
      (dot . t)
@@ -1191,7 +1200,7 @@ This function is called at the very end of Spacemacs initialization."
    '(helm-buffer-max-length 70)
    '(helm-icons-provider 'nerd-icons)
    '(jest-test-command-string
-     " yarn run jest --testRegex \".*/.*\\.ts\" --coverage=false %s %s --testPathPattern %s")
+     " yarn run jest --testRegex \".*/.*\\.ts\"  --coverage=false %s %s --testPathPattern %s")
    '(lsp-pyright-multi-root nil)
    '(org-agenda-files '("~/Documents/work.org" "~/Documents/work-journal"))
    '(org-fold-core-style 'overlays)
