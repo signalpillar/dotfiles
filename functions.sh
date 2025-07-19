@@ -542,3 +542,16 @@ function osx-fix-xcode {
     # Fix 'Xcode must be fully installed before you can continue' type of issue
     sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 }
+
+function load_nvm {
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "/usr/local/opt/nvm/nvm.sh" ] && \. "/usr/local/opt/nvm/nvm.sh"  # This loads nvm
+    [ -s "/usr/local/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/usr/local/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
+}
+
+function gemini-cli {
+    # npm install -g @google/gemini-cli
+    load_nvm
+    nvm use --lts
+    npm exec gemini $@
+}
