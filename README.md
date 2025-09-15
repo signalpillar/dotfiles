@@ -7,6 +7,7 @@ Manually installed
 - [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
 - [MeetingBar - Simplify Meetings on macOS with One-Click Access](https://meetingbar.app/)
 - [dwarvesf/hidden: An ultra-light MacOS utility that helps hide menu bar icons](https://github.com/dwarvesf/hidden)
+- [Welcome to xbar](https://xbarapp.com/)
 - [Nix & NixOS | Reproducible builds and deployments](https://nixos.org/)
 - Brave browser
 - [AppCleaner](https://freemacsoft.net/appcleaner/)

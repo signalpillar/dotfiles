@@ -555,3 +555,37 @@ function gemini-cli {
     nvm use --lts
     npm exec gemini $@
 }
+
+function codex-5 {
+    export OPENAI_DEFAULT_MODEL="gpt-5"
+    exec codex --dangerously-bypass-approvals-and-sandbox "$@"
+}
+
+function start_cursor_agent {
+    # 2025-08-18
+    # curl https://cursor.com/install -fsS | bash
+
+    # Cursor Agent Installer
+
+    # ✓ Detected darwin/x64
+    # ✓ Package downloaded and extracted
+    # ✓ Package installed successfully
+    # ✓ Bin directory ready
+    # ✓ Symlink created
+
+    # ✨ Installation Complete!
+
+    # Next Steps
+
+    # 1. Add ~/.local/bin to your PATH:
+    # For bash:
+    # echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    # source ~/.bashrc
+    cursor-agent $@
+}
+
+function start_aider_agent {
+    uvx aider-install
+    # Example: --model ollama_chat/qwen2.5-coder:7b
+    aider --no-gitignore $@
+}

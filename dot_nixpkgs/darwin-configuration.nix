@@ -1,3 +1,4 @@
+# darwin-rebuild switch -I darwin-config=$HOME/.nixpkgs/darwin-configuration.nix
 { config,
   pkgs ? import (builtins.fetchTarball {
     name = "nixpkgs-24.05-darwin-stable";
@@ -35,19 +36,19 @@ in {
       # mplayer
 
       terraform
-      vault
+      # vault
       # devbox # now installed through sh
       # (import (fetchTarball {
       #   url = https://github.com/cachix/devenv/archive/refs/tags/v1.0.1.tar.gz;
       #   sha256 = "0kc8m9xsl6mbf787zb566swx0dczb9d06zl5y3spiacn89xwdfgl";
       # }))
-      lorri
 
       pngpaste
       aspell
       aspellDicts.en
       aspellDicts.en-computers
 
+      fd
       fzf
       entr
 
@@ -129,7 +130,7 @@ in {
       just
       # terminal-notifier # https://github.com/julienXX/terminal-notifier
       # synergy
-      unrar
+      # unrar
       # (vscode-with-extensions.override (vscodeOptions // { vscode = pkgs.vscodium; }))
 
       # Makes copying and pasting in Terminal.app work again on MacOS Sierra
@@ -163,17 +164,11 @@ in {
       ]))
   ]
     ++ (with unstable; [
-   ((emacsPackagesFor emacs30).emacsWithPackages (epkgs: [
-    epkgs.vterm
-   ]))
+   # Installing manually so far
+   # ((emacsPackagesFor emacs30).emacsWithPackages (epkgs: [
+   #  epkgs.vterm
+   # ]))
   ]);
-
-  services = {
-    # Auto upgrade nix package and the daemon service.
-    # DO NOT ENABLE DAEMON
-    nix-daemon.enable = true;
-    lorri.enable = true;
-  };
 
   programs.man.enable = true;
   # so we can install something like unrar that is free but not OSS
@@ -281,7 +276,7 @@ in {
     dive = "docker run -ti --rm  -v /var/run/docker.sock:/var/run/docker.sock wagoodman/dive";
 
     nixre = "darwin-rebuild switch";
-    nixgc = "nix-collect-garbage -d";
+    nixgc = "sudo nix-collect-garbage -d";
 
     ll = "ls -althF";
     la = "ls -A";
@@ -328,18 +323,24 @@ in {
 
   fonts = {
      packages = with pkgs; [
-        (nerdfonts.override { fonts = [ "JetBrainsMono" "DroidSansMono" ]; })
-        comic-mono
-        iosevka
+        nerd-fonts.jetbrains-mono
+        nerd-fonts.comic-shanns-mono
+        nerd-fonts.droid-sans-mono
+        nerd-fonts.go-mono
+        nerd-fonts.inconsolata
+        nerd-fonts.proggy-clean-tt
+
+        nerd-fonts.iosevka
         iosevka-comfy.comfy-wide
+        nerd-fonts.iosevka-term
+
+        comic-mono
         dejavu_fonts
         ibm-plex
-        inconsolata
         proggyfonts
         emacs-all-the-icons-fonts
         go-font
         jetbrains-mono
-        iosevka
         fira-code
         # https://github.com/adam7/delugia-code/releases
         # delugia
