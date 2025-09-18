@@ -1,7 +1,7 @@
-Xft.dpi: 128
+Xft.dpi: 96
+! * Full Resolution ON -> VM sees a HiDPI screen -> Set DPI to 192 to make things bigger.
+! * Full Resolution OFF -> VM sees a standard screen -> Set DPI to 96 to keep things the normal size.
 
-! These might also be useful depending on your monitor and personal preference:
-Xft.autohint: 0
 Xft.lcdfilter:  lcddefault
 Xft.hintstyle:  hintfull
 Xft.hinting: 1
