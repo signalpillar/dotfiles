@@ -24,7 +24,7 @@ This function should only modify configuration layer settings."
    ;; installation feature and you have to explicitly list a layer in the
    ;; variable `dotspacemacs-configuration-layers' to install it.
    ;; (default 'unused)
-   dotspacemacs-enable-lazy-installation 'unused
+   dotspacemacs-enable-lazy-installation 'nil
 
    ;; If non-nil then Spacemacs will ask for confirmation before installing
    ;; a layer lazily. (default t)
@@ -167,6 +167,7 @@ This function should only modify configuration layer settings."
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
                                       exec-path-from-shell
+                                      direnv
                                       jest-test-mode
                                       ob-restclient
                                       ob-graphql
@@ -767,8 +768,8 @@ This function is called at the very end of Spacemacs initialization."
                 centered-cursor-mode clean-aindent-mode code-review
                 column-enforce-mode company company-web compleseus-spacemacs-help
                 consult consult-lsp consult-yasnippet define-word devdocs diminish
-                dired-quick-sort disable-mouse dotenv-mode drag-stuff dumb-jump
-                eat elisp-def elisp-demos elisp-slime-nav ellama embark
+                dired-quick-sort direnv disable-mouse dotenv-mode drag-stuff
+                dumb-jump eat elisp-def elisp-demos elisp-slime-nav ellama embark
                 embark-consult emmet-mode emr esh-help eshell-prompt-extras
                 eshell-z eval-sexp-fu evil-anzu evil-args evil-cleverparens
                 evil-collection evil-easymotion evil-escape evil-evilified-state
@@ -801,9 +802,9 @@ This function is called at the very end of Spacemacs initialization."
                 slim-mode smeargle space-doc spaceline spacemacs-purpose-popwin
                 spacemacs-whitespace-cleanup string-edit-at-point
                 string-inflection symbol-overlay symon tagedit term-cursor
-                terminal-here toc-org typescript-mode undo-fu undo-fu-session
-                vertico vi-tilde-fringe volatile-highlights vterm vundo
-                web-beautify web-completion-data web-mode wgrep winum
+                terminal-here toc-org toml-mode typescript-mode undo-fu
+                undo-fu-session vertico vi-tilde-fringe volatile-highlights vterm
+                vundo web-beautify web-completion-data web-mode wgrep winum
                 writeroom-mode ws-butler yaml-mode yasnippet-snippets)))
   (custom-set-faces
    ;; custom-set-faces was added by Custom.
