@@ -1,0 +1,150 @@
+#!/bin/bash
+
+touch ~/.env.sh
+
+function setup_emacs {
+    mv $HOME/.emacs.d $HOME/.emacs.d`date -I`
+    git clone https://github.com/syl20bnr/spacemacs $HOME/.emacs.d
+}
+
+function setup_lazyvim {
+    # required
+    mv ~/.config/nvim{,.bak}
+
+    # optional but recommended
+    mv ~/.local/share/nvim{,.bak}
+    mv ~/.local/state/nvim{,.bak}
+    mv ~/.cache/nvim{,.bak}
+
+    git clone https://github.com/LazyVim/starter ~/.config/nvim
+    rm -rf ~/.config/nvim/.git
+}
+
+function setup_system_tools {
+    sudo apt-get update
+    sudo apt-get install \
+         build-essential pkg-config autoconf bison clang \
+         libssl-dev libreadline-dev zlib1g-dev libyaml-dev libreadline-dev libncurses5-dev libffi-dev libgdbm-dev libjemalloc2 \
+         libvips imagemagick libmagickwand-dev mupdf mupdf-tools gir1.2-gtop-2.0 gir1.2-clutter-1.0 \
+         redis-tools sqlite3 libsqlite3-0 libmysqlclient-dev libpq-dev postgresql-client postgresql-client-common
+    sudo apt-get install \
+         neovim \
+         git emacs \
+         direnv btop \
+         fzf ripgrep bat eza zoxide plocate apache2-utils fd-find tldr \
+         kitty xclip \
+         strace \
+         iputils-ping iproute2 dnsutils traceroute curl \
+         mpv yt-dlp \
+         i3 i3status
+}
+
+function setup_dev_tools {
+    mise use --global fd
+    mise use --global bun
+    mise use --global node@20.19.5
+}
+
+function install_docker {
+    if command -v docker &> /dev/null; then
+        echo "docker is already installed. Skipping installation."
+        return
+    fi
+    # Add the official Docker repo
+    sudo install -m 0755 -d /etc/apt/keyrings
+    sudo wget -qO /etc/apt/keyrings/docker.asc https://download.docker.com/linux/ubuntu/gpg
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt update
+
+    # Install Docker engine and standard plugins
+    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
+
+    # Give this user privileged Docker access
+    sudo usermod -aG docker ${USER}
+
+    # Limit log size to avoid running out of disk
+    echo '{"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"5"}}' | sudo tee /etc/docker/daemon.json
+}
+
+function set_font {
+	local font_name=$1
+	local url=$2
+	local file_type=$3
+	local file_name="${font_name/ Nerd Font/}"
+
+	if ! $(fc-list | grep -i "$font_name" >/dev/null); then
+		cd /tmp
+		wget -O "$file_name.zip" "$url"
+		unzip "$file_name.zip" -d "$file_name"
+		cp "$file_name"/*."$file_type" ~/.local/share/fonts
+		rm -rf "$file_name.zip" "$file_name"
+		fc-cache
+		cd -
+		clear
+	fi
+
+	gsettings set org.gnome.desktop.interface monospace-font-name "$font_name 10"
+}
+
+function install_desktop_fonts {
+    mkdir -p ~/.local/share/fonts
+
+    # install only if missing iAWriterMonoS-Bold.ttf
+    if fc-list | grep -i "iAWriterMonoS-Bold" >/dev/null; then
+        echo "iAWriterMonoS-Bold font already installed. Skipping font installation."
+        return
+    fi
+
+    cd /tmp
+    wget https://github.com/ryanoasis/nerd-fonts/releases/latest/download/CascadiaMono.zip
+    unzip CascadiaMono.zip -d CascadiaFont
+    cp CascadiaFont/*.ttf ~/.local/share/fonts
+    rm -rf CascadiaMono.zip CascadiaFont
+
+    wget -O iafonts.zip https://github.com/iaolo/iA-Fonts/archive/refs/heads/master.zip
+    unzip iafonts.zip -d iaFonts
+    cp iaFonts/iA-Fonts-master/iA\ Writer\ Mono/Static/iAWriterMonoS-*.ttf ~/.local/share/fonts
+    rm -rf iafonts.zip iaFonts
+
+    fc-cache
+    cd -
+}
+
+function install_localsend {
+    if command -v localsend &> /dev/null; then
+        echo "localsend is already installed. Skipping installation."
+        return
+    fi
+
+    echo "Installing localsend..."
+    cd /tmp
+    LOCALSEND_VERSION=$(curl -s "https://api.github.com/repos/localsend/localsend/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
+    wget -O localsend.deb "https://github.com/localsend/localsend/releases/latest/download/LocalSend-${LOCALSEND_VERSION}-linux-x86-64.deb"
+    sudo apt install -y ./localsend.deb
+    rm localsend.deb
+    cd -
+}
+
+{{- if eq .chezmoi.os "linux" }}
+
+if [ ! -d "$HOME/.emacs.d" ]; then
+    setup_emacs
+fi
+
+if [ ! -d "$HOME/.config/nvim" ]; then
+    setup_lazyvim
+fi
+
+setup_system_tools
+setup_dev_tools
+install_docker
+# install_localsend
+
+set_font "CaskaydiaMono Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/CascadiaMono.zip" "ttf"
+install_desktop_fonts
+# set_font "FiraMono Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraMono.zip" "otf"
+# set_font "JetBrainsMono Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip" "ttf"
+# set_font "MesloLGS Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip" "ttf"
+
+{{- end}}
