@@ -1,0 +1,46 @@
+# -*- mode: snippet -*-
+# name: postmortem
+# key: <postmortem
+# --
+# Post-mortem: <incident title or identifier>
+**When:** YYYY-MM-DD HH:MM–HH:MM (UTC)
+**Owner:** <name>
+**Review date:** YYYY-MM-DD
+
+## Summary (2–3 lines)
+
+Description, impact, duration, customers/users affected.
+
+## Timeline (bullets, UTC)
+
+HH:MM event
+(YYYY-MM-DD HH:MM for multi-day, and finer granularity time if necessary for repro/understanding)
+
+## Contributing factors (organizational and technical)
+
+- …
+
+## Actions
+
+(I talk about action types below, define your own set)
+
+| ID | Type (guardrail/detect/procedure/contract/knowledge) | Change | Owner | Proof (test/monitor/diff) |
+|----|-------------------------------------------------------|--------|-------|---------------------------|
+| A1 | guardrail | 1MB request limit on /upload | alice | test `e2e_upload_413` |
+| A2 | detect    | 401/403 spike alert post-deploy | bob | alert `webhook_auth_spike` |
+
+## Verification
+
+Proof A1–A2 landed (test/monitor screenshots, PR links).
+
+## Learnings
+
+(non-blame, no people, outcomes)
+
+- …
+
+## Follow-up
+
+(Define a due date)
+
+Did incidents drop? Are alerts quieter? Close/extend actions (new due date).
