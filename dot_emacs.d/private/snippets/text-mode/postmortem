@@ -2,6 +2,10 @@
 # name: postmortem
 # key: <postmortem
 # --
+
+# https://blog.veitheller.de/Some_notes_about_post-mortems.html
+# Instruction 1: If you spend more than 90 minutes filling the documents out, you’re probably overcomplicating things. An hour is a good time slot to aim for.
+
 # Post-mortem: <incident title or identifier>
 **When:** YYYY-MM-DD HH:MM–HH:MM (UTC)
 **Owner:** <name>
