@@ -47,7 +47,10 @@ This function should only modify configuration layer settings."
      ;; Uncomment some layer names and press `SPC f e R' (Vim style) or
      ;; `M-m f e R' (Emacs style) to install them.
      ;; ----------------------------------------------------------------
-     auto-completion
+     (auto-completion
+      :variables
+      auto-completion-enable-sort-by-usage t
+      auto-completion-enable-snippets-in-popup t)
      ;; better-defaults
 
      (osx :variables
@@ -154,6 +157,11 @@ This function should only modify configuration layer settings."
                  lsp-clients-typescript-prefer-use-project-ts-server t
                  )
      neotree
+     (tree-sitter :variables
+                  ;; spacemacs-tree-sitter-hl-black-list '(js2-mode rjsx-mode)
+                  tree-sitter-syntax-highlight-enable t
+                  tree-sitter-fold-enable nil
+                  tree-sitter-fold-indicators-enable nil)
      )
 
 
@@ -802,10 +810,11 @@ This function is called at the very end of Spacemacs initialization."
                 slim-mode smeargle space-doc spaceline spacemacs-purpose-popwin
                 spacemacs-whitespace-cleanup string-edit-at-point
                 string-inflection symbol-overlay symon tagedit term-cursor
-                terminal-here toc-org toml-mode typescript-mode undo-fu
-                undo-fu-session vertico vi-tilde-fringe volatile-highlights vterm
-                vundo web-beautify web-completion-data web-mode wgrep winum
-                writeroom-mode ws-butler yaml-mode yasnippet-snippets)))
+                terminal-here toc-org toml-mode tree-sitter tree-sitter-langs tsc
+                typescript-mode undo-fu undo-fu-session vertico vi-tilde-fringe
+                volatile-highlights vterm vundo web-beautify web-completion-data
+                web-mode wgrep winum writeroom-mode ws-butler yaml-mode
+                yasnippet-snippets)))
   (custom-set-faces
    ;; custom-set-faces was added by Custom.
    ;; If you edit it by hand, you could mess it up, so be careful.
