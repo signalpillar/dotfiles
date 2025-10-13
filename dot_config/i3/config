@@ -8,6 +8,10 @@
 # i3 config file (v4)
 #
 # Please see https://i3wm.org/docs/userguide.html for a complete reference!
+#
+# Press Mod+Shift+c to reload and apply updates.
+#I f needed, use Mod+Shift+r to restart i3 for more substantial changes.
+
 
 set $mod Mod4
 
@@ -19,7 +23,7 @@ font pango:monospace 8
 # text rendering and scalability on retina/hidpi displays (thanks to pango).
 #font pango:DejaVu Sans Mono 8
 
-exec --no-startup-id xset r rate 400 30
+exec --no-startup-id xset r rate 100 35
 
 # Start XDG autostart .desktop files using dex. See also
 # https://wiki.archlinux.org/index.php/XDG_Autostart

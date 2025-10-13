@@ -1,12 +1,39 @@
 #!/bin/bash
+#
+# This script automates the initial setup of a new Ubuntu-based work VM.
+# It installs essential development tools, configures editors, and sets up
+# system-level dependencies to get the environment ready for development.
+#
+# The script is designed to be run via chezmoi, which handles templating
+# and ensures it's executed on the correct operating system.
+#
 
 touch ~/.env.sh
 
+# Function to ensure the system time is synchronized using NTP.
+# This is crucial for correct timestamps in logs, certificates, and various
+# system operations, especially after a VM suspension.
+function sync_time {
+    echo "Ensuring system time is synchronized with NTP..."
+    sudo timedatectl set-ntp true
+    if [ $? -eq 0 ]; then
+        echo "System time synchronization enabled."
+    else
+        echo "Failed to enable system time synchronization. Please check manually."
+    fi
+}
+
+# Function to set up Spacemacs (Emacs distribution).
+# This function first backs up any existing .emacs.d directory and then clones
+# the Spacemacs repository to ensure a consistent Emacs setup.
 function setup_emacs {
     mv $HOME/.emacs.d $HOME/.emacs.d`date -I`
     git clone https://github.com/syl20bnr/spacemacs $HOME/.emacs.d
 }
 
+# Function to set up LazyVim (Neovim configuration framework).
+# This function ensures a clean installation of LazyVim by backing up
+# existing Neovim configuration directories before cloning the starter template.
 function setup_lazyvim {
     # required
     mv ~/.config/nvim{,.bak}
@@ -21,6 +48,9 @@ function setup_lazyvim {
 }
 
 function setup_system_tools {
+    # Installs core system development tools and libraries required for compiling
+    # software, database clients, and various utilities. This ensures the VM
+    # has a robust base for general development tasks.
     sudo apt-get update
     sudo apt-get install \
          build-essential pkg-config autoconf bison clang \
@@ -40,6 +70,9 @@ function setup_system_tools {
 }
 
 function setup_dev_tools {
+    # Configures development tools using `mise` (formerly `rtx` or `asdf`).
+    # This ensures specific versions of language runtimes and tools are available
+    # globally, maintaining consistency across projects.
     mise use --global fd
     mise use --global bun
     mise use --global hurl
@@ -47,6 +80,9 @@ function setup_dev_tools {
 }
 
 function install_docker {
+    # Installs Docker Engine and related components, providing containerization
+    # capabilities essential for modern development workflows. It also configures
+    # user permissions and log rotation to manage disk space.
     if command -v docker &> /dev/null; then
         echo "docker is already installed. Skipping installation."
         return
@@ -69,6 +105,9 @@ function install_docker {
 }
 
 function set_font {
+	# Helper function to download, install, and set a specific font.
+	# This is used to ensure consistent font rendering across the system,
+	# which is crucial for terminal and editor aesthetics.
 	local font_name=$1
 	local url=$2
 	local file_type=$3
@@ -89,6 +128,9 @@ function set_font {
 }
 
 function install_desktop_fonts {
+    # Installs a set of commonly used desktop fonts, including Nerd Fonts and iA Fonts.
+    # These fonts are preferred for coding and general desktop use due to their legibility
+    # and inclusion of programming ligatures/icons.
     mkdir -p ~/.local/share/fonts
 
     # install only if missing iAWriterMonoS-Bold.ttf
@@ -113,6 +155,8 @@ function install_desktop_fonts {
 }
 
 function install_localsend {
+    # Installs LocalSend, a cross-platform application for local file sharing.
+    # This is included for convenient and secure file transfers within the local network.
     if command -v localsend &> /dev/null; then
         echo "localsend is already installed. Skipping installation."
         return
@@ -129,21 +173,42 @@ function install_localsend {
 
 {{- if eq .chezmoi.os "linux" }}
 
+# Main execution block: These commands are run when the script is executed on a Linux system.
+# The order of execution is important to ensure dependencies are met and configurations
+# are applied correctly.
+
+# Ensure system time is synchronized.
+sync_time
+
+# Set up Emacs if it's not already present.
 if [ ! -d "$HOME/.emacs.d" ]; then
     setup_emacs
 fi
 
+# Set up LazyVim if it's not already present.
 if [ ! -d "$HOME/.config/nvim" ]; then
     setup_lazyvim
 fi
 
+# Install essential system-wide development tools and libraries.
 setup_system_tools
+
+# Configure development tools using mise.
 setup_dev_tools
+
+# Install and configure Docker for containerization.
 install_docker
+
+# Install LocalSend for local file sharing (currently commented out).
 # install_localsend
 
+# Set the primary monospace font for the desktop environment.
 set_font "CaskaydiaMono Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/CascadiaMono.zip" "ttf"
+
+# Install additional desktop fonts.
 install_desktop_fonts
+
+# Other font installations (currently commented out, can be enabled as needed).
 # set_font "FiraMono Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraMono.zip" "otf"
 # set_font "JetBrainsMono Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip" "ttf"
 # set_font "MesloLGS Nerd Font" "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip" "ttf"
