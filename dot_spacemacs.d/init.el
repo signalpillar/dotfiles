@@ -174,6 +174,7 @@ This function should only modify configuration layer settings."
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
+                                      monokai-theme
                                       exec-path-from-shell
                                       direnv
                                       jest-test-mode
@@ -746,12 +747,28 @@ before packages are loaded."
       "tt" 'jest-test-run-at-point)
     (spacemacs/declare-prefix-for-mode major-mode "mt" "test"))
 
+  (spacemacs/set-leader-keys "cC" 'sp/compile-line-or-prompt)
+
   (setq auto-mode-alist
         (append '(("\\.graphql\\'" . fundamental-mode))
                 auto-mode-alist))
 
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-initialize))
+
+  ;; https://github.com/D4lj337/Emacs-performance
+  (setenv "LSP_USE_PLISTS" "true")
+  (setq lsp-use-plists t)
+
+  ;; Speed up package loading and loads package only when needed
+  (setq package-quickstart t)
+  (setq use-package-always-defer t)
+
+  ;; Disable backup files and modeline while loading.
+  (setq
+   mode-line-format nil
+   make-backup-files nil
+   backup-directory-alist '((".*" . "~/.local/share/Trash/files")))
 
   )
 
