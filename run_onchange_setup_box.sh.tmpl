@@ -76,7 +76,7 @@ function setup_dev_tools {
     mise use --global fd
     mise use --global bun
     mise use --global hurl
-    mise use --global node@20.19.5
+    mise use --global node@22
 }
 
 function install_docker {
@@ -171,6 +171,16 @@ function install_localsend {
     cd -
 }
 
+function install_httpjail {
+    if command -v httpjail &> /dev/null; then
+        echo "httpjail is already installed. Skipping installation."
+        return
+    fi
+
+    echo "Installing httpjail..."
+    cargo install httpjail
+}
+
 {{- if eq .chezmoi.os "linux" }}
 
 # Main execution block: These commands are run when the script is executed on a Linux system.
@@ -183,6 +193,9 @@ sync_time
 # Increase the number of inotify watchers to prevent ENOSPC errors.
 echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/99-inotify.conf > /dev/null
 sudo sysctl -p /etc/sysctl.d/99-inotify.conf
+
+# Install httpjail
+install_httpjail
 
 # Set up Emacs if it's not already present.
 if [ ! -d "$HOME/.emacs.d" ]; then
