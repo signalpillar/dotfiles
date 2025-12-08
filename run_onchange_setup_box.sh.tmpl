@@ -63,7 +63,7 @@ function setup_system_tools {
          direnv btop \
          fzf ripgrep bat eza zoxide plocate apache2-utils fd-find tldr \
          kitty xclip \
-         strace \
+         strace gdu \
          iputils-ping iproute2 dnsutils traceroute curl \
          mpv yt-dlp \
          i3 i3status
@@ -77,6 +77,9 @@ function setup_dev_tools {
     mise use --global bun
     mise use --global hurl
     mise use --global node@22
+    mise reshim
+    npm install -g @github/copilot
+    npm install -g vmd
 }
 
 function install_docker {
