@@ -770,6 +770,112 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
             (lambda (fetcher alist)
               (funcall orig-show fetcher (my/xref--filter-alist alist)))))
     (xref-find-references id)))
+
+;; vv/syllabus
+
+(defgroup vv/syllabus nil
+  "Persistent syllabus capture."
+  :group 'tools)
+
+(defcustom vv/syllabus-directory (expand-file-name "~/.emacs.d/syllabus/")
+  "Directory where syllabus capture files are stored."
+  :type 'directory)
+
+(defvar vv/syllabus-current-file nil
+  "Absolute path to the current syllabus capture file.")
+
+(defun vv/syllabus--ensure-dir ()
+  (unless (file-directory-p vv/syllabus-directory)
+    (make-directory vv/syllabus-directory t)))
+
+(defun vv/syllabus--project-root ()
+  "Return project root if Projectile is available and we are in a project; else nil."
+  (when (featurep 'projectile)
+    (ignore-errors
+      (let ((root (projectile-project-root)))
+        (when (and root (file-directory-p root))
+          (file-truename root))))))
+
+(defun vv/syllabus--path-for-pos (pos)
+  "Return (DISPLAY-PATH . LINE) for POS.
+DISPLAY-PATH is relative to project root if available, else absolute."
+  (let* ((file (or (buffer-file-name) (buffer-name)))
+         (line (line-number-at-pos pos)))
+    (if (and (buffer-file-name) (vv/syllabus--project-root))
+        (cons (file-relative-name (buffer-file-name) (vv/syllabus--project-root)) line)
+      (cons file line))))
+
+(defun vv/syllabus--sanitize (s)
+  "Make S safe for filenames."
+  (let ((out (downcase (or s "misc"))))
+    (setq out (replace-regexp-in-string "[^a-z0-9._-]+" "-" out))
+    (replace-regexp-in-string "-+" "-" out)))
+
+(defun vv/syllabus--default-file-name ()
+  "Generate a new capture filename based on project (if any) + timestamp."
+  (vv/syllabus--ensure-dir)
+  (let* ((root (vv/syllabus--project-root))
+         (proj (if root (file-name-nondirectory (directory-file-name root)) "no-project"))
+         (stamp (format-time-string "%Y%m%d-%H%M%S"))
+         (name (format "%s-%s.org" (vv/syllabus--sanitize proj) stamp)))
+    (expand-file-name name vv/syllabus-directory)))
+
+(defun vv/syllabus-set-current-file (path)
+  "Set PATH as current syllabus file (create if missing)."
+  (interactive "FSet current syllabus file: ")
+  (vv/syllabus--ensure-dir)
+  (setq vv/syllabus-current-file (expand-file-name path))
+  (unless (file-exists-p vv/syllabus-current-file)
+    (with-temp-buffer
+      (insert (format "#+title: Syllabus (%s)\n\n" (file-name-base vv/syllabus-current-file)))
+      (write-file vv/syllabus-current-file)))
+  (message "Syllabus current file: %s" vv/syllabus-current-file))
+
+(defun vv/syllabus-new-file (&optional make-current)
+  "Create a new syllabus file in `vv/syllabus-directory`.
+If MAKE-CURRENT is non-nil (or called interactively), set it as current."
+  (interactive "p")
+  (let ((path (vv/syllabus--default-file-name)))
+    (with-temp-buffer
+      (insert (format "#+title: Syllabus (%s)\n\n" (format-time-string "%Y-%m-%d %H:%M:%S")))
+      (let ((root (vv/syllabus--project-root)))
+        (when root
+          (insert (format "# Project: %s\n\n" root))))
+      (write-file path))
+    (when make-current
+      (setq vv/syllabus-current-file path))
+    (message "Created syllabus file: %s%s"
+             path (if make-current " (current)" ""))))
+
+(defun vv/syllabus-append-region (beg end)
+  "Append selected region as an Org heading with an example block."
+  (interactive "r")
+  (unless (and vv/syllabus-current-file
+               (file-writable-p vv/syllabus-current-file))
+    (vv/syllabus-new-file t))
+
+  (let* ((loc  (vv/syllabus--path-for-pos beg))
+         (path (car loc))
+         (line (cdr loc))
+         (heading (format "%s:%d" path line))
+         (text (buffer-substring-no-properties beg end))
+         (time (format-time-string "[%Y-%m-%d %a %H:%M]")))
+    (with-current-buffer (find-file-noselect vv/syllabus-current-file)
+      (goto-char (point-max))
+      (unless (bolp) (insert "\n"))
+      (insert
+       (format "* %s\n:PROPERTIES:\n:Captured: %s\n:END:\n\n#+begin_example\n%s\n#+end_example\n\n"
+               heading time text))
+      (save-buffer)))
+  (message "Captured into %s" vv/syllabus-current-file))
+
+(defun vv/syllabus-new-file-and-append (beg end)
+  "Create a new syllabus file, set it current, then append region."
+  (interactive "r")
+  (vv/syllabus-new-file t)
+  (vv/syllabus-append-region beg end))
+
+
 (defun dotspacemacs/user-config ()
   "Configuration for user code:
 This function is called at the very end of Spacemacs startup, after layer
@@ -777,6 +883,13 @@ configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
   (require 'editorconfig) ;; dependency
+
+  (spacemacs/set-leader-keys
+    "n s y" #'vv/syllabus-append-region
+    "n s Y" #'vv/syllabus-new-file-and-append
+    "n s n" #'vv/syllabus-new-file
+    "n s f" #'vv/syllabus-set-current-file)
+
   ;; ignore tests
   (spacemacs/set-leader-keys-for-major-mode
     'typescript-mode
@@ -947,8 +1060,10 @@ This function is called at the very end of Spacemacs initialization."
    ;; If you edit it by hand, you could mess it up, so be careful.
    ;; Your init file should contain only one such instance.
    ;; If there is more than one, they won't work right.
+   '(blink-cursor-mode nil)
+   '(column-number-mode t)
    '(jest-test-command-string
-     " yarn run jest --testRegex \".*/.*\\.ts\"  --coverage=false %s %s --testPathPattern %s")
+     " yarn run jest --testRegex \".*/.*\\.ts\"  --coverage=false %s %s --testPathPattern %s" t)
    '(package-selected-packages
      '(ace-link ace-window aggressive-indent all-the-icons auto-compile
                 auto-highlight-symbol auto-yasnippet avy-jump-helm-line
@@ -1001,6 +1116,31 @@ This function is called at the very end of Spacemacs initialization."
    ;; If there is more than one, they won't work right.
    )
   )
+
+(defun sp/compile-line-or-prompt ()
+  "If the current line (and subsequent lines ending with '\\') is non-empty, use it as the default for `compile`.
+Otherwise, behave as the plain `compile` command."
+  (interactive)
+  (let ((line "")
+        (continue t))
+    (save-excursion
+      ;; Read lines until a line without a trailing backslash is found
+      (while continue
+        (let ((current-line (string-trim
+                             (buffer-substring-no-properties
+                              (line-beginning-position)
+                              (line-end-position)))))
+          (if (string-empty-p current-line)
+              (setq continue nil)  ;; Stop on empty line
+            (setq line (concat line current-line "\n"))
+            (forward-line 1)
+            (setq continue (string-suffix-p "\\" current-line))))))
+    ;; Remove the final newline if one exists
+    (setq line (string-trim-right line))
+    (if (not (string-empty-p line))
+        (let ((compile-command line))
+          (call-interactively 'compile))
+      (call-interactively 'compile))))
 
 (defun sp/workflows/mark-git-branch-as-done (main-branch)
   ;; depends on magit
