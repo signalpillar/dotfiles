@@ -15,6 +15,8 @@ This function should only modify configuration layer settings."
    ;; or `spacemacs'. (default 'spacemacs)
    dotspacemacs-distribution 'spacemacs
 
+   spacemacs-keep-legacy-current-buffer-delete-bindings nil
+
    ;; Lazy installation of layers (i.e. layers are installed only when a file
    ;; with a supported type is opened). Possible values are `all', `unused'
    ;; and `nil'. `unused' will lazy install only unused layers (i.e. layers
@@ -37,7 +39,12 @@ This function should only modify configuration layer settings."
    ;; List of configuration layers to load.
    dotspacemacs-configuration-layers
    '(yaml
+     whisper
      html
+     (github-copilot
+      :variables
+      copilot-major-mode-alist '()
+      github-copilot-enable-commit-messages nil)
      (spacemacs-layouts
       :variables
       spacemacs-layouts-restrict-spc-tab t
@@ -76,19 +83,32 @@ This function should only modify configuration layer settings."
      (llm-client :variables
                  gptel-default-mode 'org-mode
                  llm-client-enable-gptel t)
-     ;; (ivy :variables
-     ;;      ivy-enable-advanced-buffer-information nil
-     ;;      ivy-enable-icons nil)
-     compleseus
+     (ivy :variables
+          ivy-enable-advanced-buffer-information nil
+          ivy-enable-icons nil)
+     ;; (compleseus
+     ;;  :variables
+     ;;  compleseus-engine 'selectrum
+     ;;  )
      ;; lsp
-     ;; markdown
+     (markdown :variables
+               markdown-hide-urls t
+               markdown-live-preview-engine 'vmd)
      multiple-cursors
      (org :variables
+          ;; experimental
+          org-enable-appear-support nil
+          org-enable-sticky-header nil
+          org-enable-modern-support nil
+          org-hide-emphasis-markers t
+
+          ;; org-descriptive-links nil
+          org-fontify-emphasized-text nil
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
           org-refile-targets '((nil :maxlevel . 10))
           org-download-method 'attach
           org-download-timestamp t
-          org-enable-bootstrap-support t
+          org-enable-bootstrap-support nil
           org-agenda-files '("~/Documents/work-journal/")
 
           ;; when set to 't' makes editing headings very slow
@@ -99,7 +119,7 @@ This function should only modify configuration layer settings."
                                         (tags urgency-down category-keep)
                                         (search category-keep))
           org-hide-emphasis-markers t
-          org-cycle-separator-lines -2
+          org-cycle-separator-lines -1
           org-fontify-whole-heading-lines t
           org-blank-before-new-entry '(
                                        (heading . nil)
@@ -162,7 +182,11 @@ This function should only modify configuration layer settings."
                   tree-sitter-syntax-highlight-enable t
                   tree-sitter-fold-enable nil
                   tree-sitter-fold-indicators-enable nil)
-     )
+     (python :variables
+             python-backend 'lsp
+             python-lsp-server 'pyright
+             lsp-pyright-langserver-command "basedpyright"
+             python-enable-tools '(uv)))
 
 
    ;; List of additional packages that will be installed without being wrapped
@@ -174,7 +198,12 @@ This function should only modify configuration layer settings."
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
-                                      monokai-theme
+                                      hyperbole
+                                      ;; based on https://github.com/d12frosted/environment/blob/master/emacs/lisp/init-ui.el
+                                      fontaine
+                                      fancy-compilation
+                                      spacious-padding
+                                      org-superstar
                                       exec-path-from-shell
                                       direnv
                                       jest-test-mode
@@ -186,7 +215,8 @@ This function should only modify configuration layer settings."
    dotspacemacs-frozen-packages '()
 
    ;; A list of packages that will not be installed and loaded.
-   dotspacemacs-excluded-packages '()
+   dotspacemacs-excluded-packages '(
+                                    code-review)
 
    ;; Defines the behaviour of Spacemacs when installing packages.
    ;; Possible values are `used-only', `used-but-keep-unused' and `all'.
@@ -325,8 +355,13 @@ It should only modify the values of Spacemacs settings."
    ;; package can be defined with `:package', or a theme can be defined with
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
-   dotspacemacs-themes '(modus-operandi-tinted leuven spacemacs-light
-                                               spacemacs-dark)
+   dotspacemacs-themes '(
+                         modus-operandi
+                         default
+                         doom-monokai-classic
+                         doom-opera-light
+                         spacemacs-light leuven
+                         spacemacs-dark)
 
    ;; Set the theme for the Spaceline. Supported themes are `spacemacs',
    ;; `all-the-icons', `custom', `doom', `vim-powerline' and `vanilla'. The
@@ -346,10 +381,10 @@ It should only modify the values of Spacemacs settings."
    ;; fixed-pitch faces. The `:size' can be specified as
    ;; a non-negative integer (pixel size), or a floating-point (point size).
    ;; Point size is recommended, because it's device independent. (default 10.0)
-   ;; dotspacemacs-default-font '("Source Code Pro"
-   ;;                             :size 10.0
-   ;;                             :weight normal
-   ;;                             :width normal)
+   dotspacemacs-default-font '("Ubuntu Mono"
+                               :size 27  ;; Match the pixel size from 'describe-font'
+                               :weight normal
+                               :width normal)
 
    ;; Default icons font, it can be `all-the-icons' or `nerd-icons'.
    dotspacemacs-default-icons-font 'all-the-icons
@@ -372,7 +407,7 @@ It should only modify the values of Spacemacs settings."
    ;; pressing `<leader> m`. Set it to `nil` to disable it. (default ",")
    dotspacemacs-major-mode-leader-key "SPC"
 
-   dotspacemacs-command-key ":"
+   dotspacemacs-emacs-command-key ":"
 
    ;; Major mode leader key accessible in `emacs state' and `insert state'.
    ;; (default "C-M-m" for terminal mode, "M-<return>" for GUI mode).
@@ -707,12 +742,139 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
    )
   )
 
+(defface my/ts-signature-type-face
+  '((t (:slant italic :inherit default :underline t)))
+  "Face for types in TS signatures only.")
+
+(defun my/xref-ignore-test-files (xref)
+  "Return non-nil if XREF should be kept."
+  (let* ((loc  (xref-item-location xref))
+         (path (xref-location-group loc)))
+    (not (and (stringp path)
+              (string-match-p "/__tests__/" path)))))
+
+(defun my/xref--filter-alist (alist)
+  (mapcar (lambda (cell)
+            (cons (car cell)
+                  (seq-filter #'my/xref-ignore-test-files (cdr cell))))
+          alist))
+
+(defun my/xref-find-references (&optional arg)
+  "Find references. With prefix ARG (C-u), omit __tests__/ (and tests/)."
+  (interactive "P")
+  (let* ((backend (xref-find-backend))
+         (id (xref-backend-identifier-at-point backend))
+         (orig-show xref-show-xrefs-function))
+    (when arg
+      (setq xref-show-xrefs-function
+            (lambda (fetcher alist)
+              (funcall orig-show fetcher (my/xref--filter-alist alist)))))
+    (xref-find-references id)))
 (defun dotspacemacs/user-config ()
   "Configuration for user code:
 This function is called at the very end of Spacemacs startup, after layer
 configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
+  (require 'editorconfig) ;; dependency
+  ;; ignore tests
+  (spacemacs/set-leader-keys-for-major-mode
+    'typescript-mode
+    "gR" #'my/xref-find-references)
+
+  ;; ---------------
+  (with-eval-after-load 'tree-sitter
+    (require 'tree-sitter-langs)
+
+    (tree-sitter-hl-add-patterns
+        'typescript
+      [
+       ;; Parameter type annotations: (x: Type)
+       (required_parameter type: (type_annotation (_) @sig_type))
+
+       ;; Return type annotations: (): Type
+       (function_signature return_type: (type_annotation (_) @sig_type))
+
+       ;; Arrow function return type: (): Type => ...
+       (arrow_function return_type: (type_annotation (_) @sig_type))
+       ]))
+
+  (with-eval-after-load 'tree-sitter-hl
+    (defvar tree-sitter-hl-face-mapping-alist nil)
+    (setf (alist-get 'sig_type tree-sitter-hl-face-mapping-alist)
+          'my/ts-signature-type-face))
+
+  ;; -----
+
+  (custom-set-faces
+   '(font-lock-type-face ((t (:inherit default))))          ; types
+   '(font-lock-function-name-face ((t (:box (:line-width -1) :weight normal)))) ; signatures / defs
+   '(font-lock-variable-name-face ((t (:inherit default))))
+   '(font-lock-string-face ((t (:inherit default))))
+   '(font-lock-constant-face ((t (:inherit default))))
+   '(font-lock-keyword-face ((t (:inherit default))))
+   '(font-lock-comment-face ((t (:inherit shadow)))))
+
+  (with-eval-after-load 'copilot
+    (remove-hook 'prog-mode-hook #'copilot-mode))
+
+  (use-package fontaine
+    :ensure t
+    :config
+    (setq fontaine-presets
+          '((regular
+             :default-height 140)
+            (medium
+             :default-weight semilight
+             :default-height 140)
+            (large
+             :default-weight semilight
+             :default-height 180
+             :bold-weight extrabold)
+            (t ; our shared fallback properties
+             :default-family "Ubuntu Mono"
+             :default-weight normal
+             ;; :default-height 100
+             :fixed-pitch-family nil ; falls back to :default-family
+             :fixed-pitch-weight nil ; falls back to :default-weight
+             :fixed-pitch-height 1.0
+             :variable-pitch-family "Ubuntu Mono"
+             :variable-pitch-weight normal
+             :variable-pitch-height 1.0
+             :bold-family nil
+             :bold-weight bold
+             :italic-family nil
+             :italic-slant italic
+             :line-spacing 0.2)))
+    (fontaine-set-preset (or (fontaine-restore-latest-preset) 'regular))
+    (fontaine-mode 1))
+
+  (use-package fancy-compilation
+    :commands (fancy-compilation-mode)
+    :init
+    (setf fancy-compilation-override-colors nil)
+    (with-eval-after-load 'compile
+      (fancy-compilation-mode)))
+
+                                        ; (use-package spacious-padding
+  ;;   :config
+  ;;   (setq spacious-padding-widths
+  ;;         '(
+  ;;           ;; :internal-border-width 14
+  ;;           :header-line-width 4
+  ;;           :mode-line-width 6
+  ;;           :tab-width 4
+  ;;           :right-divider-width 14
+  ;;           ;; :scroll-bar-width 8
+  ;;           ))
+  ;;   (spacious-padding-mode 1))
+
+  (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+  (custom-set-faces
+   '(org-link ((t (:underline nil :weight normal :slant normal :background nil))))
+   )
+  (setq org-activate-links '(bracket angle radio tag date footnote))
+
   (org-babel-do-load-languages
    'org-babel-load-languages
    '(

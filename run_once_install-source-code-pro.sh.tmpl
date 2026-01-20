@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+FONT_DIR="${HOME}/.fonts/adobe-fonts/source-code-pro"
+
+if [ ! -d "${FONT_DIR}/.git" ]; then
+  echo "Cloning Source Code Pro font..."
+  mkdir -p "$(dirname "${FONT_DIR}")"
+  git clone https://github.com/adobe-fonts/source-code-pro.git "${FONT_DIR}"
+else
+  echo "Updating Source Code Pro font..."
+  git -C "${FONT_DIR}" pull --ff-only
+fi
+
+echo "Rebuilding font cache..."
+fc-cache -f "${HOME}/.fonts"
