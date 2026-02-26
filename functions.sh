@@ -589,3 +589,7 @@ function start_aider_agent {
     # Example: --model ollama_chat/qwen2.5-coder:7b
     aider --no-gitignore $@
 }
+
+function osx_resize_png_image {
+    sips -z 240 240 $1 --out $2.240x240.png
+}
