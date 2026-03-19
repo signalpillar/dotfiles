@@ -51,6 +51,7 @@ function setup_system_tools {
     # Installs core system development tools and libraries required for compiling
     # software, database clients, and various utilities. This ensures the VM
     # has a robust base for general development tasks.
+    echo "Setup System Tools"
     sudo apt-get update
     sudo apt-get install \
          build-essential pkg-config autoconf bison clang \
@@ -58,15 +59,22 @@ function setup_system_tools {
          libvips imagemagick libmagickwand-dev mupdf mupdf-tools gir1.2-gtop-2.0 gir1.2-clutter-1.0 \
          redis-tools sqlite3 libsqlite3-0 libmysqlclient-dev libpq-dev postgresql-client postgresql-client-common
     sudo apt-get install \
+         direnv \
          neovim \
          git emacs \
          direnv btop \
-         fzf ripgrep bat eza zoxide plocate apache2-utils fd-find tldr \
+         fzf ripgrep bat eza zoxide plocate apache2-utils fd-find \
          kitty xclip \
          strace gdu \
          iputils-ping iproute2 dnsutils traceroute curl \
          mpv yt-dlp \
-         i3 i3status
+         i3 i3status \
+         sway swaylock swayidle swaybg waybar \
+         fuzzel cliphist wl-clipboard \
+         grim slurp \
+         fcitx5 \
+         autotiling \
+         xdg-desktop-portal-wlr pipewire wireplumber dbus-x11 libnotify-bin
 }
 
 function setup_dev_tools {
@@ -185,6 +193,17 @@ function install_httpjail {
     cargo install httpjail
 }
 
+function configure_snap {
+    # Set the number of old versions of snaps to retain to 2.
+    # This helps to save disk space by keeping only the current and one previous version.
+    if command -v snap &> /dev/null; then
+        echo "Configuring snap..."
+        sudo snap set system refresh.retain=2
+    else
+        echo "snap is not installed. Skipping snap configuration."
+    fi
+}
+
 {{- if eq .chezmoi.os "linux" }}
 
 # Main execution block: These commands are run when the script is executed on a Linux system.
@@ -193,6 +212,9 @@ function install_httpjail {
 
 # Ensure system time is synchronized.
 sync_time
+
+# Configure snap (set refresh limit)
+configure_snap
 
 # Increase the number of inotify watchers to prevent ENOSPC errors.
 echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/99-inotify.conf > /dev/null

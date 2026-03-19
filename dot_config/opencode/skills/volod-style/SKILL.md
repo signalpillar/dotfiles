@@ -36,6 +36,18 @@ metadata:
 - **Keep docs close to code**: prefer colocated type comments and focused README/test-doc notes over broad external prose.
 - **Update docs with behavior changes**: when logic or API semantics change, update related comments/type docstrings in the same PR.
 
+### Edge-case documentation review checklist
+
+When using this skill for implementation or review, explicitly scan for edge-case decisions that are implemented but not documented in code comments.
+
+- For every fallback path, document:
+  - why fallback exists,
+  - what data source is preferred vs fallback,
+  - what correctness trade-off is accepted.
+- For metadata/time fallbacks, explicitly call out temporal risk (for example, `meta.lastUpdated` can be later than the true business event time because storage updates are unrelated to the original event).
+- Ensure each documented edge-case has at least one test named after that decision.
+- Treat missing edge-case comments as a review finding and request/update docs in the same change.
+
 ## Logging style
 
 - Use stable, kebab-case event keys for observability.

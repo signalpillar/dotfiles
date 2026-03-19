@@ -3,6 +3,6 @@ Type=Application
 Name=brave
 Comment=Brave web browser
 Terminal=false
-Exec=brave
+Exec=brave --gtk-version=4 --enable-features=UseOzonePlatform --ozone-platform=wayland
 Categories=Network;WebBrowser
 MimeType=x-scheme-handler/unknown;x-scheme-handler/about;x-scheme-handler/https;x-scheme-handler/http;text/html;
