@@ -22,6 +22,7 @@ metadata:
 - **Future-proofing**: when new variants are expected, extract extension points only when they reduce complexity now; otherwise keep implementation simple.
 - **Model over filter**: when a category of behavior needs special handling (e.g., expected errors, known event types), express it in the type system (class hierarchy, enum, tagged union) rather than adding string-based or convention-based runtime checks. Others will copy the pattern — make the right thing the easy thing.
 - **Type strictness**: types must reflect the actual domain state, not the weakest type a library returns. Narrow external/library types at the boundary (resolver, converter, data loader); inner functions receive already-validated strict types with no unnecessary optionality. Never propagate `| undefined` or `?` on fields that are always present at runtime — it forces every consumer to re-check and clutters business logic with defensive guards.
+- **Domain-first contracts**: model the valid, expected state of our domain rather than the loosest state an external SDK or provider accepts. If our flow requires a stricter contract (for example a required system prompt), express that in our code and fail closed at the boundary instead of mirroring optional provider fields throughout the implementation.
 
 ## API and service behavior practices
 

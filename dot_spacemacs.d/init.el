@@ -41,10 +41,10 @@ This function should only modify configuration layer settings."
    '(yaml
      whisper
      html
-     (github-copilot
-      :variables
-      copilot-major-mode-alist '()
-      github-copilot-enable-commit-messages nil)
+     ;; (github-copilot
+     ;;  :variables
+     ;;  copilot-major-mode-alist '()
+     ;;  github-copilot-enable-commit-messages nil)
      (spacemacs-layouts
       :variables
       spacemacs-layouts-restrict-spc-tab t
@@ -161,6 +161,7 @@ This function should only modify configuration layer settings."
           )
      (shell :variables
             shell-default-height 30
+            shell-default-shell 'vterm
             shell-default-position 'bottom)
      ;; spell-checking
      syntax-checking
@@ -198,6 +199,8 @@ This function should only modify configuration layer settings."
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
+                                      cue-mode
+                                      alabaster-themes
                                       hyperbole
                                       ;; based on https://github.com/d12frosted/environment/blob/master/emacs/lisp/init-ui.el
                                       fontaine
@@ -356,11 +359,17 @@ It should only modify the values of Spacemacs settings."
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
+                         leuven
+                         ;; Without :package, Spacemacs looks for `alabaster-themes-light-bg-theme'.
+                         (alabaster-themes-light :package alabaster-themes)
+                         doom-acario-light
                          modus-operandi
+                         spacemacs-light
+                         ;; Without :package, Spacemacs looks for `alabaster-themes-light-bg-theme'.
+                         (alabaster-themes-light-bg :package alabaster-themes)
                          default
                          doom-monokai-classic
                          doom-opera-light
-                         spacemacs-light leuven
                          spacemacs-dark)
 
    ;; Set the theme for the Spaceline. Supported themes are `spacemacs',
@@ -370,7 +379,7 @@ It should only modify the values of Spacemacs settings."
    ;; refer to the DOCUMENTATION.org for more info on how to create your own
    ;; spaceline theme. Value can be a symbol or list with additional properties.
    ;; (default '(spacemacs :separator wave :separator-scale 1.5))
-   dotspacemacs-mode-line-theme '(spacemacs :separator wave :separator-scale 1.5)
+   dotspacemacs-mode-line-theme '(vanilla :separator none :separator-scale 1.5)
 
    ;; If non-nil the cursor color matches the state color in GUI Emacs.
    ;; (default t)
@@ -884,6 +893,19 @@ Put your configuration code here, except for variables that should be set
 before packages are loaded."
   (require 'editorconfig) ;; dependency
 
+  ;; Terminal clipboard via OSC 52. In a TTY frame (SSH/mosh + tmux +
+  ;; Ghostty), Emacs cannot reach the host Mac clipboard through X11 or
+  ;; pbcopy. Pipe killed text to ~/bin/osc52-yank, which writes the OSC 52
+  ;; escape to a tty visible to Ghostty (see also dot_tmux.conf.tmpl).
+  ;; Synchronous: async start-process lost short writes here.
+  (defun my/osc52-yank-to-host (text)
+    (when (executable-find "osc52-yank")
+      (with-temp-buffer
+        (insert text)
+        (call-process-region (point-min) (point-max) "osc52-yank"))))
+  (unless (display-graphic-p)
+    (setq interprogram-cut-function #'my/osc52-yank-to-host))
+
   (spacemacs/set-leader-keys
     "n s y" #'vv/syllabus-append-region
     "n s Y" #'vv/syllabus-new-file-and-append
@@ -918,7 +940,6 @@ before packages are loaded."
           'my/ts-signature-type-face))
 
   ;; -----
-
   (custom-set-faces
    '(font-lock-type-face ((t (:inherit default))))          ; types
    '(font-lock-function-name-face ((t (:box (:line-width -1) :weight normal)))) ; signatures / defs
@@ -965,7 +986,10 @@ before packages are loaded."
   (use-package fancy-compilation
     :commands (fancy-compilation-mode)
     :init
-    (setf fancy-compilation-override-colors nil)
+    ;; Defaults would hide Emacs's prelude and the shell line in every
+    ;; `compile' buffer (fancy-compilation--compilation-start deletes buffer).
+    (setq fancy-compilation-override-colors nil
+          fancy-compilation-quiet-prelude nil)
     (with-eval-after-load 'compile
       (fancy-compilation-mode)))
 
@@ -1022,6 +1046,26 @@ before packages are loaded."
       "tt" 'jest-test-run-at-point)
     (spacemacs/declare-prefix-for-mode major-mode "mt" "test"))
 
+  ;; Spacemacs reads this file (`~/.spacemacs.d/init.el`), not `~/.spacemacs'.
+  ;; Use stock `compilation-mode' instead of `jest-test-compilation-mode'
+  ;; (no jest-test ansi-color `compilation-filter-hook' on that buffer).
+  (with-eval-after-load 'jest-test-mode
+    (defun jest-test-run-command (command)
+      "Run compilation COMMAND in NPM project root."
+      (jest-test-update-last-test command)
+      (let ((comint-scroll-to-bottom-on-input t)
+            (comint-scroll-to-bottom-on-output t)
+            (comint-process-echoes t)
+            (compilation-buffer-name-function 'jest-test-compilation-buffer-name))
+        (compile command 'compilation-mode)))
+
+    (add-hook 'compilation-mode-hook
+              (lambda ()
+                (when (equal (buffer-name)
+                             jest-test-compilation-buffer-name-base)
+                  (setq-local compilation-error-regexp-alist
+                              jest-test-compilation-error-regexp-alist)))))
+
   (spacemacs/set-leader-keys "cC" 'sp/compile-line-or-prompt)
 
   (setq auto-mode-alist
@@ -1063,7 +1107,7 @@ This function is called at the very end of Spacemacs initialization."
    '(blink-cursor-mode nil)
    '(column-number-mode t)
    '(jest-test-command-string
-     " yarn run jest --testRegex \".*/.*\\.ts\"  --coverage=false %s %s --testPathPattern %s" t)
+     " yarn run jest --coverage=false %s %s --testPathPattern %s")
    '(package-selected-packages
      '(ace-link ace-window aggressive-indent all-the-icons auto-compile
                 auto-highlight-symbol auto-yasnippet avy-jump-helm-line

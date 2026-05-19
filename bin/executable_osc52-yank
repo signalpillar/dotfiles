@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Push stdin to the host terminal's clipboard via OSC 52.
+#
+# Writes the escape sequence directly to the tmux client's tty (the SSH/mosh
+# pty above tmux), bypassing tmux's screen handling. Needed because tmux's
+# built-in `set-clipboard on` re-emission does not reach the host terminal
+# reliably in this setup (Linux VM -> SSH/mosh -> Ghostty on macOS), while
+# bytes written straight to the SSH pty do.
+#
+# Usage:
+#   <select text>; tmux ... copy-pipe-and-cancel 'osc52-yank'
+#   printf 'hello' | osc52-yank
+set -euo pipefail
+
+tty=$(tmux display-message -p '#{client_tty}')
+[ -n "$tty" ] || { echo "osc52-yank: no client tty" >&2; exit 1; }
+
+b64=$(base64 | tr -d '\n')
+printf '\033]52;c;%s\a' "$b64" > "$tty"

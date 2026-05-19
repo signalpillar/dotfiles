@@ -59,6 +59,7 @@ function setup_system_tools {
          libvips imagemagick libmagickwand-dev mupdf mupdf-tools gir1.2-gtop-2.0 gir1.2-clutter-1.0 \
          redis-tools sqlite3 libsqlite3-0 libmysqlclient-dev libpq-dev postgresql-client postgresql-client-common
     sudo apt-get install \
+         openssh-server mosh xsel \
          direnv \
          neovim \
          git emacs \
@@ -235,6 +236,9 @@ fi
 
 # Install essential system-wide development tools and libraries.
 setup_system_tools
+
+# Ensure SSH is enabled and running
+sudo systemctl enable --now ssh
 
 # Configure development tools using mise.
 setup_dev_tools

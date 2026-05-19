@@ -45,7 +45,11 @@ bind-key -T copy-mode-vi 'y' send -X copy-pipe "reattach-to-user-namespace pbcop
 {{- end }}
 
 {{- if eq .chezmoi.os "linux" }}
-bind-key -T copy-mode-vi 'y' send -X copy-pipe "xclip -in -selection clipboard"
+# Yank to the host terminal's clipboard via OSC 52. osc52-yank writes the
+# escape directly to the SSH/mosh client tty, bypassing tmux — tmux's own
+# `set-clipboard` re-emission did not reach Ghostty on macOS in this setup,
+# but raw bytes on the client pty do.
+bind-key -T copy-mode-vi 'y' send -X copy-pipe-and-cancel 'osc52-yank'
 {{- end }}
 
 
