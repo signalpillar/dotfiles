@@ -1,0 +1,20 @@
+#!/bin/bash
+# Prints current CPU usage % by diffing /proc/stat between calls (Linux)
+# or reading top on macOS. State stored in /tmp to avoid a sleep.
+if [[ -f /proc/stat ]]; then
+    STAT_FILE="/tmp/tmux-cpu-stat"
+    read -r ua ub uc ud ue uf ug <<< "$(awk '/^cpu /{print $2,$3,$4,$5,$6,$7,$8}' /proc/stat)"
+    curr_total=$((ua+ub+uc+ud+ue+uf+ug))
+    curr_idle=$ud
+    if [[ -f "$STAT_FILE" ]]; then
+        read -r prev_total prev_idle < "$STAT_FILE"
+        dtotal=$((curr_total - prev_total))
+        didle=$((curr_idle - prev_idle))
+        [[ $dtotal -gt 0 ]] && awk "BEGIN{printf \"%.0f%%\n\", 100*($dtotal-$didle)/$dtotal}" || echo "0%"
+    else
+        echo "0%"
+    fi
+    echo "$curr_total $curr_idle" > "$STAT_FILE"
+else
+    top -l 1 | awk '/CPU usage/{printf "%.0f%%\n", $3}'
+fi

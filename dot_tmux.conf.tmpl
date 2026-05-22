@@ -96,11 +96,11 @@ set -g status-left "#S #[fg=white]» #[fg=yellow]#I #[fg=cyan]#P"
 
 # Right side of status bar
 set -g status-right-style bg=black,fg=cyan
-set -g status-right-length 70
+set -g status-right-length 90
 {{- if eq .chezmoi.os "linux" }}
-set -g status-right "#[fg=cyan]MEM:#(free | awk '/Mem/{printf \"%.0f%%\", $3/$2*100}') #[fg=white]L:#(cut -d' ' -f1 /proc/loadavg) #[fg=white]« #[fg=yellow]%H:%M"
+set -g status-right "#[fg=cyan]CPU:#(tmux-cpu) MEM:#(free | awk '/Mem/{printf \"%.0f%%\", $3/$2*100}') #[fg=white]L:#(cut -d' ' -f1-3 /proc/loadavg) #[fg=white]« #[fg=yellow]%H:%M"
 {{- else }}
-set -g status-right "#[fg=cyan]MEM:#(vm_stat | awk '/active:/{a=$3} /wired:/{w=$3} END{printf \"%dMB\", (a+w)*4/1024}') #[fg=white]L:#(sysctl -n vm.loadavg | awk '{print $2}') #[fg=white]« #[fg=yellow]%H:%M"
+set -g status-right "#[fg=cyan]CPU:#(tmux-cpu) MEM:#(vm_stat | awk '/active:/{a=$3} /wired:/{w=$3} END{printf \"%dMB\", (a+w)*4/1024}') #[fg=white]L:#(sysctl -n vm.loadavg | awk '{print $2,$3,$4}') #[fg=white]« #[fg=yellow]%H:%M"
 {{- end }}
 
 # Window status
