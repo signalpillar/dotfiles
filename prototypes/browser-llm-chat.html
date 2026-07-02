@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Browser LLM Chat</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --bg: #080b12;
+        --card: rgba(255, 255, 255, 0.08);
+        --card-strong: rgba(255, 255, 255, 0.13);
+        --line: rgba(255, 255, 255, 0.13);
+        --text: #f8fafc;
+        --muted: #aab4c5;
+        --hot: #f0abfc;
+        --cool: #67e8f9;
+        --ok: #86efac;
+        --bad: #fb7185;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 10% 0%, rgba(240, 171, 252, 0.26), transparent 24rem),
+          radial-gradient(circle at 92% 12%, rgba(103, 232, 249, 0.22), transparent 20rem),
+          linear-gradient(150deg, #111827 0%, #0c1020 54%, #05070d 100%);
+        color: var(--text);
+      }
+
+      button,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      main {
+        width: min(48rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: 0.9rem;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      a {
+        color: #cbd5e1;
+        text-decoration: none;
+      }
+
+      a:focus-visible,
+      a:hover {
+        color: white;
+        outline: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .hero,
+      .chat,
+      .composer {
+        border: 1px solid var(--line);
+        border-radius: 1.4rem;
+        background: var(--card);
+        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.22);
+      }
+
+      .hero {
+        padding: 1rem;
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      .hero-title {
+        margin: 0;
+        font-size: clamp(1.8rem, 9vw, 3.4rem);
+        font-weight: 950;
+        line-height: 0.96;
+        letter-spacing: -0.07em;
+      }
+
+      .hero-copy {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .controls {
+        display: grid;
+        gap: 0.7rem;
+      }
+
+      label {
+        display: grid;
+        gap: 0.35rem;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(0, 0, 0, 0.28);
+      }
+
+      select {
+        min-height: 3.1rem;
+        padding: 0.7rem 0.8rem;
+      }
+
+      .load-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.7rem;
+      }
+
+      button {
+        border: 0;
+        cursor: pointer;
+      }
+
+      button:disabled,
+      textarea:disabled,
+      select:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      button:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible {
+        outline: 3px solid rgba(255, 255, 255, 0.72);
+        outline-offset: 3px;
+      }
+
+      .primary-button,
+      .secondary-button {
+        min-height: 3.5rem;
+        border-radius: 1rem;
+        font-weight: 900;
+      }
+
+      .primary-button {
+        color: #071017;
+        background: linear-gradient(135deg, var(--hot), var(--cool));
+      }
+
+      .secondary-button {
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .status-line {
+        display: grid;
+        gap: 0.45rem;
+      }
+
+      .status-text {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.35;
+      }
+
+      .meter {
+        height: 0.6rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .meter-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--hot), var(--cool));
+        transition: width 180ms ease;
+      }
+
+      .chat {
+        min-height: 18rem;
+        padding: 1rem;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+        scroll-behavior: smooth;
+      }
+
+      .message {
+        width: fit-content;
+        max-width: 92%;
+        padding: 0.85rem 0.95rem;
+        border-radius: 1.1rem;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+
+      .message.user {
+        align-self: flex-end;
+        color: #08111c;
+        background: linear-gradient(135deg, #a7f3d0, #67e8f9);
+      }
+
+      .message.assistant {
+        align-self: flex-start;
+        background: var(--card-strong);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .message.system {
+        width: 100%;
+        max-width: none;
+        color: var(--muted);
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px dashed rgba(255, 255, 255, 0.16);
+      }
+
+      .composer {
+        padding: 0.8rem;
+        display: grid;
+        gap: 0.7rem;
+      }
+
+      textarea {
+        min-height: 5.4rem;
+        max-height: 12rem;
+        padding: 0.85rem;
+        resize: vertical;
+        line-height: 1.35;
+      }
+
+      .composer-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.7rem;
+      }
+
+      .unsupported {
+        color: var(--bad);
+      }
+
+      @media (min-width: 44rem) {
+        main {
+          padding-top: 2rem;
+          padding-bottom: 2rem;
+        }
+
+        .load-row {
+          grid-template-columns: 1fr auto;
+          align-items: end;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Browser LLM Chat</h1>
+      </header>
+
+      <section class="hero">
+        <p class="hero-title">Chat with a local-ish model.</p>
+        <p class="hero-copy">This prototype loads a small WebLLM model into the browser with WebGPU. The first load downloads model files, then the browser cache should make later loads faster.</p>
+
+        <div class="controls">
+          <div class="load-row">
+            <label>
+              Model
+              <select id="modelSelect">
+                <option value="SmolLM2-360M-Instruct-q4f32_1-MLC">SmolLM2 360M, small</option>
+                <option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B, better</option>
+                <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 1B, heavier</option>
+              </select>
+            </label>
+            <button class="primary-button" id="loadButton" type="button">Load Model</button>
+          </div>
+
+          <div class="status-line">
+            <p class="status-text" id="statusText">Ready to check WebGPU and load a model.</p>
+            <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="chat" id="chatLog" aria-label="Chat messages" aria-live="polite">
+        <div class="message system">Load a model, then ask a short question. Smaller models are fast and private-ish, but they are less capable than hosted models.</div>
+      </section>
+
+      <form class="composer" id="chatForm">
+        <textarea id="promptInput" placeholder="Ask something short..." disabled></textarea>
+        <div class="composer-actions">
+          <button class="secondary-button" id="clearButton" type="button">Clear</button>
+          <button class="primary-button" id="sendButton" type="submit" disabled>Send</button>
+        </div>
+      </form>
+    </main>
+
+    <script type="module">
+      import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+      const modelSelect = document.querySelector("#modelSelect");
+      const loadButton = document.querySelector("#loadButton");
+      const statusText = document.querySelector("#statusText");
+      const meterFill = document.querySelector("#meterFill");
+      const chatLog = document.querySelector("#chatLog");
+      const chatForm = document.querySelector("#chatForm");
+      const promptInput = document.querySelector("#promptInput");
+      const sendButton = document.querySelector("#sendButton");
+      const clearButton = document.querySelector("#clearButton");
+
+      let engine = null;
+      let loading = false;
+      let generating = false;
+      let messages = [
+        {
+          role: "system",
+          content: "You are a concise assistant running in a browser prototype. Keep answers short and practical.",
+        },
+      ];
+
+      function setStatus(text, progress) {
+        statusText.textContent = text;
+        if (typeof progress === "number") {
+          meterFill.style.width = `${Math.round(progress * 100)}%`;
+        }
+      }
+
+      function setChatReady(ready) {
+        promptInput.disabled = !ready;
+        sendButton.disabled = !ready;
+      }
+
+      function appendMessage(role, content) {
+        const bubble = document.createElement("div");
+        bubble.className = `message ${role}`;
+        bubble.textContent = content;
+        chatLog.append(bubble);
+        chatLog.scrollTop = chatLog.scrollHeight;
+        return bubble;
+      }
+
+      function resetChat() {
+        chatLog.innerHTML = "";
+        appendMessage("system", "New chat. Keep prompts short while testing the in-browser model.");
+        messages = messages.slice(0, 1);
+      }
+
+      async function loadModel() {
+        if (loading || engine) return;
+
+        if (!navigator.gpu) {
+          statusText.classList.add("unsupported");
+          setStatus("WebGPU is not available in this browser. Try Chrome, Edge, or another WebGPU-enabled browser.", 0);
+          return;
+        }
+
+        loading = true;
+        loadButton.disabled = true;
+        modelSelect.disabled = true;
+        setStatus("Preparing model download...", 0.02);
+
+        try {
+          engine = await webllm.CreateMLCEngine(modelSelect.value, {
+            initProgressCallback: (report) => {
+              setStatus(report.text || "Loading model...", report.progress || 0);
+            },
+          });
+
+          setStatus("Model loaded. You can chat now.", 1);
+          loadButton.textContent = "Loaded";
+          setChatReady(true);
+          promptInput.focus();
+        } catch (error) {
+          console.error(error);
+          engine = null;
+          loading = false;
+          loadButton.disabled = false;
+          modelSelect.disabled = false;
+          setStatus(`Model load failed: ${error.message || error}`, 0);
+        }
+      }
+
+      async function sendPrompt(event) {
+        event.preventDefault();
+        if (!engine || generating) return;
+
+        const prompt = promptInput.value.trim();
+        if (!prompt) return;
+
+        generating = true;
+        setChatReady(false);
+        promptInput.value = "";
+        appendMessage("user", prompt);
+        const assistantBubble = appendMessage("assistant", "");
+
+        messages.push({ role: "user", content: prompt });
+        setStatus("Generating...", 1);
+
+        try {
+          const chunks = await engine.chat.completions.create({
+            messages,
+            stream: true,
+            temperature: 0.7,
+            max_tokens: 220,
+          });
+
+          let answer = "";
+          for await (const chunk of chunks) {
+            answer += chunk.choices?.[0]?.delta?.content || "";
+            assistantBubble.textContent = answer || "Thinking...";
+            chatLog.scrollTop = chatLog.scrollHeight;
+          }
+
+          messages.push({ role: "assistant", content: answer });
+          setStatus("Ready.", 1);
+        } catch (error) {
+          console.error(error);
+          assistantBubble.textContent = `Generation failed: ${error.message || error}`;
+          setStatus("Generation failed. Try a shorter prompt or clear the chat.", 1);
+        } finally {
+          generating = false;
+          setChatReady(true);
+          promptInput.focus();
+        }
+      }
+
+      loadButton.addEventListener("click", loadModel);
+      chatForm.addEventListener("submit", sendPrompt);
+      clearButton.addEventListener("click", resetChat);
+      promptInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          chatForm.requestSubmit();
+        }
+      });
+    </script>
+  </body>
+</html>
