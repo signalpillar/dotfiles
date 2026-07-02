@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Noise Nudge</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --card: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #f8fafc;
+        --muted: #aab4c5;
+        --quiet: #86efac;
+        --warn: #facc15;
+        --loud: #fb7185;
+        --blue: #93c5fd;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 15% 0%, rgba(147, 197, 253, 0.3), transparent 23rem),
+          radial-gradient(circle at 88% 18%, rgba(134, 239, 172, 0.2), transparent 18rem),
+          linear-gradient(150deg, #101827 0%, #08111d 52%, #04070c 100%);
+        color: var(--text);
+        transition: background 220ms ease;
+      }
+
+      body.loud {
+        background:
+          radial-gradient(circle at 15% 0%, rgba(251, 113, 133, 0.42), transparent 23rem),
+          radial-gradient(circle at 88% 18%, rgba(250, 204, 21, 0.22), transparent 18rem),
+          linear-gradient(150deg, #241018 0%, #170910 52%, #070306 100%);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      main {
+        width: min(38rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 1rem;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      a {
+        color: #bfdbfe;
+        text-decoration: none;
+      }
+
+      a:focus-visible,
+      a:hover {
+        color: white;
+        outline: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .meter-card,
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 1.6rem;
+        background: var(--card);
+        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.26);
+      }
+
+      .meter-card {
+        min-height: 25rem;
+        padding: clamp(1rem, 4vw, 1.5rem);
+        display: grid;
+        align-content: center;
+        gap: 1.1rem;
+        background: linear-gradient(180deg, rgba(147, 197, 253, 0.14), rgba(255, 255, 255, 0.055));
+      }
+
+      .state-pill {
+        justify-self: center;
+        padding: 0.48rem 0.85rem;
+        border-radius: 999px;
+        color: #071017;
+        background: var(--quiet);
+        font-size: 0.8rem;
+        font-weight: 950;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      body.loud .state-pill {
+        background: var(--loud);
+        color: white;
+      }
+
+      .score {
+        text-align: center;
+        font-size: clamp(5rem, 25vw, 8.5rem);
+        font-weight: 950;
+        line-height: 0.9;
+        letter-spacing: -0.08em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .caption {
+        margin: 0;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.45;
+      }
+
+      .bar {
+        height: 1rem;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .bar-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--quiet), var(--warn), var(--loud));
+        transition: width 90ms linear;
+      }
+
+      .primary-button {
+        width: 100%;
+        min-height: 5.2rem;
+        border: 0;
+        border-radius: 1.5rem;
+        color: #071017;
+        background: linear-gradient(135deg, var(--quiet), var(--blue));
+        font-size: 1.45rem;
+        font-weight: 950;
+        cursor: pointer;
+      }
+
+      .primary-button.listening {
+        color: white;
+        background: linear-gradient(135deg, #fb7185, #f97316);
+      }
+
+      .panel {
+        padding: 1rem;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        text-align: center;
+      }
+
+      .label {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--muted);
+        font-size: 0.76rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .value {
+        display: block;
+        font-size: 1.2rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .controls {
+        display: grid;
+        gap: 0.9rem;
+      }
+
+      label {
+        display: grid;
+        gap: 0.45rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--blue);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.7rem;
+      }
+
+      .small-button {
+        min-height: 3.2rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.08);
+        font-weight: 850;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid rgba(255, 255, 255, 0.72);
+        outline-offset: 3px;
+      }
+
+      footer {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      @media (min-width: 45rem) {
+        main {
+          padding-top: 2rem;
+          padding-bottom: 2rem;
+        }
+
+        .meter-card {
+          min-height: 28rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Noise Nudge</h1>
+      </header>
+
+      <section class="meter-card" aria-live="polite">
+        <div class="state-pill" id="statePill">Mic Off</div>
+        <div class="score" id="scoreValue">0</div>
+        <div class="bar" aria-hidden="true"><div class="bar-fill" id="barFill"></div></div>
+        <p class="caption" id="captionText">Start listening to measure room noise locally in your browser.</p>
+        <button class="primary-button" id="toggleButton" type="button">Start Listening</button>
+      </section>
+
+      <footer>
+        <section class="panel stats" aria-label="Noise stats">
+          <div>
+            <span class="label">Peaks</span>
+            <span class="value" id="peaksValue">0</span>
+          </div>
+          <div>
+            <span class="label">Peak</span>
+            <span class="value" id="peakValue">0</span>
+          </div>
+          <div>
+            <span class="label">Quiet</span>
+            <span class="value" id="quietValue">0s</span>
+          </div>
+        </section>
+
+        <section class="panel controls" aria-label="Noise controls">
+          <label>
+            Sensitivity threshold: <span id="thresholdValue">42</span>
+            <input id="thresholdInput" type="range" min="10" max="90" value="42">
+          </label>
+          <div class="actions">
+            <button class="small-button" id="calibrateButton" type="button" disabled>Calibrate Quiet</button>
+            <button class="small-button" id="resetButton" type="button">Reset Stats</button>
+          </div>
+        </section>
+      </footer>
+    </main>
+
+    <script>
+      const statePill = document.querySelector("#statePill");
+      const scoreValue = document.querySelector("#scoreValue");
+      const barFill = document.querySelector("#barFill");
+      const captionText = document.querySelector("#captionText");
+      const toggleButton = document.querySelector("#toggleButton");
+      const calibrateButton = document.querySelector("#calibrateButton");
+      const resetButton = document.querySelector("#resetButton");
+      const thresholdInput = document.querySelector("#thresholdInput");
+      const thresholdValue = document.querySelector("#thresholdValue");
+      const peaksValue = document.querySelector("#peaksValue");
+      const peakValue = document.querySelector("#peakValue");
+      const quietValue = document.querySelector("#quietValue");
+
+      const state = {
+        listening: false,
+        audioContext: null,
+        analyser: null,
+        stream: null,
+        data: null,
+        rafId: 0,
+        level: 0,
+        floor: 0,
+        peak: 0,
+        peaks: 0,
+        loud: false,
+        lastPeakAt: 0,
+        quietStartedAt: performance.now(),
+      };
+
+      function threshold() {
+        return Number.parseInt(thresholdInput.value, 10);
+      }
+
+      function render() {
+        const loud = state.listening && state.level >= threshold();
+        document.body.classList.toggle("loud", loud);
+        statePill.textContent = state.listening ? (loud ? "Too Loud" : "Good") : "Mic Off";
+        scoreValue.textContent = String(Math.round(state.level));
+        barFill.style.width = `${Math.min(100, state.level)}%`;
+        thresholdValue.textContent = String(threshold());
+        peaksValue.textContent = String(state.peaks);
+        peakValue.textContent = String(Math.round(state.peak));
+        quietValue.textContent = `${Math.floor((performance.now() - state.quietStartedAt) / 1000)}s`;
+        toggleButton.textContent = state.listening ? "Stop Listening" : "Start Listening";
+        toggleButton.classList.toggle("listening", state.listening);
+        calibrateButton.disabled = !state.listening;
+      }
+
+      function setCaption() {
+        if (!state.listening) {
+          captionText.textContent = "Start listening to measure room noise locally in your browser.";
+        } else if (state.level >= threshold()) {
+          captionText.textContent = "Nudge: that crossed your threshold. Lower voice, close a door, or move the mic.";
+        } else {
+          captionText.textContent = "Room sounds okay. Peaks are counted when noise crosses the threshold.";
+        }
+      }
+
+      function updateLevel() {
+        state.analyser.getByteTimeDomainData(state.data);
+
+        let sum = 0;
+        for (const sample of state.data) {
+          const centered = sample - 128;
+          sum += centered * centered;
+        }
+
+        const rms = Math.sqrt(sum / state.data.length);
+        const rawLevel = Math.min(100, Math.max(0, (rms - state.floor) * 4));
+        state.level = state.level * 0.72 + rawLevel * 0.28;
+        state.peak = Math.max(state.peak, state.level);
+
+        const now = performance.now();
+        const currentlyLoud = state.level >= threshold();
+        if (currentlyLoud && !state.loud && now - state.lastPeakAt > 700) {
+          state.peaks += 1;
+          state.lastPeakAt = now;
+        }
+        if (currentlyLoud) {
+          state.quietStartedAt = now;
+        }
+        state.loud = currentlyLoud;
+
+        setCaption();
+        render();
+        state.rafId = window.requestAnimationFrame(updateLevel);
+      }
+
+      async function startListening() {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          captionText.textContent = "This browser does not support microphone access.";
+          return;
+        }
+
+        try {
+          state.stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: false,
+              autoGainControl: false,
+            },
+          });
+          state.audioContext = new AudioContext();
+          const source = state.audioContext.createMediaStreamSource(state.stream);
+          state.analyser = state.audioContext.createAnalyser();
+          state.analyser.fftSize = 1024;
+          state.data = new Uint8Array(state.analyser.fftSize);
+          source.connect(state.analyser);
+          state.listening = true;
+          state.quietStartedAt = performance.now();
+          render();
+          updateLevel();
+        } catch (error) {
+          captionText.textContent = `Microphone failed: ${error.message || error}`;
+        }
+      }
+
+      function stopListening() {
+        state.listening = false;
+        window.cancelAnimationFrame(state.rafId);
+        state.stream?.getTracks().forEach((track) => track.stop());
+        state.audioContext?.close();
+        state.stream = null;
+        state.audioContext = null;
+        state.analyser = null;
+        state.data = null;
+        state.level = 0;
+        state.loud = false;
+        setCaption();
+        render();
+      }
+
+      function resetStats() {
+        state.peak = 0;
+        state.peaks = 0;
+        state.quietStartedAt = performance.now();
+        render();
+      }
+
+      function calibrateQuiet() {
+        state.floor = Math.max(0, state.floor + state.level / 4);
+        captionText.textContent = "Quiet baseline calibrated. Make a sharp sound to test the threshold.";
+        resetStats();
+      }
+
+      toggleButton.addEventListener("click", () => {
+        state.listening ? stopListening() : startListening();
+      });
+      resetButton.addEventListener("click", resetStats);
+      calibrateButton.addEventListener("click", calibrateQuiet);
+      thresholdInput.addEventListener("input", () => {
+        setCaption();
+        render();
+      });
+
+      render();
+    </script>
+  </body>
+</html>

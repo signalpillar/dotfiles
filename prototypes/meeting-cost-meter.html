@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Meeting Cost Meter</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --bg: #090706;
+        --card: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #fff7ed;
+        --muted: #d6c4af;
+        --hot: #fb923c;
+        --gold: #facc15;
+        --green: #86efac;
+        --bad: #fb7185;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 10% 0%, rgba(251, 146, 60, 0.34), transparent 21rem),
+          radial-gradient(circle at 92% 18%, rgba(250, 204, 21, 0.22), transparent 18rem),
+          linear-gradient(150deg, #1c1009 0%, #110c09 48%, #050403 100%);
+        color: var(--text);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      main {
+        width: min(38rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 1rem;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      a {
+        color: #fed7aa;
+        text-decoration: none;
+      }
+
+      a:focus-visible,
+      a:hover {
+        color: white;
+        outline: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .meter-card,
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 1.6rem;
+        background: var(--card);
+        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.26);
+      }
+
+      .meter-card {
+        min-height: 25rem;
+        padding: clamp(1rem, 4vw, 1.5rem);
+        display: grid;
+        align-content: center;
+        gap: 1.1rem;
+        background:
+          linear-gradient(180deg, rgba(251, 146, 60, 0.18), rgba(255, 255, 255, 0.06));
+      }
+
+      .eyebrow {
+        justify-self: center;
+        margin: 0;
+        padding: 0.45rem 0.8rem;
+        border-radius: 999px;
+        color: #1c1009;
+        background: var(--gold);
+        font-size: 0.78rem;
+        font-weight: 950;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .cost {
+        text-align: center;
+        font-size: clamp(4.5rem, 22vw, 8rem);
+        font-weight: 950;
+        line-height: 0.9;
+        letter-spacing: -0.08em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .subline {
+        margin: 0;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.45;
+      }
+
+      .primary-button {
+        width: 100%;
+        min-height: 5.2rem;
+        border: 0;
+        border-radius: 1.5rem;
+        color: #160b04;
+        background: linear-gradient(135deg, var(--gold), var(--hot));
+        font-size: 1.45rem;
+        font-weight: 950;
+        cursor: pointer;
+      }
+
+      .primary-button.running {
+        color: white;
+        background: linear-gradient(135deg, #fb7185, #ef4444);
+      }
+
+      .panel {
+        padding: 1rem;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        text-align: center;
+      }
+
+      .label {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--muted);
+        font-size: 0.76rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .value {
+        display: block;
+        font-size: 1.2rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+      }
+
+      label {
+        display: grid;
+        gap: 0.4rem;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      input {
+        width: 100%;
+        min-height: 3.2rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(0, 0, 0, 0.25);
+        font-size: 1.15rem;
+        font-weight: 850;
+      }
+
+      .presets,
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.7rem;
+      }
+
+      .actions {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .small-button {
+        min-height: 3.1rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.08);
+        font-weight: 850;
+        cursor: pointer;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid rgba(255, 255, 255, 0.72);
+        outline-offset: 3px;
+      }
+
+      footer {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      @media (min-width: 45rem) {
+        main {
+          padding-top: 2rem;
+          padding-bottom: 2rem;
+        }
+
+        .meter-card {
+          min-height: 28rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Meeting Cost Meter</h1>
+      </header>
+
+      <section class="meter-card" aria-live="polite">
+        <p class="eyebrow" id="burnRate">£0.00 per minute</p>
+        <div class="cost" id="costValue">£0.00</div>
+        <p class="subline" id="comparisonText">Start the meter when the meeting starts.</p>
+        <button class="primary-button" id="toggleButton" type="button">Start Meter</button>
+      </section>
+
+      <footer>
+        <section class="panel stats" aria-label="Meeting stats">
+          <div>
+            <span class="label">Elapsed</span>
+            <span class="value" id="elapsedValue">0:00</span>
+          </div>
+          <div>
+            <span class="label">People</span>
+            <span class="value" id="peopleValue">6</span>
+          </div>
+          <div>
+            <span class="label">Hourly</span>
+            <span class="value" id="hourlyValue">£50</span>
+          </div>
+        </section>
+
+        <section class="panel inputs" aria-label="Cost assumptions">
+          <label>
+            People
+            <input id="peopleInput" type="number" min="1" max="99" inputmode="numeric" value="6">
+          </label>
+          <label>
+            £ / hour each
+            <input id="hourlyInput" type="number" min="1" max="999" inputmode="decimal" value="50">
+          </label>
+        </section>
+
+        <div class="presets" aria-label="Meeting presets">
+          <button class="small-button" type="button" data-people="3" data-hourly="45">Tiny</button>
+          <button class="small-button" type="button" data-people="6" data-hourly="50">Normal</button>
+          <button class="small-button" type="button" data-people="12" data-hourly="70">Chaos</button>
+        </div>
+
+        <div class="actions">
+          <button class="small-button" id="resetButton" type="button">Reset</button>
+          <button class="small-button" id="addMinuteButton" type="button">+1 min</button>
+        </div>
+      </footer>
+    </main>
+
+    <script>
+      const burnRate = document.querySelector("#burnRate");
+      const costValue = document.querySelector("#costValue");
+      const comparisonText = document.querySelector("#comparisonText");
+      const toggleButton = document.querySelector("#toggleButton");
+      const resetButton = document.querySelector("#resetButton");
+      const addMinuteButton = document.querySelector("#addMinuteButton");
+      const peopleInput = document.querySelector("#peopleInput");
+      const hourlyInput = document.querySelector("#hourlyInput");
+      const elapsedValue = document.querySelector("#elapsedValue");
+      const peopleValue = document.querySelector("#peopleValue");
+      const hourlyValue = document.querySelector("#hourlyValue");
+
+      const comparisons = [
+        { label: "posh coffees", price: 4.5 },
+        { label: "team lunches", price: 12 },
+        { label: "books", price: 15 },
+        { label: "50p prototypes", price: 0.5 },
+        { label: "monthly SaaS seats", price: 20 },
+      ];
+
+      const state = {
+        running: false,
+        elapsed: 0,
+        lastTick: 0,
+        rafId: 0,
+      };
+
+      function readNumber(input, fallback) {
+        const value = Number.parseFloat(input.value);
+        if (!Number.isFinite(value) || value <= 0) return fallback;
+        return value;
+      }
+
+      function money(value) {
+        return new Intl.NumberFormat("en-GB", {
+          style: "currency",
+          currency: "GBP",
+          minimumFractionDigits: value >= 100 ? 0 : 2,
+          maximumFractionDigits: value >= 100 ? 0 : 2,
+        }).format(value);
+      }
+
+      function formatElapsed(totalSeconds) {
+        const seconds = Math.floor(totalSeconds);
+        const minutes = Math.floor(seconds / 60);
+        const rest = seconds % 60;
+        return `${minutes}:${String(rest).padStart(2, "0")}`;
+      }
+
+      function meetingCost() {
+        return readNumber(peopleInput, 6) * readNumber(hourlyInput, 50) * (state.elapsed / 3600);
+      }
+
+      function perMinute() {
+        return readNumber(peopleInput, 6) * readNumber(hourlyInput, 50) / 60;
+      }
+
+      function comparison(cost) {
+        if (cost < 0.5) return "Not even one prototype yet. Keep it tight.";
+        const item = comparisons.reduce((best, candidate) => {
+          const bestCount = Math.floor(cost / best.price);
+          const candidateCount = Math.floor(cost / candidate.price);
+          return candidateCount >= bestCount ? candidate : best;
+        });
+        const count = Math.max(1, Math.floor(cost / item.price));
+        return `This meeting has burned about ${count} ${item.label}.`;
+      }
+
+      function render() {
+        const people = readNumber(peopleInput, 6);
+        const hourly = readNumber(hourlyInput, 50);
+        const cost = meetingCost();
+        burnRate.textContent = `${money(perMinute())} per minute`;
+        costValue.textContent = money(cost);
+        comparisonText.textContent = state.running ? comparison(cost) : "Start the meter when the meeting starts.";
+        elapsedValue.textContent = formatElapsed(state.elapsed);
+        peopleValue.textContent = String(Math.round(people));
+        hourlyValue.textContent = money(hourly).replace(".00", "");
+        toggleButton.textContent = state.running ? "Stop Meter" : "Start Meter";
+        toggleButton.classList.toggle("running", state.running);
+      }
+
+      function tick(now) {
+        if (!state.running) return;
+        if (!state.lastTick) state.lastTick = now;
+        state.elapsed += (now - state.lastTick) / 1000;
+        state.lastTick = now;
+        render();
+        state.rafId = window.requestAnimationFrame(tick);
+      }
+
+      function start() {
+        state.running = true;
+        state.lastTick = 0;
+        render();
+        state.rafId = window.requestAnimationFrame(tick);
+      }
+
+      function stop() {
+        state.running = false;
+        state.lastTick = 0;
+        window.cancelAnimationFrame(state.rafId);
+        render();
+      }
+
+      toggleButton.addEventListener("click", () => {
+        state.running ? stop() : start();
+      });
+
+      resetButton.addEventListener("click", () => {
+        stop();
+        state.elapsed = 0;
+        render();
+      });
+
+      addMinuteButton.addEventListener("click", () => {
+        state.elapsed += 60;
+        render();
+      });
+
+      document.querySelectorAll("[data-people]").forEach((button) => {
+        button.addEventListener("click", () => {
+          peopleInput.value = button.dataset.people;
+          hourlyInput.value = button.dataset.hourly;
+          render();
+        });
+      });
+
+      peopleInput.addEventListener("input", render);
+      hourlyInput.addEventListener("input", render);
+      render();
+    </script>
+  </body>
+</html>
