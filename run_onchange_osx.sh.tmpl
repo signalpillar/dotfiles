@@ -8,13 +8,76 @@ touch ~/.env.sh
 # https://discourse.joplinapp.org/t/how-to-enable-repeating-keys-in-vim-mode/11167/5
 # defaults write net.cozic.joplin-desktop ApplePressAndHoldEnabled -bool false
 defaults write -g ApplePressAndHoldEnabled -bool false
-# show path in the Finder
-defaults write com.apple.finder _FXShowPosixPathInTitle -bool YES
-# opening and closing windows and popovers
-defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
 
-# showing the Dock
+# --- Migrated from nix-darwin ---
+
+# Dock
+defaults write com.apple.dock autohide -bool true
+defaults write com.apple.dock orientation -string "left"
+defaults write com.apple.dock showhidden -bool true
+defaults write com.apple.dock mru-spaces -bool false
+# Existing dock tweaks
 defaults write com.apple.dock autohide-time-modifier -float 0
 defaults write com.apple.dock autohide-delay -float 0
+
+# Finder
+defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
+defaults write NSGlobalDomain AppleShowAllExtensions -bool true
+defaults write com.apple.finder QuitMenuItem -bool true
+
+# Global Domain (-g)
+defaults write -g NSWindowResizeTime -float 0.001
+defaults write -g AppleKeyboardUIMode -int 3
+defaults write -g InitialKeyRepeat -int 15
+defaults write -g KeyRepeat -int 1
+defaults write -g AppleShowScrollBars -string "WhenScrolling"
+defaults write -g "com.apple.mouse.tapBehavior" -int 1
+defaults write -g "com.apple.trackpad.enableSecondaryClick" -bool true
+defaults write -g AppleMeasurementUnits -string "Centimeters"
+defaults write -g AppleMetricUnits -bool true
+defaults write -g AppleTemperatureUnit -string "Celsius"
+defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
+
+# Trackpad
+defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadThreeFingerDrag -bool true
+defaults write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool true
+
+# Screen Capture
+defaults write com.apple.screencapture disable-shadow -bool true
+
+# Kill affected applications
+for app in "Dock" "Finder" "SystemUIServer"; do
+  killall "${app}" &> /dev/null
+done
+
+# Ensure Xcode Command Line Tools are installed
+if ! xcode-select -p &>/dev/null; then
+  echo "Installing Xcode Command Line Tools..."
+  xcode-select --install
+fi
+
+# Emacs.app symlink
+# Determine Homebrew prefix (Intel vs Apple Silicon)
+if [[ $(uname -m) == "arm64" ]]; then
+  BREW_PREFIX="/opt/homebrew"
+else
+  BREW_PREFIX="/usr/local"
+fi
+
+EMACS_APP_PATH="$BREW_PREFIX/opt/emacs-plus@32/Emacs.app"
+if [[ ! -d "$EMACS_APP_PATH" ]]; then
+  EMACS_APP_PATH="$BREW_PREFIX/opt/emacs-plus/Emacs.app"
+fi
+if [[ ! -d "$EMACS_APP_PATH" ]]; then
+  EMACS_APP_PATH="$BREW_PREFIX/opt/emacs-mac/Emacs.app"
+fi
+
+if [[ -d "$EMACS_APP_PATH" ]]; then
+  if [[ ! -L "/Applications/Emacs.app" ]] || [[ $(readlink "/Applications/Emacs.app") != "$EMACS_APP_PATH" ]]; then
+    echo "Creating/Updating Emacs.app symlink to $EMACS_APP_PATH..."
+    sudo rm -f /Applications/Emacs.app
+    ln -s "$EMACS_APP_PATH" /Applications/Emacs.app
+  fi
+fi
 
 {{- end}}

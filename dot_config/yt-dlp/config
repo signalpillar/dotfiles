@@ -1,0 +1,9 @@
+--audio-format best
+--audio-quality 0
+--embed-chapters
+--embed-metadata
+--embed-subs
+--embed-thumbnail
+--remux-video aac>m4a/mov>mp4/mkv
+--sponsorblock-mark sponsor
+--sub-langs all

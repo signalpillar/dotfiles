@@ -1,0 +1,81 @@
+# ~/.zshrc
+
+# Completion
+autoload -Uz compinit
+compinit
+
+# History
+HISTSIZE=10000
+SAVEHIST=10000
+HISTFILE=~/.zsh_history
+setopt autocd
+setopt nomatch
+setopt SHARE_HISTORY
+setopt APPEND_HISTORY
+setopt HIST_IGNORE_DUPS
+setopt HIST_IGNORE_SPACE
+
+# Key bindings (Emacs mode)
+bindkey -e
+bindkey '\e\e[C' forward-word
+bindkey '\e\e[D' backward-word
+
+# Path
+export PATH=$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:$PATH
+export GPG_TTY=$(tty)
+
+# Sources
+[[ -f ~/functions.sh ]] && source ~/functions.sh
+[[ -f ~/.env.sh ]] && source ~/.env.sh
+
+# Aliases (Migrated from nix and bashrc)
+alias k='kubectl'
+alias ddc='docker-compose'
+alias ll='eza -alF'
+alias la='eza -A'
+alias l='eza -F'
+alias ls='eza -F'
+alias rm='rm -i'
+alias mv='mv -i'
+alias cp='cp -i'
+alias sudo='sudo '
+alias vim='nvim'
+alias tmux='tmux -2'
+alias ecw='emacsclient -cn'
+alias ex='emacs -nw'
+alias route_gprs='sudo route delete default; sudo route add default 192.168.44.1'
+
+# Environment Variables
+export EDITOR=nvim
+export GIT_EXTERNAL_DIFF=difft
+
+# Hooks & Tooling
+if command -v direnv &> /dev/null; then
+  eval "$(direnv hook zsh)"
+fi
+
+if command -v zoxide &> /dev/null; then
+  eval "$(zoxide init zsh)"
+fi
+
+if command -v mise &> /dev/null; then
+  eval "$(mise activate zsh)"
+fi
+
+# Starship
+if command -v starship &> /dev/null; then
+  eval "$(starship init zsh)"
+fi
+
+# FZF initialization (if available)
+[[ -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
+if command -v fzf &> /dev/null; then
+  export FZF_DEFAULT_COMMAND='rg --files --hidden --follow'
+  export FZF_DEFAULT_OPTS='-m --bind ctrl-a:select-all,ctrl-d:deselect-all'
+fi
+
+# NVM (as defined in nix config)
+function init-nvm() {
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+}

@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Jump Rope Interval Timer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --card: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.13);
+        --muted: #aab4c5;
+        --text: #f8fafc;
+        --work: #7dd3fc;
+        --break: #86efac;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(56, 189, 248, 0.36), transparent 22rem),
+          radial-gradient(circle at 90% 15%, rgba(59, 130, 246, 0.2), transparent 18rem),
+          linear-gradient(160deg, #111827 0%, #0b0f17 52%, #05070b 100%);
+        color: var(--text);
+        transition: background 500ms ease;
+      }
+
+      body.break-phase {
+        background:
+          radial-gradient(circle at 20% 0%, rgba(134, 239, 172, 0.42), transparent 22rem),
+          radial-gradient(circle at 90% 15%, rgba(45, 212, 191, 0.2), transparent 18rem),
+          linear-gradient(160deg, #102018 0%, #0b1713 52%, #050b08 100%);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      main {
+        width: min(34rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 1rem;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      a {
+        color: #cbd5e1;
+        text-decoration: none;
+      }
+
+      a:focus-visible,
+      a:hover {
+        color: white;
+        outline: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .timer-card {
+        min-height: 24rem;
+        padding: clamp(1rem, 4vw, 1.5rem);
+        display: grid;
+        align-content: center;
+        gap: 1.2rem;
+        border: 1px solid var(--line);
+        border-radius: 2rem;
+        background:
+          linear-gradient(180deg, rgba(56, 189, 248, 0.15), rgba(255, 255, 255, 0.055));
+        box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.35);
+        transition: background 500ms ease, border-color 500ms ease;
+      }
+
+      body.break-phase .timer-card {
+        border-color: rgba(134, 239, 172, 0.28);
+        background:
+          linear-gradient(180deg, rgba(134, 239, 172, 0.16), rgba(255, 255, 255, 0.055));
+      }
+
+      .phase-pill {
+        justify-self: center;
+        padding: 0.5rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: #08111c;
+        background: var(--work);
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      body.break-phase .phase-pill {
+        background: var(--break);
+      }
+
+      .time {
+        text-align: center;
+        font-size: clamp(5.8rem, 27vw, 9rem);
+        font-weight: 950;
+        line-height: 0.9;
+        letter-spacing: -0.08em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .status {
+        margin: 0;
+        color: var(--muted);
+        text-align: center;
+        font-size: 1.05rem;
+      }
+
+      .primary-button {
+        width: 100%;
+        min-height: 5.5rem;
+        border: 0;
+        border-radius: 1.6rem;
+        color: #071017;
+        background: linear-gradient(135deg, #a7f3d0, #67e8f9);
+        box-shadow: 0 1rem 2.5rem rgba(103, 232, 249, 0.2);
+        font-size: 1.6rem;
+        font-weight: 950;
+        cursor: pointer;
+      }
+
+      .primary-button.running {
+        color: white;
+        background: linear-gradient(135deg, #fb7185, #f97316);
+        box-shadow: 0 1rem 2.5rem rgba(251, 113, 133, 0.22);
+      }
+
+      .primary-button:focus-visible,
+      .secondary-button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid rgba(255, 255, 255, 0.72);
+        outline-offset: 3px;
+      }
+
+      .panel {
+        padding: 1rem;
+        border: 1px solid var(--line);
+        border-radius: 1.5rem;
+        background: var(--card);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        text-align: center;
+      }
+
+      .stat-label {
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .stat-value {
+        display: block;
+        font-size: 1.35rem;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .settings {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+      }
+
+      label {
+        display: grid;
+        gap: 0.4rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      input {
+        width: 100%;
+        min-height: 3.25rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(0, 0, 0, 0.24);
+        font-size: 1.2rem;
+        font-weight: 850;
+      }
+
+      .actions-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.8rem;
+      }
+
+      .secondary-button {
+        min-height: 3.4rem;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.08);
+        font-weight: 850;
+        cursor: pointer;
+      }
+
+      .secondary-button:disabled,
+      input:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      footer {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      @media (min-width: 45rem) {
+        main {
+          padding-top: 2rem;
+          padding-bottom: 2rem;
+        }
+
+        .timer-card {
+          min-height: 28rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Jump Rope Timer</h1>
+      </header>
+
+      <section class="timer-card" aria-live="polite">
+        <div class="phase-pill" id="phaseLabel">Work</div>
+        <div class="time" id="timeLeft">0:30</div>
+        <p class="status" id="statusText">30 seconds on, 10 seconds off.</p>
+        <button class="primary-button" id="toggleButton" type="button">Start</button>
+      </section>
+
+      <footer>
+        <section class="panel stats" aria-label="Session stats">
+          <div>
+            <span class="stat-label">Rounds</span>
+            <span class="stat-value" id="roundsValue">0</span>
+          </div>
+          <div>
+            <span class="stat-label">Elapsed</span>
+            <span class="stat-value" id="elapsedValue">0:00</span>
+          </div>
+          <div>
+            <span class="stat-label">Phase</span>
+            <span class="stat-value" id="phaseValue">Work</span>
+          </div>
+        </section>
+
+        <section class="panel settings" aria-label="Timer settings">
+          <label>
+            Work seconds
+            <input id="workInput" type="number" min="1" max="999" inputmode="numeric" value="30">
+          </label>
+          <label>
+            Break seconds
+            <input id="breakInput" type="number" min="1" max="999" inputmode="numeric" value="10">
+          </label>
+        </section>
+
+        <div class="actions-row">
+          <button class="secondary-button" id="resetButton" type="button">Reset</button>
+          <button class="secondary-button" id="skipButton" type="button">Skip Phase</button>
+        </div>
+      </footer>
+    </main>
+
+    <script>
+      const phaseLabel = document.querySelector("#phaseLabel");
+      const phaseValue = document.querySelector("#phaseValue");
+      const timeLeft = document.querySelector("#timeLeft");
+      const statusText = document.querySelector("#statusText");
+      const toggleButton = document.querySelector("#toggleButton");
+      const resetButton = document.querySelector("#resetButton");
+      const skipButton = document.querySelector("#skipButton");
+      const workInput = document.querySelector("#workInput");
+      const breakInput = document.querySelector("#breakInput");
+      const roundsValue = document.querySelector("#roundsValue");
+      const elapsedValue = document.querySelector("#elapsedValue");
+
+      const state = {
+        running: false,
+        phase: "work",
+        remaining: 30,
+        rounds: 0,
+        elapsed: 0,
+        lastTick: 0,
+        rafId: 0,
+      };
+
+      function readSeconds(input, fallback) {
+        const value = Number.parseInt(input.value, 10);
+        if (!Number.isFinite(value) || value < 1) return fallback;
+        return Math.min(value, 999);
+      }
+
+      function phaseDuration(phase) {
+        return phase === "work" ? readSeconds(workInput, 30) : readSeconds(breakInput, 10);
+      }
+
+      function formatTime(totalSeconds) {
+        const seconds = Math.max(0, Math.ceil(totalSeconds));
+        const minutes = Math.floor(seconds / 60);
+        const rest = seconds % 60;
+        return `${minutes}:${String(rest).padStart(2, "0")}`;
+      }
+
+      function render() {
+        const isBreak = state.phase === "break";
+        document.body.classList.toggle("break-phase", isBreak);
+        phaseLabel.textContent = isBreak ? "Break" : "Work";
+        phaseValue.textContent = isBreak ? "Break" : "Work";
+        timeLeft.textContent = formatTime(state.remaining);
+        roundsValue.textContent = String(state.rounds);
+        elapsedValue.textContent = formatTime(state.elapsed);
+        toggleButton.textContent = state.running ? "Stop" : "Start";
+        toggleButton.classList.toggle("running", state.running);
+        workInput.disabled = state.running;
+        breakInput.disabled = state.running;
+        statusText.textContent = state.running
+          ? `${isBreak ? "Recover" : "Jump"} now. Completed rounds: ${state.rounds}.`
+          : `${readSeconds(workInput, 30)} seconds on, ${readSeconds(breakInput, 10)} seconds off.`;
+      }
+
+      function switchPhase(carryOver) {
+        const overdue = Math.min(0, state.remaining);
+        if (state.phase === "work") {
+          state.rounds += 1;
+          state.phase = "break";
+        } else {
+          state.phase = "work";
+        }
+        state.remaining = phaseDuration(state.phase);
+        if (carryOver) state.remaining += overdue;
+      }
+
+      function tick(now) {
+        if (!state.running) return;
+
+        if (!state.lastTick) state.lastTick = now;
+        const delta = (now - state.lastTick) / 1000;
+        state.lastTick = now;
+        state.remaining -= delta;
+        state.elapsed += delta;
+
+        while (state.remaining <= 0) {
+          switchPhase(true);
+        }
+
+        render();
+        state.rafId = window.requestAnimationFrame(tick);
+      }
+
+      function start() {
+        state.running = true;
+        state.lastTick = 0;
+        render();
+        state.rafId = window.requestAnimationFrame(tick);
+      }
+
+      function stop() {
+        state.running = false;
+        state.lastTick = 0;
+        window.cancelAnimationFrame(state.rafId);
+        render();
+      }
+
+      function reset() {
+        stop();
+        state.phase = "work";
+        state.remaining = phaseDuration("work");
+        state.rounds = 0;
+        state.elapsed = 0;
+        render();
+      }
+
+      function skipPhase() {
+        switchPhase(false);
+        render();
+      }
+
+      toggleButton.addEventListener("click", () => {
+        state.running ? stop() : start();
+      });
+
+      resetButton.addEventListener("click", reset);
+      skipButton.addEventListener("click", skipPhase);
+
+      workInput.addEventListener("input", () => {
+        if (!state.running && state.phase === "work") {
+          state.remaining = phaseDuration("work");
+        }
+        render();
+      });
+
+      breakInput.addEventListener("input", () => {
+        if (!state.running && state.phase === "break") {
+          state.remaining = phaseDuration("break");
+        }
+        render();
+      });
+
+      reset();
+    </script>
+  </body>
+</html>

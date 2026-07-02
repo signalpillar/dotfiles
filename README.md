@@ -2,24 +2,15 @@ This project contains all my dotfiles that are moved from box to box.
 
 ## Manually installed
 
-- [Raycast](https://www.raycast.com/)
 - [AltTab - Windows alt-tab on macOS](https://alt-tab-macos.netlify.app/)
 - [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
 - [MeetingBar - Simplify Meetings on macOS with One-Click Access](https://meetingbar.app/)
 - [kitty](https://sw.kovidgoyal.net/kitty/)
 - [dwarvesf/hidden: An ultra-light MacOS utility that helps hide menu bar icons](https://github.com/dwarvesf/hidden)
-- Brave browser
-- [AppCleaner](https://freemacsoft.net/appcleaner/)
-- Signal
 - Slack
-- Clipy
-- Docker
 - Parallels (before VirtualBox)
-- Obsidian (Before Logseq and Joplin)
 - Dropbox
-- mplayer
 - https://matthewpalmer.net/vanilla/
-- https://shottr.cc/ (Best screeshot software)
 - [Proxyman · Debug, intercept & mock HTTP with Proxyman](https://proxyman.io/)
 
 ## Android Command line tools
@@ -53,6 +44,11 @@ https://omakub.org
 - [sq | wrangle data](https://sq.io/) (like jq/yq but for SQL)
 
 ## History
+
+### June 2026
+Moved completely from nix-darwin to Homebrew and chezmoi for macOS configuration. 
+Idempotency is now handled via `Brewfile` and `run_onchange_*.sh` scripts.
+We use `mise` for installing and managing different versions of programming languages.
 
 ### Sept 2025
 Enjoying Ubuntu in VM.
