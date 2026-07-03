@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Context Kit</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --card: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #f8fafc;
+        --muted: #aab4c5;
+        --green: #86efac;
+        --blue: #93c5fd;
+        --amber: #facc15;
+        --pink: #fb7185;
+        --purple: #c4b5fd;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 85% 8%, rgba(147, 197, 253, 0.22), transparent 20rem),
+          radial-gradient(circle at 12% 92%, rgba(196, 181, 253, 0.18), transparent 20rem),
+          linear-gradient(150deg, #101827 0%, #08111d 52%, #04070c 100%);
+        color: var(--text);
+      }
+      button, textarea, input, select { font: inherit; }
+      main {
+        width: min(42rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        gap: 1rem;
+      }
+      a { color: #bfdbfe; text-decoration: none; }
+      a:hover, a:focus-visible { color: white; outline: none; }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      h1 { margin: 0; font-size: 1rem; letter-spacing: 0.02em; }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 1.4rem;
+        background: var(--card);
+        box-shadow: 0 1.5rem 4rem rgba(0,0,0,0.26);
+        padding: clamp(0.9rem, 3vw, 1.3rem);
+      }
+
+      .add-form { display: grid; gap: 0.75rem; }
+      .form-row { display: grid; gap: 0.45rem; }
+      .form-row label { color: var(--muted); font-size: 0.82rem; letter-spacing: 0.04em; }
+      .form-row input, .form-row textarea, .form-row select {
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--line);
+        border-radius: 0.8rem;
+        background: rgba(0,0,0,0.32);
+        color: var(--text);
+        resize: vertical;
+      }
+      .form-row textarea { min-height: 5rem; font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", ui-monospace, monospace; font-size: 0.88rem; }
+      .form-row input:focus, .form-row textarea:focus, .form-row select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+      .add-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+
+      .primary-btn {
+        min-height: 3rem;
+        border: 0;
+        border-radius: 1rem;
+        color: #071017;
+        background: linear-gradient(135deg, var(--green), var(--blue));
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .primary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+      .small-btn {
+        min-height: 3rem;
+        border: 1px solid rgba(255,255,255,0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(255,255,255,0.08);
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .small-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      button:focus-visible { outline: 3px solid rgba(255,255,255,0.72); outline-offset: 3px; }
+
+      .snippets-list { display: grid; gap: 0.7rem; }
+      .empty-state { color: var(--muted); text-align: center; padding: 1.5rem 0; font-size: 0.92rem; }
+
+      .snippet-card {
+        display: grid;
+        gap: 0.5rem;
+        padding: 0.9rem;
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: rgba(0,0,0,0.2);
+        cursor: grab;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+      }
+      .snippet-card:active { cursor: grabbing; }
+      .snippet-card.dragging { opacity: 0.45; }
+      .snippet-card.drag-over { border-color: var(--blue); transform: scale(1.01); box-shadow: 0 0 0 2px var(--blue); }
+      .snippet-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+      .snippet-file {
+        font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", ui-monospace, monospace;
+        font-size: 0.82rem;
+        color: var(--blue);
+        word-break: break-all;
+      }
+      .snippet-meta { display: flex; align-items: center; gap: 0.5rem; font-size: 0.78rem; }
+      .tag {
+        padding: 0.15rem 0.5rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .tag-bug { background: var(--pink); color: #071017; }
+      .tag-feature { background: var(--green); color: #071017; }
+      .tag-refactor { background: var(--amber); color: #071017; }
+      .tag-question { background: var(--purple); color: #071017; }
+      .tag-other { background: var(--muted); color: #071017; }
+      .token-badge { color: var(--muted); }
+      .snippet-preview {
+        font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", ui-monospace, monospace;
+        font-size: 0.78rem;
+        color: var(--muted);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .snippet-remove {
+        background: none;
+        border: 0;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1.1rem;
+        line-height: 1;
+      }
+      .snippet-remove:hover { color: var(--pink); }
+
+      .toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+      .toolbar-wide { grid-column: 1 / -1; }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        text-align: center;
+      }
+      .summary .label { display: block; color: var(--muted); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+      .summary .value { display: block; font-size: 1.3rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+
+      .explainer {
+        border-top: 1px solid var(--line);
+        padding-top: 1rem;
+        display: grid;
+        gap: 0.5rem;
+      }
+      .explainer h2 { margin: 0; font-size: 0.88rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+      .explainer p { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+      .explainer a { font-size: 0.85rem; }
+
+      .toast {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%) translateY(4rem);
+        padding: 0.6rem 1.2rem;
+        border-radius: 999px;
+        background: var(--green);
+        color: #071017;
+        font-weight: 800;
+        font-size: 0.85rem;
+        opacity: 0;
+        transition: transform 240ms ease, opacity 240ms ease;
+        pointer-events: none;
+      }
+      .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+      @media (min-width: 45rem) {
+        main { padding-top: 2rem; }
+        .add-actions { grid-template-columns: 1fr 1fr; }
+        .toolbar { grid-template-columns: repeat(4, 1fr); }
+        .toolbar-wide { grid-column: auto; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Context Kit</h1>
+      </header>
+
+      <section class="card add-form" aria-label="Add snippet">
+        <div class="form-row">
+          <label for="filePath">File path</label>
+          <input id="filePath" type="text" placeholder="src/components/header.tsx" autocomplete="off">
+        </div>
+        <div class="form-row">
+          <label for="codeInput">Code</label>
+          <textarea id="codeInput" placeholder="Paste the code snippet here..."></textarea>
+        </div>
+        <div class="form-row">
+          <label for="tagSelect">Tag</label>
+          <select id="tagSelect">
+            <option value="other">Other</option>
+            <option value="bug">Bug</option>
+            <option value="feature">Feature</option>
+            <option value="refactor">Refactor</option>
+            <option value="question">Question</option>
+          </select>
+        </div>
+        <div class="add-actions">
+          <button class="primary-btn" id="addBtn" type="button">Add Snippet</button>
+          <button class="small-btn" id="clearBtn" type="button">Clear All</button>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Snippets">
+        <div class="summary" id="summaryBar">
+          <div><span class="label">Snippets</span><span class="value" id="countValue">0</span></div>
+          <div><span class="label">Tokens</span><span class="value" id="tokenValue">0</span></div>
+          <div><span class="label">Chars</span><span class="value" id="charValue">0</span></div>
+        </div>
+      </section>
+
+      <section class="snippets-list" id="snippetsList" aria-label="Snippet list">
+        <div class="empty-state" id="emptyState">Add a snippet to start building your context.</div>
+      </section>
+
+      <section class="card toolbar" aria-label="Actions">
+        <button class="small-btn toolbar-wide" id="copyBtn" type="button">Copy Combined Context</button>
+        <button class="small-btn" id="saveBtn" type="button">Save Session</button>
+        <button class="small-btn" id="loadBtn" type="button">Load Session</button>
+        <button class="small-btn" id="exportBtn" type="button">Export JSON</button>
+        <button class="small-btn" id="importBtn" type="button">Import JSON</button>
+      </section>
+
+      <section class="explainer" aria-label="Why this exists">
+        <h2>Why Context Kit?</h2>
+        <p>
+          AI coding assistants struggle when you feed them incomplete context.
+          A file at a time is rarely enough — bugs hide in the seams between modules,
+          refactors ripple across the call graph, and feature work needs to touch
+          multiple layers. But dumping entire files burns through the context window
+          and drowns the model in noise.
+        </p>
+        <p>
+          Context Kit lets you hand-pick the relevant slices, tag them by intent,
+          and combine them into a single coherent prompt. It is a small
+          browser-side tool for assembling prompt context deliberately,
+          one snippet at a time.
+        </p>
+        <p>
+          Inspired by Ask HN threads on improving the AI coding loop &mdash;
+          <a href="https://news.ycombinator.com/item?id=48770319" target="_blank">"AI coding is a nightmare"</a>
+          and
+          <a href="https://news.ycombinator.com/item?id=48771515" target="_blank">"experimenting with LLMs for coding"</a>.
+        </p>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      const SAVE_KEY = "context-kit-sessions";
+
+      let snippets = [];
+      let dragIndex = null;
+
+      const filePath = document.querySelector("#filePath");
+      const codeInput = document.querySelector("#codeInput");
+      const tagSelect = document.querySelector("#tagSelect");
+      const addBtn = document.querySelector("#addBtn");
+      const clearBtn = document.querySelector("#clearBtn");
+      const snippetsList = document.querySelector("#snippetsList");
+      const emptyState = document.querySelector("#emptyState");
+      const countValue = document.querySelector("#countValue");
+      const tokenValue = document.querySelector("#tokenValue");
+      const charValue = document.querySelector("#charValue");
+      const copyBtn = document.querySelector("#copyBtn");
+      const saveBtn = document.querySelector("#saveBtn");
+      const loadBtn = document.querySelector("#loadBtn");
+      const exportBtn = document.querySelector("#exportBtn");
+      const importBtn = document.querySelector("#importBtn");
+      const toast = document.querySelector("#toast");
+
+      function estimateTokens(text) {
+        return Math.ceil(text.length / 4);
+      }
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add("show");
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(() => toast.classList.remove("show"), 2200);
+      }
+
+      function render() {
+        const totalTokens = snippets.reduce((s, sn) => s + estimateTokens(sn.code), 0);
+        const totalChars = snippets.reduce((s, sn) => s + sn.code.length, 0);
+        countValue.textContent = snippets.length;
+        tokenValue.textContent = totalTokens.toLocaleString();
+        charValue.textContent = totalChars.toLocaleString();
+
+        if (snippets.length === 0) {
+          snippetsList.innerHTML = `<div class="empty-state" id="emptyState">Add a snippet to start building your context.</div>`;
+          return;
+        }
+
+        snippetsList.innerHTML = snippets.map((sn, i) => `
+          <div class="snippet-card" draggable="true" data-index="${i}">
+            <div class="snippet-header">
+              <span class="snippet-file">${escapeHtml(sn.file || "untitled")}</span>
+              <div class="snippet-meta">
+                <span class="tag tag-${sn.tag}">${sn.tag}</span>
+                <span class="token-badge">~${estimateTokens(sn.code)} tok</span>
+                <button class="snippet-remove" data-index="${i}" aria-label="Remove snippet">&times;</button>
+              </div>
+            </div>
+            <div class="snippet-preview">${escapeHtml(sn.code.slice(0, 100).replace(/\n/g, " "))}</div>
+          </div>
+        `).join("");
+
+        document.querySelectorAll(".snippet-card").forEach(el => {
+          el.addEventListener("dragstart", onDragStart);
+          el.addEventListener("dragend", onDragEnd);
+          el.addEventListener("dragover", onDragOver);
+          el.addEventListener("dragleave", onDragLeave);
+          el.addEventListener("drop", onDrop);
+        });
+        document.querySelectorAll(".snippet-remove").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.dataset.index);
+            snippets.splice(idx, 1);
+            render();
+          });
+        });
+      }
+
+      function escapeHtml(s) {
+        const d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      function onDragStart(e) {
+        dragIndex = Number(e.target.closest(".snippet-card").dataset.index);
+        e.target.closest(".snippet-card").classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      }
+
+      function onDragEnd(e) {
+        dragIndex = null;
+        document.querySelectorAll(".snippet-card").forEach(el => el.classList.remove("dragging", "drag-over"));
+      }
+
+      function onDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        const el = e.target.closest(".snippet-card");
+        if (el) el.classList.add("drag-over");
+      }
+
+      function onDragLeave(e) {
+        const el = e.target.closest(".snippet-card");
+        if (el) el.classList.remove("drag-over");
+      }
+
+      function onDrop(e) {
+        e.preventDefault();
+        const target = e.target.closest(".snippet-card");
+        if (!target) return;
+        const toIndex = Number(target.dataset.index);
+        if (dragIndex === null || dragIndex === toIndex) return;
+        const [moved] = snippets.splice(dragIndex, 1);
+        snippets.splice(toIndex, 0, moved);
+        document.querySelectorAll(".snippet-card").forEach(el => el.classList.remove("drag-over"));
+        render();
+      }
+
+      function addSnippet() {
+        const file = filePath.value.trim();
+        const code = codeInput.value.trim();
+        const tag = tagSelect.value;
+        if (!code) { showToast("Paste some code first."); return; }
+        snippets.push({ file, code, tag });
+        filePath.value = "";
+        codeInput.value = "";
+        tagSelect.value = "other";
+        render();
+        showToast("Snippet added.");
+      }
+
+      function buildCombinedContext() {
+        return snippets.map((sn, i) => {
+          const header = sn.file ? `### ${sn.file} [${sn.tag}]` : `### Snippet ${i + 1} [${sn.tag}]`;
+          return `${header}\n\`\`\`\n${sn.code}\n\`\`\``;
+        }).join("\n\n");
+      }
+
+      function saveSession() {
+        const name = prompt("Session name:", "session-" + new Date().toISOString().slice(0, 10));
+        if (!name) return;
+        const all = JSON.parse(localStorage.getItem(SAVE_KEY) || "{}");
+        all[name] = snippets;
+        localStorage.setItem(SAVE_KEY, JSON.stringify(all));
+        showToast(`Saved "${name}".`);
+      }
+
+      function loadSession() {
+        const all = JSON.parse(localStorage.getItem(SAVE_KEY) || "{}");
+        const names = Object.keys(all);
+        if (names.length === 0) { showToast("No saved sessions."); return; }
+        let menu = names.map((n, i) => `${i + 1}: ${n} (${all[n].length} snippets)`).join("\n");
+        const choice = prompt(`Saved sessions:\n${menu}\n\nEnter number to load:`);
+        if (!choice) return;
+        const idx = Number(choice) - 1;
+        if (idx < 0 || idx >= names.length) { showToast("Invalid choice."); return; }
+        snippets = all[names[idx]];
+        render();
+        showToast(`Loaded "${names[idx]}".`);
+      }
+
+      addBtn.addEventListener("click", addSnippet);
+      codeInput.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.key === "Enter") addSnippet();
+      });
+      clearBtn.addEventListener("click", () => {
+        if (snippets.length === 0) return;
+        if (!confirm("Clear all snippets?")) return;
+        snippets = [];
+        render();
+        showToast("Cleared.");
+      });
+
+      copyBtn.addEventListener("click", async () => {
+        if (snippets.length === 0) { showToast("No snippets to copy."); return; }
+        const text = buildCombinedContext();
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(`Copied ~${estimateTokens(text)} tokens.`);
+        } catch {
+          showToast("Could not copy.");
+        }
+      });
+
+      saveBtn.addEventListener("click", saveSession);
+      loadBtn.addEventListener("click", loadSession);
+
+      exportBtn.addEventListener("click", () => {
+        if (snippets.length === 0) { showToast("No snippets to export."); return; }
+        const blob = new Blob([JSON.stringify(snippets, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "context-kit-export.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("Exported.");
+      });
+
+      importBtn.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json";
+        input.addEventListener("change", () => {
+          const file = input.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.addEventListener("load", () => {
+            try {
+              const data = JSON.parse(reader.result);
+              if (!Array.isArray(data)) throw new Error("Not an array");
+              snippets = data.map(sn => ({
+                file: sn.file || "",
+                code: sn.code || "",
+                tag: sn.tag || "other",
+              }));
+              render();
+              showToast(`Imported ${snippets.length} snippets.`);
+            } catch { showToast("Invalid file."); }
+          });
+          reader.readAsText(file);
+        });
+        input.click();
+      });
+
+      render();
+    </script>
+  </body>
+</html>
