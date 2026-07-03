@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>AI Coding Playbook</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --card: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #f8fafc;
+        --muted: #aab4c5;
+        --green: #86efac;
+        --blue: #93c5fd;
+        --amber: #facc15;
+        --pink: #fb7185;
+        --purple: #c4b5fd;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 85% 5%, rgba(147, 197, 253, 0.18), transparent 20rem),
+          radial-gradient(circle at 10% 95%, rgba(196, 181, 253, 0.14), transparent 20rem),
+          linear-gradient(150deg, #101827 0%, #08111d 52%, #04070c 100%);
+        color: var(--text);
+      }
+      button, input { font: inherit; }
+      main {
+        width: min(42rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        gap: 1rem;
+      }
+      a { color: #bfdbfe; text-decoration: none; }
+      a:hover, a:focus-visible { color: white; outline: none; }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      h1 { margin: 0; font-size: 1rem; letter-spacing: 0.02em; }
+
+      .hero {
+        text-align: center;
+        padding: 1.5rem 0 0.5rem;
+      }
+      .hero h2 {
+        margin: 0;
+        font-size: clamp(1.6rem, 6vw, 2.2rem);
+        letter-spacing: -0.04em;
+        line-height: 1.2;
+      }
+      .hero p {
+        margin: 0.5rem 0 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.5;
+      }
+      .progress-card {
+        border: 1px solid var(--line);
+        border-radius: 1.4rem;
+        background: var(--card);
+        padding: 1rem;
+        display: grid;
+        gap: 0.6rem;
+      }
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.88rem;
+      }
+      .progress-header strong { color: var(--blue); }
+      .progress-bar {
+        height: 0.6rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.1);
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--green), var(--blue));
+        transition: width 300ms ease;
+      }
+
+      .category { display: grid; gap: 0.6rem; }
+      .category h3 {
+        margin: 0.5rem 0 0;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+      .category h3 span { color: var(--blue); font-weight: 400; }
+
+      .practice {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.7rem;
+        padding: 0.8rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: rgba(0,0,0,0.2);
+        cursor: pointer;
+        transition: border-color 180ms ease, background 180ms ease;
+      }
+      .practice:hover { border-color: rgba(255,255,255,0.25); }
+      .practice.done {
+        border-color: rgba(134, 239, 172, 0.3);
+        background: rgba(134, 239, 172, 0.06);
+      }
+      .practice .check {
+        width: 1.4rem;
+        height: 1.4rem;
+        margin-top: 0.1rem;
+        border: 2px solid var(--line);
+        border-radius: 0.35rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+        transition: background 180ms ease, border-color 180ms ease;
+      }
+      .practice.done .check {
+        background: var(--green);
+        border-color: var(--green);
+        color: #071017;
+      }
+      .practice .body { display: grid; gap: 0.2rem; }
+      .practice .title {
+        font-weight: 700;
+        font-size: 0.92rem;
+      }
+      .practice .desc {
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.45;
+      }
+      .practice .source {
+        font-size: 0.7rem;
+        color: var(--purple);
+        letter-spacing: 0.04em;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+      }
+      .btn {
+        min-height: 3rem;
+        border: 1px solid rgba(255,255,255,0.16);
+        border-radius: 1rem;
+        color: var(--text);
+        background: rgba(255,255,255,0.08);
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .btn:focus-visible { outline: 3px solid rgba(255,255,255,0.72); outline-offset: 3px; }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--green), var(--blue));
+        color: #071017;
+        border: 0;
+      }
+
+      .explainer {
+        border-top: 1px solid var(--line);
+        padding-top: 1rem;
+        display: grid;
+        gap: 0.5rem;
+      }
+      .explainer h4 { margin: 0; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+      .explainer p { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+      .explainer a { font-size: 0.82rem; }
+
+      @media (min-width: 45rem) {
+        main { padding-top: 2rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>AI Coding Playbook</h1>
+      </header>
+
+      <section class="hero">
+        <h2>Practices from HN, distilled</h2>
+        <p>Actionable techniques for AI-assisted coding, collected from today's Hacker News discussions. Check off what you already do, bookmark what to try next.</p>
+      </section>
+
+      <section class="progress-card">
+        <div class="progress-header">
+          <span>Adoption</span>
+          <strong id="progressCount">0 / 24</strong>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </section>
+
+      <div id="playbook"></div>
+
+      <div class="actions">
+        <button class="btn" id="resetBtn">Reset Progress</button>
+        <button class="btn btn-primary" id="exportBtn">Export Summary</button>
+      </div>
+
+      <section class="explainer">
+        <h4>Where this came from</h4>
+        <p>Practices extracted from top-level comments on two Ask HN threads posted July 3, 2026:
+          <a href="https://news.ycombinator.com/item?id=48771515" target="_blank">"experimenting with LLMs for coding" (102 points, 135 comments)</a> and
+          <a href="https://news.ycombinator.com/item?id=48770319" target="_blank">"AI coding is a nightmare" (58 points, 48 comments)</a>.
+          Each practice is attributed to the thread it came from.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      const STORAGE_KEY = "ai-coding-playbook";
+
+      const practices = [
+        { cat: "Plan First", id: "p1", title: "Write a spec before code", desc: "Draft a detailed markdown doc with requirements, design, and constraints before any code generation. Have the LLM review the plan, then implement from it in a separate session.", src: "thread1" },
+        { cat: "Plan First", id: "p2", title: "Use the LLM as a sounding board", desc: "During planning, prompt the model to ask clarifying questions and poke holes in your thinking rather than write code. Review the plan with a different provider to catch blind spots.", src: "thread1" },
+        { cat: "Plan First", id: "p3", title: "Spec-driven development for brownfield", desc: "Have the LLM ingest the entire project and emit a spec. Review it yourself. For each new issue, start a fresh context pointing to that spec.", src: "thread2" },
+        { cat: "Plan First", id: "p4", title: "Learn before implementing", desc: "Add a LEARN step between planning and implementation. Use AI tutoring sessions to deeply understand the concepts the LLM plans to use, so you can direct it more effectively.", src: "thread1" },
+
+        { cat: "Manage Context", id: "p5", title: "Separate plan and implement sessions", desc: "Have the LLM scan the project and produce a plan. Review it, then start a fresh context to execute. This prevents context bloat and keeps sessions under 200k tokens.", src: "thread2" },
+        { cat: "Manage Context", id: "p6", title: "Piecemeal prompts with context resets", desc: "Break large tasks into narrow, single-file prompts and periodically reset context. Much faster than long sessions and reduces incoherence.", src: "thread1" },
+        { cat: "Manage Context", id: "p7", title: "Use 1M+ context window models", desc: "If you can't afford top-tier providers, use models with larger context windows. The extra headroom reduces incoherence on complex tasks.", src: "thread2" },
+
+        { cat: "Review Everything", id: "p8", title: "Multi-pass review with different providers", desc: "After plan generation, ask a different LLM provider to review for blind spots and bloat. After code, run iterative reviews for security, optimization, architecture, and downstream effects.", src: "thread1" },
+        { cat: "Review Everything", id: "p9", title: "Enforce rules via AGENTS.md", desc: "Document non-negotiables (file structure, patterns, conventions) in a brief AGENTS.md. Have a second LLM review the first agent's work against these rules.", src: "thread2" },
+        { cat: "Review Everything", id: "p10", title: "Mandate test execution before done", desc: "Teach the LLM how to run tests and require it to run them before considering a task complete. A strong test suite lets the LLM detect regressions without re-reading the full codebase.", src: "thread2" },
+        { cat: "Review Everything", id: "p11", title: "Implement in phases with tests", desc: "Break work into small, independently-testable components. Let the model write tests alongside code.", src: "thread1" },
+
+        { cat: "Smart Workflows", id: "p12", title: "Multi-model tiered routing", desc: "Use cheap fast models for mechanical work (lookups, log parsing), mid-tier for implementation, and strong models for judgment and review.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p13", title: "Poll a swarm of models for consensus", desc: "Run multiple heterogeneous models on the same question and synthesize their perspectives. Enabling debate between them improves results further.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p14", title: "Hermetic agents for unbiased code", desc: "Sandboxed agents write code and tests from the same spec, but the code-writer cannot see the tests and vice versa. Avoids confirmation bias.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p15", title: "Overnight auto-builds from a PRD", desc: "Feed the LLM a full PRD and UI spec, enable auto-approval, and let it build the project unattended overnight. Review and QA the result in the morning.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p16", title: "Workboxes per feature", desc: "One sandboxed worktree per feature with its own branch, PR, and public endpoint. Launch from a prompt, review/test, then approve or send follow-ups.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p17", title: "Driver/navigator pair programming", desc: "Flip rapidly between driver (LLM codes) and navigator (you direct) modes within a single harness session.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p18", title: "Second-level harness for complex tasks", desc: "After initial planning, hand off to a harness that splits plans into module-aware iterations, runs regression and convention checks after each, and auto-fixes deviations.", src: "thread1" },
+        { cat: "Smart Workflows", id: "p19", title: "Multiple work personas", desc: "Define 2-3 personas matching different mood states. Have an agent frame each task through each persona and ask you to pick one — reversing the prompt loop.", src: "thread1" },
+
+        { cat: "Stay In Control", id: "p20", title: "Reduce prompt volume", desc: "If you are writing lots of prompts, you are doing it wrong. Reduce volume by having the agent work from specs and plans rather than constant back-and-forth.", src: "thread2" },
+        { cat: "Stay In Control", id: "p21", title: "Watch for hyper-defensive code", desc: "LLMs tend to wrap everything in try/except with fallbacks that silently hide failures. Explicitly instruct the model not to do this.", src: "thread2" },
+        { cat: "Stay In Control", id: "p22", title: "You own the architecture", desc: "If files become bloated over several LLM rounds, that is your responsibility to observe and enforce structure. Do not let the model's tendencies dictate your codebase shape.", src: "thread2" },
+        { cat: "Stay In Control", id: "p23", title: "Know when to stop using it", desc: "Treat it like any other tool. If the agentic approach is not working, go function-by-function and class-by-class, generating or writing code as you see fit.", src: "thread2" },
+        { cat: "Stay In Control", id: "p24", title: "Spec before prompt", desc: "If you are writing lots of prompts trying to correct bad output, the root cause is almost always insufficient upfront spec work. Go back to planning.", src: "thread1" },
+      ];
+
+      let done = new Set();
+
+      function loadProgress() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) done = new Set(JSON.parse(saved));
+        } catch {}
+      }
+
+      function saveProgress() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...done])); } catch {}
+      }
+
+      function render() {
+        const playbook = document.querySelector("#playbook");
+        const cats = [...new Set(practices.map(p => p.cat))];
+        const srcLabel = { thread1: "thread 1", thread2: "thread 2" };
+
+        playbook.innerHTML = cats.map(cat => {
+          const items = practices.filter(p => p.cat === cat);
+          return `<section class="category">
+            <h3>${cat} <span>(${items.length})</span></h3>
+            ${items.map(p => {
+              const isDone = done.has(p.id);
+              const srcUrl = p.src === "thread1"
+                ? "https://news.ycombinator.com/item?id=48771515"
+                : "https://news.ycombinator.com/item?id=48770319";
+              return `<div class="practice${isDone ? " done" : ""}" data-id="${p.id}">
+                <div class="check">${isDone ? "\u2713" : ""}</div>
+                <div class="body">
+                  <div class="title">${p.title}</div>
+                  <div class="desc">${p.desc}</div>
+                  <a class="source" href="${srcUrl}" target="_blank">${srcLabel[p.src]}</a>
+                </div>
+              </div>`;
+            }).join("")}
+          </section>`;
+        }).join("");
+
+        document.querySelectorAll(".practice").forEach(el => {
+          el.addEventListener("click", () => {
+            const id = el.dataset.id;
+            if (done.has(id)) done.delete(id);
+            else done.add(id);
+            saveProgress();
+            render();
+          });
+        });
+
+        const count = done.size;
+        const total = practices.length;
+        document.querySelector("#progressCount").textContent = `${count} / ${total}`;
+        document.querySelector("#progressFill").style.width = `${(count / total) * 100}%`;
+      }
+
+      document.querySelector("#resetBtn").addEventListener("click", () => {
+        if (!confirm("Reset all progress?")) return;
+        done.clear();
+        saveProgress();
+        render();
+      });
+
+      document.querySelector("#exportBtn").addEventListener("click", () => {
+        const doneList = practices.filter(p => done.has(p.id)).map(p => `- [x] ${p.title}`);
+        const todoList = practices.filter(p => !done.has(p.id)).map(p => `- [ ] ${p.title}`);
+        const text = `# AI Coding Playbook\n\n## Adopted (${done.size}/${practices.length})\n${doneList.join("\n")}\n\n## To Try\n${todoList.join("\n")}\n\nCollected from HN threads Jul 3, 2026`;
+        try {
+          navigator.clipboard.writeText(text);
+        } catch {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.append(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+        }
+      });
+
+      loadProgress();
+      render();
+    </script>
+  </body>
+</html>
