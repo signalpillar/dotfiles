@@ -211,6 +211,22 @@
         font-weight: 850;
       }
 
+      .sound-toggle {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-direction: row;
+        cursor: pointer;
+        color: var(--text);
+        font-size: 0.92rem;
+      }
+      .sound-toggle input {
+        width: auto;
+        min-height: auto;
+        padding: 0;
+      }
+
       .actions-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -289,6 +305,10 @@
             Break seconds
             <input id="breakInput" type="number" min="1" max="999" inputmode="numeric" value="10">
           </label>
+          <label class="sound-toggle">
+            <input id="soundToggle" type="checkbox" checked>
+            Sounds
+          </label>
         </section>
 
         <div class="actions-row">
@@ -308,6 +328,7 @@
       const skipButton = document.querySelector("#skipButton");
       const workInput = document.querySelector("#workInput");
       const breakInput = document.querySelector("#breakInput");
+      const soundToggle = document.querySelector("#soundToggle");
       const roundsValue = document.querySelector("#roundsValue");
       const elapsedValue = document.querySelector("#elapsedValue");
 
@@ -319,7 +340,50 @@
         elapsed: 0,
         lastTick: 0,
         rafId: 0,
+        lastBeepSecond: -1,
       };
+
+      let audioCtx = null;
+
+      function getAudioCtx() {
+        if (!audioCtx) audioCtx = new AudioContext();
+        return audioCtx;
+      }
+
+      function playBeep(freq, duration, volume) {
+        if (!soundToggle.checked) return;
+        try {
+          const ctx = getAudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(volume || 0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + duration);
+        } catch {}
+      }
+
+      function playGong() {
+        if (!soundToggle.checked) return;
+        try {
+          const ctx = getAudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(110, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(55, ctx.currentTime + 1.5);
+          gain.gain.setValueAtTime(0.4, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 1.8);
+        } catch {}
+      }
 
       function readSeconds(input, fallback) {
         const value = Number.parseInt(input.value, 10);
@@ -365,6 +429,8 @@
         }
         state.remaining = phaseDuration(state.phase);
         if (carryOver) state.remaining += overdue;
+        state.lastBeepSecond = -1;
+        playGong();
       }
 
       function tick(now) {
@@ -376,7 +442,14 @@
         state.remaining -= delta;
         state.elapsed += delta;
 
-        while (state.remaining <= 0) {
+        const ceilRemaining = Math.ceil(state.remaining);
+        if (state.running && ceilRemaining <= 5 && ceilRemaining > 0 && ceilRemaining !== state.lastBeepSecond) {
+          state.lastBeepSecond = ceilRemaining;
+          const freq = 600 + (5 - ceilRemaining) * 80;
+          playBeep(freq, 0.12, 0.25);
+        }
+
+        if (state.remaining <= 0) {
           switchPhase(true);
         }
 
@@ -387,6 +460,7 @@
       function start() {
         state.running = true;
         state.lastTick = 0;
+        state.lastBeepSecond = -1;
         render();
         state.rafId = window.requestAnimationFrame(tick);
       }
@@ -394,6 +468,7 @@
       function stop() {
         state.running = false;
         state.lastTick = 0;
+        state.lastBeepSecond = -1;
         window.cancelAnimationFrame(state.rafId);
         render();
       }
