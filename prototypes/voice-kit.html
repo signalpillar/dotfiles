@@ -256,10 +256,10 @@
         </div>
         <div class="model-select">
           <label for="sttModel">STT model:</label>
-          <select id="sttModel">
-            <option value="onnx-community/whisper-tiny.en">Whisper Tiny (40 MB)</option>
-            <option value="onnx-community/whisper-base.en">Whisper Base (140 MB)</option>
-          </select>
+            <select id="sttModel">
+              <option value="Xenova/whisper-tiny.en">Whisper Tiny (40 MB)</option>
+              <option value="Xenova/whisper-base.en">Whisper Base (140 MB)</option>
+            </select>
         </div>
       </section>
 
@@ -277,7 +277,7 @@
           <div class="model-select" style="justify-self:end;">
             <label for="ttsModel">TTS model:</label>
             <select id="ttsModel">
-              <option value="KittenML/kitten-tts-nano-0.8-int8">Kitten Nano (25 MB)</option>
+              <option value="KittenML/kitten-tts-nano-0.8">Kitten Nano (25 MB)</option>
               <option value="KittenML/kitten-tts-micro-0.8">Kitten Micro (40 MB)</option>
               <option value="KittenML/kitten-tts-mini-0.8">Kitten Mini (80 MB)</option>
             </select>
@@ -333,11 +333,10 @@
           const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1');
           const { pipeline, env } = mod;
           env.allowLocalModels = false;
-          env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1/dist/';
+          env.allowRemoteModels = true;
 
           let lastPct = 0;
           sttPipeline = await pipeline('automatic-speech-recognition', modelId, {
-            device: 'webgpu',
             progress_callback: (p) => {
               if (p.status === 'progress' && p.total > 0) {
                 const pct = Math.round((p.loaded / p.total) * 100);
