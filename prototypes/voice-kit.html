@@ -364,6 +364,12 @@
         try {
           const { KittenTTS } = await import('https://esm.sh/kitten-tts-js@0.1.2');
 
+          // esm.sh polyfills process.versions.node, tricking the library's
+          // isNode() check into using fs instead of the browser Cache API.
+          if (typeof process !== 'undefined' && process.versions) {
+            try { process.versions.node = undefined; } catch {}
+          }
+
           ttsEngine = await KittenTTS.from_pretrained(modelId, {
             runtime: 'cpu',
             wasmThreads: 4,
