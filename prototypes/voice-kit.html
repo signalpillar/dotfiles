@@ -431,8 +431,9 @@
             transcript.textContent = "Transcribing...";
             try {
               const blob = new Blob(audioChunks, { type: mimeType });
-              const arrayBuf = await blob.arrayBuffer();
-              const result = await sttPipeline(new Uint8Array(arrayBuf));
+              const url = URL.createObjectURL(blob);
+              const result = await sttPipeline(url);
+              URL.revokeObjectURL(url);
               transcript.textContent = result.text;
               copySttBtn.disabled = false;
             } catch (err) {
