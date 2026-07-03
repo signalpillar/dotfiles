@@ -277,9 +277,9 @@
           <div class="model-select" style="justify-self:end;">
             <label for="ttsModel">TTS model:</label>
             <select id="ttsModel">
-              <option value="onnx-community/KittenTTS-Nano-v0.8-ONNX">Kitten Nano (60 MB, WebGPU)</option>
-              <option value="onnx-community/KittenTTS-Micro-v0.8-ONNX">Kitten Micro (45 MB, WASM)</option>
-              <option value="onnx-community/KittenTTS-Mini-v0.8-ONNX">Kitten Mini (82 MB, WASM)</option>
+              <option value="KittenML/kitten-tts-nano-0.8-int8">Kitten Nano (25 MB)</option>
+              <option value="KittenML/kitten-tts-micro-0.8">Kitten Micro (40 MB)</option>
+              <option value="KittenML/kitten-tts-mini-0.8">Kitten Mini (80 MB)</option>
             </select>
           </div>
         </div>
@@ -351,7 +351,7 @@
           setStatus(sttStatus, sttDot, "ready", "ready");
           recordBtn.disabled = false;
         } catch (err) {
-          setStatus(sttStatus, sttDot, "error: " + err.message.slice(0, 50), "error");
+          setStatus(sttStatus, sttDot, "error: " + err.message, "error");
         }
         sttLoading = false;
       }
@@ -365,15 +365,16 @@
         try {
           const { KittenTTS } = await import('https://esm.sh/kitten-tts-js@0.1.2');
 
-          const useGpu = modelId.includes('Nano');
           ttsEngine = await KittenTTS.from_pretrained(modelId, {
-            runtime: useGpu ? 'gpu' : 'cpu',
+            runtime: 'cpu',
+            wasmThreads: 4,
+            wasmSimd: true,
           });
           setStatus(ttsStatus, ttsDot, "ready", "ready");
           ttsInput.disabled = false;
           speakBtn.disabled = false;
         } catch (err) {
-          setStatus(ttsStatus, ttsDot, "error: " + err.message.slice(0, 50), "error");
+          setStatus(ttsStatus, ttsDot, "error: " + err.message, "error");
         }
         ttsLoading = false;
       }
