@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Voice Kit</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --card: rgba(255, 255, 255, 0.08);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #f8fafc;
+        --muted: #aab4c5;
+        --green: #86efac;
+        --blue: #93c5fd;
+        --amber: #facc15;
+        --pink: #fb7185;
+        --purple: #c4b5fd;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 80% 10%, rgba(147, 197, 253, 0.15), transparent 22rem),
+          radial-gradient(circle at 20% 90%, rgba(196, 181, 253, 0.12), transparent 22rem),
+          linear-gradient(150deg, #101827 0%, #08111d 52%, #04070c 100%);
+        color: var(--text);
+      }
+      button, textarea, select { font: inherit; }
+      main {
+        width: min(36rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        gap: 1rem;
+      }
+      a { color: #bfdbfe; text-decoration: none; }
+      a:hover, a:focus-visible { color: white; outline: none; }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      h1 { margin: 0; font-size: 1rem; letter-spacing: 0.02em; }
+
+      .hero { text-align: center; padding: 1rem 0 0; }
+      .hero h2 { margin: 0; font-size: clamp(1.3rem, 5vw, 1.8rem); letter-spacing: -0.03em; }
+      .hero p { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.5; }
+
+      .status-bar {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+      }
+      .status-dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--muted);
+        flex-shrink: 0;
+      }
+      .status-dot.loading { background: var(--amber); animation: blink 0.8s ease-in-out infinite; }
+      .status-dot.ready { background: var(--green); }
+      .status-dot.error { background: var(--pink); }
+      @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 1.4rem;
+        background: var(--card);
+        box-shadow: 0 1.5rem 4rem rgba(0,0,0,0.26);
+        padding: clamp(0.9rem, 3vw, 1.2rem);
+        display: grid;
+        gap: 0.8rem;
+      }
+      .card h3 {
+        margin: 0;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .record-btn {
+        width: 5rem;
+        height: 5rem;
+        justify-self: center;
+        border: 3px solid var(--line);
+        border-radius: 50%;
+        background: rgba(0,0,0,0.3);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: border-color 200ms ease, background 200ms ease, transform 150ms ease;
+      }
+      .record-btn:active { transform: scale(0.92); }
+      .record-btn.recording {
+        border-color: var(--pink);
+        background: rgba(251, 113, 133, 0.2);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      .record-btn.recording .icon { background: var(--pink); border-radius: 0.2rem; width: 1rem; height: 1rem; }
+      .record-btn .icon {
+        width: 0;
+        height: 0;
+        border-left: 0.8rem solid var(--text);
+        border-right: 0.8rem solid var(--text);
+        border-top: 0.55rem solid transparent;
+        border-bottom: 0.55rem solid transparent;
+        margin-left: 0.25rem;
+      }
+      .record-btn:disabled { opacity: 0.4; cursor: not-allowed; animation: none; }
+
+      @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0.4); }
+        50% { box-shadow: 0 0 0 1.2rem rgba(251, 113, 133, 0); }
+      }
+
+      .transcript-area {
+        min-height: 5rem;
+        max-height: 12rem;
+        padding: 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 0.8rem;
+        background: rgba(0,0,0,0.2);
+        color: var(--text);
+        resize: vertical;
+        font-size: 0.92rem;
+        line-height: 1.5;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+      .transcript-area:empty::before { content: "Transcription will appear here..."; color: var(--muted); }
+
+      .action-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+      }
+
+      .btn {
+        min-height: 2.8rem;
+        border: 1px solid rgba(255,255,255,0.16);
+        border-radius: 0.9rem;
+        color: var(--text);
+        background: rgba(255,255,255,0.08);
+        font-weight: 850;
+        cursor: pointer;
+      }
+      .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--green), var(--blue));
+        color: #071017;
+        border: 0;
+      }
+      .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+      button:focus-visible { outline: 3px solid rgba(255,255,255,0.72); outline-offset: 3px; }
+
+      .tts-controls {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.6rem;
+      }
+      .tts-controls textarea {
+        padding: 0.6rem;
+        border: 1px solid var(--line);
+        border-radius: 0.8rem;
+        background: rgba(0,0,0,0.2);
+        color: var(--text);
+        resize: vertical;
+        min-height: 4rem;
+        font-size: 0.92rem;
+        line-height: 1.5;
+      }
+      .tts-controls textarea:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+      .tts-actions {
+        display: grid;
+        gap: 0.5rem;
+        align-content: start;
+      }
+      .tts-actions .btn { min-height: 2.5rem; min-width: 5rem; }
+
+      .model-select {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .model-select select {
+        padding: 0.3rem 0.5rem;
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        background: rgba(0,0,0,0.3);
+        color: var(--text);
+        font-size: 0.82rem;
+      }
+
+      .explainer {
+        border-top: 1px solid var(--line);
+        padding-top: 1rem;
+        display: grid;
+        gap: 0.4rem;
+      }
+      .explainer h4 { margin: 0; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+      .explainer p { margin: 0; color: var(--muted); font-size: 0.8rem; line-height: 1.5; }
+      .explainer a { font-size: 0.8rem; }
+
+      @media (min-width: 45rem) {
+        main { padding-top: 2rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Voice Kit</h1>
+      </header>
+
+      <section class="hero">
+        <h2>Speech-to-Text + Text-to-Speech</h2>
+        <p>Both models run entirely in your browser via WebGPU or WASM. No data leaves your device.</p>
+      </section>
+
+      <section class="status-bar" id="statusBar">
+        <span class="status-item"><span class="status-dot" id="sttDot"></span> STT: <span id="sttStatus">initializing</span></span>
+        <span class="status-item"><span class="status-dot" id="ttsDot"></span> TTS: <span id="ttsStatus">initializing</span></span>
+      </section>
+
+      <section class="card">
+        <h3>Speech-to-Text</h3>
+        <button class="record-btn" id="recordBtn" type="button" disabled>
+          <span class="icon"></span>
+        </button>
+        <div class="transcript-area" id="transcript" role="log" aria-live="polite"></div>
+        <div class="action-row">
+          <button class="btn" id="copySttBtn" type="button" disabled>Copy</button>
+          <button class="btn" id="clearSttBtn" type="button">Clear</button>
+        </div>
+        <div class="model-select">
+          <label for="sttModel">STT model:</label>
+          <select id="sttModel">
+            <option value="onnx-community/whisper-tiny.en">Whisper Tiny (40 MB)</option>
+            <option value="onnx-community/whisper-base.en">Whisper Base (140 MB)</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Text-to-Speech</h3>
+        <div class="tts-controls">
+          <textarea id="ttsInput" placeholder="Type or paste text to speak..." disabled></textarea>
+          <div class="tts-actions">
+            <button class="btn btn-primary" id="speakBtn" type="button" disabled>Speak</button>
+            <button class="btn" id="stopTtsBtn" type="button" disabled>Stop</button>
+          </div>
+        </div>
+        <div class="action-row">
+          <span style="color:var(--muted);font-size:0.82rem;align-self:center;" id="ttsProgress"></span>
+          <div class="model-select" style="justify-self:end;">
+            <label for="ttsModel">TTS model:</label>
+            <select id="ttsModel">
+              <option value="onnx-community/KittenTTS-Nano-v0.8-ONNX">Kitten Nano (60 MB, WebGPU)</option>
+              <option value="onnx-community/KittenTTS-Micro-v0.8-ONNX">Kitten Micro (45 MB, WASM)</option>
+              <option value="onnx-community/KittenTTS-Mini-v0.8-ONNX">Kitten Mini (82 MB, WASM)</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="explainer">
+        <h4>Models & Licenses</h4>
+        <p><strong>STT:</strong> <a href="https://huggingface.co/openai/whisper-tiny" target="_blank">Whisper</a> by OpenAI (MIT) via <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a> &mdash; ONNX Runtime Web with WebGPU acceleration and WASM fallback.</p>
+        <p><strong>TTS:</strong> <a href="https://huggingface.co/KittenML" target="_blank">Kitten TTS</a> by KittenML / Stellon Labs (Apache 2.0) via <a href="https://github.com/Algiras/kitten-tts-js" target="_blank">kitten-tts-js</a> &mdash; StyleTTS 2 distilled with 8 voices.</p>
+      </section>
+    </main>
+
+    <script type="module">
+      let sttPipeline = null;
+      let ttsEngine = null;
+      let sttLoading = false;
+      let ttsLoading = false;
+      let recording = false;
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let audioCtx = null;
+
+      const sttDot = document.querySelector("#sttDot");
+      const ttsDot = document.querySelector("#ttsDot");
+      const sttStatus = document.querySelector("#sttStatus");
+      const ttsStatus = document.querySelector("#ttsStatus");
+      const recordBtn = document.querySelector("#recordBtn");
+      const transcript = document.querySelector("#transcript");
+      const copySttBtn = document.querySelector("#copySttBtn");
+      const clearSttBtn = document.querySelector("#clearSttBtn");
+      const sttModelSelect = document.querySelector("#sttModel");
+      const ttsInput = document.querySelector("#ttsInput");
+      const speakBtn = document.querySelector("#speakBtn");
+      const stopTtsBtn = document.querySelector("#stopTtsBtn");
+      const ttsProgress = document.querySelector("#ttsProgress");
+      const ttsModelSelect = document.querySelector("#ttsModel");
+
+      let currentTtsPlayer = null;
+
+      function setStatus(el, dot, text, state) {
+        el.textContent = text;
+        dot.className = "status-dot " + state;
+      }
+
+      async function loadSTT(modelId) {
+        if (sttLoading) return;
+        sttLoading = true;
+        recordBtn.disabled = true;
+        setStatus(sttStatus, sttDot, "loading Transformers.js...", "loading");
+        try {
+          const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1');
+          const { pipeline, env } = mod;
+          env.allowLocalModels = false;
+          env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1/dist/';
+
+          let lastPct = 0;
+          sttPipeline = await pipeline('automatic-speech-recognition', modelId, {
+            device: 'webgpu',
+            progress_callback: (p) => {
+              if (p.status === 'progress' && p.total > 0) {
+                const pct = Math.round((p.loaded / p.total) * 100);
+                if (pct !== lastPct) {
+                  lastPct = pct;
+                  setStatus(sttStatus, sttDot, `downloading... ${pct}%`, "loading");
+                }
+              }
+            },
+          });
+          setStatus(sttStatus, sttDot, "ready", "ready");
+          recordBtn.disabled = false;
+        } catch (err) {
+          setStatus(sttStatus, sttDot, "error: " + err.message.slice(0, 50), "error");
+        }
+        sttLoading = false;
+      }
+
+      async function loadTTS(modelId) {
+        if (ttsLoading) return;
+        ttsLoading = true;
+        ttsInput.disabled = true;
+        speakBtn.disabled = true;
+        setStatus(ttsStatus, ttsDot, "loading kitten-tts-js...", "loading");
+        try {
+          const { KittenTTS } = await import('https://esm.sh/kitten-tts-js@0.1.2');
+
+          const useGpu = modelId.includes('Nano');
+          ttsEngine = await KittenTTS.from_pretrained(modelId, {
+            runtime: useGpu ? 'gpu' : 'cpu',
+          });
+          setStatus(ttsStatus, ttsDot, "ready", "ready");
+          ttsInput.disabled = false;
+          speakBtn.disabled = false;
+        } catch (err) {
+          setStatus(ttsStatus, ttsDot, "error: " + err.message.slice(0, 50), "error");
+        }
+        ttsLoading = false;
+      }
+
+      async function updateSttModel() {
+        if (sttLoading) return;
+        sttPipeline = null;
+        setStatus(sttStatus, sttDot, "loading...", "loading");
+        recordBtn.disabled = true;
+        await loadSTT(sttModelSelect.value);
+      }
+
+      async function updateTtsModel() {
+        if (ttsLoading) return;
+        ttsEngine = null;
+        setStatus(ttsStatus, ttsDot, "loading...", "loading");
+        ttsInput.disabled = true;
+        speakBtn.disabled = true;
+        await loadTTS(ttsModelSelect.value);
+      }
+
+      sttModelSelect.addEventListener("change", updateSttModel);
+      ttsModelSelect.addEventListener("change", updateTtsModel);
+
+      recordBtn.addEventListener("click", async () => {
+        if (recording) {
+          mediaRecorder.stop();
+          recordBtn.classList.remove("recording");
+          recording = false;
+          return;
+        }
+        if (!navigator.mediaDevices?.getUserMedia) {
+          transcript.textContent = "Microphone not available in this browser.";
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+            ? 'audio/webm;codecs=opus'
+            : 'audio/webm';
+          mediaRecorder = new MediaRecorder(stream, { mimeType });
+          audioChunks = [];
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+          };
+          mediaRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            if (audioChunks.length === 0) return;
+            transcript.textContent = "Transcribing...";
+            try {
+              const blob = new Blob(audioChunks, { type: mimeType });
+              const arrayBuf = await blob.arrayBuffer();
+              const result = await sttPipeline(new Uint8Array(arrayBuf));
+              transcript.textContent = result.text;
+              copySttBtn.disabled = false;
+            } catch (err) {
+              transcript.textContent = "Transcription failed: " + err.message;
+            }
+          };
+          mediaRecorder.start();
+          recordBtn.classList.add("recording");
+          recording = true;
+        } catch (err) {
+          transcript.textContent = "Mic access denied: " + err.message;
+        }
+      });
+
+      copySttBtn.addEventListener("click", () => {
+        const text = transcript.textContent;
+        if (!text || text.startsWith("Transcribing") || text.startsWith("Transcription failed") || text.startsWith("Mic")) return;
+        navigator.clipboard.writeText(text);
+      });
+
+      clearSttBtn.addEventListener("click", () => {
+        transcript.textContent = "";
+        copySttBtn.disabled = true;
+      });
+
+      speakBtn.addEventListener("click", async () => {
+        const text = ttsInput.value.trim();
+        if (!text || !ttsEngine) return;
+        speakBtn.disabled = true;
+        stopTtsBtn.disabled = false;
+        ttsProgress.textContent = "Generating...";
+        try {
+          const audio = await ttsEngine.generate(text, { voice: 'Luna' });
+          if (!audioCtx) audioCtx = new AudioContext();
+          const source = audioCtx.createBufferSource();
+          source.buffer = audio.toAudioBuffer(audioCtx);
+          source.connect(audioCtx.destination);
+          currentTtsPlayer = source;
+          source.onended = () => {
+            speakBtn.disabled = false;
+            stopTtsBtn.disabled = true;
+            ttsProgress.textContent = "";
+            currentTtsPlayer = null;
+          };
+          source.start();
+          ttsProgress.textContent = "Playing...";
+        } catch (err) {
+          ttsProgress.textContent = "Error: " + err.message;
+          speakBtn.disabled = false;
+          stopTtsBtn.disabled = true;
+        }
+      });
+
+      stopTtsBtn.addEventListener("click", () => {
+        if (currentTtsPlayer) {
+          try { currentTtsPlayer.stop(); } catch {}
+          currentTtsPlayer = null;
+        }
+        speakBtn.disabled = false;
+        stopTtsBtn.disabled = true;
+        ttsProgress.textContent = "Stopped";
+        setTimeout(() => { ttsProgress.textContent = ""; }, 1500);
+      });
+
+      setStatus(sttStatus, sttDot, "initializing...", "loading");
+      setStatus(ttsStatus, ttsDot, "initializing...", "loading");
+
+      loadSTT(sttModelSelect.value);
+      loadTTS(ttsModelSelect.value);
+    </script>
+  </body>
+</html>
