@@ -287,7 +287,7 @@
 
       <section class="explainer">
         <h4>Models & Licenses</h4>
-        <p><strong>STT:</strong> <a href="https://huggingface.co/openai/whisper-tiny" target="_blank">Whisper</a> by OpenAI (MIT) via <a href="https://huggingface.co/docs/transformers.js" target="_blank">Transformers.js</a> &mdash; ONNX Runtime Web with WebGPU acceleration and WASM fallback.</p>
+        <p><strong>STT:</strong> <a href="https://huggingface.co/openai/whisper-tiny" target="_blank">Whisper</a> by OpenAI (MIT) via <a href="https://github.com/xenova/transformers.js" target="_blank">Transformers.js</a> &mdash; ONNX Runtime Web with WASM acceleration.</p>
         <p><strong>TTS:</strong> <a href="https://huggingface.co/KittenML" target="_blank">Kitten TTS</a> by KittenML / Stellon Labs (Apache 2.0) via <a href="https://github.com/Algiras/kitten-tts-js" target="_blank">kitten-tts-js</a> &mdash; StyleTTS 2 distilled with 8 voices.</p>
       </section>
     </main>
@@ -330,7 +330,7 @@
         recordBtn.disabled = true;
         setStatus(sttStatus, sttDot, "loading Transformers.js...", "loading");
         try {
-          const mod = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.1');
+          const mod = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
           const { pipeline, env } = mod;
           env.allowLocalModels = false;
           env.allowRemoteModels = true;
