@@ -793,6 +793,15 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
 (defvar vv/syllabus-current-file nil
   "Absolute path to the current syllabus capture file.")
 
+(defconst vv/syllabus-blocked-root
+  (expand-file-name "~/proj/")
+  "Do not capture syllabus content from trees under this directory.")
+
+(defun vv/syllabus--blocked-buffer-p ()
+  (and buffer-file-name
+       (string-prefix-p vv/syllabus-blocked-root
+                        (expand-file-name buffer-file-name))))
+
 (defun vv/syllabus--ensure-dir ()
   (unless (file-directory-p vv/syllabus-directory)
     (make-directory vv/syllabus-directory t)))
@@ -859,6 +868,8 @@ If MAKE-CURRENT is non-nil (or called interactively), set it as current."
 (defun vv/syllabus-append-region (beg end)
   "Append selected region as an Org heading with an example block."
   (interactive "r")
+  (when (vv/syllabus--blocked-buffer-p)
+    (user-error "Syllabus capture is disabled for files under ~/proj/"))
   (unless (and vv/syllabus-current-file
                (file-writable-p vv/syllabus-current-file))
     (vv/syllabus-new-file t))
@@ -881,6 +892,8 @@ If MAKE-CURRENT is non-nil (or called interactively), set it as current."
 (defun vv/syllabus-new-file-and-append (beg end)
   "Create a new syllabus file, set it current, then append region."
   (interactive "r")
+  (when (vv/syllabus--blocked-buffer-p)
+    (user-error "Syllabus capture is disabled for files under ~/proj/"))
   (vv/syllabus-new-file t)
   (vv/syllabus-append-region beg end))
 
@@ -892,6 +905,27 @@ configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
   (require 'editorconfig) ;; dependency
+
+  ;; Difftron: structural code diffing (https://github.com/lynaghk/difftron)
+  (let ((difftron-root (expand-file-name "core/libs/difftron" user-emacs-directory)))
+    (setq difftron-executable
+          (expand-file-name "target/release/difftron" difftron-root))
+    (add-to-list 'load-path (expand-file-name "emacs" difftron-root))
+    (use-package difftron
+      :commands (difftron-diff difftron-diff-dwim difftron-diff-at-point)
+      :init
+      (spacemacs/set-leader-keys
+        "gD" 'difftron-diff)
+      :config
+      (difftron-bindings-mode 1)
+      (require 'magit-diff)
+      (difftron-register-magit-diff-bindings))
+    (spacemacs|use-package-add-hook magit
+      :post-config
+      (require 'difftron)
+      (difftron-bindings-mode 1)
+      (require 'magit-diff)
+      (difftron-register-magit-diff-bindings)))
 
   ;; Terminal clipboard via OSC 52. In a TTY frame (SSH/mosh + tmux +
   ;; Ghostty), Emacs cannot reach the host Mac clipboard through X11 or

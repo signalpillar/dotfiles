@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIFFTRON_DIR="${HOME}/.emacs.d/core/libs/difftron"
+DIFFTRON_BIN="${DIFFTRON_DIR}/target/release/difftron"
+DIFFTRON_REPO="https://github.com/lynaghk/difftron.git"
+
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "difftron: cargo not found; install Rust first (brew rust / mise / rustup)" >&2
+  exit 1
+fi
+
+if [ ! -d "${HOME}/.emacs.d" ]; then
+  echo "difftron: ${HOME}/.emacs.d missing; clone Spacemacs before installing difftron" >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "${DIFFTRON_DIR}")"
+
+if [ ! -d "${DIFFTRON_DIR}/.git" ]; then
+  echo "difftron: cloning into ${DIFFTRON_DIR}..."
+  git clone --depth 1 "${DIFFTRON_REPO}" "${DIFFTRON_DIR}"
+else
+  echo "difftron: updating ${DIFFTRON_DIR}..."
+  git -C "${DIFFTRON_DIR}" pull --ff-only
+fi
+
+if [ ! -x "${DIFFTRON_BIN}" ]; then
+  echo "difftron: building release binary..."
+  cargo build --release --manifest-path "${DIFFTRON_DIR}/Cargo.toml"
+else
+  echo "difftron: release binary already present at ${DIFFTRON_BIN}"
+fi
+
+echo "difftron: ready"
