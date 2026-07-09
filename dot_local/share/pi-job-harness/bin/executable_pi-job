@@ -31,6 +31,103 @@ def die(message: str) -> None:
     sys.exit(1)
 
 
+def missing_task_hint(task_file: Path) -> str:
+    return (
+        f"task file not found: {task_file}\n"
+        f"create one from the example shape with:\n"
+        f"  pi-job --task {task_file} scaffold\n"
+        f"then initialize a profile:\n"
+        f"  pi-job --task {task_file} init --profile <profile>"
+    )
+
+
+def example_task_cue(*, title: str = "Example bounded change") -> str:
+    """Generic task-file scaffold. Types/structure only; no real work content."""
+    safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
+    return f'''package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+
+#Step: {{
+	key:    string
+	title:  string
+	status: #Status
+	note:   string
+}}
+
+#Decision: {{
+	date:   string
+	note:   string
+	source: string
+}}
+
+#Artifact: {{
+	status: #Status
+	path?:  string
+	note:   string
+}}
+
+#Slice: {{
+	key:    string
+	title:  string
+	goal:   string
+	status: #Status
+	note:   string
+	steps: [...#Step]
+	final_steps: [
+		#Step & {{key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap"}},
+		#Step & {{key: "update-task-file", title: "Update this task file plan"}},
+	]
+}}
+
+task: {{
+	title:  "{safe_title}"
+	status: "in_progress"
+
+	source: {{
+		jira:       ""
+		discovered: ""
+		context:    "Short discovery note for why this task exists."
+	}}
+
+	project: {{
+		key:     "example"
+		name:    "Example Project"
+		route:   "projects/example/workflow.md"
+		context: "Where this work lives in the repo."
+	}}
+
+	context: """
+		Free-form background the agent should read before acting.
+		Replace project/source fields, then add plan slices for the real work.
+		"""
+
+	decisions: []
+
+	plan: {{
+		note: "Replace this scaffold plan with the real slices for the work."
+		slices: [
+			#Slice & {{
+				key:    "do-the-change"
+				title:  "Do the change"
+				goal:   "Ship the bounded edit with verification."
+				status: "in_progress"
+				note:   ""
+				steps: [
+					#Step & {{key: "edit-code", title: "Edit the code", status: "planned", note: ""}},
+					#Step & {{key: "verify", title: "Run checks", status: "planned", note: ""}},
+				]
+				final_steps: [
+					#Step & {{key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""}},
+					#Step & {{key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""}},
+				]
+			}},
+		]
+	}}
+}}
+'''
+
+
 @dataclass(frozen=True)
 class Cursor:
     phase: str
@@ -52,7 +149,7 @@ def run(argv: list[str], *, cwd: Path = ROOT, capture: bool = True) -> subproces
 
 def load_task(task_file: Path) -> dict[str, Any]:
     if not task_file.exists():
-        die(f"task file not found: {task_file}")
+        die(missing_task_hint(task_file))
     res = run(["cue", "export", str(task_file), "-e", "task", "--out", "json"])
     if res.returncode != 0:
         die(f"cue export failed for {task_file}:\n{res.stderr.strip()}")
@@ -488,6 +585,22 @@ def cmd_init(args: argparse.Namespace) -> None:
     print(f"cursor: {cursor.label()}")
 
 
+def cmd_scaffold(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    content = example_task_cue(title=args.title)
+    if args.dry_run:
+        print(content, end="" if content.endswith("\n") else "\n")
+        return
+    if task_file.exists() and not args.force:
+        die(f"task file already exists: {task_file}\npass --force to overwrite, or choose another --task path")
+    task_file.parent.mkdir(parents=True, exist_ok=True)
+    write_and_format(task_file, content)
+    print(f"scaffolded task file: {task_file}")
+    print("next: edit project/source/plan, then run:")
+    print(f"  pi-job --task {task_file} init --profile <profile>")
+    print(f"  pi-job --task {task_file} plan")
+
+
 def main() -> None:
     profiles = sorted(valid_profiles())
     ap = argparse.ArgumentParser(description=__doc__)
@@ -518,6 +631,15 @@ def main() -> None:
     instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")
     instruction.add_argument("--current", action="store_true", help="use saved cursor instead of computed next")
     instruction.set_defaults(fn=cmd_instruction)
+
+    scaffold = sub.add_parser(
+        "scaffold",
+        help="create a task file from the generic example shape when one does not exist yet",
+    )
+    scaffold.add_argument("--title", default="Example bounded change", help="task.title for the scaffold")
+    scaffold.add_argument("--force", action="store_true", help="overwrite an existing task file")
+    scaffold.add_argument("--dry-run", action="store_true", help="print the scaffold without writing")
+    scaffold.set_defaults(fn=cmd_scaffold)
 
     args = ap.parse_args()
     args.fn(args)

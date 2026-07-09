@@ -195,10 +195,55 @@ def test_contract_owner_for_implement_phase() -> None:
         assert_contains(instruction, "Run this step in a subagent.")
 
 
+def test_missing_task_points_to_scaffold() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        missing = Path(tmp) / "missing.cue"
+        res = run(str(PI_JOB), "--task", str(missing), "status", check=False)
+        if res.returncode == 0:
+            raise AssertionError("status unexpectedly succeeded for missing task")
+        assert_contains(res.stderr, "task file not found")
+        assert_contains(res.stderr, "scaffold")
+        assert_contains(res.stderr, "init --profile")
+
+
+def test_scaffold_creates_task_file() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "nested" / "new-task.cue"
+        dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
+        assert_contains(dry, "package task")
+        assert_contains(dry, "#Status:")
+        assert_contains(dry, 'key:    "do-the-change"')
+        if task.exists():
+            raise AssertionError("dry-run wrote a task file")
+
+        out = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "scaffold",
+            "--title",
+            "Scaffolded example",
+        ).stdout
+        assert_contains(out, f"scaffolded task file: {task}")
+        assert task.exists()
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Task: Scaffolded example")
+        assert_contains(status, "Profile: <unset>")
+        assert_contains(status, "Initialization: required")
+
+        again = run(str(PI_JOB), "--task", str(task), "scaffold", check=False)
+        if again.returncode == 0:
+            raise AssertionError("scaffold unexpectedly overwrote without --force")
+        assert_contains(again.stderr, "already exists")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
     test_contract_owner_for_implement_phase()
+    test_missing_task_points_to_scaffold()
+    test_scaffold_creates_task_file()
     print("pi-job tests passed")
 
 

@@ -40,15 +40,18 @@ When kept inside this repo, `scripts/pi-job` is a thin wrapper around `packages/
 Run from the repository that owns the task file. The current working directory is reported as the repository root in instruction packets.
 
 ```bash
-pi-job --task projects/example/tasks/task.cue status
+# If the task file does not exist yet:
+pi-job --task projects/example/tasks/task.cue scaffold
 pi-job --task projects/example/tasks/task.cue init --profile small
+
+pi-job --task projects/example/tasks/task.cue status
 pi-job --task projects/example/tasks/task.cue plan
 pi-job --task projects/example/tasks/task.cue next
 pi-job --task projects/example/tasks/task.cue instruction --current
 pi-job --task projects/example/tasks/task.cue advance
 ```
 
-A task with `Profile: <unset>` is not initialized. Run `init --profile <profile>` before `plan`, `next`, `advance`, or `instruction`; those commands fail closed until a valid profile is recorded.
+If `--task` points at a missing file, commands fail closed and tell the agent to run `scaffold` (writes the generic example CUE shape), then `init --profile`. A task with `Profile: <unset>` is not initialized; run `init --profile <profile>` before `plan`, `next`, `advance`, or `instruction`.
 
 `plan` prints the selected profile's phase order from `profile-contract.cue` and tells the orchestrator to track those phases with session todos. `instruction` reminds the orchestrator to keep the current cursor todo in progress until validators pass. `next`/`advance` still walk `task.plan` slices; phase-cursor orchestration is deferred.
 
