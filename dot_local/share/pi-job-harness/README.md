@@ -20,6 +20,15 @@ tests/test_pi_job.py    regression tests for the CLI
 
 No third-party Python packages are required.
 
+Recommended: use [`uv`](https://docs.astral.sh/uv/) to install and pin the Python version.
+`pi-job` itself has no Python package deps, but `uv` keeps a working `python3` available across machines without fighting system Python.
+
+```bash
+# install uv: https://docs.astral.sh/uv/getting-started/installation/
+uv python install 3.12
+uv python pin 3.12   # optional, in a project directory
+```
+
 ## What pi-job does
 
 `pi-job` is a small CLI that answers orchestration questions from durable state.
@@ -96,6 +105,10 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
 If `pi-job` is missing, an agent can pull only the harness files from the public raw GitHub tree and install them under `~/.local` - no need to clone `signalpillar/dotfiles`.
 
 ```bash
+# Prefer uv so Python 3.11+ is managed for you:
+#   curl -LsSf https://astral.sh/uv/install.sh | sh
+#   uv python install 3.12
+
 BASE=https://raw.githubusercontent.com/signalpillar/dotfiles/master/dot_local/share/pi-job-harness
 mkdir -p ~/.local/share/pi-job-harness/bin ~/.local/bin
 curl -fsSL "$BASE/bin/executable_pi-job" -o ~/.local/share/pi-job-harness/bin/pi-job
@@ -103,10 +116,13 @@ curl -fsSL "$BASE/profile-contract.cue" -o ~/.local/share/pi-job-harness/profile
 curl -fsSL "$BASE/README.md" -o ~/.local/share/pi-job-harness/README.md
 chmod +x ~/.local/share/pi-job-harness/bin/pi-job
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
-  'exec "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' > ~/.local/bin/pi-job
+  'exec uv run --python 3.12 "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' \
+  > ~/.local/bin/pi-job
 chmod +x ~/.local/bin/pi-job
-# requires: python3, cue on PATH
+# requires: uv (with Python 3.12), cue on PATH
 ```
+
+If you already have a suitable system `python3`, the wrapper can call the script directly instead of `uv run`.
 
 ## Install (chezmoi / local copy)
 
@@ -297,6 +313,7 @@ What `pi-job` cares about most:
 
 ```bash
 # from this package directory, or via a repo wrapper:
-python3 tests/test_pi_job.py
+uv run --python 3.12 python tests/test_pi_job.py
+# or: python3 tests/test_pi_job.py
 cue eval profile-contract.cue >/dev/null
 ```
