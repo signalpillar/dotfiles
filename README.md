@@ -28,6 +28,23 @@ Portable deterministic job harness for CUE task files, managed by chezmoi under:
 
 Package docs: [`dot_local/share/pi-job-harness/README.md`](dot_local/share/pi-job-harness/README.md).
 
+### Agent self-install (no full repo clone)
+
+If `pi-job` is missing, an agent can pull only the harness files from the public raw GitHub tree and install them under `~/.local` - no need to clone `signalpillar/dotfiles`.
+
+```bash
+BASE=https://raw.githubusercontent.com/signalpillar/dotfiles/master/dot_local/share/pi-job-harness
+mkdir -p ~/.local/share/pi-job-harness/bin ~/.local/bin
+curl -fsSL "$BASE/bin/executable_pi-job" -o ~/.local/share/pi-job-harness/bin/pi-job
+curl -fsSL "$BASE/profile-contract.cue" -o ~/.local/share/pi-job-harness/profile-contract.cue
+curl -fsSL "$BASE/README.md" -o ~/.local/share/pi-job-harness/README.md
+chmod +x ~/.local/share/pi-job-harness/bin/pi-job
+printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
+  'exec "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' > ~/.local/bin/pi-job
+chmod +x ~/.local/bin/pi-job
+# requires: python3, cue on PATH
+```
+
 ### What pi-job does
 
 `pi-job` is a small CLI that answers orchestration questions from durable state.

@@ -10,6 +10,7 @@ Project-level `AGENTS.md` files may extend or override these.
   If the file is missing, follow the scaffold hint.
   Use `plan` for session todos, `instruction` before acting, and `advance` only after evidence.
   See `README.md` section "pi-job harness" and `~/.local/share/pi-job-harness/README.md`.
+  If `pi-job` is not installed, download only the harness files from `https://raw.githubusercontent.com/signalpillar/dotfiles/master/dot_local/share/pi-job-harness/` into `~/.local/share/pi-job-harness` (save `bin/executable_pi-job` as `bin/pi-job`, plus `profile-contract.cue`) and wrap it as `~/.local/bin/pi-job` - do not clone the whole dotfiles repo.
 - Never use the em dash "—".
   Use a plain dash "-" instead.
 - Never hand-edit `CHANGELOG` files or anything marked auto-generated.
