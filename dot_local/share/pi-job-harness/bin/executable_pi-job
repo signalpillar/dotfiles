@@ -1,0 +1,527 @@
+#!/usr/bin/env python3
+"""Deterministic task harness prototype for pi-agent jobs.
+
+The CUE task file remains the source of truth. This script reads task state via
+`cue export`, loads the package-local `profile-contract.cue` for profiles and
+phase ownership, computes the next actionable slice/step, can update the saved
+orchestration cursor, and emits deterministic execution instructions for the
+orchestrating model.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+ROOT = Path.cwd()
+PACKAGE_DIR = Path(__file__).resolve().parent.parent
+PROFILE_CONTRACT = PACKAGE_DIR / "profile-contract.cue"
+STATUS_DONE = {"done", "skipped"}
+
+
+def die(message: str) -> None:
+    print(f"error: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+@dataclass(frozen=True)
+class Cursor:
+    phase: str
+    slice: str | None = None
+    step: str | None = None
+
+    def label(self) -> str:
+        parts = [self.phase]
+        if self.slice:
+            parts.append(self.slice)
+        if self.step:
+            parts.append(self.step)
+        return " / ".join(parts)
+
+
+def run(argv: list[str], *, cwd: Path = ROOT, capture: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(argv, cwd=cwd, text=True, capture_output=capture)
+
+
+def load_task(task_file: Path) -> dict[str, Any]:
+    if not task_file.exists():
+        die(f"task file not found: {task_file}")
+    res = run(["cue", "export", str(task_file), "-e", "task", "--out", "json"])
+    if res.returncode != 0:
+        die(f"cue export failed for {task_file}:\n{res.stderr.strip()}")
+    try:
+        return json.loads(res.stdout)
+    except json.JSONDecodeError as exc:
+        die(f"cue export returned invalid JSON for {task_file}: {exc}")
+
+
+@lru_cache(maxsize=1)
+def load_profile_contract() -> dict[str, Any]:
+    if not PROFILE_CONTRACT.exists():
+        die(f"profile contract not found: {PROFILE_CONTRACT}")
+    res = run(["cue", "export", str(PROFILE_CONTRACT), "--out", "json"])
+    if res.returncode != 0:
+        die(f"cue export failed for {PROFILE_CONTRACT}:\n{res.stderr.strip()}")
+    try:
+        data = json.loads(res.stdout)
+    except json.JSONDecodeError as exc:
+        die(f"cue export returned invalid JSON for {PROFILE_CONTRACT}: {exc}")
+    if "profiles" not in data:
+        die(f"profile contract missing profiles: {PROFILE_CONTRACT}")
+    return data
+
+
+def contract_profiles() -> dict[str, dict[str, Any]]:
+    """Map hyphenated profile keys (e.g. review-only) to profile objects."""
+    profiles: dict[str, dict[str, Any]] = {}
+    for entry in load_profile_contract().get("profiles", {}).values():
+        key = str(entry.get("key") or "")
+        if key:
+            profiles[key] = entry
+    if not profiles:
+        die(f"profile contract has no usable profiles: {PROFILE_CONTRACT}")
+    return profiles
+
+
+def valid_profiles() -> set[str]:
+    return set(contract_profiles())
+
+
+def get_profile(profile_key: str) -> dict[str, Any]:
+    profiles = contract_profiles()
+    if profile_key not in profiles:
+        die(f"unknown pi-job profile {profile_key!r}; expected one of: {', '.join(sorted(profiles))}")
+    return profiles[profile_key]
+
+
+def profile_phases(profile_key: str) -> list[dict[str, Any]]:
+    return list(get_profile(profile_key).get("phases") or [])
+
+
+def find_contract_phase(profile_key: str, phase_key: str) -> dict[str, Any] | None:
+    for phase in profile_phases(profile_key):
+        if phase.get("key") == phase_key:
+            return phase
+    return None
+
+
+def status_value(item: dict[str, Any]) -> str:
+    return str(item.get("status") or "").lower()
+
+
+def current_cursor(task: dict[str, Any]) -> Cursor | None:
+    cursor = task.get("orchestration", {}).get("cursor")
+    if not cursor:
+        return None
+    return Cursor(
+        phase=str(cursor.get("phase") or ""),
+        slice=cursor.get("slice"),
+        step=cursor.get("step"),
+    )
+
+
+def phase_for_slice(slice_key: str) -> str:
+    return slice_key.replace("-", "_")
+
+
+def profile_value(task: dict[str, Any]) -> str | None:
+    profile = task.get("orchestration", {}).get("profile")
+    return str(profile) if profile else None
+
+
+def require_profile(task_file: Path, task: dict[str, Any]) -> str:
+    profile = profile_value(task)
+    if not profile:
+        die(
+            "task is not initialized for pi-job: missing task.orchestration.profile\n"
+            f"run: ./scripts/pi-job --task {task_file} init --profile <profile>"
+        )
+    get_profile(profile)
+    return profile
+
+
+def next_cursor(task: dict[str, Any]) -> Cursor | None:
+    for task_slice in task.get("plan", {}).get("slices", []):
+        slice_key = str(task_slice.get("key") or "")
+        if status_value(task_slice) in STATUS_DONE:
+            continue
+
+        for step in task_slice.get("steps", []):
+            if status_value(step) not in STATUS_DONE:
+                return Cursor(phase=phase_for_slice(slice_key), slice=slice_key, step=str(step.get("key") or ""))
+
+        for step in task_slice.get("final_steps", []):
+            if status_value(step) not in STATUS_DONE:
+                return Cursor(phase=phase_for_slice(slice_key), slice=slice_key, step=str(step.get("key") or ""))
+
+        return Cursor(phase=phase_for_slice(slice_key), slice=slice_key)
+    return None
+
+
+def print_status(task_file: Path, task: dict[str, Any]) -> None:
+    print(f"Task: {task.get('title', '<untitled>')}")
+    print(f"File: {task_file}")
+    print(f"Status: {task.get('status', '<unknown>')}")
+    print(f"Contract: {PROFILE_CONTRACT}")
+    profile = profile_value(task)
+    print(f"Profile: {profile if profile else '<unset>'}")
+    if not profile:
+        print("Initialization: required")
+        print(f"Next: initialize profile with ./scripts/pi-job --task {task_file} init --profile <profile>")
+        return
+    if profile not in valid_profiles():
+        print("Initialization: invalid-profile")
+        print(f"Next: choose one of {', '.join(sorted(valid_profiles()))}")
+        return
+    print("Initialization: ok")
+    cursor = current_cursor(task)
+    print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
+    nxt = next_cursor(task)
+    print(f"Next: {nxt.label() if nxt else 'done'}")
+
+
+def cursor_block(cursor: Cursor) -> str:
+    lines = ["\t\tcursor: {"]
+    lines.append(f'\t\t\tphase: "{cursor.phase}"')
+    if cursor.slice is not None:
+        lines.append(f'\t\t\tslice: "{cursor.slice}"')
+    if cursor.step is not None:
+        lines.append(f'\t\t\tstep:  "{cursor.step}"')
+    lines.append("\t\t}")
+    return "\n".join(lines)
+
+
+def orchestration_block(profile: str, cursor: Cursor) -> str:
+    return "\n".join(
+        [
+            "\torchestration: {",
+            f'\t\tprofile: "{profile}"',
+            cursor_block(cursor),
+            "\t\tpolicy: {",
+            "\t\t\tcoding_execution: {",
+            "\t\t\t\tsubagent_required:             true",
+            "\t\t\t\tlower_power_model_preferred:   true",
+            "\t\t\t\torchestrator_reviews_subagent: true",
+            "\t\t\t}",
+            "\t\t}",
+            "\t}",
+        ]
+    )
+
+
+def write_and_format(task_file: Path, text: str) -> None:
+    task_file.write_text(text)
+    fmt = run(["cue", "fmt", str(task_file)])
+    if fmt.returncode != 0:
+        die(f"cue fmt failed after task update:\n{fmt.stderr.strip()}")
+
+
+def set_cursor(task_file: Path, cursor: Cursor) -> None:
+    text = task_file.read_text()
+    pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
+    new_text, count = pattern.subn(cursor_block(cursor), text, count=1)
+    if count != 1:
+        die("could not find exactly one orchestration cursor block to replace")
+    write_and_format(task_file, new_text)
+
+
+def set_orchestration_profile(task_file: Path, profile: str, cursor: Cursor) -> None:
+    get_profile(profile)
+
+    text = task_file.read_text()
+    block = orchestration_block(profile, cursor)
+    if re.search(r"(?m)^[ \t]*orchestration:\s*\{", text):
+        profile_pattern = re.compile(r'(?m)^([ \t]*profile:\s*)"[^"]*"')
+        new_text, count = profile_pattern.subn(rf'\1"{profile}"', text, count=1)
+        if count != 1:
+            die("found orchestration block but could not replace profile")
+        cursor_pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
+        new_text, cursor_count = cursor_pattern.subn(cursor_block(cursor), new_text, count=1)
+        if cursor_count != 1:
+            die("found orchestration block but could not replace cursor")
+    else:
+        plan_match = re.search(r"(?m)^\tplan:\s*\{|^[ ]+plan:\s*\{", text)
+        if not plan_match:
+            die("could not find task.plan block to insert orchestration before")
+        new_text = text[: plan_match.start()] + block + "\n\n" + text[plan_match.start() :]
+    write_and_format(task_file, new_text)
+
+
+def find_current_slice(task: dict[str, Any], cursor: Cursor) -> dict[str, Any] | None:
+    for task_slice in task.get("plan", {}).get("slices", []):
+        if task_slice.get("key") == cursor.slice:
+            return task_slice
+    return None
+
+
+def find_current_step(task_slice: dict[str, Any] | None, cursor: Cursor) -> dict[str, Any] | None:
+    if not task_slice or not cursor.step:
+        return None
+    for group in ("steps", "final_steps"):
+        for step in task_slice.get(group, []):
+            if step.get("key") == cursor.step:
+                return step
+    return None
+
+
+def phase_owner(profile_key: str, cursor: Cursor) -> str:
+    phase = find_contract_phase(profile_key, cursor.phase)
+    if phase and phase.get("owner"):
+        return str(phase["owner"])
+    return "orchestrator"
+
+
+def build_plan(task_file: Path, task: dict[str, Any], profile_key: str) -> str:
+    profile = get_profile(profile_key)
+    cursor = current_cursor(task)
+    nxt = next_cursor(task)
+    lines = [
+        "PI-JOB PROFILE PLAN",
+        "",
+        f"Task file: {task_file}",
+        f"Contract: {PROFILE_CONTRACT}",
+        f"Profile: {profile_key} ({profile.get('title', '')})",
+        f"Description: {profile.get('description', '')}",
+        f"Task cursor: {cursor.label() if cursor else '<unset>'}",
+        f"Next slice step: {nxt.label() if nxt else 'done'}",
+        "",
+        "Profile phases:",
+    ]
+    for index, phase in enumerate(profile_phases(profile_key), start=1):
+        key = str(phase.get("key") or "")
+        owner = str(phase.get("owner") or "orchestrator")
+        required = "required" if phase.get("required", True) else "optional"
+        marker = ""
+        if cursor and cursor.phase == key:
+            marker = "  <-- current"
+        elif nxt and nxt.phase == key:
+            marker = "  <-- next"
+        lines.append(f"{index:2}. {key} [{owner}/{required}] {phase.get('title', '')}{marker}")
+        validators = phase.get("validators") or []
+        if validators:
+            lines.append(f"    validators: {', '.join(validators)}")
+        skip_rule = phase.get("skip_rule")
+        if skip_rule:
+            lines.append(f"    skip_rule: {skip_rule}")
+        gates = phase.get("artifact_gates") or []
+        for gate in gates:
+            req = "required" if gate.get("required") else "optional"
+            lines.append(f"    artifact: {gate.get('key')} ({req}) when {gate.get('when')}")
+    lines += [
+        "",
+        "Orchestrator todo instruction:",
+        "- Use the session todo capability to track this profile plan.",
+        "- Create one todo per required profile phase (and optional phases you intend to run).",
+        "- Mark the current/next phase in_progress; mark completed phases done as evidence lands.",
+        "- Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.",
+        "",
+        "Note: next/advance still walk task.plan slices; plan shows the profile contract phase order.",
+    ]
+    return "\n".join(lines)
+
+
+def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
+    profile_key = require_profile(task_file, task)
+    policy = task.get("orchestration", {}).get("policy", {}).get("coding_execution", {})
+    contract_policy = get_profile(profile_key).get("policies", {}).get("coding_execution") or {}
+    task_slice = find_current_slice(task, cursor)
+    step = find_current_step(task_slice, cursor)
+    contract_phase = find_contract_phase(profile_key, cursor.phase)
+    owner = phase_owner(profile_key, cursor)
+    title = step.get("title") if step else task_slice.get("title") if task_slice else cursor.label()
+    note = step.get("note") if step else task_slice.get("note") if task_slice else ""
+
+    lines = [
+        "PI-JOB EXECUTION INSTRUCTION",
+        "",
+        f"Task file: {task_file}",
+        f"Repository root: {ROOT}",
+        f"Contract: {PROFILE_CONTRACT}",
+        f"Profile: {profile_key}",
+        f"Current cursor: {cursor.label()}",
+        f"Owner: {owner}",
+        f"Step title: {title or '<untitled>'}",
+    ]
+    if note:
+        lines.append(f"Step note: {note}")
+    if contract_phase:
+        lines += [
+            f"Contract phase: {contract_phase.get('key')} — {contract_phase.get('title', '')}",
+            f"Contract owner: {contract_phase.get('owner', owner)}",
+        ]
+        validators = contract_phase.get("validators") or []
+        if validators:
+            lines.append(f"Validators: {', '.join(validators)}")
+        inputs = contract_phase.get("inputs") or []
+        if inputs:
+            lines.append(f"Inputs: {', '.join(inputs)}")
+        outputs = contract_phase.get("outputs") or []
+        if outputs:
+            lines.append(f"Outputs: {', '.join(outputs)}")
+        skip_rule = contract_phase.get("skip_rule")
+        if skip_rule:
+            lines.append(f"Skip rule: {skip_rule}")
+        for gate in contract_phase.get("artifact_gates") or []:
+            req = "required" if gate.get("required") else "optional"
+            lines.append(
+                f"Artifact gate: {gate.get('key')} ({req}) — {gate.get('output')} when {gate.get('when')}"
+            )
+    else:
+        lines.append(
+            "Contract phase: <none matching cursor.phase>; using slice/step guidance with orchestrator default owner."
+        )
+
+    subagent_required = policy.get("subagent_required", contract_policy.get("subagent_required", True))
+    lower_power = policy.get(
+        "lower_power_model_preferred", contract_policy.get("lower_power_model_preferred", True)
+    )
+    reviews = policy.get(
+        "orchestrator_reviews_subagent", contract_policy.get("orchestrator_reviews_subagent", True)
+    )
+    lines += [
+        "",
+        "Execution policy:",
+        f"- subagent_required: {subagent_required}",
+        f"- lower_power_model_preferred: {lower_power}",
+        f"- orchestrator_reviews_subagent: {reviews}",
+    ]
+    todo_lines = [
+        "",
+        "Todo tracking:",
+        "- Keep session todos aligned with `pi-job plan` for this profile.",
+        f"- Set the todo for cursor {cursor.label()} to in_progress before executing.",
+        "- Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.",
+    ]
+    if owner == "subagent":
+        lines += [
+            "",
+            "Orchestrator instruction:",
+            "- Choose an appropriate lower-cost model using judgement.",
+            "- Run this step in a subagent.",
+            "- Give the subagent the prompt below exactly, plus any runtime tool context it needs.",
+            "- Review the subagent result before running pi-job advance.",
+            *todo_lines,
+            "",
+            "Subagent prompt:",
+            f"Read the task file first: {task_file}",
+            f"Read the profile contract: {PROFILE_CONTRACT}",
+            f"Execute only cursor {cursor.label()}.",
+            "Return changed files, commands run, verification evidence, and unresolved risks.",
+            "Do not advance the task record unless this cursor step explicitly asks for task-record updates.",
+        ]
+    else:
+        lines += [
+            "",
+            "Orchestrator instruction:",
+            "- Execute this step in the main orchestration session.",
+            "- Do not skip required artifacts or validators from the task/profile contract.",
+            "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
+            *todo_lines,
+        ]
+    return "\n".join(lines)
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    print_status(task_file, load_task(task_file))
+
+
+def cmd_next(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    require_profile(task_file, task)
+    cursor = next_cursor(task)
+    if cursor is None:
+        print("done")
+        return
+    print(cursor.label())
+
+
+def cmd_advance(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    require_profile(task_file, task)
+    cursor = Cursor(args.phase, args.slice, args.step) if args.phase else next_cursor(task)
+    if cursor is None:
+        die("task has no next cursor")
+    if args.dry_run:
+        print(cursor_block(cursor))
+        return
+    set_cursor(task_file, cursor)
+    print(f"advanced cursor: {cursor.label()}")
+
+
+def cmd_instruction(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    require_profile(task_file, task)
+    cursor = current_cursor(task) if args.current else next_cursor(task)
+    if cursor is None:
+        die("task has no cursor for instruction")
+    print(build_instruction(task_file, task, cursor))
+
+
+def cmd_plan(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    profile = require_profile(task_file, task)
+    print(build_plan(task_file, task, profile))
+
+
+def cmd_init(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    get_profile(args.profile)
+    cursor = next_cursor(task) or Cursor("done")
+    if args.dry_run:
+        print(orchestration_block(args.profile, cursor))
+        return
+    set_orchestration_profile(task_file, args.profile, cursor)
+    print(f"initialized profile: {args.profile}")
+    print(f"cursor: {cursor.label()}")
+
+
+def main() -> None:
+    profiles = sorted(valid_profiles())
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--task", type=Path, required=True, help="CUE task file to orchestrate")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    status = sub.add_parser("status", help="show task status, saved cursor, and next cursor")
+    status.set_defaults(fn=cmd_status)
+
+    init = sub.add_parser("init", help="initialize task orchestration with an explicit profile")
+    init.add_argument("--profile", required=True, choices=profiles)
+    init.add_argument("--dry-run", action="store_true")
+    init.set_defaults(fn=cmd_init)
+
+    nxt = sub.add_parser("next", help="print the next unfinished slice/step")
+    nxt.set_defaults(fn=cmd_next)
+
+    adv = sub.add_parser("advance", help="set cursor to the next unfinished step or an explicit cursor")
+    adv.add_argument("--phase", help="explicit phase to set; defaults to computed next")
+    adv.add_argument("--slice", help="explicit slice key")
+    adv.add_argument("--step", help="explicit step key")
+    adv.add_argument("--dry-run", action="store_true")
+    adv.set_defaults(fn=cmd_advance)
+
+    plan = sub.add_parser("plan", help="print profile phase plan from profile-contract.cue")
+    plan.set_defaults(fn=cmd_plan)
+
+    instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")
+    instruction.add_argument("--current", action="store_true", help="use saved cursor instead of computed next")
+    instruction.set_defaults(fn=cmd_instruction)
+
+    args = ap.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()

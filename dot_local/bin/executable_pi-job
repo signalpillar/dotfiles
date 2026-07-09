@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"
