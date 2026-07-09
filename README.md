@@ -28,6 +28,35 @@ Portable deterministic job harness for CUE task files, managed by chezmoi under:
 
 Package docs: [`dot_local/share/pi-job-harness/README.md`](dot_local/share/pi-job-harness/README.md).
 
+### What pi-job does
+
+`pi-job` is a small CLI that answers orchestration questions from durable state.
+It does **not** run the agent session and does **not** spawn subagents.
+
+Given a CUE task file and package-local `profile-contract.cue`, it can:
+
+- `scaffold` - create a missing task file from the generic example shape
+- `init` - record an explicit profile on the task
+- `status` / `next` / `plan` - report where the work is and what the profile expects
+- `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders)
+- `advance` - write the next cursor back into the task file after evidence lands
+
+Same task state should yield the same next action and instruction, independent of which model is orchestrating.
+
+### Orchestrator loop
+
+Assumption: a smart orchestrator model keeps calling `pi-job` instead of freelancing from chat memory.
+
+1. `pi-job --task <file> status` (and usually `plan`)
+2. `pi-job --task <file> instruction` (current or next)
+3. Do that step in the orchestrator session, or launch a subagent when the packet says so
+4. Record evidence / decisions / blockers in the task file
+5. `pi-job --task <file> advance`
+6. Repeat until `next` is `done`
+
+`pi-job` only answers "what next?" and "how should this step run?" when asked.
+The orchestrator owns model choice, tool use, and whether to keep consulting the harness.
+
 ### Picture
 
 ```text
