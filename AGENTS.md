@@ -5,6 +5,11 @@ Project-level `AGENTS.md` files may extend or override these.
 
 ## General Guidelines
 
+- For durable multi-step work tracked in a CUE task file, use `pi-job` (installed as `~/.local/bin/pi-job`).
+  Start with `pi-job --task <file> status`.
+  If the file is missing, follow the scaffold hint.
+  Use `plan` for session todos, `instruction` before acting, and `advance` only after evidence.
+  See `README.md` section "pi-job harness" and `~/.local/share/pi-job-harness/README.md`.
 - Never use the em dash "—".
   Use a plain dash "-" instead.
 - Never hand-edit `CHANGELOG` files or anything marked auto-generated.

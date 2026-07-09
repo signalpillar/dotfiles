@@ -28,6 +28,48 @@ Portable deterministic job harness for CUE task files, managed by chezmoi under:
 
 Package docs: [`dot_local/share/pi-job-harness/README.md`](dot_local/share/pi-job-harness/README.md).
 
+### Picture
+
+```text
+  human / capture
+        |
+        v
+  CUE task file  <----------------------------- advance (write cursor)
+  (SoT: plan, decisions, artifacts, cursor)
+        |
+        | cue export
+        v
+     pi-job  ---- loads ----> profile-contract.cue
+        |                     (profiles, owners, validators, gates)
+        |
+        +-- status / plan / next
+        |
+        +-- instruction ----> orchestrator agent
+                                   |
+                                   +-- session todos (track plan phases)
+                                   |
+                                   +-- maybe subagent (lower-cost model)
+                                   |
+                                   +-- evidence back into task file
+```
+
+### Principles
+
+- The CUE task file is the only durable source of truth. No parallel YAML cursor, no agent memory as state.
+- Profiles are configuration in `profile-contract.cue`, not hardcoded Python. Repo/user layering can evolve; contract wins for phase meaning.
+- The harness is deterministic and fail-closed: missing task -> `scaffold`; missing profile -> `init`; then `plan` / `instruction` / `advance`.
+- `pi-job` emits instruction packets. It does not spawn agents. The orchestrator chooses models and launches subagents.
+- Slice progress (`next` / `advance`) and profile phases (`plan`) are related but not the same yet. Agents should keep session todos aligned with `plan` while advancing the task cursor for concrete steps.
+
+### How an agent should know about it
+
+1. Global hint: this chezmoi [`AGENTS.md`](AGENTS.md) points agents at `pi-job` for CUE-task orchestration.
+2. On PATH after chezmoi apply: `pi-job` -> `~/.local/bin/pi-job`.
+3. When a user names a task file, or work clearly belongs in a CUE task, run `pi-job --task <file> status` first.
+4. If the file is missing, follow the error to `scaffold`, edit the scaffold, then `init --profile`.
+5. Use `plan` to create session todos, `instruction` before acting, and `advance` only after evidence or a recorded blocker.
+6. Prefer package docs at `~/.local/share/pi-job-harness/README.md` over inventing a parallel workflow.
+
 ### How it works
 
 1. A repo keeps work in a CUE **task file** (`task.orchestration`, `task.plan.slices`, decisions, artifacts).
@@ -57,7 +99,7 @@ Prototype also lives in weight-loss as `packages/pi-job-harness/`; chezmoi is th
 
 ### Example task file shape
 
-Illustrative only — types and structure, not a real work file:
+Illustrative only - types and structure, not a real work file:
 
 ```cue
 package task
@@ -170,10 +212,10 @@ task: {
 
 What `pi-job` cares about most:
 
-- `task.orchestration.profile` — required before `plan` / `next` / `advance` / `instruction`
-- `task.orchestration.cursor` — saved resume point (`phase` / `slice` / `step`)
-- `task.plan.slices[].steps` + `final_steps` — what `next` / `advance` walk
-- `task.decisions` / `task.orchestration.artifacts` — durable notes and artifact gates
+- `task.orchestration.profile` - required before `plan` / `next` / `advance` / `instruction`
+- `task.orchestration.cursor` - saved resume point (`phase` / `slice` / `step`)
+- `task.plan.slices[].steps` + `final_steps` - what `next` / `advance` walk
+- `task.decisions` / `task.orchestration.artifacts` - durable notes and artifact gates
 
 ## Emacs
 
