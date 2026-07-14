@@ -416,6 +416,34 @@ def test_toolbelt_lists_for_profile() -> None:
         assert_contains(out_small, "none")
 
 
+def test_toolbelt_add_records_artifact() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "full.cue"
+        task.write_text(TASK_FIXTURE.replace('profile: "small"', 'profile: "full"'))
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "toolbelt", "add", "sequence-diagram",
+            "--path", "docs/seq.md", "--status", "done", "--note", "Appendix B",
+        ).stdout
+        assert_contains(out, "registered toolbelt aid: sequence-diagram [done]")
+
+        listed = run(str(PI_JOB), "--task", str(task), "toolbelt").stdout
+        assert_contains(listed, "sequence-diagram [done]")
+
+        # idempotent update in place (status changes, no duplicate key)
+        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "sequence-diagram", "--status", "planned")
+        text = task.read_text()
+        if text.count('"sequence-diagram":') != 1:
+            raise AssertionError(f"expected one sequence-diagram entry, got {text.count(chr(34)+'sequence-diagram'+chr(34)+':')}")
+        assert_contains(text, 'status: "planned"')
+
+        # unknown key fails closed
+        bad = run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "not-a-real-aid", check=False)
+        if bad.returncode == 0:
+            raise AssertionError("toolbelt add unexpectedly accepted an unknown key")
+        assert_contains(bad.stderr, "unknown toolbelt aid")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -427,6 +455,7 @@ def main() -> None:
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
     test_toolbelt_lists_for_profile()
+    test_toolbelt_add_records_artifact()
     print("pi-job tests passed")
 
 

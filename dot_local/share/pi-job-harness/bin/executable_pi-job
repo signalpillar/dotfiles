@@ -409,6 +409,52 @@ def set_orchestration_profile(task_file: Path, profile: str, cursor: Cursor) -> 
     write_and_format(task_file, new_text)
 
 
+def artifact_entry_block(key: str, status: str, path: str | None, note: str) -> str:
+    lines = [f'\t\t\t"{key}": {{', f'\t\t\t\tstatus: "{status}"']
+    if path:
+        lines.append(f'\t\t\t\tpath:   "{path}"')
+    lines.append(f'\t\t\t\tnote:   "{note}"')
+    lines.append("\t\t\t}")
+    return "\n".join(lines)
+
+
+def write_toolbelt_artifact(task_file: Path, key: str, status: str, path: str | None, note: str) -> None:
+    text = task_file.read_text()
+    entry = artifact_entry_block(key, status, path, note)
+
+    art_match = re.search(r"(?m)^[ \t]*artifacts:\s*\{", text)
+    if art_match:
+        # Replace an existing entry for this key, if present.
+        key_pat = re.compile(r'(?m)^[ \t]*"' + re.escape(key) + r'":\s*\{\n(?:[ \t]+.*\n)*?[ \t]*\}')
+        new_text, count = key_pat.subn(entry, text, count=1)
+        if count == 0:
+            # Insert a new entry right after the artifacts opening brace.
+            insert_at = art_match.end()
+            new_text = text[:insert_at] + "\n" + entry + text[insert_at:]
+        write_and_format(task_file, new_text)
+        return
+
+    # No artifacts block yet: create one right after the profile line inside orchestration.
+    prof = re.search(r'(?m)^([ \t]*)profile:\s*"[^"]*"', text)
+    if not prof:
+        die("cannot register toolbelt aid: task has no orchestration.profile (run init first)")
+    indent = prof.group(1)
+    block = f"\n{indent}artifacts: {{\n{entry}\n{indent}}}"
+    new_text = text[: prof.end()] + block + text[prof.end():]
+    write_and_format(task_file, new_text)
+
+
+def toolbelt_add(task_file: Path, task: dict[str, Any], args: argparse.Namespace) -> None:
+    key = args.key
+    if not key:
+        die("toolbelt add requires an aid key, e.g. `toolbelt add sequence-diagram`")
+    catalog = contract_toolbelt()
+    if key not in catalog:
+        die(f"unknown toolbelt aid {key!r}; expected one of: {', '.join(sorted(catalog))}")
+    write_toolbelt_artifact(task_file, key, args.status, args.path, args.note)
+    print(f"registered toolbelt aid: {key} [{args.status}]")
+
+
 def find_current_slice(task: dict[str, Any], cursor: Cursor) -> dict[str, Any] | None:
     for task_slice in task.get("plan", {}).get("slices", []):
         if task_slice.get("key") == cursor.slice:
