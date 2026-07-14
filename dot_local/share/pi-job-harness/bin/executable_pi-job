@@ -573,6 +573,7 @@ def build_plan(task_file: Path, task: dict[str, Any], profile_key: str) -> str:
         "",
         "Note: next/advance walk task.plan slices under the profile's slice-work contract phase.",
     ]
+    lines += toolbelt_block(task, profile_key)
     return "\n".join(lines)
 
 
@@ -688,7 +689,7 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
             *todo_lines,
         ]
-    if cursor.phase == "select_toolbelt":
+    if cursor.phase in ("select_toolbelt", "plan_slices"):
         lines += toolbelt_block(task, profile_key)
     return "\n".join(lines)
 

@@ -462,6 +462,15 @@ def test_select_toolbelt_phase_and_instruction() -> None:
         assert_contains(instr, "sequence-diagram")
 
 
+def test_toolbelt_block_in_plan() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "full.cue"
+        task.write_text(TASK_FIXTURE.replace('profile: "small"', 'profile: "full"'))
+        plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
+        assert_contains(plan, "Toolbelt (planning aids)")
+        assert_contains(plan, "config-flag-matrix")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -475,6 +484,7 @@ def main() -> None:
     test_toolbelt_lists_for_profile()
     test_toolbelt_add_records_artifact()
     test_select_toolbelt_phase_and_instruction()
+    test_toolbelt_block_in_plan()
     print("pi-job tests passed")
 
 
