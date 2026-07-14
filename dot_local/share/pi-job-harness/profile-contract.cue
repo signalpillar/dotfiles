@@ -111,14 +111,28 @@ artifact_rules: {
 		guardrails: [
 			"invoke share-with-team once per repository changed",
 			"reconcile against repos already shared during implement_slices; do not double-open a ticket or PR for an already-shared repo",
-			"use the share-with-team ticket template",
-			"use the repository PR template when present, otherwise the share-with-team fallback",
+			"use the share-with-team ticket template (skills/share-with-team/SKILL.md § Ticket)",
+			pr_template_guardrail,
 			"include e2e evidence or explicitly record the gap",
 			"do not treat sharing as terminal; wait for team feedback and loop on it",
 		]
 		validator: "ticket and PR links recorded with feedback wait state, or skip reason recorded for profiles where optional"
 	}
 }
+
+// Explicit, non-improvisable PR-template lookup sequence. Referenced by every
+// pull_request artifact_gate so it shows up verbatim in instruction packets —
+// never left as an inferred guardrail bullet the model can skip past.
+pr_template_guardrail: string & """
+	Before writing any PR body: (1) check the target repo for a template at
+	.github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
+	under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
+	section by section — do not invent a different structure; (3) if absent, use the
+	share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
+	PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
+	Errors, Known limitation, Tests) — do not freehand a bespoke PR body in either
+	case.
+	"""
 
 profiles: {
 	small: #Profile & {
@@ -165,11 +179,11 @@ profiles: {
 				owner: "subagent"
 				inputs: ["task.plan.slices"]
 				outputs: ["slice_evidence", "changed_repos"]
-				validators: ["each-slice-loop-complete"]
-				guidance: "Each atomic slice runs its full loop and ends with its own terminal steps: e2e-evidence, then share-with-team (ticket + PR for that slice's repo). An atomic slice ships its repo change as it completes rather than waiting for a terminal bundle; downstream slices build on the merged prerequisite."
+				validators: ["each-slice-loop-complete", "pr-template-checked"]
+				guidance: "Each atomic slice runs its full loop and ends with its own terminal steps: e2e-evidence, then share-with-team (ticket + PR for that slice's repo). An atomic slice ships its repo change as it completes rather than waiting for a terminal bundle; downstream slices build on the merged prerequisite. " + pr_template_guardrail
 				artifact_gates: [
 					#ArtifactGate & {key: "ticket", required: true, when: "an atomic slice completes its repo change", source: "changed_repos", output: "one ticket for the slice's repo"},
-					#ArtifactGate & {key: "pull_request", required: true, when: "an atomic slice completes its repo change", source: "changed_files", output: "one PR for the slice's repo, opened as the slice completes"},
+					#ArtifactGate & {key: "pull_request", required: true, when: "an atomic slice completes its repo change", source: "changed_files", output: "one PR for the slice's repo, opened as the slice completes, body written from the checked repo template or the share-with-team fallback (never freehanded)"},
 				]
 			},
 			#Phase & {key: "review", title: "Review", owner: "orchestrator", inputs: ["slice_evidence"], outputs: ["review_findings_resolved"], validators: ["volod-style-review-done"]},
@@ -188,11 +202,11 @@ profiles: {
 				owner: "orchestrator"
 				inputs: ["review_findings_resolved", "verification_evidence", "changed_repos"]
 				outputs: ["ticket_keys", "pull_request_urls"]
-				validators: ["share-with-team-template-used", "every-changed-repo-has-ticket-and-pr"]
-				guidance: "With atomic per-repo slices this is a reconciliation catch-all, usually a no-op: each slice already shared its repo. Only share here the repos that were NOT shared atomically (e.g. bundled or cross-cutting changes). Reconcile — never re-open a ticket/PR for an already-shared repo."
+				validators: ["share-with-team-template-used", "every-changed-repo-has-ticket-and-pr", "pr-template-checked"]
+				guidance: "With atomic per-repo slices this is a reconciliation catch-all, usually a no-op: each slice already shared its repo. Only share here the repos that were NOT shared atomically (e.g. bundled or cross-cutting changes). Reconcile — never re-open a ticket/PR for an already-shared repo. " + pr_template_guardrail
 				artifact_gates: [
 					#ArtifactGate & {key: "ticket", required: true, when: "a changed repo was not shared atomically during implement_slices", source: "changed_repos", output: "one ticket per unshared changed repo"},
-					#ArtifactGate & {key: "pull_request", required: true, when: "a changed repo was not PR'd atomically during implement_slices", source: "changed_repos", output: "one PR per unshared changed repo"},
+					#ArtifactGate & {key: "pull_request", required: true, when: "a changed repo was not PR'd atomically during implement_slices", source: "changed_repos", output: "one PR per unshared changed repo, body written from the checked repo template or the share-with-team fallback (never freehanded)"},
 				]
 			},
 			#Phase & {key: "wait_for_team_feedback", title: "Wait for team feedback", owner: "orchestrator", inputs: ["ticket_keys", "pull_request_urls"], outputs: ["team_feedback_or_no_response"], validators: ["feedback-window-recorded"]},
@@ -248,7 +262,7 @@ profiles: {
 		phases: [
 			#Phase & {key: "explore_context", title: "Gather finished work", owner: "orchestrator", inputs: ["task_record", "diff_or_summary"], outputs: ["share_context"], validators: ["work-status-known"]},
 			#Phase & {key: "decision_review_deck", title: "Decision review deck", owner: "orchestrator", required: false, inputs: ["task.decisions"], outputs: ["decision_review_deck_path_or_skip_reason"], validators: ["deck-created-or-not-needed-recorded"], artifact_gates: [#ArtifactGate & {key: "decision_review_deck", required: false, when: artifact_rules.decision_review_deck.trigger, source: "task.decisions", output: "dated markdown deck in project directory"}]},
-			#Phase & {key: "share_with_team", title: "Share with team", owner: "orchestrator", inputs: ["share_context"], outputs: ["ticket_keys_or_pr_urls"], validators: ["share-with-team-template-used"], artifact_gates: [#ArtifactGate & {key: "share_with_team", required: true, when: artifact_rules.share_with_team.trigger, source: "share_context", output: "ticket keys and pull request URLs"}]},
+			#Phase & {key: "share_with_team", title: "Share with team", owner: "orchestrator", inputs: ["share_context"], outputs: ["ticket_keys_or_pr_urls"], validators: ["share-with-team-template-used", "pr-template-checked"], guidance: pr_template_guardrail, artifact_gates: [#ArtifactGate & {key: "share_with_team", required: true, when: artifact_rules.share_with_team.trigger, source: "share_context", output: "ticket keys and pull request URLs, PR body written from the checked repo template or the share-with-team fallback (never freehanded)"}]},
 			#Phase & {key: "wait_for_team_feedback", title: "Wait for team feedback", owner: "orchestrator", inputs: ["ticket_keys_or_pr_urls"], outputs: ["team_feedback_or_no_response"], validators: ["feedback-window-recorded"]},
 			#Phase & {key: "clarify_feedback", title: "Clarify team feedback", owner: "orchestrator", inputs: ["team_feedback_or_no_response"], outputs: ["clarified_feedback_or_no_action"], validators: ["ambiguous-feedback-clarified-or-deferred"], skip_rule: "skip only when no feedback arrives or feedback is already actionable"},
 			#Phase & {key: "address_feedback", title: "Address feedback", owner: "subagent", required: false, inputs: ["clarified_feedback_or_no_action"], outputs: ["feedback_changes_or_noop_reason"], validators: ["requested-changes-addressed-or-deferred"], skip_rule: "skip when feedback requires no changes"},
