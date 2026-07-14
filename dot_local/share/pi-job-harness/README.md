@@ -168,6 +168,14 @@ A task with `Profile: <unset>` is not initialized; run `init --profile <profile>
 Once every slice/step is `done`/`skipped`, `next`/`advance` continue walking the remaining profile phases in contract order (e.g. `review` → `decision_review_deck` → `share_with_team` → … for `full`), anchored on the saved cursor's phase, until the profile's last phase is reached — only then does `next` report `done`.
 `advance` refuses to move past an unfinished step (status not `done`/`skipped`) unless `--force --reason '<why>'` records an explicit skip, and refuses unknown `--phase` values for the selected profile.
 
+## Toolbelt & visualization
+
+- `pi-job --task <t> toolbelt` — list planning aids whose `suits` includes the task's profile, with each aid's registered status.
+- `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` — register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
+- `pi-job --task <t> show [--all] [--status s1,s2]` — render the task as a cursor-focused slice/step tree with a toolbelt footer. `--all` expands every slice; `--status` filters slices.
+
+The `full` profile runs a `select_toolbelt` phase before `plan_slices`: the model picks the aids that help write the plan and registers them (`--status planned`); each is produced during `plan_slices` and reconciled against shipped code by the `reconcile-artifacts` terminal step. The catalog lives in `profile-contract.cue#toolbelt`.
+
 ## How it works
 
 1. A repo keeps work in a CUE **task file** (`task.orchestration`, `task.plan.slices`, decisions, artifacts).
