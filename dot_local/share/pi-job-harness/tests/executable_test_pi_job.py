@@ -471,6 +471,34 @@ def test_toolbelt_block_in_plan() -> None:
         assert_contains(plan, "config-flag-matrix")
 
 
+def test_show_renders_tree_and_footer() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "full.cue"
+        fixture = TASK_FIXTURE.replace('profile: "small"', 'profile: "full"').replace(
+            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
+            'phase: "implement_slices"\n            slice: "second-slice"\n            step:  "s2"',
+        )
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "show").stdout
+        assert_contains(out, "Fixture task")
+        assert_contains(out, "profile: full")
+        assert_contains(out, "second-slice")
+        assert_contains(out, "[1/3]")                 # second-slice: s1 done of s1,s2,finish
+        assert_contains(out, "1/2 slices · 1/3 steps")
+        assert_contains(out, "← current")             # cursor on second-slice/s2
+        assert_contains(out, "no aids registered")
+
+        all_out = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(all_out, "s1")
+
+        # footer reflects a registered aid
+        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "sequence-diagram", "--path", "docs/seq.md", "--status", "done")
+        footer = run(str(PI_JOB), "--task", str(task), "show").stdout
+        assert_contains(footer, "sequence-diagram")
+        assert_contains(footer, "docs/seq.md")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -485,6 +513,7 @@ def main() -> None:
     test_toolbelt_add_records_artifact()
     test_select_toolbelt_phase_and_instruction()
     test_toolbelt_block_in_plan()
+    test_show_renders_tree_and_footer()
     print("pi-job tests passed")
 
 

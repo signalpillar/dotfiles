@@ -24,6 +24,7 @@ ROOT = Path.cwd()
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 PROFILE_CONTRACT = PACKAGE_DIR / "profile-contract.cue"
 STATUS_DONE = {"done", "skipped"}
+GLYPH = {"done": "✓", "skipped": "⊘", "in_progress": "▸", "blocked": "✗", "planned": "○"}
 
 
 def die(message: str) -> None:
@@ -760,6 +761,65 @@ def cmd_plan(args: argparse.Namespace) -> None:
     print(build_plan(task_file, task, profile))
 
 
+def slice_counts(task_slice: dict[str, Any]) -> tuple[int, int]:
+    steps = list(task_slice.get("steps", [])) + list(task_slice.get("final_steps", []))
+    done = sum(1 for s in steps if status_value(s) in STATUS_DONE)
+    return done, len(steps)
+
+
+def step_line(step: dict[str, Any], *, terminal: bool, current_step: str | None) -> str:
+    st = status_value(step)
+    glyph = "·" if (terminal and st not in STATUS_DONE) else GLYPH.get(st, "○")
+    key = str(step.get("key") or "")
+    suffix = "   ← current" if current_step is not None and key == current_step else ""
+    return f"    {glyph} {key}{suffix}"
+
+
+def cmd_show(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    profile_key = require_profile(task_file, task)
+    cursor = current_cursor(task)
+    status_filter = set(args.status.split(",")) if args.status else None
+
+    lines = [f"{task.get('title', '<untitled>')}     profile: {profile_key}"]
+    if cursor:
+        lines.append(f"cursor → {cursor.slice or '-'} / {cursor.step or '-'}")
+    lines.append("")
+
+    slices = task.get("plan", {}).get("slices", [])
+    done_slices = done_steps = total_steps = 0
+    for task_slice in slices:
+        st = status_value(task_slice)
+        d, t = slice_counts(task_slice)
+        done_steps += d
+        total_steps += t
+        if st in STATUS_DONE:
+            done_slices += 1
+        if status_filter and st not in status_filter:
+            continue
+        is_current = bool(cursor and cursor.slice == task_slice.get("key"))
+        glyph = GLYPH["in_progress"] if is_current else GLYPH.get(st, "○")
+        repos = ", ".join(task_slice.get("repos", []) or [])
+        lines.append(f"{glyph} {str(task_slice.get('key') or ''):<22} [{d}/{t}] {repos}".rstrip())
+        if args.all or is_current:
+            current_step = cursor.step if is_current and cursor else None
+            for step in task_slice.get("steps", []):
+                lines.append(step_line(step, terminal=False, current_step=current_step))
+            for step in task_slice.get("final_steps", []):
+                lines.append(step_line(step, terminal=True, current_step=current_step))
+
+    lines += ["", f"{done_slices}/{len(slices)} slices · {done_steps}/{total_steps} steps", "— toolbelt —"]
+    artifacts = task_artifacts(task)
+    if not artifacts:
+        lines.append("no aids registered")
+    else:
+        for key, art in artifacts.items():
+            g = GLYPH.get(str(art.get("status")), "○")
+            lines.append(f"{g} {key}   {art.get('path', '')}".rstrip())
+    print("\n".join(lines))
+
+
 def cmd_toolbelt(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
@@ -845,6 +905,11 @@ def main() -> None:
     tb.add_argument("--status", default="planned", help="artifact status (default planned)")
     tb.add_argument("--note", default="", help="artifact note")
     tb.set_defaults(fn=cmd_toolbelt)
+
+    show = sub.add_parser("show", help="render the task as a cursor-focused slice/step tree")
+    show.add_argument("--all", action="store_true", help="expand every slice's steps")
+    show.add_argument("--status", help="comma-separated slice statuses to include")
+    show.set_defaults(fn=cmd_show)
 
     instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")
     instruction.add_argument("--current", action="store_true", help="use saved cursor instead of computed next")
