@@ -476,6 +476,9 @@ def build_plan(task_file: Path, task: dict[str, Any], profile_key: str) -> str:
         skip_rule = phase.get("skip_rule")
         if skip_rule:
             lines.append(f"    skip_rule: {skip_rule}")
+        guidance = phase.get("guidance")
+        if guidance:
+            lines.append(f"    guidance: {guidance}")
         gates = phase.get("artifact_gates") or []
         for gate in gates:
             req = "required" if gate.get("required") else "optional"
@@ -549,6 +552,9 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         skip_rule = contract_phase.get("skip_rule")
         if skip_rule:
             lines.append(f"Skip rule: {skip_rule}")
+        guidance = contract_phase.get("guidance")
+        if guidance:
+            lines.append(f"Guidance: {guidance}")
         for gate in contract_phase.get("artifact_gates") or []:
             req = "required" if gate.get("required") else "optional"
             lines.append(

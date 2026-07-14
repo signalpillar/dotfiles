@@ -53,6 +53,8 @@ package harness
 	outputs: [...string]
 	validators: [...string]
 	skip_rule?: string
+	// Human-readable advice surfaced when the phase runs (non-blocking guidance).
+	guidance?: string
 	artifact_gates?: [...#ArtifactGate]
 }
 
@@ -108,6 +110,7 @@ artifact_rules: {
 		outputs: ["ticket keys", "pull request URLs", "team feedback thread"]
 		guardrails: [
 			"invoke share-with-team once per repository changed",
+			"reconcile against repos already shared during implement_slices; do not double-open a ticket or PR for an already-shared repo",
 			"use the share-with-team ticket template",
 			"use the repository PR template when present, otherwise the share-with-team fallback",
 			"include e2e evidence or explicitly record the gap",
@@ -147,8 +150,28 @@ profiles: {
 			#Phase & {key: "explore_context", title: "Explore context", owner: "orchestrator", inputs: ["task.source"], outputs: ["repo_paths", "task_record", "tracker_state"], validators: ["repo-paths-known"]},
 			#Phase & {key: "clarify_scope", title: "Clarify scope", owner: "orchestrator", inputs: ["repo_paths", "task_record"], outputs: ["scope", "definition_of_done", "epic_decision"], validators: ["scope-echoed"]},
 			#Phase & {key: "grill_plan", title: "Grill plan", owner: "orchestrator", inputs: ["scope"], outputs: ["plan_decisions"], validators: ["grill-done-or-user-declined"], skip_rule: "only when user explicitly declines"},
-			#Phase & {key: "plan_slices", title: "Plan slices", owner: "orchestrator", inputs: ["scope", "plan_decisions"], outputs: ["task.plan.slices"], validators: ["at-least-one-slice"]},
-			#Phase & {key: "implement_slices", title: "Implement slices", owner: "subagent", inputs: ["task.plan.slices"], outputs: ["slice_evidence"], validators: ["each-slice-loop-complete"]},
+			#Phase & {
+				key:   "plan_slices"
+				title: "Plan slices"
+				owner: "orchestrator"
+				inputs: ["scope", "plan_decisions"]
+				outputs: ["task.plan.slices"]
+				validators: ["at-least-one-slice", "slices-repo-scoped-and-atomic"]
+				guidance: "Prefer one slice per repository. Make each slice atomic — self-contained end to end — so it carries its own terminal delivery steps (e2e-evidence and share-with-team: ticket + PR) and the repo change ships within the slice. Split multi-repo work into one atomic slice per repo, ordered by dependency (a prerequisite repo's slice ships before the slices that consume it)."
+			},
+			#Phase & {
+				key:   "implement_slices"
+				title: "Implement slices"
+				owner: "subagent"
+				inputs: ["task.plan.slices"]
+				outputs: ["slice_evidence", "changed_repos"]
+				validators: ["each-slice-loop-complete"]
+				guidance: "Each atomic slice runs its full loop and ends with its own terminal steps: e2e-evidence, then share-with-team (ticket + PR for that slice's repo). An atomic slice ships its repo change as it completes rather than waiting for a terminal bundle; downstream slices build on the merged prerequisite."
+				artifact_gates: [
+					#ArtifactGate & {key: "ticket", required: true, when: "an atomic slice completes its repo change", source: "changed_repos", output: "one ticket for the slice's repo"},
+					#ArtifactGate & {key: "pull_request", required: true, when: "an atomic slice completes its repo change", source: "changed_files", output: "one PR for the slice's repo, opened as the slice completes"},
+				]
+			},
 			#Phase & {key: "review", title: "Review", owner: "orchestrator", inputs: ["slice_evidence"], outputs: ["review_findings_resolved"], validators: ["volod-style-review-done"]},
 			#Phase & {
 				key:   "decision_review_deck"
@@ -161,14 +184,15 @@ profiles: {
 			},
 			#Phase & {
 				key:   "share_with_team"
-				title: "Share with team"
+				title: "Share with team (reconciliation)"
 				owner: "orchestrator"
-				inputs: ["review_findings_resolved", "verification_evidence"]
+				inputs: ["review_findings_resolved", "verification_evidence", "changed_repos"]
 				outputs: ["ticket_keys", "pull_request_urls"]
-				validators: ["share-with-team-template-used"]
+				validators: ["share-with-team-template-used", "every-changed-repo-has-ticket-and-pr"]
+				guidance: "With atomic per-repo slices this is a reconciliation catch-all, usually a no-op: each slice already shared its repo. Only share here the repos that were NOT shared atomically (e.g. bundled or cross-cutting changes). Reconcile — never re-open a ticket/PR for an already-shared repo."
 				artifact_gates: [
-					#ArtifactGate & {key: "ticket", required: true, when: "full profile reaches sharing phase", source: "task.plan", output: "one ticket per repo"},
-					#ArtifactGate & {key: "pull_request", required: true, when: "repo changes are ready", source: "changed_files", output: "one PR per repo"},
+					#ArtifactGate & {key: "ticket", required: true, when: "a changed repo was not shared atomically during implement_slices", source: "changed_repos", output: "one ticket per unshared changed repo"},
+					#ArtifactGate & {key: "pull_request", required: true, when: "a changed repo was not PR'd atomically during implement_slices", source: "changed_repos", output: "one PR per unshared changed repo"},
 				]
 			},
 			#Phase & {key: "wait_for_team_feedback", title: "Wait for team feedback", owner: "orchestrator", inputs: ["ticket_keys", "pull_request_urls"], outputs: ["team_feedback_or_no_response"], validators: ["feedback-window-recorded"]},
