@@ -11,7 +11,7 @@ package harness
 
 #ArtifactKey: "task_record" | "decision_review_deck" | "daily_boo" | "share_with_team" | "ticket" | "pull_request" | "e2e_evidence"
 
-#PhaseKey: "explore_context" | "clarify_scope" | "clarify_if_needed" | "grill_plan" | "plan_slices" | "implement" | "implement_slices" | "verify" | "review" | "investigate" | "synthesize" | "share_with_team" | "wait_for_team_feedback" | "clarify_feedback" | "address_feedback" | "decision_review_deck" | "daily_boo_reflection" | "update_task_record"
+#PhaseKey: "explore_context" | "clarify_scope" | "clarify_if_needed" | "grill_plan" | "select_toolbelt" | "plan_slices" | "implement" | "implement_slices" | "verify" | "review" | "investigate" | "synthesize" | "share_with_team" | "wait_for_team_feedback" | "clarify_feedback" | "address_feedback" | "decision_review_deck" | "daily_boo_reflection" | "update_task_record"
 
 #ConfigLayering: {
 	user_defaults:  true
@@ -182,6 +182,15 @@ profiles: {
 			#Phase & {key: "explore_context", title: "Explore context", owner: "orchestrator", inputs: ["task.source"], outputs: ["repo_paths", "task_record", "tracker_state"], validators: ["repo-paths-known"]},
 			#Phase & {key: "clarify_scope", title: "Clarify scope", owner: "orchestrator", inputs: ["repo_paths", "task_record"], outputs: ["scope", "definition_of_done", "epic_decision"], validators: ["scope-echoed"]},
 			#Phase & {key: "grill_plan", title: "Grill plan", owner: "orchestrator", inputs: ["scope"], outputs: ["plan_decisions"], validators: ["grill-done-or-user-declined"], skip_rule: "only when user explicitly declines"},
+			#Phase & {
+				key:   "select_toolbelt"
+				title: "Select planning aids from the toolbelt"
+				owner: "orchestrator"
+				inputs: ["scope", "plan_decisions", "toolbelt"]
+				outputs: ["registered_toolbelt_aids"]
+				validators: ["toolbelt-selection-recorded"]
+				guidance: "From the aids whose suits includes this profile (see `pi-job toolbelt`), select the subset that will help you write this plan. Register each with `pi-job toolbelt add <key> --status planned` plus a one-line why, and record a skip reason for the rest. Do not produce the aid files yet — they are written during plan_slices and flipped to done when the file exists."
+			},
 			#Phase & {
 				key:   "plan_slices"
 				title: "Plan slices"

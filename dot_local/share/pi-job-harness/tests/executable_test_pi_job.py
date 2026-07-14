@@ -444,6 +444,24 @@ def test_toolbelt_add_records_artifact() -> None:
         assert_contains(bad.stderr, "unknown toolbelt aid")
 
 
+def test_select_toolbelt_phase_and_instruction() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "full.cue"
+        fixture = TASK_FIXTURE.replace('profile: "small"', 'profile: "full"').replace(
+            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
+            'phase: "select_toolbelt"',
+        )
+        task.write_text(fixture)
+
+        plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
+        assert_contains(plan, "select_toolbelt")
+
+        instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instr, "Contract phase: select_toolbelt")
+        assert_contains(instr, "Toolbelt (planning aids)")
+        assert_contains(instr, "sequence-diagram")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -456,6 +474,7 @@ def main() -> None:
     test_scaffold_creates_task_file()
     test_toolbelt_lists_for_profile()
     test_toolbelt_add_records_artifact()
+    test_select_toolbelt_phase_and_instruction()
     print("pi-job tests passed")
 
 

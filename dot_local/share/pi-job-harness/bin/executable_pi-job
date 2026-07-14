@@ -455,6 +455,20 @@ def toolbelt_add(task_file: Path, task: dict[str, Any], args: argparse.Namespace
     print(f"registered toolbelt aid: {key} [{args.status}]")
 
 
+def toolbelt_block(task: dict[str, Any], profile_key: str) -> list[str]:
+    aids = toolbelt_for_profile(profile_key)
+    if not aids:
+        return ["", "Toolbelt (planning aids): none suited to this profile."]
+    artifacts = task_artifacts(task)
+    lines = ["", "Toolbelt (planning aids) — register with `pi-job toolbelt add <key>`:"]
+    for aid in aids:
+        key = str(aid.get("key") or "")
+        registered = artifacts.get(key)
+        status = str(registered.get("status")) if registered else "not registered"
+        lines.append(f"- {key} [{status}] — {aid.get('purpose', '')}")
+    return lines
+
+
 def find_current_slice(task: dict[str, Any], cursor: Cursor) -> dict[str, Any] | None:
     for task_slice in task.get("plan", {}).get("slices", []):
         if task_slice.get("key") == cursor.slice:
@@ -674,6 +688,8 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
             *todo_lines,
         ]
+    if cursor.phase == "select_toolbelt":
+        lines += toolbelt_block(task, profile_key)
     return "\n".join(lines)
 
 
