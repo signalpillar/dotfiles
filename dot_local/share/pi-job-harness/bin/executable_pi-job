@@ -77,6 +77,8 @@ def example_task_cue(*, title: str = "Example bounded change") -> str:
 	steps: [...#Step]
 	final_steps: [
 		#Step & {{key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap"}},
+		#Step & {{key: "reconcile-artifacts", title: "Reconcile toolbelt aids with what shipped — update or confirm no drift"}},
+		#Step & {{key: "share-with-team", title: "Share with team: ticket + PR for this slice's repo"}},
 		#Step & {{key: "update-task-file", title: "Update this task file plan"}},
 	]
 }}
@@ -120,6 +122,8 @@ task: {{
 				]
 				final_steps: [
 					#Step & {{key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""}},
+					#Step & {{key: "reconcile-artifacts", title: "Reconcile toolbelt aids with what shipped — update or confirm no drift", status: "planned", note: ""}},
+					#Step & {{key: "share-with-team", title: "Share with team: ticket + PR for this slice's repo", status: "planned", note: ""}},
 					#Step & {{key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""}},
 				]
 			}},

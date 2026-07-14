@@ -499,6 +499,20 @@ def test_show_renders_tree_and_footer() -> None:
         assert_contains(footer, "docs/seq.md")
 
 
+def test_scaffold_includes_reconcile_artifacts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "new.cue"
+        dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
+        assert_contains(dry, 'key: "reconcile-artifacts"')
+        assert_contains(dry, 'key: "share-with-team"')
+        # order: reconcile-artifacts after e2e-evidence, before update-task-file
+        i_e2e = dry.index("e2e-evidence")
+        i_rec = dry.index("reconcile-artifacts")
+        i_upd = dry.index("update-task-file")
+        if not (i_e2e < i_rec < i_upd):
+            raise AssertionError(f"final_steps order wrong: e2e={i_e2e} reconcile={i_rec} update={i_upd}")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -514,6 +528,7 @@ def main() -> None:
     test_select_toolbelt_phase_and_instruction()
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
+    test_scaffold_includes_reconcile_artifacts()
     print("pi-job tests passed")
 
 
