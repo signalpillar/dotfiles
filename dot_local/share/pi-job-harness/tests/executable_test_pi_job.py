@@ -395,6 +395,27 @@ def test_scaffold_creates_task_file() -> None:
         assert_contains(again.stderr, "already exists")
 
 
+def test_toolbelt_lists_for_profile() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        # full profile: all six aids suit it
+        full_task = Path(tmp) / "full.cue"
+        full_task.write_text(TASK_FIXTURE.replace('profile: "small"', 'profile: "full"'))
+        out = run(str(PI_JOB), "--task", str(full_task), "toolbelt").stdout
+        assert_contains(out, "profile full")
+        for key in (
+            "httpyac-api-spec", "sequence-diagram", "test-case-table",
+            "state-transition-table", "config-flag-matrix", "data-shape-sketch",
+        ):
+            assert_contains(out, key)
+        assert_contains(out, "[not registered]")
+
+        # small profile: no suited aids
+        small_task = Path(tmp) / "small.cue"
+        small_task.write_text(TASK_FIXTURE)
+        out_small = run(str(PI_JOB), "--task", str(small_task), "toolbelt").stdout
+        assert_contains(out_small, "none")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -405,6 +426,7 @@ def main() -> None:
     test_advance_rejects_unknown_phase()
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
+    test_toolbelt_lists_for_profile()
     print("pi-job tests passed")
 
 

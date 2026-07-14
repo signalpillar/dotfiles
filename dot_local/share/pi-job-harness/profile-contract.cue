@@ -44,6 +44,14 @@ package harness
 	validator: string
 }
 
+#ToolbeltAid: {
+	key:     string
+	title:   string
+	purpose: string
+	suits: [...#ProfileKey]
+	example?: string
+}
+
 #Phase: {
 	key:      #PhaseKey
 	title:    string
@@ -118,6 +126,16 @@ artifact_rules: {
 		]
 		validator: "ticket and PR links recorded with feedback wait state, or skip reason recorded for profiles where optional"
 	}
+}
+
+toolbelt: [Key=string]: #ToolbeltAid & {key: Key}
+toolbelt: {
+	"httpyac-api-spec": {title: "httpyac API spec", purpose: "Request/response contract for new/changed endpoints; doubles as a manual test once built.", suits: ["full", "spike-prototype"]}
+	"sequence-diagram": {title: "Sequence diagram", purpose: "Cross-service / hand-off flow (park/resume, timers, polling).", suits: ["full", "research"]}
+	"test-case-table": {title: "Test-case table", purpose: "Core journeys + edge cases, each marked v0/v1/v2.", suits: ["full", "spike-prototype"]}
+	"state-transition-table": {title: "State-transition table", purpose: "Resource lifecycle / status transitions with the rule per edge.", suits: ["full", "research"]}
+	"config-flag-matrix": {title: "Config / flag matrix", purpose: "Feature-flag x market/programme x env/region grid with default values.", suits: ["full"]}
+	"data-shape-sketch": {title: "Data-shape sketch", purpose: "FHIR resource / extension / ValueSet shapes being added or read.", suits: ["full", "research"]}
 }
 
 // Explicit, non-improvisable PR-template lookup sequence. Referenced by every

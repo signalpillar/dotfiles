@@ -198,6 +198,26 @@ def get_profile(profile_key: str) -> dict[str, Any]:
     return profiles[profile_key]
 
 
+def contract_toolbelt() -> dict[str, dict[str, Any]]:
+    """Toolbelt catalog keyed by aid key."""
+    toolbelt = load_profile_contract().get("toolbelt") or {}
+    return {str(key): entry for key, entry in toolbelt.items()}
+
+
+def toolbelt_for_profile(profile_key: str) -> list[dict[str, Any]]:
+    """Catalog aids whose `suits` includes profile_key, sorted by key."""
+    aids = [
+        entry
+        for entry in contract_toolbelt().values()
+        if profile_key in (entry.get("suits") or [])
+    ]
+    return sorted(aids, key=lambda e: str(e.get("key") or ""))
+
+
+def task_artifacts(task: dict[str, Any]) -> dict[str, Any]:
+    return task.get("orchestration", {}).get("artifacts", {}) or {}
+
+
 def profile_phases(profile_key: str) -> list[dict[str, Any]]:
     return list(get_profile(profile_key).get("phases") or [])
 
@@ -677,6 +697,26 @@ def cmd_plan(args: argparse.Namespace) -> None:
     print(build_plan(task_file, task, profile))
 
 
+def cmd_toolbelt(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    profile_key = require_profile(task_file, task)
+    if args.action == "add":
+        toolbelt_add(task_file, task, args)
+        return
+    aids = toolbelt_for_profile(profile_key)
+    print(f"Toolbelt aids suited to profile {profile_key}:")
+    if not aids:
+        print("  (none — this profile suggests no planning aids)")
+        return
+    artifacts = task_artifacts(task)
+    for aid in aids:
+        key = str(aid.get("key") or "")
+        registered = artifacts.get(key)
+        status = str(registered.get("status")) if registered else "not registered"
+        print(f"  {key} [{status}] — {aid.get('title')}: {aid.get('purpose')}")
+
+
 def cmd_init(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
@@ -734,6 +774,14 @@ def main() -> None:
 
     plan = sub.add_parser("plan", help="print profile phase plan from profile-contract.cue")
     plan.set_defaults(fn=cmd_plan)
+
+    tb = sub.add_parser("toolbelt", help="list toolbelt aids for the profile, or add one")
+    tb.add_argument("action", nargs="?", choices=["add"], help="'add' to register an aid")
+    tb.add_argument("key", nargs="?", help="aid key when using add")
+    tb.add_argument("--path", help="artifact path to record")
+    tb.add_argument("--status", default="planned", help="artifact status (default planned)")
+    tb.add_argument("--note", default="", help="artifact note")
+    tb.set_defaults(fn=cmd_toolbelt)
 
     instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")
     instruction.add_argument("--current", action="store_true", help="use saved cursor instead of computed next")
