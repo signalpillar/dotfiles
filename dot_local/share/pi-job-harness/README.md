@@ -40,7 +40,7 @@ Given a CUE task file and package-local `profile-contract.cue`, it can:
 - `init` - record an explicit profile on the task
 - `status` / `next` / `plan` - report where the work is and what the profile expects
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders)
-- `advance` - write the next cursor back into the task file after evidence lands
+- `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current cursor's step is not `done`/`skipped` unless `--force --reason '<why>'` is given, and rejects unknown `--phase` values for the profile
 
 Same task state should yield the same next action and instruction, independent of which model is orchestrating.
 
@@ -164,7 +164,9 @@ A task with `Profile: <unset>` is not initialized; run `init --profile <profile>
 
 `plan` prints the selected profile's phase order from `profile-contract.cue` and tells the orchestrator to track those phases with session todos.
 `instruction` reminds the orchestrator to keep the current cursor todo in progress until validators pass.
-`next`/`advance` still walk `task.plan` slices; phase-cursor orchestration is deferred.
+`next`/`advance` walk `task.plan` slices under the profile's slice-work contract phase (e.g. `implement_slices` for `full`, `implement` for `small`/`spike-prototype`) — the saved `cursor.phase` is always a real contract `#PhaseKey`, not a slice-key derivation.
+Once every slice/step is `done`/`skipped`, `next`/`advance` continue walking the remaining profile phases in contract order (e.g. `review` → `decision_review_deck` → `share_with_team` → … for `full`), anchored on the saved cursor's phase, until the profile's last phase is reached — only then does `next` report `done`.
+`advance` refuses to move past an unfinished step (status not `done`/`skipped`) unless `--force --reason '<why>'` records an explicit skip, and refuses unknown `--phase` values for the selected profile.
 
 ## How it works
 

@@ -224,8 +224,17 @@ def current_cursor(task: dict[str, Any]) -> Cursor | None:
     )
 
 
-def phase_for_slice(slice_key: str) -> str:
-    return slice_key.replace("-", "_")
+def slice_work_contract_phase(profile_key: str) -> str | None:
+    """Return the profile contract phase that owns task.plan slice work."""
+    for phase in profile_phases(profile_key):
+        inputs = phase.get("inputs") or []
+        if "task.plan.slices" in inputs:
+            return str(phase["key"])
+    for phase in profile_phases(profile_key):
+        key = str(phase.get("key") or "")
+        if key in ("implement", "implement_slices"):
+            return str(key)
+    return None
 
 
 def profile_value(task: dict[str, Any]) -> str | None:
@@ -244,21 +253,50 @@ def require_profile(task_file: Path, task: dict[str, Any]) -> str:
     return profile
 
 
-def next_cursor(task: dict[str, Any]) -> Cursor | None:
-    for task_slice in task.get("plan", {}).get("slices", []):
-        slice_key = str(task_slice.get("key") or "")
-        if status_value(task_slice) in STATUS_DONE:
-            continue
+def next_cursor(task: dict[str, Any], profile_key: str) -> Cursor | None:
+    """Compute the next actionable cursor.
 
-        for step in task_slice.get("steps", []):
-            if status_value(step) not in STATUS_DONE:
-                return Cursor(phase=phase_for_slice(slice_key), slice=slice_key, step=str(step.get("key") or ""))
+    While task.plan.slices has unfinished work, walk slices/steps under the
+    profile's slice-work contract phase. Once all slices are done (or the
+    profile has no slice-work phase, e.g. research/review-only/share-only),
+    walk the remaining profile phases in contract order, anchored on the
+    saved cursor's phase so repeated calls advance monotonically.
+    """
+    contract_phase = slice_work_contract_phase(profile_key)
 
-        for step in task_slice.get("final_steps", []):
-            if status_value(step) not in STATUS_DONE:
-                return Cursor(phase=phase_for_slice(slice_key), slice=slice_key, step=str(step.get("key") or ""))
+    if contract_phase is not None:
+        for task_slice in task.get("plan", {}).get("slices", []):
+            slice_key = str(task_slice.get("key") or "")
+            if status_value(task_slice) in STATUS_DONE:
+                continue
 
-        return Cursor(phase=phase_for_slice(slice_key), slice=slice_key)
+            for step in task_slice.get("steps", []):
+                if status_value(step) not in STATUS_DONE:
+                    return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
+
+            for step in task_slice.get("final_steps", []):
+                if status_value(step) not in STATUS_DONE:
+                    return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
+
+            return Cursor(phase=contract_phase, slice=slice_key)
+
+    # All slices are done (or this profile has no slice-work phase): walk
+    # remaining profile phases in contract order.
+    phase_keys = [str(phase.get("key") or "") for phase in profile_phases(profile_key)]
+    if not phase_keys:
+        return None
+
+    current = current_cursor(task)
+    if current is not None and current.phase in phase_keys:
+        anchor = phase_keys.index(current.phase)
+    elif contract_phase is not None and contract_phase in phase_keys:
+        anchor = phase_keys.index(contract_phase)
+    else:
+        anchor = -1
+
+    next_index = anchor + 1
+    if next_index < len(phase_keys):
+        return Cursor(phase=phase_keys[next_index])
     return None
 
 
@@ -280,7 +318,7 @@ def print_status(task_file: Path, task: dict[str, Any]) -> None:
     print("Initialization: ok")
     cursor = current_cursor(task)
     print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
-    nxt = next_cursor(task)
+    nxt = next_cursor(task, profile) if profile in valid_profiles() else None
     print(f"Next: {nxt.label() if nxt else 'done'}")
 
 
@@ -368,17 +406,48 @@ def find_current_step(task_slice: dict[str, Any] | None, cursor: Cursor) -> dict
     return None
 
 
+def blocking_incomplete_step(task: dict[str, Any], cursor: Cursor | None) -> str | None:
+    """Return a reason string if the saved cursor's step is not done/skipped, else None."""
+    if cursor is None or not cursor.step:
+        return None
+    task_slice = find_current_slice(task, cursor)
+    step = find_current_step(task_slice, cursor)
+    if step is None:
+        return None
+    if status_value(step) not in STATUS_DONE:
+        status = step.get("status") or "<unset>"
+        return f"current cursor step is not done: {cursor.label()} (status: {status})"
+    return None
+
+
 def phase_owner(profile_key: str, cursor: Cursor) -> str:
     phase = find_contract_phase(profile_key, cursor.phase)
-    if phase and phase.get("owner"):
-        return str(phase["owner"])
-    return "orchestrator"
+    if not phase:
+        die(f"unknown contract phase {cursor.phase!r} for profile {profile_key!r}")
+    return str(phase.get("owner") or "orchestrator")
+
+
+def enforce_owner_policy(
+    owner: str,
+    *,
+    policy: dict[str, Any],
+    contract_policy: dict[str, Any],
+) -> None:
+    subagent_required = policy.get("subagent_required", contract_policy.get("subagent_required", True))
+    exceptions = contract_policy.get("exceptions") or []
+    if owner == "subagent" and not subagent_required and not exceptions:
+        die(
+            "contract phase owner is subagent but coding_execution.subagent_required is false "
+            "without a recorded exception"
+        )
+    if owner == "subagent" and subagent_required:
+        return
 
 
 def build_plan(task_file: Path, task: dict[str, Any], profile_key: str) -> str:
     profile = get_profile(profile_key)
     cursor = current_cursor(task)
-    nxt = next_cursor(task)
+    nxt = next_cursor(task, profile_key)
     lines = [
         "PI-JOB PROFILE PLAN",
         "",
@@ -419,7 +488,7 @@ def build_plan(task_file: Path, task: dict[str, Any], profile_key: str) -> str:
         "- Mark the current/next phase in_progress; mark completed phases done as evidence lands.",
         "- Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.",
         "",
-        "Note: next/advance still walk task.plan slices; plan shows the profile contract phase order.",
+        "Note: next/advance walk task.plan slices under the profile's slice-work contract phase.",
     ]
     return "\n".join(lines)
 
@@ -432,6 +501,11 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
     step = find_current_step(task_slice, cursor)
     contract_phase = find_contract_phase(profile_key, cursor.phase)
     owner = phase_owner(profile_key, cursor)
+    enforce_owner_policy(
+        owner,
+        policy=policy,
+        contract_policy=contract_policy,
+    )
     title = step.get("title") if step else task_slice.get("title") if task_slice else cursor.label()
     note = step.get("note") if step else task_slice.get("note") if task_slice else ""
 
@@ -444,8 +518,18 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         f"Profile: {profile_key}",
         f"Current cursor: {cursor.label()}",
         f"Owner: {owner}",
-        f"Step title: {title or '<untitled>'}",
     ]
+    if task_slice:
+        lines.append(f"Slice: {task_slice.get('key')} — {task_slice.get('title', '<untitled>')}")
+        slice_goal = task_slice.get("goal")
+        if slice_goal:
+            lines.append(f"Slice goal: {slice_goal}")
+        slice_note = task_slice.get("note")
+        if slice_note:
+            lines.append(f"Slice note: {slice_note}")
+    if step:
+        lines.append(f"Step: {step.get('key')} — {step.get('title', '<untitled>')}")
+    lines.append(f"Step title: {title or '<untitled>'}")
     if note:
         lines.append(f"Step note: {note}")
     if contract_phase:
@@ -470,10 +554,6 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             lines.append(
                 f"Artifact gate: {gate.get('key')} ({req}) — {gate.get('output')} when {gate.get('when')}"
             )
-    else:
-        lines.append(
-            "Contract phase: <none matching cursor.phase>; using slice/step guidance with orchestrator default owner."
-        )
 
     subagent_required = policy.get("subagent_required", contract_policy.get("subagent_required", True))
     lower_power = policy.get(
@@ -533,8 +613,8 @@ def cmd_status(args: argparse.Namespace) -> None:
 def cmd_next(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
-    require_profile(task_file, task)
-    cursor = next_cursor(task)
+    profile_key = require_profile(task_file, task)
+    cursor = next_cursor(task, profile_key)
     if cursor is None:
         print("done")
         return
@@ -544,22 +624,41 @@ def cmd_next(args: argparse.Namespace) -> None:
 def cmd_advance(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
-    require_profile(task_file, task)
-    cursor = Cursor(args.phase, args.slice, args.step) if args.phase else next_cursor(task)
+    profile_key = require_profile(task_file, task)
+
+    if not args.dry_run:
+        block_reason = blocking_incomplete_step(task, current_cursor(task))
+        if block_reason and not args.force:
+            die(
+                f"{block_reason}\n"
+                "mark the step done/skipped in the task file, or re-run with "
+                "--force --reason '<why>' to record an explicit skip"
+            )
+        if args.force and not args.reason:
+            die("--force requires --reason '<why>' to record why the step is being skipped")
+
+    if args.phase:
+        cursor = Cursor(args.phase, args.slice, args.step)
+        if find_contract_phase(profile_key, cursor.phase) is None:
+            die(f"unknown contract phase {cursor.phase!r} for profile {profile_key!r}")
+    else:
+        cursor = next_cursor(task, profile_key)
     if cursor is None:
         die("task has no next cursor")
     if args.dry_run:
         print(cursor_block(cursor))
         return
     set_cursor(task_file, cursor)
+    if args.force and args.reason:
+        print(f"forced advance (skip reason: {args.reason})")
     print(f"advanced cursor: {cursor.label()}")
 
 
 def cmd_instruction(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
-    require_profile(task_file, task)
-    cursor = current_cursor(task) if args.current else next_cursor(task)
+    profile_key = require_profile(task_file, task)
+    cursor = current_cursor(task) if args.current else next_cursor(task, profile_key)
     if cursor is None:
         die("task has no cursor for instruction")
     print(build_instruction(task_file, task, cursor))
@@ -576,7 +675,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
     get_profile(args.profile)
-    cursor = next_cursor(task) or Cursor("done")
+    cursor = next_cursor(task, args.profile) or Cursor("done")
     if args.dry_run:
         print(orchestration_block(args.profile, cursor))
         return
@@ -623,6 +722,8 @@ def main() -> None:
     adv.add_argument("--slice", help="explicit slice key")
     adv.add_argument("--step", help="explicit step key")
     adv.add_argument("--dry-run", action="store_true")
+    adv.add_argument("--force", action="store_true", help="advance past an unfinished current step")
+    adv.add_argument("--reason", help="required with --force; recorded skip reason")
     adv.set_defaults(fn=cmd_advance)
 
     plan = sub.add_parser("plan", help="print profile phase plan from profile-contract.cue")
