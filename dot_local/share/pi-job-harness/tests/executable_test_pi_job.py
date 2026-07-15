@@ -2272,6 +2272,132 @@ def test_fs_and_cue_task_store_shape_parity() -> None:
         assert set(fs_slice0.keys()) == set(cue_slice0.keys()), (sorted(fs_slice0.keys()), sorted(cue_slice0.keys()))
 
 
+PROJECT_FIXTURE_CUE = """package task
+
+task: {
+	title:  "Project fixture task"
+	status: "in_progress"
+
+	source: {
+		jira:       "PROJ-1"
+		discovered: "2026-07-01"
+		context:    "Why this task exists."
+	}
+
+	project: {
+		key:     "proj"
+		name:    "Project Fixture"
+		route:   "projects/proj/workflow.md"
+		context: "Where this lives."
+	}
+
+	context: \"\"\"
+		Multi-line free-form background.
+		Second paragraph here.
+		\"\"\"
+
+	orchestration: {
+		profile: "small"
+		cursor: {
+			phase: "implement"
+			slice: "alpha"
+			step:  "edit-code"
+		}
+		policy: {
+			coding_execution: {
+				subagent_required:             true
+				lower_power_model_preferred:   true
+				orchestrator_reviews_subagent: true
+			}
+		}
+		artifacts: {
+			daily_boo: #Artifact & {status: "planned", note: "Append only on a real aha."}
+		}
+	}
+
+	decisions: [
+		#Decision & {date: "2026-07-01", note: "First decision.", source: "chat:2026-07-01"},
+		#Decision & {date: "2026-07-02", note: "Second decision.", source: "chat:2026-07-02"},
+	]
+
+	plan: {
+		note: "Real plan note, not the scaffold placeholder."
+		slices: [
+			#Slice & {
+				key:    "alpha"
+				title:  "Alpha slice"
+				goal:   "Alpha goal"
+				status: "in_progress"
+				note:   "Alpha note."
+				repos: ["repo-a"]
+				repo_work: {
+					"repo-a": {
+						worktree: "/tmp/worktrees/alpha"
+						prs: [
+							#PR & {url: "https://example.com/pr/1", status: "open", note: "first PR"},
+						]
+					}
+				}
+				steps: [
+					#Step & {key: "edit-code", title: "Edit code", status: "done", note: "Done already."},
+					#Step & {key: "verify", title: "Verify", status: "planned", note: ""},
+				]
+				final_steps: [
+					#Step & {key: "e2e-evidence", title: "Evidence", status: "in_progress", note: "In flight."},
+				]
+			},
+			#Slice & {
+				key:    "beta"
+				title:  "Beta slice"
+				goal:   "Beta goal"
+				status: "planned"
+				note:   ""
+				depends_on: ["alpha"]
+				steps: []
+				final_steps: []
+			},
+		]
+	}
+}
+"""
+
+
+def test_cmd_project_cue_to_fs_to_cue_round_trip() -> None:
+    """project() must be lossless: CUE fixture -> fresh FS dir -> fresh CUE file should
+    produce a CueTaskStore.read() dict identical to the original fixture's, covering
+    orchestration, decisions, plan.note, and every slice/step/repo_work/PR field."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        fixture_path = Path(tmp) / "fixture.cue"
+        fixture_path.write_text(PROJECT_FIXTURE_CUE)
+
+        fs_dir = Path(tmp) / "fsout"
+        run(str(PI_JOB), "--task", str(fixture_path), "project", "--to", str(fs_dir))
+
+        roundtrip_path = Path(tmp) / "roundtrip.cue"
+        run(str(PI_JOB), "--task", str(fs_dir), "project", "--to", str(roundtrip_path))
+
+        original = module.CueTaskStore(fixture_path).read()
+        roundtrip = module.CueTaskStore(roundtrip_path).read()
+        assert original == roundtrip, (original, roundtrip)
+
+
+def test_cmd_project_refuses_nonempty_cue_destination() -> None:
+    """project() must fail closed rather than append after an existing slice (which would
+    silently shift every subsequent slice's position) when the CUE destination already
+    has content."""
+    with tempfile.TemporaryDirectory() as tmp:
+        fixture_path = Path(tmp) / "fixture.cue"
+        fixture_path.write_text(PROJECT_FIXTURE_CUE)
+
+        nonempty_dst = Path(tmp) / "nonempty.cue"
+        nonempty_dst.write_text(PROJECT_FIXTURE_CUE)
+
+        res = run(str(PI_JOB), "--task", str(fixture_path), "project", "--to", str(nonempty_dst), check=False)
+        assert res.returncode != 0
+        assert_contains(res.stderr, "already has slices/decisions")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -2338,6 +2464,8 @@ def main() -> None:
     test_fs_task_store_depends_on_symlink()
     test_fs_task_store_invalid_status_dies_on_read()
     test_fs_and_cue_task_store_shape_parity()
+    test_cmd_project_cue_to_fs_to_cue_round_trip()
+    test_cmd_project_refuses_nonempty_cue_destination()
     print("pi-job tests passed")
 
 

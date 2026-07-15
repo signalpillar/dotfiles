@@ -101,6 +101,42 @@ task: {{
 '''
 
 
+def bare_task_cue() -> str:
+    """Minimal empty task skeleton with NO placeholder slice - unlike
+    example_task_cue() (cmd_scaffold's human-editing starting point, which
+    intentionally ships one slice to edit), this is for project()'s CUE
+    destination bootstrap, where an empty plan.slices is required."""
+    return '''package task
+
+task: {
+	title:  ""
+	status: "planned"
+
+	source: {
+		jira:       ""
+		discovered: ""
+		context:    ""
+	}
+
+	project: {
+		key:     ""
+		name:    ""
+		route:   ""
+		context: ""
+	}
+
+	context: ""
+
+	decisions: []
+
+	plan: {
+		note: ""
+		slices: []
+	}
+}
+'''
+
+
 @dataclass(frozen=True)
 class Cursor:
     phase: str
@@ -135,6 +171,29 @@ class TaskStore(Protocol):
         """Initialize orchestration with a profile and cursor."""
         ...
 
+    def init_task(
+        self,
+        *,
+        title: str,
+        status: str,
+        source: dict[str, str],
+        project_info: dict[str, str],
+        context: str,
+    ) -> None:
+        """Set the task's top-level identity fields (everything outside
+        orchestration/decisions/plan). Requires the destination to already exist in
+        some minimal form (a CueTaskStore's file must already be scaffolded; an
+        FsTaskStore's base directory just needs to exist)."""
+        ...
+
+    def set_plan_note(self, note: str) -> None:
+        """Set task.plan.note."""
+        ...
+
+    def add_decision(self, *, date: str, note: str, source: str) -> None:
+        """Append a decision record."""
+        ...
+
     def add_slice(
         self,
         *,
@@ -144,6 +203,8 @@ class TaskStore(Protocol):
         extra_fields: dict[str, list[str]],
         final_steps: list[tuple[str, str]],
         after: str | None,
+        status: str = "planned",
+        note: str = "",
     ) -> None:
         """Add a new slice to the task plan. extra_fields maps a non-baseline
         #Slice field name to its plain string values - backend-neutral, no
@@ -159,6 +220,7 @@ class TaskStore(Protocol):
         note: str,
         terminal: bool,
         after: str | None,
+        status: str = "planned",
     ) -> None:
         """Add a new step to a slice (terminal=True for final_steps, False for steps)."""
         ...
@@ -221,6 +283,83 @@ class CueTaskStore:
             new_text = text[: plan_match.start()] + block + "\n\n" + text[plan_match.start() :]
         write_and_format(self.path, new_text)
 
+    def init_task(
+        self,
+        *,
+        title: str,
+        status: str,
+        source: dict[str, str],
+        project_info: dict[str, str],
+        context: str,
+    ) -> None:
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        top_end = plan_idx if plan_idx != -1 else len(lines)
+
+        lines = replace_scalar_field(lines, "title", title, 0, top_end)
+        lines = replace_scalar_field(lines, "status", status, 0, top_end)
+
+        source_span = find_struct_field_span(lines, "source", 0, top_end)
+        if source_span is None:
+            die("could not find task.source block")
+        s_open, s_close, s_empty = source_span
+        if s_empty:
+            die(
+                "task.source is an empty inline block ('source: {}'); this backend expects "
+                "jira/discovered/context fields already present to update - add them by hand first"
+            )
+        for field in ("jira", "discovered", "context"):
+            lines = replace_scalar_field(lines, field, source.get(field, ""), s_open, s_close)
+
+        project_span = find_struct_field_span(lines, "project", s_close, top_end)
+        if project_span is None:
+            die("could not find task.project block")
+        p_open, p_close, p_empty = project_span
+        if p_empty:
+            die(
+                "task.project is an empty inline block ('project: {}'); this backend expects "
+                "key/name/route/context fields already present to update - add them by hand first"
+            )
+        for field in ("key", "name", "route", "context"):
+            lines = replace_scalar_field(lines, field, project_info.get(field, ""), p_open, p_close)
+
+        ctx_open, ctx_close, _ = context_field_span(lines, p_close, top_end)
+        indent = line_indent(lines[ctx_open])
+        lines = lines[:ctx_open] + render_context_block(context, indent) + lines[ctx_close + 1 :]
+
+        write_and_validate(self.path, original_text, "".join(lines))
+
+    def set_plan_note(self, note: str) -> None:
+        text = self.path.read_text()
+        lines = text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        if plan_idx == -1:
+            die("could not find task.plan block")
+        plan_close = find_block_close(lines, plan_idx)
+        slices_open, _, _ = find_array_span(lines, "slices", plan_idx, plan_close)
+        lines = replace_scalar_field(lines, "note", note, plan_idx, slices_open)
+        write_and_format(self.path, "".join(lines))
+
+    def add_decision(self, *, date: str, note: str, source: str) -> None:
+        literal = (
+            f'#Decision & {{date: "{cue_escape(date)}", note: "{cue_escape(note)}", '
+            f'source: "{cue_escape(source)}"}},\n'
+        )
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        top_end = plan_idx if plan_idx != -1 else len(lines)
+        decisions_open, decisions_close, is_empty = find_array_span(lines, "decisions", 0, top_end)
+
+        new_lines = literal.splitlines(keepends=True)
+        if is_empty:
+            lines = lines[:decisions_open] + ["decisions: [\n", *new_lines, "]\n"] + lines[decisions_open + 1 :]
+        else:
+            lines = insert_lines(lines, decisions_close, new_lines, after=False)
+
+        write_and_validate(self.path, original_text, "".join(lines))
+
     def add_slice(
         self,
         *,
@@ -230,9 +369,12 @@ class CueTaskStore:
         extra_fields: dict[str, list[str]],
         final_steps: list[tuple[str, str]],
         after: str | None,
+        status: str = "planned",
+        note: str = "",
     ) -> None:
         literal = slice_literal(
-            key=key, title=title, goal=goal, extra_fields=extra_fields, final_steps=final_steps
+            key=key, title=title, goal=goal, extra_fields=extra_fields, final_steps=final_steps,
+            status=status, note=note,
         )
 
         original_text = self.path.read_text()
@@ -265,8 +407,9 @@ class CueTaskStore:
         note: str,
         terminal: bool,
         after: str | None,
+        status: str = "planned",
     ) -> None:
-        literal = step_literal(key, title, note=note)
+        literal = step_literal(key, title, note=note, status=status)
         group = "final_steps" if terminal else "steps"
 
         original_text = self.path.read_text()
@@ -808,6 +951,38 @@ class FsTaskStore:
             },
         )
 
+    def init_task(
+        self,
+        *,
+        title: str,
+        status: str,
+        source: dict[str, str],
+        project_info: dict[str, str],
+        context: str,
+    ) -> None:
+        L = self.layout
+        self._write_text(L.title_file(), title)
+        self._write_text(L.status_file(), status)
+        self._write_record(L.source_file(), dict(source))
+        self._write_record(L.project_file(), dict(project_info))
+        self._write_text(L.context_file(), context)
+
+    def set_plan_note(self, note: str) -> None:
+        self._write_text(self.layout.plan_note_file(), note)
+
+    def add_decision(self, *, date: str, note: str, source: str) -> None:
+        target = self.layout.new_decision_dir()
+        staging = target.parent / f".tmp-{uuid4().hex}"
+        staging.mkdir(parents=True)
+        try:
+            (staging / "date").write_text(date + "\n")
+            (staging / "note").write_text((note or "") + "\n")
+            (staging / "source").write_text(source + "\n")
+            os.rename(staging, target)
+        except Exception:
+            shutil.rmtree(staging, ignore_errors=True)
+            raise
+
     def add_slice(
         self,
         *,
@@ -817,6 +992,8 @@ class FsTaskStore:
         extra_fields: dict[str, list[str]],
         final_steps: list[tuple[str, str]],
         after: str | None,
+        status: str = "planned",
+        note: str = "",
     ) -> None:
         L = self.layout
 
@@ -840,8 +1017,8 @@ class FsTaskStore:
         try:
             (staging / "title").write_text(title + "\n")
             (staging / "goal").write_text(goal + "\n")
-            (staging / "status").write_text("planned\n")
-            (staging / "note").write_text("\n")
+            (staging / "status").write_text(status + "\n")
+            (staging / "note").write_text((note or "") + "\n")
             if repos:
                 (staging / "repos").write_text("".join(f"{r}\n" for r in repos))
             if final_steps:
@@ -891,13 +1068,14 @@ class FsTaskStore:
         note: str,
         terminal: bool,
         after: str | None,
+        status: str = "planned",
     ) -> None:
         target = self.layout.new_step_dir(slice_key, key, terminal=terminal, after=after)
         staging = target.parent / f".tmp-{uuid4().hex}"
         staging.mkdir(parents=True)
         try:
             (staging / "title").write_text(title + "\n")
-            (staging / "status").write_text("planned\n")
+            (staging / "status").write_text(status + "\n")
             (staging / "note").write_text((note or "") + "\n")
             os.rename(staging, target)
         except Exception:
@@ -948,6 +1126,85 @@ def open_task_store(task_arg: Path) -> TaskStore:
     if task_arg.is_dir():
         return FsTaskStore(task_arg)
     die(f"unrecognized task storage for {task_arg}")
+
+
+def project(src: TaskStore, dst: TaskStore) -> None:
+    """Copy a task's full state from src into dst using only TaskStore protocol
+    methods - works between any two backends (e.g. CueTaskStore <-> FsTaskStore).
+    dst must already exist in the minimal form init_task() expects (a CueTaskStore's
+    file already scaffolded; an FsTaskStore's base directory already present)."""
+    task = src.read()
+
+    dst.init_task(
+        title=task.get("title", ""),
+        status=task.get("status", ""),
+        source=task.get("source") or {},
+        project_info=task.get("project") or {},
+        context=task.get("context", ""),
+    )
+
+    orch = task.get("orchestration")
+    if orch:
+        cursor_dict = orch.get("cursor") or {}
+        dst.set_profile(
+            orch.get("profile", ""),
+            Cursor(phase=cursor_dict.get("phase", ""), slice=cursor_dict.get("slice"), step=cursor_dict.get("step")),
+        )
+        for key, artifact in (orch.get("artifacts") or {}).items():
+            dst.write_artifact(
+                key, status=artifact.get("status", "planned"), path=artifact.get("path"), note=artifact.get("note", "")
+            )
+
+    for decision in task.get("decisions", []):
+        dst.add_decision(date=decision.get("date", ""), note=decision.get("note", ""), source=decision.get("source", ""))
+
+    plan = task.get("plan") or {}
+    dst.set_plan_note(plan.get("note", ""))
+
+    prev_slice_key: str | None = None
+    for sl in plan.get("slices", []):
+        extra_fields: dict[str, list[str]] = {}
+        if sl.get("repos"):
+            extra_fields["repos"] = sl["repos"]
+        if sl.get("depends_on"):
+            extra_fields["depends_on"] = sl["depends_on"]
+
+        dst.add_slice(
+            key=sl["key"],
+            title=sl.get("title", ""),
+            goal=sl.get("goal", ""),
+            status=sl.get("status", "planned"),
+            note=sl.get("note", ""),
+            extra_fields=extra_fields,
+            final_steps=[],
+            after=prev_slice_key,
+        )
+        prev_slice_key = sl["key"]
+
+        prev_step_key: str | None = None
+        for step in sl.get("steps", []):
+            dst.add_step(
+                slice_key=sl["key"], key=step["key"], title=step.get("title", ""), note=step.get("note", ""),
+                status=step.get("status", "planned"), terminal=False, after=prev_step_key,
+            )
+            prev_step_key = step["key"]
+
+        prev_final_step_key: str | None = None
+        for step in sl.get("final_steps", []):
+            dst.add_step(
+                slice_key=sl["key"], key=step["key"], title=step.get("title", ""), note=step.get("note", ""),
+                status=step.get("status", "planned"), terminal=True, after=prev_final_step_key,
+            )
+            prev_final_step_key = step["key"]
+
+        for repo, rw in (sl.get("repo_work") or {}).items():
+            if rw.get("worktree"):
+                dst.set_worktree(slice_key=sl["key"], repo=repo, path=rw["worktree"])
+            for pr in rw.get("prs") or []:
+                dst.add_pr(
+                    slice_key=sl["key"], repo=repo, url=pr.get("url", ""), status=pr.get("status", "open"),
+                    note=pr.get("note", ""),
+                )
 
 
 def run(argv: list[str], *, cwd: Path = ROOT, capture: bool = True) -> subprocess.CompletedProcess[str]:
@@ -1385,6 +1642,46 @@ def find_struct_field_span(lines, field_name, start=0, end=None):
     return (idx, find_block_close(lines, idx), False)
 
 
+def replace_scalar_field(lines: list[str], field_name: str, new_value: str, start: int, end: int) -> list[str]:
+    """Replace a single-line `field_name: "..."` assignment's value in [start, end), in
+    place at its existing line index - no lines added/removed, so callers can chain
+    several replacements without recomputing spans in between."""
+    pat = re.compile(r'^([ \t]*' + re.escape(field_name) + r':\s*)"[^"]*"')
+    idx = find_line(lines, pat, start, end)
+    if idx == -1:
+        die(f"could not find scalar field {field_name!r} to update in range [{start}:{end}]")
+    lines = list(lines)
+    lines[idx] = pat.sub(lambda m: m.group(1) + f'"{cue_escape(new_value)}"', lines[idx])
+    return lines
+
+
+def context_field_span(lines: list[str], start: int, end: int) -> tuple[int, int, bool]:
+    """[open_idx, close_idx, is_triple_quoted] for a `context: \"\"\"...\"\"\"` block or a
+    single-line `context: "..."` field, in [start, end)."""
+    triple_idx = find_line(lines, re.compile(r'^[ \t]*context:\s*"""\s*$'), start, end)
+    if triple_idx != -1:
+        for i in range(triple_idx + 1, end):
+            if lines[i].strip() == '"""':
+                return (triple_idx, i, True)
+        die("unterminated context block")
+    single_idx = find_line(lines, re.compile(r'^[ \t]*context:\s*"'), start, end)
+    if single_idx == -1:
+        die(f"could not find context field in range [{start}:{end}]")
+    return (single_idx, single_idx, False)
+
+
+def render_context_block(context: str, indent: str) -> list[str]:
+    """Render task.context as a triple-quoted block (multi-line content) or a plain
+    single-line string field, at the given base indentation."""
+    if "\n" not in context:
+        return [f'{indent}context: "{cue_escape(context)}"\n']
+    lines = [f'{indent}context: """\n']
+    for body_line in context.split("\n"):
+        lines.append(f"{indent}\t{body_line}\n" if body_line else "\n")
+    lines.append(f'{indent}\t"""\n')
+    return lines
+
+
 def find_map_entry_span(lines, entry_key, start=0, end=None):
     """[open_idx, close_idx, is_empty_inline] for a CUE map entry `"<entry_key>": {...}`
     (a quoted map key, e.g. a repo name inside repo_work) — distinct from
@@ -1716,7 +2013,16 @@ def step_literal(key: str, title: str, *, status: str = "planned", note: str = "
     )
 
 
-def slice_literal(*, key: str, title: str, goal: str, extra_fields: dict[str, list[str]], final_steps: list[tuple[str, str]]) -> str:
+def slice_literal(
+    *,
+    key: str,
+    title: str,
+    goal: str,
+    extra_fields: dict[str, list[str]],
+    final_steps: list[tuple[str, str]],
+    status: str = "planned",
+    note: str = "",
+) -> str:
     """extra_fields maps a non-baseline #Slice field name to its plain string values,
     for whatever fields this file's #Slice schema declares and the caller resolved
     values for - driven entirely by cue_def_fields(), no hardcoded field list. Rendered
@@ -1728,8 +2034,8 @@ def slice_literal(*, key: str, title: str, goal: str, extra_fields: dict[str, li
         f'key: "{cue_escape(key)}"\n',
         f'title: "{cue_escape(title)}"\n',
         f'goal: "{cue_escape(goal)}"\n',
-        'status: "planned"\n',
-        'note: ""\n',
+        f'status: "{status}"\n',
+        f'note: "{cue_escape(note)}"\n',
     ]
     for field_name, values in extra_fields.items():
         rendered = "[" + ", ".join(f'"{cue_escape(v)}"' for v in values) + "]"
@@ -2369,6 +2675,35 @@ def cmd_add_pr(args: argparse.Namespace) -> None:
     print(f"{action} PR: {args.slice}/{args.repo} {args.url} [{args.status}]")
 
 
+def cmd_project(args: argparse.Namespace) -> None:
+    src_store = open_task_store(args.task.resolve())
+    to_path = args.to.resolve()
+    if to_path.suffix == ".cue":
+        if to_path.exists():
+            dst_store: TaskStore = CueTaskStore(to_path)
+            existing = dst_store.read()
+            if existing.get("plan", {}).get("slices") or existing.get("decisions"):
+                die(
+                    f"destination {to_path} already has slices/decisions; project() requires "
+                    "an empty destination plan (a bare skeleton, not cmd_scaffold's example "
+                    "slice) to avoid duplicating/shifting existing entries"
+                )
+        else:
+            to_path.write_text(bare_task_cue())
+            fmt_res = run(["cue", "fmt", str(to_path)])
+            if fmt_res.returncode != 0:
+                die(f"cue fmt failed on the generated skeleton:\n{fmt_res.stderr.strip()}")
+            dst_store = CueTaskStore(to_path)
+    else:
+        if to_path.exists() and not to_path.is_dir():
+            die(f"destination {to_path} exists and is not a directory")
+        to_path.mkdir(parents=True, exist_ok=True)
+        dst_store = FsTaskStore(to_path)
+
+    project(src_store, dst_store)
+    print(f"projected {src_store.describe()} -> {dst_store.describe()}")
+
+
 LOCAL_DEF_NAMES = ("#Status", "#Step", "#Decision", "#Artifact", "#Slice")
 
 
@@ -2659,6 +2994,17 @@ def main() -> None:
         description="Diagnose a task file for legacy local type declarations (#Status, #Step, #Decision, #Artifact, #Slice) that became redundant after task-schema.cue was added. Compares each local declaration against the shared schema and recommends whether to delete or refactor. This command only diagnoses and never modifies the file — it explains what is safe to delete and what must be kept based on actual content analysis.",
     )
     migrate_task.set_defaults(fn=cmd_migrate_task)
+
+    project_cmd = sub.add_parser(
+        "project",
+        help="experimental: copy this task's full state into another TaskStore backend (--task is the source; --to is the destination)",
+    )
+    project_cmd.add_argument(
+        "--to", required=True, type=Path,
+        help="destination task path: a .cue file (created as an empty skeleton if missing; "
+        "must have no existing slices/decisions if it does) or a directory (created if missing)",
+    )
+    project_cmd.set_defaults(fn=cmd_project)
 
     args = ap.parse_args()
     args.fn(args)
