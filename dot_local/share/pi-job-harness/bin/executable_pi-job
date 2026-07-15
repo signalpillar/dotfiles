@@ -18,7 +18,7 @@ import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 ROOT = Path.cwd()
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
@@ -111,6 +111,259 @@ class Cursor:
         if self.step:
             parts.append(self.step)
         return " / ".join(parts)
+
+
+class TaskStore(Protocol):
+    """Protocol for task storage backends. Currently only CueTaskStore exists."""
+
+    def describe(self) -> str:
+        """Return a human-readable description of the store (e.g., file path)."""
+        ...
+
+    def read(self) -> dict[str, Any]:
+        """Read and export the task as a dict."""
+        ...
+
+    def set_cursor(self, cursor: Cursor) -> None:
+        """Update the saved cursor position."""
+        ...
+
+    def set_profile(self, profile: str, cursor: Cursor) -> None:
+        """Initialize orchestration with a profile and cursor."""
+        ...
+
+    def add_slice(
+        self,
+        *,
+        key: str,
+        title: str,
+        goal: str,
+        extra_fields: list[tuple[str, str]],
+        final_steps: list[tuple[str, str]],
+        after: str | None,
+    ) -> None:
+        """Add a new slice to the task plan."""
+        ...
+
+    def add_step(
+        self,
+        *,
+        slice_key: str,
+        key: str,
+        title: str,
+        note: str,
+        terminal: bool,
+        after: str | None,
+    ) -> None:
+        """Add a new step to a slice (terminal=True for final_steps, False for steps)."""
+        ...
+
+    def set_worktree(self, *, slice_key: str, repo: str, path: str) -> None:
+        """Set the worktree path for a slice's repo work."""
+        ...
+
+    def add_pr(
+        self, *, slice_key: str, repo: str, url: str, status: str, note: str
+    ) -> str:
+        """Add or update a PR for a slice's repo work. Returns 'added' or 'updated'."""
+        ...
+
+    def write_artifact(
+        self, key: str, *, status: str, path: str | None, note: str
+    ) -> None:
+        """Record a toolbelt artifact."""
+        ...
+
+
+class CueTaskStore:
+    """Concrete TaskStore implementation using CUE files."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def describe(self) -> str:
+        return f"cue task file {self.path}"
+
+    def read(self) -> dict[str, Any]:
+        return load_task(self.path)
+
+    def set_cursor(self, cursor: Cursor) -> None:
+        text = self.path.read_text()
+        pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
+        new_text, count = pattern.subn(cursor_block(cursor), text, count=1)
+        if count != 1:
+            die("could not find exactly one orchestration cursor block to replace")
+        write_and_format(self.path, new_text)
+
+    def set_profile(self, profile: str, cursor: Cursor) -> None:
+        get_profile(profile)
+
+        text = self.path.read_text()
+        block = orchestration_block(profile, cursor)
+        if re.search(r"(?m)^[ \t]*orchestration:\s*\{", text):
+            profile_pattern = re.compile(r'(?m)^([ \t]*profile:\s*)"[^"]*"')
+            new_text, count = profile_pattern.subn(rf'\1"{profile}"', text, count=1)
+            if count != 1:
+                die("found orchestration block but could not replace profile")
+            cursor_pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
+            new_text, cursor_count = cursor_pattern.subn(cursor_block(cursor), new_text, count=1)
+            if cursor_count != 1:
+                die("found orchestration block but could not replace cursor")
+        else:
+            plan_match = re.search(r"(?m)^\tplan:\s*\{|^[ ]+plan:\s*\{", text)
+            if not plan_match:
+                die("could not find task.plan block to insert orchestration before")
+            new_text = text[: plan_match.start()] + block + "\n\n" + text[plan_match.start() :]
+        write_and_format(self.path, new_text)
+
+    def add_slice(
+        self,
+        *,
+        key: str,
+        title: str,
+        goal: str,
+        extra_fields: list[tuple[str, str]],
+        final_steps: list[tuple[str, str]],
+        after: str | None,
+    ) -> None:
+        literal = slice_literal(
+            key=key, title=title, goal=goal, extra_fields=extra_fields, final_steps=final_steps
+        )
+
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        if plan_idx == -1:
+            die("could not find task.plan block")
+        plan_close = find_block_close(lines, plan_idx)
+        slices_open, slices_close, is_empty = find_array_span(lines, "slices", plan_idx, plan_close)
+
+        new_lines = literal.splitlines(keepends=True)
+        if after:
+            span = find_key_struct_span(lines, after, slices_open, slices_close)
+            if span is None:
+                die(f"--after slice {after!r} not found in slices array text (unexpected)")
+            lines = insert_lines(lines, span[1], new_lines, after=True)
+        elif is_empty:
+            lines = lines[:slices_open] + ["slices: [\n", *new_lines, "]\n"] + lines[slices_open + 1:]
+        else:
+            lines = insert_lines(lines, slices_close, new_lines, after=False)
+
+        write_and_validate(self.path, original_text, "".join(lines))
+
+    def add_step(
+        self,
+        *,
+        slice_key: str,
+        key: str,
+        title: str,
+        note: str,
+        terminal: bool,
+        after: str | None,
+    ) -> None:
+        literal = step_literal(key, title, note=note)
+        group = "final_steps" if terminal else "steps"
+
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        slice_span = find_key_struct_span(lines, slice_key)
+        if slice_span is None:
+            die(f"could not locate slice {slice_key!r} in task file text (unexpected)")
+        arr_open, arr_close, is_empty = find_array_span(lines, group, slice_span[0], slice_span[1])
+
+        new_lines = literal.splitlines(keepends=True)
+        if after:
+            span = find_key_struct_span(lines, after, arr_open, arr_close)
+            if span is None:
+                die(f"--after step {after!r} not found in {group} text (unexpected)")
+            lines = insert_lines(lines, span[1], new_lines, after=True)
+        elif is_empty:
+            lines = lines[:arr_open] + [f"{group}: [\n", *new_lines, "]\n"] + lines[arr_open + 1:]
+        else:
+            lines = insert_lines(lines, arr_close, new_lines, after=False)
+
+        write_and_validate(self.path, original_text, "".join(lines))
+
+    def set_worktree(self, *, slice_key: str, repo: str, path: str) -> None:
+        literal = f'worktree: "{cue_escape(path)}"\n'
+
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        slice_span = find_key_struct_span(lines, slice_key)
+        if slice_span is None:
+            die(f"could not locate slice {slice_key!r} in task file text (unexpected)")
+
+        lines, entry_open, entry_close = locate_or_create_repo_entry(lines, slice_span[0], slice_span[1], repo)
+
+        wt_idx = find_line(lines, re.compile(r'^[ \t]*worktree:\s*"'), entry_open + 1, entry_close)
+        if wt_idx != -1:
+            lines[wt_idx] = literal
+        else:
+            lines = insert_lines(lines, entry_open, [literal], after=True)
+
+        write_and_validate(self.path, original_text, "".join(lines))
+
+    def add_pr(
+        self, *, slice_key: str, repo: str, url: str, status: str, note: str
+    ) -> str:
+        literal = f'#PR & {{url: "{cue_escape(url)}", status: "{status}", note: "{cue_escape(note)}"}},\n'
+
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        slice_span = find_key_struct_span(lines, slice_key)
+        if slice_span is None:
+            die(f"could not locate slice {slice_key!r} in task file text (unexpected)")
+
+        lines, entry_open, entry_close = locate_or_create_repo_entry(lines, slice_span[0], slice_span[1], repo)
+        prs_open, prs_close, is_empty = find_array_span(lines, "prs", entry_open, entry_close)
+
+        existing_span = None if is_empty else find_key_struct_span(lines, url, prs_open, prs_close, field_name="url")
+        if existing_span is not None:
+            lines = lines[: existing_span[0]] + [literal] + lines[existing_span[1] + 1 :]
+            action = "updated"
+        elif is_empty:
+            lines = lines[:prs_open] + ["prs: [\n", literal, "]\n"] + lines[prs_open + 1 :]
+            action = "added"
+        else:
+            lines = insert_lines(lines, prs_close, [literal], after=False)
+            action = "added"
+
+        write_and_validate(self.path, original_text, "".join(lines))
+        return action
+
+    def write_artifact(
+        self, key: str, *, status: str, path: str | None, note: str
+    ) -> None:
+        text = self.path.read_text()
+        entry = artifact_entry_block(key, status, path, note)
+
+        art_match = re.search(r"(?m)^[ \t]*artifacts:\s*\{", text)
+        if art_match:
+            # Replace an existing entry for this key, if present.
+            key_pat = re.compile(r'(?m)^[ \t]*"' + re.escape(key) + r'":\s*\{\n(?:[ \t]+.*\n)*?[ \t]*\}')
+            new_text, count = key_pat.subn(entry, text, count=1)
+            if count == 0:
+                # Insert a new entry right after the artifacts opening brace.
+                insert_at = art_match.end()
+                new_text = text[:insert_at] + "\n" + entry + text[insert_at:]
+            write_and_format(self.path, new_text)
+            return
+
+        # No artifacts block yet: create one right after the profile line inside orchestration.
+        prof = re.search(r'(?m)^([ \t]*)profile:\s*"[^"]*"', text)
+        if not prof:
+            die("cannot register toolbelt aid: task has no orchestration.profile (run init first)")
+        indent = prof.group(1)
+        block = f"\n{indent}artifacts: {{\n{entry}\n{indent}}}"
+        new_text = text[: prof.end()] + block + text[prof.end():]
+        write_and_format(self.path, new_text)
+
+
+def open_task_store(task_arg: Path) -> TaskStore:
+    """Open a task file as a TaskStore. Currently only supports CUE files."""
+    if task_arg.suffix == ".cue":
+        return CueTaskStore(task_arg)
+    die(f"unrecognized task storage for {task_arg}")
 
 
 def run(argv: list[str], *, cwd: Path = ROOT, capture: bool = True) -> subprocess.CompletedProcess[str]:
@@ -347,16 +600,16 @@ def slice_cursor(contract_phase: str, task_slice: dict[str, Any]) -> Cursor:
     return Cursor(phase=contract_phase, slice=slice_key)
 
 
-def print_status(task_file: Path, task: dict[str, Any]) -> None:
+def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
-    print(f"File: {task_file}")
+    print(f"File: {task_file_desc}")
     print(f"Status: {task.get('status', '<unknown>')}")
     print(f"Contract: {PROFILE_CONTRACT}")
     profile = profile_value(task)
     print(f"Profile: {profile if profile else '<unset>'}")
     if not profile:
         print("Initialization: required")
-        print(f"Next: initialize profile with ./scripts/pi-job --task {task_file} init --profile <profile>")
+        print(f"Next: initialize profile with ./scripts/pi-job --task {task_file_desc} init --profile <profile>")
         return
     if profile not in valid_profiles():
         print("Initialization: invalid-profile")
@@ -917,37 +1170,6 @@ def write_and_validate(task_file: Path, original_text: str, new_text: str) -> No
         die(f"generated CUE failed validation and was rolled back:\n{export_res.stderr.strip()}")
 
 
-def set_cursor(task_file: Path, cursor: Cursor) -> None:
-    text = task_file.read_text()
-    pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
-    new_text, count = pattern.subn(cursor_block(cursor), text, count=1)
-    if count != 1:
-        die("could not find exactly one orchestration cursor block to replace")
-    write_and_format(task_file, new_text)
-
-
-def set_orchestration_profile(task_file: Path, profile: str, cursor: Cursor) -> None:
-    get_profile(profile)
-
-    text = task_file.read_text()
-    block = orchestration_block(profile, cursor)
-    if re.search(r"(?m)^[ \t]*orchestration:\s*\{", text):
-        profile_pattern = re.compile(r'(?m)^([ \t]*profile:\s*)"[^"]*"')
-        new_text, count = profile_pattern.subn(rf'\1"{profile}"', text, count=1)
-        if count != 1:
-            die("found orchestration block but could not replace profile")
-        cursor_pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
-        new_text, cursor_count = cursor_pattern.subn(cursor_block(cursor), new_text, count=1)
-        if cursor_count != 1:
-            die("found orchestration block but could not replace cursor")
-    else:
-        plan_match = re.search(r"(?m)^\tplan:\s*\{|^[ ]+plan:\s*\{", text)
-        if not plan_match:
-            die("could not find task.plan block to insert orchestration before")
-        new_text = text[: plan_match.start()] + block + "\n\n" + text[plan_match.start() :]
-    write_and_format(task_file, new_text)
-
-
 def artifact_entry_block(key: str, status: str, path: str | None, note: str) -> str:
     lines = [f'\t\t\t"{key}": {{', f'\t\t\t\tstatus: "{status}"']
     if path:
@@ -957,40 +1179,14 @@ def artifact_entry_block(key: str, status: str, path: str | None, note: str) -> 
     return "\n".join(lines)
 
 
-def write_toolbelt_artifact(task_file: Path, key: str, status: str, path: str | None, note: str) -> None:
-    text = task_file.read_text()
-    entry = artifact_entry_block(key, status, path, note)
-
-    art_match = re.search(r"(?m)^[ \t]*artifacts:\s*\{", text)
-    if art_match:
-        # Replace an existing entry for this key, if present.
-        key_pat = re.compile(r'(?m)^[ \t]*"' + re.escape(key) + r'":\s*\{\n(?:[ \t]+.*\n)*?[ \t]*\}')
-        new_text, count = key_pat.subn(entry, text, count=1)
-        if count == 0:
-            # Insert a new entry right after the artifacts opening brace.
-            insert_at = art_match.end()
-            new_text = text[:insert_at] + "\n" + entry + text[insert_at:]
-        write_and_format(task_file, new_text)
-        return
-
-    # No artifacts block yet: create one right after the profile line inside orchestration.
-    prof = re.search(r'(?m)^([ \t]*)profile:\s*"[^"]*"', text)
-    if not prof:
-        die("cannot register toolbelt aid: task has no orchestration.profile (run init first)")
-    indent = prof.group(1)
-    block = f"\n{indent}artifacts: {{\n{entry}\n{indent}}}"
-    new_text = text[: prof.end()] + block + text[prof.end():]
-    write_and_format(task_file, new_text)
-
-
-def toolbelt_add(task_file: Path, task: dict[str, Any], args: argparse.Namespace) -> None:
+def toolbelt_add(store: TaskStore, task: dict[str, Any], args: argparse.Namespace) -> None:
     key = args.key
     if not key:
         die("toolbelt add requires an aid key, e.g. `toolbelt add sequence-diagram`")
     catalog = contract_toolbelt()
     if key not in catalog:
         die(f"unknown toolbelt aid {key!r}; expected one of: {', '.join(sorted(catalog))}")
-    write_toolbelt_artifact(task_file, key, args.status, args.path, args.note)
+    store.write_artifact(key, status=args.status, path=args.path, note=args.note)
     print(f"registered toolbelt aid: {key} [{args.status}]")
 
 
@@ -1234,14 +1430,14 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
-    print_status(task_file, load_task(task_file))
+    store = open_task_store(args.task.resolve())
+    print_status(str(args.task.resolve()), store.read())
 
 
 def cmd_next(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
-    task = load_task(task_file)
-    profile_key = require_profile(task_file, task)
+    store = open_task_store(args.task.resolve())
+    task = store.read()
+    profile_key = require_profile(args.task.resolve(), task)
     if args.all:
         ready = ready_slices(task, profile_key)
         if ready:
@@ -1266,9 +1462,9 @@ def cmd_next(args: argparse.Namespace) -> None:
 
 
 def cmd_advance(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
-    task = load_task(task_file)
-    profile_key = require_profile(task_file, task)
+    store = open_task_store(args.task.resolve())
+    task = store.read()
+    profile_key = require_profile(args.task.resolve(), task)
 
     if not args.dry_run:
         block_reason = blocking_incomplete_step(task, current_cursor(task))
@@ -1295,7 +1491,7 @@ def cmd_advance(args: argparse.Namespace) -> None:
     if args.dry_run:
         print(cursor_block(cursor))
         return
-    set_cursor(task_file, cursor)
+    store.set_cursor(cursor)
     if args.force and args.reason:
         print(f"forced advance (skip reason: {args.reason})")
     print(f"advanced cursor: {cursor.label()}")
@@ -1303,7 +1499,8 @@ def cmd_advance(args: argparse.Namespace) -> None:
 
 def cmd_instruction(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
     profile_key = require_profile(task_file, task)
     cursor = current_cursor(task) if args.current else next_cursor(task, profile_key)
     if cursor is None:
@@ -1313,7 +1510,8 @@ def cmd_instruction(args: argparse.Namespace) -> None:
 
 def cmd_plan(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
     profile = require_profile(task_file, task)
     print(build_plan(task_file, task, profile))
 
@@ -1334,7 +1532,8 @@ def step_line(step: dict[str, Any], *, terminal: bool, current_step: str | None)
 
 def cmd_show(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
     profile_key = require_profile(task_file, task)
     cursor = current_cursor(task)
     status_filter = set(args.status.split(",")) if args.status else None
@@ -1401,11 +1600,11 @@ def cmd_show(args: argparse.Namespace) -> None:
 
 
 def cmd_toolbelt(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
-    task = load_task(task_file)
-    profile_key = require_profile(task_file, task)
+    store = open_task_store(args.task.resolve())
+    task = store.read()
+    profile_key = require_profile(args.task.resolve(), task)
     if args.action == "add":
-        toolbelt_add(task_file, task, args)
+        toolbelt_add(store, task, args)
         return
     aids = toolbelt_for_profile(profile_key)
     print(f"Toolbelt aids suited to profile {profile_key}:")
@@ -1421,8 +1620,8 @@ def cmd_toolbelt(args: argparse.Namespace) -> None:
 
 
 def cmd_init(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(args.task.resolve())
+    task = store.read()
     get_profile(args.profile)
     cursor = next_cursor(task, args.profile)
     if cursor is None:
@@ -1434,7 +1633,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     if args.dry_run:
         print(orchestration_block(args.profile, cursor))
         return
-    set_orchestration_profile(task_file, args.profile, cursor)
+    store.set_profile(args.profile, cursor)
     print(f"initialized profile: {args.profile}")
     print(f"cursor: {cursor.label()}")
 
@@ -1461,7 +1660,8 @@ CLI_FILLABLE_SLICE_FIELDS = {"repos": lambda args: split_csv(args.repos), "depen
 
 def cmd_add_slice(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
 
     status_map = slice_status_map(task)
     if args.key in status_map:
@@ -1499,26 +1699,7 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
         print(literal, end="")
         return
 
-    original_text = task_file.read_text()
-    lines = original_text.splitlines(keepends=True)
-    plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
-    if plan_idx == -1:
-        die("could not find task.plan block")
-    plan_close = find_block_close(lines, plan_idx)
-    slices_open, slices_close, is_empty = find_array_span(lines, "slices", plan_idx, plan_close)
-
-    new_lines = literal.splitlines(keepends=True)
-    if args.after:
-        span = find_key_struct_span(lines, args.after, slices_open, slices_close)
-        if span is None:
-            die(f"--after slice {args.after!r} not found in slices array text (unexpected)")
-        lines = insert_lines(lines, span[1], new_lines, after=True)
-    elif is_empty:
-        lines = lines[:slices_open] + ["slices: [\n", *new_lines, "]\n"] + lines[slices_open + 1:]
-    else:
-        lines = insert_lines(lines, slices_close, new_lines, after=False)
-
-    write_and_validate(task_file, original_text, "".join(lines))
+    store.add_slice(key=args.key, title=args.title, goal=args.goal, extra_fields=extra_fields, final_steps=final_steps, after=args.after)
     print(f"added slice: {args.key}")
 
 
@@ -1527,7 +1708,8 @@ BASELINE_STEP_FIELDS = {"key", "title", "status", "note"}
 
 def cmd_add_step(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
 
     slices = task.get("plan", {}).get("slices", [])
     task_slice = next((s for s in slices if s.get("key") == args.slice), None)
@@ -1559,31 +1741,14 @@ def cmd_add_step(args: argparse.Namespace) -> None:
         print(literal, end="")
         return
 
-    original_text = task_file.read_text()
-    lines = original_text.splitlines(keepends=True)
-    slice_span = find_key_struct_span(lines, args.slice)
-    if slice_span is None:
-        die(f"could not locate slice {args.slice!r} in task file text (unexpected)")
-    arr_open, arr_close, is_empty = find_array_span(lines, group, slice_span[0], slice_span[1])
-
-    new_lines = literal.splitlines(keepends=True)
-    if args.after:
-        span = find_key_struct_span(lines, args.after, arr_open, arr_close)
-        if span is None:
-            die(f"--after step {args.after!r} not found in {group} text (unexpected)")
-        lines = insert_lines(lines, span[1], new_lines, after=True)
-    elif is_empty:
-        lines = lines[:arr_open] + [f"{group}: [\n", *new_lines, "]\n"] + lines[arr_open + 1:]
-    else:
-        lines = insert_lines(lines, arr_close, new_lines, after=False)
-
-    write_and_validate(task_file, original_text, "".join(lines))
+    store.add_step(slice_key=args.slice, key=args.key, title=args.title, note=args.note or "", terminal=args.final, after=args.after)
     print(f"added step: {args.slice}/{args.key} ({group})")
 
 
 def cmd_set_worktree(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
     slices = task.get("plan", {}).get("slices", [])
     if not any(s.get("key") == args.slice for s in slices):
         known = ", ".join(str(s.get("key") or "") for s in slices)
@@ -1594,27 +1759,14 @@ def cmd_set_worktree(args: argparse.Namespace) -> None:
         print(literal, end="")
         return
 
-    original_text = task_file.read_text()
-    lines = original_text.splitlines(keepends=True)
-    slice_span = find_key_struct_span(lines, args.slice)
-    if slice_span is None:
-        die(f"could not locate slice {args.slice!r} in task file text (unexpected)")
-
-    lines, entry_open, entry_close = locate_or_create_repo_entry(lines, slice_span[0], slice_span[1], args.repo)
-
-    wt_idx = find_line(lines, re.compile(r'^[ \t]*worktree:\s*"'), entry_open + 1, entry_close)
-    if wt_idx != -1:
-        lines[wt_idx] = literal
-    else:
-        lines = insert_lines(lines, entry_open, [literal], after=True)
-
-    write_and_validate(task_file, original_text, "".join(lines))
+    store.set_worktree(slice_key=args.slice, repo=args.repo, path=args.path)
     print(f"set worktree: {args.slice}/{args.repo} -> {args.path}")
 
 
 def cmd_add_pr(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
-    task = load_task(task_file)
+    store = open_task_store(task_file)
+    task = store.read()
     slices = task.get("plan", {}).get("slices", [])
     if not any(s.get("key") == args.slice for s in slices):
         known = ", ".join(str(s.get("key") or "") for s in slices)
@@ -1626,27 +1778,7 @@ def cmd_add_pr(args: argparse.Namespace) -> None:
         print(literal, end="")
         return
 
-    original_text = task_file.read_text()
-    lines = original_text.splitlines(keepends=True)
-    slice_span = find_key_struct_span(lines, args.slice)
-    if slice_span is None:
-        die(f"could not locate slice {args.slice!r} in task file text (unexpected)")
-
-    lines, entry_open, entry_close = locate_or_create_repo_entry(lines, slice_span[0], slice_span[1], args.repo)
-    prs_open, prs_close, is_empty = find_array_span(lines, "prs", entry_open, entry_close)
-
-    existing_span = None if is_empty else find_key_struct_span(lines, args.url, prs_open, prs_close, field_name="url")
-    if existing_span is not None:
-        lines = lines[: existing_span[0]] + [literal] + lines[existing_span[1] + 1 :]
-        action = "updated"
-    elif is_empty:
-        lines = lines[:prs_open] + ["prs: [\n", literal, "]\n"] + lines[prs_open + 1 :]
-        action = "added"
-    else:
-        lines = insert_lines(lines, prs_close, [literal], after=False)
-        action = "added"
-
-    write_and_validate(task_file, original_text, "".join(lines))
+    action = store.add_pr(slice_key=args.slice, repo=args.repo, url=args.url, status=args.status, note=note)
     print(f"{action} PR: {args.slice}/{args.repo} {args.url} [{args.status}]")
 
 
