@@ -162,6 +162,17 @@ pi-job --task projects/example/tasks/task.cue advance
 If `--task` points at a missing file, commands fail closed and tell the agent to run `scaffold` (writes the generic example CUE shape), then `init --profile`.
 A task with `Profile: <unset>` is not initialized; run `init --profile <profile>` before `plan`, `next`, `advance`, or `instruction`.
 
+## Migrating legacy task files
+
+If a task file was created before `task-schema.cue` existed, it may have local copies of type declarations (`#Status`, `#Step`, `#Decision`, `#Artifact`, `#Slice`) at the top level.
+These are now legacy — the shared `task-schema.cue` is unified into every `pi-job` command automatically (both files are passed together to `cue export`), making local copies redundant and a source of confusion during edits.
+
+`pi-job migrate-task` diagnoses a task file for these legacy declarations and prints safe deletion or refactoring recommendations.
+It never modifies the file — you use your normal editor to apply the changes.
+After editing, run `pi-job status` and `pi-job show` to confirm the migrated file still validates (these commands automatically load both the task file and shared schema).
+
+Note: a bare `cue vet` or `cue export` invoked on the migrated task file *alone* will fail with missing reference errors like `reference "#Step" not found` — this is expected and not breakage. Only `pi-job` subcommands (or `cue` explicitly passed both files) validate the migrated file correctly.
+
 `plan` prints the selected profile's phase order from `profile-contract.cue` and tells the orchestrator to track those phases with session todos.
 `instruction` reminds the orchestrator to keep the current cursor todo in progress until validators pass.
 `next`/`advance` walk `task.plan` slices under the profile's slice-work contract phase (e.g. `implement_slices` for `full`, `implement` for `small`/`spike-prototype`) — the saved `cursor.phase` is always a real contract `#PhaseKey`, not a slice-key derivation.
@@ -172,9 +183,19 @@ Once every slice/step is `done`/`skipped`, `next`/`advance` continue walking the
 
 - `pi-job --task <t> toolbelt` — list planning aids whose `suits` includes the task's profile, with each aid's registered status.
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` — register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
-- `pi-job --task <t> show [--all] [--status s1,s2]` — render the task as a cursor-focused slice/step tree with a toolbelt footer. `--all` expands every slice; `--status` filters slices.
+- `pi-job --task <t> show [--all] [--status s1,s2]` — render the task as a cursor-focused slice/step tree with a toolbelt footer. Slices already `in_progress` or `blocked` expand by default (not just the current cursor's slice) — `--all` additionally expands not-yet-started (`planned`) slices; `--status` filters slices.
 
 The `full` profile runs a `select_toolbelt` phase before `plan_slices`: the model picks the aids that help write the plan and registers them (`--status planned`); each is produced during `plan_slices` and reconciled against shipped code by the `reconcile-artifacts` terminal step. The catalog lives in `profile-contract.cue#toolbelt`.
+
+## Repo work: worktrees & PRs
+
+- `pi-job --task <t> set-worktree --slice K --repo R --path P` — record/update the filesystem
+  worktree path for a slice's repo work (upsert; not filesystem-validated).
+- `pi-job --task <t> add-pr --slice K --repo R --url U --status open|merged|closed [--note N]` —
+  record a PR for a slice's repo work, upserting by URL (re-running with the same `--url` and a
+  new `--status` updates the existing entry rather than duplicating it).
+- `pi-job --task <t> show [--all]` — also renders each slice's `repo_work`: worktree path (or
+  "not set") and each PR's status/url/note.
 
 ## How it works
 

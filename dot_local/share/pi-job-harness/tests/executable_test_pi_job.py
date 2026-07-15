@@ -544,6 +544,80 @@ def test_show_renders_tree_and_footer() -> None:
         assert_contains(footer, "docs/seq.md")
 
 
+def test_show_expands_started_slices_by_default() -> None:
+    """Slices already in_progress or blocked expand by default (steps visible without
+    --all), even when they are not the current cursor's slice; not-yet-started slices
+    (status planned) still collapse to a one-line summary."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "started.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Started slices test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "in-progress-not-current"
+                title: "In progress"
+                goal: "Started work"
+                status: "in_progress"
+                note: ""
+                steps: [
+                    #Step & {key: "ip-1", title: "Step one", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+            #Slice & {
+                key: "blocked-not-current"
+                title: "Blocked"
+                goal: "Stuck on external thing"
+                status: "blocked"
+                note: ""
+                steps: [
+                    #Step & {key: "bl-1", title: "Step one", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+            #Slice & {
+                key: "not-started"
+                title: "Not started"
+                goal: "Still queued"
+                status: "planned"
+                note: ""
+                steps: [
+                    #Step & {key: "ns-1", title: "Step one", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "show").stdout
+        assert_contains(out, "ip-1")
+        assert_contains(out, "bl-1")
+        if "ns-1" in out:
+            raise AssertionError(f"not-started slice should NOT expand by default:\n{out}")
+
+
 def test_scaffold_includes_reconcile_artifacts() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "new.cue"
@@ -1714,6 +1788,231 @@ task: {
             raise AssertionError(f"expected 'lines' in output to show line ranges:\n{out}")
 
 
+def test_migrate_task_partial_migration_only_slice_remains() -> None:
+    """Regression: migrate-task should work on files already partially migrated.
+
+    When a file has already had some types (like #Step) migrated away in a previous pass,
+    the remaining local block (e.g. #Slice with a closed final_steps list) still references
+    those deleted types. Previously, diagnose_slice() would shell `cue def <file alone>`
+    which would fail with "reference #Step not found". The fix parses the raw text directly
+    instead, avoiding the need to resolve deleted type references.
+
+    This test creates a fixture where #Slice has a closed final_steps list (referencing #Step),
+    but #Step itself is NOT declared locally (already migrated away), and verifies that
+    migrate-task produces a real diagnosis instead of "Diagnosis error"."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "partially-migrated.cue"
+        # Only #Slice is declared locally; #Step, #Status, etc. are already gone (migrated)
+        fixture = """
+package task
+
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: string
+    note: string
+    repos: [...string]
+    steps: [...]
+    final_steps: [
+        #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence", status: "planned", note: ""},
+        #Step & {key: "share-with-team", title: "Share with team: ticket + PR", status: "planned", note: ""},
+        #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
+    ]
+}
+
+task: {
+    title: "Partially migrated test"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+    decisions: []
+    plan: {
+        slices: [
+            #Slice & {
+                key: "test-slice"
+                title: "Test Slice"
+                goal: "Test"
+                status: "planned"
+                note: ""
+                repos: ["graphius"]
+                steps: []
+                final_steps: [
+                    #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence", status: "planned", note: ""},
+                    #Step & {key: "share-with-team", title: "Share with team: ticket + PR", status: "planned", note: ""},
+                    #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
+                ]
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        # Run migrate-task and capture output
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+
+        # Verify it does NOT contain "Diagnosis error" (the bug)
+        if "Diagnosis error" in out:
+            raise AssertionError(f"migrate-task should not error on partially-migrated files:\n{out}")
+
+        # Verify it does contain a real diagnosis (mentions the file has delta fields)
+        assert_contains(out, "#Slice")
+        assert_contains(out, "REPLACE")
+        assert_contains(out, "repos")
+        assert_contains(out, "final_steps")
+        # Verify closed_items are extracted correctly
+        assert_contains(out, "e2e-evidence")
+        assert_contains(out, "share-with-team")
+        assert_contains(out, "update-task-file")
+
+
+def test_set_worktree_happy_path() -> None:
+    """set-worktree dry-run shows path; real run and show renders it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree.cue"
+        task.write_text(TASK_FIXTURE)
+
+        # dry-run shows the literal
+        dry = run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1", "--dry-run").stdout
+        assert_contains(dry, 'worktree: "/tmp/wt1"')
+
+        # real write
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1")
+
+        # show should render it
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "repo_work[graphius]")
+        assert_contains(show, "worktree=/tmp/wt1")
+
+
+def test_set_worktree_upserts_existing_path() -> None:
+    """set-worktree twice with different paths; show contains only the latest."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-upsert.cue"
+        task.write_text(TASK_FIXTURE)
+
+        # first set
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1")
+        # second set with different path
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt2")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        # Should contain wt2, not wt1
+        if "worktree=/tmp/wt1" in show:
+            raise AssertionError(f"old worktree path still present in show:\n{show}")
+        assert_contains(show, "worktree=/tmp/wt2")
+
+
+def test_set_worktree_rejects_unknown_slice() -> None:
+    """set-worktree dies when slice doesn't exist."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-bad-slice.cue"
+        task.write_text(TASK_FIXTURE)
+
+        res = run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "nonexistent", "--repo", "graphius", "--path", "/tmp/wt", check=False)
+        if res.returncode == 0:
+            raise AssertionError("set-worktree should reject unknown slice")
+        assert_contains(res.stderr, "slice not found")
+
+
+def test_add_pr_happy_path_creates_repo_work() -> None:
+    """add-pr with no prior set-worktree auto-creates repo entry with worktree absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "pr-happy.cue"
+        task.write_text(TASK_FIXTURE)
+
+        # add-pr without prior set-worktree
+        run(str(PI_JOB), "--task", str(task), "add-pr", "--slice", "second-slice", "--repo", "graphius", "--url", "https://github.com/example/pr/1", "--status", "open")
+
+        # show should render repo_work with worktree=not set and PR
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "repo_work[graphius]")
+        assert_contains(show, "worktree=not set")
+        assert_contains(show, "pr open https://github.com/example/pr/1")
+
+
+def test_add_pr_upsert_by_url_keeps_latest_status() -> None:
+    """add-pr twice with same URL, different status; show contains URL once with latest status."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "pr-upsert.cue"
+        task.write_text(TASK_FIXTURE)
+
+        url = "https://github.com/example/pr/1"
+        # first PR with status open
+        run(str(PI_JOB), "--task", str(task), "add-pr", "--slice", "second-slice", "--repo", "graphius", "--url", url, "--status", "open")
+        # second PR with same URL, status merged
+        run(str(PI_JOB), "--task", str(task), "add-pr", "--slice", "second-slice", "--repo", "graphius", "--url", url, "--status", "merged")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        # Should contain merged, and URL should appear once
+        if show.count(url) != 1:
+            raise AssertionError(f"expected URL to appear exactly once, got {show.count(url)}:\n{show}")
+        assert_contains(show, "pr merged")
+
+
+def test_add_pr_rejects_unknown_slice() -> None:
+    """add-pr dies when slice doesn't exist."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "pr-bad-slice.cue"
+        task.write_text(TASK_FIXTURE)
+
+        res = run(str(PI_JOB), "--task", str(task), "add-pr", "--slice", "nonexistent", "--repo", "graphius", "--url", "https://github.com/example/pr/1", "--status", "open", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-pr should reject unknown slice")
+        assert_contains(res.stderr, "slice not found")
+
+
+def test_add_pr_after_set_worktree_preserves_worktree() -> None:
+    """set-worktree then add-pr on same slice/repo; both survive in show."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "pr-with-worktree.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1")
+        run(str(PI_JOB), "--task", str(task), "add-pr", "--slice", "second-slice", "--repo", "graphius", "--url", "https://github.com/example/pr/1", "--status", "open")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "repo_work[graphius]")
+        assert_contains(show, "worktree=/tmp/wt1")
+        assert_contains(show, "pr open https://github.com/example/pr/1")
+
+
+def test_show_renders_repo_work_worktree_and_prs() -> None:
+    """show renders both worktree path and PR status/url/note substrings."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-repo-work.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/home/user/worktrees/graphius")
+        run(str(PI_JOB), "--task", str(task), "add-pr", "--slice", "second-slice", "--repo", "graphius", "--url", "https://github.com/emed/graphius/pull/123", "--status", "open", "--note", "WIP schema changes")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        # Verify all the rendering parts are present
+        assert_contains(show, "repo_work[graphius]: worktree=/home/user/worktrees/graphius")
+        assert_contains(show, "pr open https://github.com/emed/graphius/pull/123 — WIP schema changes")
+
+
+def test_add_slice_still_works_with_repo_work_in_schema() -> None:
+    """Regression: add-slice --dry-run doesn't mention repo_work, and real add-slice succeeds."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "add-slice-regression.cue"
+        task.write_text(TASK_FIXTURE)
+
+        # dry-run should not include repo_work
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New", "--goal", "Work", "--dry-run").stdout
+        if "repo_work" in dry:
+            raise AssertionError(f"add-slice dry-run should not mention repo_work:\n{dry}")
+
+        # real add-slice should still succeed
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New", "--goal", "Work")
+
+        # show should include the new slice
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "new-slice")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -1729,6 +2028,7 @@ def main() -> None:
     test_select_toolbelt_phase_and_instruction()
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
+    test_show_expands_started_slices_by_default()
     test_scaffold_includes_reconcile_artifacts()
     test_next_skips_unready_head_of_array()
     test_next_all_lists_only_ready_slices()
@@ -1764,6 +2064,16 @@ def main() -> None:
     test_migrate_task_recommends_delete_for_status_with_unused_extra_value()
     test_migrate_task_recommends_replace_for_slice_with_extra_fields()
     test_migrate_task_line_ranges_are_accurate()
+    test_migrate_task_partial_migration_only_slice_remains()
+    test_set_worktree_happy_path()
+    test_set_worktree_upserts_existing_path()
+    test_set_worktree_rejects_unknown_slice()
+    test_add_pr_happy_path_creates_repo_work()
+    test_add_pr_upsert_by_url_keeps_latest_status()
+    test_add_pr_rejects_unknown_slice()
+    test_add_pr_after_set_worktree_preserves_worktree()
+    test_show_renders_repo_work_worktree_and_prs()
+    test_add_slice_still_works_with_repo_work_in_schema()
     print("pi-job tests passed")
 
 

@@ -489,18 +489,19 @@ def find_local_def(lines: list[str], def_name: str) -> tuple[int, int] | None:
     return (open_idx, find_block_close(lines, open_idx))
 
 
-def find_key_struct_span(lines, key_value, start=0, end=None) -> tuple[int, int] | None:
+def find_key_struct_span(lines, key_value, start=0, end=None, field_name="key") -> tuple[int, int] | None:
     """[open_idx, close_idx] of a `#Slice & {...}`/`#Step & {...}` literal identified by
-    `key: "VALUE"`. Handles single-line literals (whole struct on one line — open==close)
+    `key: "VALUE"` (or any other field name). Handles single-line literals (whole struct on one line — open==close)
     and multi-line ones (scan backward from the key line for the nearest shallower line
     ending in `{`, then find_block_close from there)."""
     end = len(lines) if end is None else end
-    key_pat = re.compile(r'\bkey:\s*"' + re.escape(key_value) + r'"')
+    key_pat = re.compile(r'\b' + re.escape(field_name) + r':\s*"' + re.escape(key_value) + r'"')
     key_idx = find_line(lines, key_pat, start, end)
     if key_idx == -1:
         return None
     content = lines[key_idx]
-    if "{" in content[: content.index("key:")]:
+    field_str = field_name + ":"
+    if "{" in content[: content.index(field_str)]:
         return (key_idx, key_idx)
     key_indent_len = len(line_indent(content))
     for i in range(key_idx - 1, start - 1, -1):
@@ -529,6 +530,70 @@ def find_array_span(lines, field_name, start=0, end=None) -> tuple[int, int, boo
     if idx == -1:
         die(f"could not find {field_name!r} array in expected range")
     return (idx, find_block_close(lines, idx), False)
+
+
+def find_struct_field_span(lines, field_name, start=0, end=None):
+    """[open_idx, close_idx, is_empty_inline] for `<field_name>: {...}` — the struct-flavored
+    sibling of find_array_span's `[...]`-delimited fields. Returns None (not die) when the
+    field doesn't exist — repo_work is optional and callers must create it on first use."""
+    end = len(lines) if end is None else end
+    empty_pat = re.compile(r"^[ \t]*" + re.escape(field_name) + r":\s*\{\s*\}\s*,?\s*$")
+    idx = find_line(lines, empty_pat, start, end)
+    if idx != -1:
+        return (idx, idx, True)
+    open_pat = re.compile(r"^[ \t]*" + re.escape(field_name) + r":\s*\{\s*$")
+    idx = find_line(lines, open_pat, start, end)
+    if idx == -1:
+        return None
+    return (idx, find_block_close(lines, idx), False)
+
+
+def find_map_entry_span(lines, entry_key, start=0, end=None):
+    """[open_idx, close_idx, is_empty_inline] for a CUE map entry `"<entry_key>": {...}`
+    (a quoted map key, e.g. a repo name inside repo_work) — distinct from
+    find_key_struct_span, which matches a `key: "value"` FIELD inside a struct literal."""
+    end = len(lines) if end is None else end
+    empty_pat = re.compile(r'^[ \t]*"' + re.escape(entry_key) + r'":\s*\{\s*\}\s*,?\s*$')
+    idx = find_line(lines, empty_pat, start, end)
+    if idx != -1:
+        return (idx, idx, True)
+    open_pat = re.compile(r'^[ \t]*"' + re.escape(entry_key) + r'":\s*\{\s*$')
+    idx = find_line(lines, open_pat, start, end)
+    if idx == -1:
+        return None
+    return (idx, find_block_close(lines, idx), False)
+
+
+def locate_or_create_repo_entry(lines, slice_open, slice_close, repo):
+    """Ensure repo_work: {} exists in [slice_open, slice_close) and that it has a
+    "<repo>": {...} entry (worktree absent, prs: [] if freshly created). Returns
+    (mutated lines, entry_open, entry_close) — indices valid against the RETURNED lines."""
+    rw_span = find_struct_field_span(lines, "repo_work", slice_open, slice_close)
+    if rw_span is None:
+        lines = lines[: slice_open + 1] + ["repo_work: {}\n"] + lines[slice_open + 1 :]
+        rw_open = rw_close = slice_open + 1
+        rw_is_empty = True
+    else:
+        rw_open, rw_close, rw_is_empty = rw_span
+
+    fresh_entry = [f'"{cue_escape(repo)}": {{\n', "prs: []\n", "},\n"]
+
+    if rw_is_empty:
+        lines = lines[:rw_open] + ["repo_work: {\n", *fresh_entry, "}\n"] + lines[rw_open + 1 :]
+        entry_open = rw_open + 1
+        return lines, entry_open, entry_open + len(fresh_entry) - 1
+
+    entry_span = find_map_entry_span(lines, repo, rw_open, rw_close)
+    if entry_span is not None:
+        entry_open, entry_close, entry_is_empty = entry_span
+        if entry_is_empty:
+            lines = lines[:entry_open] + fresh_entry + lines[entry_open + 1 :]
+            return lines, entry_open, entry_open + len(fresh_entry) - 1
+        return lines, entry_open, entry_close
+
+    insert_at = rw_open + 1
+    lines = insert_lines(lines, insert_at, fresh_entry, after=False)
+    return lines, insert_at, insert_at + len(fresh_entry) - 1
 
 
 def insert_lines(lines, at_idx, new_lines, *, after: bool) -> list[str]:
@@ -786,6 +851,20 @@ def parse_def_struct_fields(text: str) -> list[FieldSpec]:
         value_text = value_text.strip()
         fields.append(resolve_field_spec(name, optional, value_text))
     return fields
+
+
+def parse_def_struct_fields_from_raw(lines: list[str], open_idx: int, close_idx: int) -> list[FieldSpec]:
+    """Like parse_def_struct_fields, but parses a task file's OWN local struct block
+    directly from its raw text (lines[open_idx:close_idx+1], e.g. `#Slice: {...}`)
+    instead of shelling `cue def` on the file alone. This sidesteps a real failure mode:
+    if the file already had another type (e.g. #Step) migrated away in an earlier pass,
+    resolving the remaining local block ALONE via `cue def` fails with a
+    'reference not found' error, since the block still references that type structurally
+    (e.g. final_steps' items are `#Step & {...}` literals). Parsing the raw text directly
+    only needs the literal field/value syntax, never CUE type resolution, so it works
+    regardless of what else has or hasn't been migrated away."""
+    text = "\n".join(lines[open_idx : close_idx + 1])
+    return parse_def_struct_fields(text)
 
 
 def cue_escape(s: str) -> str:
@@ -1294,7 +1373,16 @@ def cmd_show(args: argparse.Namespace) -> None:
                 deps_line += "  (not ready)"
             lines.append(deps_line)
 
-        if args.all or is_current:
+        repo_work = task_slice.get("repo_work") or {}
+        for repo_name in sorted(repo_work):
+            work = repo_work[repo_name] or {}
+            worktree = work.get("worktree") or "not set"
+            lines.append(f"    repo_work[{repo_name}]: worktree={worktree}")
+            for pr in work.get("prs", []) or []:
+                note_suffix = f" — {pr.get('note')}" if pr.get("note") else ""
+                lines.append(f"        pr {pr.get('status')} {pr.get('url')}{note_suffix}")
+
+        if args.all or is_current or st in ("in_progress", "blocked"):
             current_step = cursor.step if is_current and cursor else None
             for step in task_slice.get("steps", []):
                 lines.append(step_line(step, terminal=False, current_step=current_step))
@@ -1493,6 +1581,75 @@ def cmd_add_step(args: argparse.Namespace) -> None:
     print(f"added step: {args.slice}/{args.key} ({group})")
 
 
+def cmd_set_worktree(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    slices = task.get("plan", {}).get("slices", [])
+    if not any(s.get("key") == args.slice for s in slices):
+        known = ", ".join(str(s.get("key") or "") for s in slices)
+        die(f"slice not found: {args.slice!r}; known slice keys: {known}")
+
+    literal = f'worktree: "{cue_escape(args.path)}"\n'
+    if args.dry_run:
+        print(literal, end="")
+        return
+
+    original_text = task_file.read_text()
+    lines = original_text.splitlines(keepends=True)
+    slice_span = find_key_struct_span(lines, args.slice)
+    if slice_span is None:
+        die(f"could not locate slice {args.slice!r} in task file text (unexpected)")
+
+    lines, entry_open, entry_close = locate_or_create_repo_entry(lines, slice_span[0], slice_span[1], args.repo)
+
+    wt_idx = find_line(lines, re.compile(r'^[ \t]*worktree:\s*"'), entry_open + 1, entry_close)
+    if wt_idx != -1:
+        lines[wt_idx] = literal
+    else:
+        lines = insert_lines(lines, entry_open, [literal], after=True)
+
+    write_and_validate(task_file, original_text, "".join(lines))
+    print(f"set worktree: {args.slice}/{args.repo} -> {args.path}")
+
+
+def cmd_add_pr(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+    slices = task.get("plan", {}).get("slices", [])
+    if not any(s.get("key") == args.slice for s in slices):
+        known = ", ".join(str(s.get("key") or "") for s in slices)
+        die(f"slice not found: {args.slice!r}; known slice keys: {known}")
+
+    note = args.note or ""
+    literal = f'#PR & {{url: "{cue_escape(args.url)}", status: "{args.status}", note: "{cue_escape(note)}"}},\n'
+    if args.dry_run:
+        print(literal, end="")
+        return
+
+    original_text = task_file.read_text()
+    lines = original_text.splitlines(keepends=True)
+    slice_span = find_key_struct_span(lines, args.slice)
+    if slice_span is None:
+        die(f"could not locate slice {args.slice!r} in task file text (unexpected)")
+
+    lines, entry_open, entry_close = locate_or_create_repo_entry(lines, slice_span[0], slice_span[1], args.repo)
+    prs_open, prs_close, is_empty = find_array_span(lines, "prs", entry_open, entry_close)
+
+    existing_span = None if is_empty else find_key_struct_span(lines, args.url, prs_open, prs_close, field_name="url")
+    if existing_span is not None:
+        lines = lines[: existing_span[0]] + [literal] + lines[existing_span[1] + 1 :]
+        action = "updated"
+    elif is_empty:
+        lines = lines[:prs_open] + ["prs: [\n", literal, "]\n"] + lines[prs_open + 1 :]
+        action = "added"
+    else:
+        lines = insert_lines(lines, prs_close, [literal], after=False)
+        action = "added"
+
+    write_and_validate(task_file, original_text, "".join(lines))
+    print(f"{action} PR: {args.slice}/{args.repo} {args.url} [{args.status}]")
+
+
 LOCAL_DEF_NAMES = ("#Status", "#Step", "#Decision", "#Artifact", "#Slice")
 
 
@@ -1539,9 +1696,9 @@ def cmd_migrate_task(args: argparse.Namespace) -> None:
         if def_name == "#Status":
             block = diagnose_status(task_file, lines, raw_text, open_idx, close_idx, line_range)
         elif def_name in ("#Step", "#Decision", "#Artifact"):
-            block = diagnose_struct_def(task_file, def_name, line_range)
+            block = diagnose_struct_def(lines, open_idx, close_idx, def_name, line_range)
         elif def_name == "#Slice":
-            block = diagnose_slice(task_file, line_range)
+            block = diagnose_slice(lines, open_idx, close_idx, line_range)
         else:
             block = ""
 
@@ -1555,6 +1712,9 @@ def cmd_migrate_task(args: argparse.Namespace) -> None:
         "- This command only diagnoses; it does not modify the file. Make the edits above with your",
         "  normal editing tools.",
         "- After editing, run `pi-job status` and `pi-job show` on this file to confirm it still validates.",
+        "- Note: a bare `cue vet` or `cue export` on the migrated task file alone will fail with",
+        "  'reference not found' errors — this is expected, not breakage. Only `pi-job` subcommands",
+        "  (or `cue` invoked with both files explicitly) validate the migrated file correctly.",
     ]
 
     print("\n".join(output_lines))
@@ -1573,7 +1733,7 @@ def diagnose_status(task_file: Path, lines: list[str], raw_text: str, open_idx: 
     lines_str = "\n".join([f"  Local values: {', '.join(local_values)}", f"  Shared values: {', '.join(shared_values)}"])
 
     if not extra:
-        recommendation = f"DELETE line {open_idx + 1} — the local declaration matches the shared schema exactly."
+        recommendation = f"DELETE line {open_idx + 1} — the local declaration matches the shared schema exactly. task-schema.cue is unified into every pi-job command automatically, so this local copy is redundant, not load-bearing."
         return f"#Status (lines {line_range}):\n{lines_str}\n  Recommendation: {recommendation}"
 
     # Check if extra values are used in instance data (status: "value" outside the #Status declaration)
@@ -1600,10 +1760,10 @@ def diagnose_status(task_file: Path, lines: list[str], raw_text: str, open_idx: 
         return f"#Status (lines {line_range}):\n{lines_str}\n  Extra (local-only, used in this file): {extra_str} ({usages_str})\n  Recommendation: {recommendation}"
 
 
-def diagnose_struct_def(task_file: Path, def_name: str, line_range: str) -> str:
+def diagnose_struct_def(lines: list[str], open_idx: int, close_idx: int, def_name: str, line_range: str) -> str:
     """Diagnose #Step/#Decision/#Artifact: simple field-set-identical check."""
     try:
-        local_fields = cue_def_fields_from([task_file], def_name)
+        local_fields = parse_def_struct_fields_from_raw(lines, open_idx, close_idx)
         shared_fields = cue_def_fields_from([TASK_SCHEMA], def_name)
     except:
         return f"{def_name} (lines {line_range}):\n  Diagnosis error: could not extract field specs"
@@ -1612,7 +1772,7 @@ def diagnose_struct_def(task_file: Path, def_name: str, line_range: str) -> str:
     shared_sig = {(f.name, f.optional, f.kind) for f in shared_fields}
 
     if local_sig == shared_sig:
-        recommendation = f"DELETE line {line_range.split('-')[0]} — the local declaration is identical to the shared schema."
+        recommendation = f"DELETE line {line_range.split('-')[0]} — the local declaration is identical to the shared schema. task-schema.cue is unified into every pi-job command automatically, so this local copy is redundant, not load-bearing."
         return f"{def_name} (lines {line_range}):\n  Recommendation: {recommendation}"
     else:
         # List differences
@@ -1630,10 +1790,10 @@ def diagnose_struct_def(task_file: Path, def_name: str, line_range: str) -> str:
         return f"{def_name} (lines {line_range}):\n{diff_str}\n  Recommendation: {recommendation}"
 
 
-def diagnose_slice(task_file: Path, line_range: str) -> str:
+def diagnose_slice(lines: list[str], open_idx: int, close_idx: int, line_range: str) -> str:
     """Diagnose #Slice: identify redundant vs delta fields."""
     try:
-        local_fields = cue_def_fields_from([task_file], "#Slice")
+        local_fields = parse_def_struct_fields_from_raw(lines, open_idx, close_idx)
         shared_fields = cue_def_fields_from([TASK_SCHEMA], "#Slice")
     except:
         return f"#Slice (lines {line_range}):\n  Diagnosis error: could not extract field specs"
@@ -1670,6 +1830,8 @@ def diagnose_slice(task_file: Path, line_range: str) -> str:
             for key, title in field.closed_items:
                 replacement_lines.append(f'            #Step & {{key: "{cue_escape(key)}", title: "{cue_escape(title)}"}},')
             replacement_lines.append("        ]")
+        elif field.kind == "open_list":
+            replacement_lines.append(f"        {name}: [...string]")
         else:
             replacement_lines.append(f"        {name}: ...")
     replacement_lines.append("    }")
@@ -1756,7 +1918,27 @@ def main() -> None:
     add_step.add_argument("--dry-run", action="store_true")
     add_step.set_defaults(fn=cmd_add_step)
 
-    migrate_task = sub.add_parser("migrate-task", help="diagnose a task file's legacy local schema declarations against the shared task-schema.cue and print migration guidance")
+    set_worktree = sub.add_parser("set-worktree", help="record or update the filesystem worktree path for a slice's repo work")
+    set_worktree.add_argument("--slice", required=True)
+    set_worktree.add_argument("--repo", required=True)
+    set_worktree.add_argument("--path", required=True)
+    set_worktree.add_argument("--dry-run", action="store_true")
+    set_worktree.set_defaults(fn=cmd_set_worktree)
+
+    add_pr = sub.add_parser("add-pr", help="record a PR for a slice's repo work, upserting by URL if it already exists")
+    add_pr.add_argument("--slice", required=True)
+    add_pr.add_argument("--repo", required=True)
+    add_pr.add_argument("--url", required=True)
+    add_pr.add_argument("--status", required=True, choices=["open", "merged", "closed"])
+    add_pr.add_argument("--note", default="")
+    add_pr.add_argument("--dry-run", action="store_true")
+    add_pr.set_defaults(fn=cmd_add_pr)
+
+    migrate_task = sub.add_parser(
+        "migrate-task",
+        help="diagnose a task file's legacy local schema declarations against the shared task-schema.cue and print migration guidance",
+        description="Diagnose a task file for legacy local type declarations (#Status, #Step, #Decision, #Artifact, #Slice) that became redundant after task-schema.cue was added. Compares each local declaration against the shared schema and recommends whether to delete or refactor. This command only diagnoses and never modifies the file — it explains what is safe to delete and what must be kept based on actual content analysis.",
+    )
     migrate_task.set_defaults(fn=cmd_migrate_task)
 
     args = ap.parse_args()
