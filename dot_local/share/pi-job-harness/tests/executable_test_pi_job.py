@@ -3,12 +3,28 @@
 
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
+import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PI_JOB = Path(__file__).resolve().parents[1] / "bin" / "pi-job"
+
+
+def load_pi_job_module():
+    """Import pi-job (no .py suffix, chezmoi's executable_ naming) as a module so tests
+    can exercise FsTaskStore/TaskLayout/CueTaskStore/Cursor directly instead of only via
+    subprocess. Safe: `main()` only runs under `if __name__ == "__main__":`."""
+    loader = importlib.machinery.SourceFileLoader("pi_job_under_test", str(PI_JOB))
+    spec = importlib.util.spec_from_file_location("pi_job_under_test", PI_JOB, loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses needs the module registered before exec
+    loader.exec_module(module)
+    return module
 
 TASK_PREAMBLE = """
 package task
@@ -2013,6 +2029,249 @@ def test_add_slice_still_works_with_repo_work_in_schema() -> None:
         assert_contains(show, "new-slice")
 
 
+MINIMAL_CUE_FIXTURE = """package task
+
+task: {
+	title:  "Minimal fixture"
+	status: "in_progress"
+
+	source: {
+		jira:       ""
+		discovered: ""
+		context:    ""
+	}
+
+	project: {
+		key:     "minimal"
+		name:    "Minimal"
+		route:   ""
+		context: ""
+	}
+
+	context: "minimal context"
+
+	decisions: []
+
+	plan: {
+		note: ""
+		slices: [
+			#Slice & {
+				key:    "s1"
+				title:  "Slice one"
+				goal:   "Goal one"
+				status: "planned"
+				note:   ""
+				steps: [
+					#Step & {key: "step1", title: "Step one", status: "planned", note: ""},
+				]
+				final_steps: []
+			},
+		]
+	}
+}
+"""
+
+
+def test_fs_task_store_round_trip() -> None:
+    """Build a small directory task purely via FsTaskStore mutation methods, then read()
+    it back and check the reconstructed dict's shape/values: required fields present,
+    optional fields with no data omitted entirely (not None/empty)."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "task"
+        base.mkdir()
+        (base / "title").write_text("FS round-trip task\n")
+        (base / "status").write_text("in_progress\n")
+
+        store = module.FsTaskStore(base)
+        store.set_profile("small", module.Cursor(phase="explore_context"))
+
+        store.add_slice(
+            key="alpha",
+            title="Alpha",
+            goal="Alpha goal",
+            extra_fields={"repos": ["repo-a", "repo-b"]},
+            final_steps=[("wrap-up", "Wrap up")],
+            after=None,
+        )
+        store.add_slice(key="beta", title="Beta", goal="Beta goal", extra_fields={}, final_steps=[], after="alpha")
+
+        store.add_step(slice_key="alpha", key="edit-code", title="Edit code", note="", terminal=False, after=None)
+
+        store.set_worktree(slice_key="alpha", repo="repo-a", path="/tmp/worktrees/alpha")
+
+        action = store.add_pr(slice_key="alpha", repo="repo-a", url="https://example.com/pr/1", status="open", note="first")
+        assert action == "added", action
+
+        store.write_artifact("share_with_team", status="planned", path=None, note="registered")
+
+        store.set_cursor(module.Cursor(phase="implement", slice="alpha", step="edit-code"))
+
+        task = store.read()
+
+        assert task["title"] == "FS round-trip task"
+        assert task["status"] == "in_progress"
+        assert task["source"] == {}
+        assert task["project"] == {}
+        assert task["context"] == ""
+        assert task["decisions"] == []
+
+        orch = task["orchestration"]
+        assert orch["profile"] == "small"
+        assert orch["cursor"] == {"phase": "implement", "slice": "alpha", "step": "edit-code"}
+        assert orch["policy"]["coding_execution"] == {
+            "subagent_required": True,
+            "lower_power_model_preferred": True,
+            "orchestrator_reviews_subagent": True,
+        }
+        assert orch["artifacts"]["share_with_team"]["status"] == "planned"
+        assert "path" not in orch["artifacts"]["share_with_team"]
+        assert orch["artifacts"]["share_with_team"]["note"] == "registered"
+
+        slices = task["plan"]["slices"]
+        assert [s["key"] for s in slices] == ["alpha", "beta"]
+
+        alpha = slices[0]
+        assert alpha["title"] == "Alpha"
+        assert alpha["goal"] == "Alpha goal"
+        assert alpha["status"] == "planned"
+        assert alpha["note"] == ""
+        assert alpha["repos"] == ["repo-a", "repo-b"]
+        assert "depends_on" not in alpha
+        assert [s["key"] for s in alpha["steps"]] == ["edit-code"]
+        assert [s["key"] for s in alpha["final_steps"]] == ["wrap-up"]
+        assert alpha["repo_work"]["repo-a"]["worktree"] == "/tmp/worktrees/alpha"
+        assert len(alpha["repo_work"]["repo-a"]["prs"]) == 1
+        assert alpha["repo_work"]["repo-a"]["prs"][0]["url"] == "https://example.com/pr/1"
+        assert alpha["repo_work"]["repo-a"]["prs"][0]["status"] == "open"
+
+        beta = slices[1]
+        assert beta["title"] == "Beta"
+        assert "repos" not in beta
+        assert "depends_on" not in beta
+        assert "repo_work" not in beta
+        assert beta["steps"] == []
+        assert beta["final_steps"] == []
+
+
+def test_fs_task_store_ordering() -> None:
+    """Slices/steps inserted with after= land at the right position in .order / among
+    step_dirs()."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "task"
+        base.mkdir()
+        (base / "title").write_text("Ordering task\n")
+        (base / "status").write_text("in_progress\n")
+        store = module.FsTaskStore(base)
+
+        store.add_slice(key="one", title="One", goal="g", extra_fields={}, final_steps=[], after=None)
+        store.add_slice(key="three", title="Three", goal="g", extra_fields={}, final_steps=[], after=None)
+        store.add_slice(key="two", title="Two", goal="g", extra_fields={}, final_steps=[], after="one")
+
+        order_file = base / "plan" / "slices" / ".order"
+        assert order_file.read_text().splitlines() == ["one", "two", "three"]
+
+        task = store.read()
+        assert [s["key"] for s in task["plan"]["slices"]] == ["one", "two", "three"]
+
+        store.add_step(slice_key="one", key="a", title="A", note="", terminal=False, after=None)
+        store.add_step(slice_key="one", key="c", title="C", note="", terminal=False, after=None)
+        store.add_step(slice_key="one", key="b", title="B", note="", terminal=False, after="a")
+
+        task = store.read()
+        one = next(s for s in task["plan"]["slices"] if s["key"] == "one")
+        assert [s["key"] for s in one["steps"]] == ["a", "b", "c"]
+
+
+def test_fs_task_store_depends_on_symlink() -> None:
+    """depends_on round-trips through read() and is an actual symlink on disk, not a
+    text file."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "task"
+        base.mkdir()
+        (base / "title").write_text("Deps task\n")
+        (base / "status").write_text("in_progress\n")
+        store = module.FsTaskStore(base)
+
+        store.add_slice(key="base-slice", title="Base", goal="g", extra_fields={}, final_steps=[], after=None)
+        store.add_slice(
+            key="dependent",
+            title="Dependent",
+            goal="g",
+            extra_fields={"depends_on": ["base-slice"]},
+            final_steps=[],
+            after=None,
+        )
+
+        link = base / "plan" / "slices" / "dependent" / "depends_on" / "base-slice"
+        assert link.is_symlink(), "depends_on entry should be an actual symlink"
+        assert os.readlink(link) == "../../base-slice"
+        target_slice_dir = base / "plan" / "slices" / "base-slice"
+        assert link.resolve() == target_slice_dir.resolve(), (
+            "depends_on symlink must resolve to the sibling slice directory, not dangle"
+        )
+        assert link.is_dir(), "resolved depends_on symlink should point at a real directory"
+
+        task = store.read()
+        dependent = next(s for s in task["plan"]["slices"] if s["key"] == "dependent")
+        assert dependent["depends_on"] == ["base-slice"]
+        base_slice = next(s for s in task["plan"]["slices"] if s["key"] == "base-slice")
+        assert "depends_on" not in base_slice
+
+
+def test_fs_task_store_invalid_status_dies_on_read() -> None:
+    """A hand-corrupted status file makes read() die instead of passing the bad value
+    through to callers."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "task"
+        base.mkdir()
+        (base / "title").write_text("Bad status task\n")
+        (base / "status").write_text("in_progress\n")
+        store = module.FsTaskStore(base)
+        store.add_slice(key="one", title="One", goal="g", extra_fields={}, final_steps=[], after=None)
+
+        (base / "plan" / "slices" / "one" / "status").write_text("not-a-real-status\n")
+
+        raised = False
+        try:
+            store.read()
+        except SystemExit:
+            raised = True
+        assert raised, "read() should die on an invalid status value instead of passing it through"
+
+
+def test_fs_and_cue_task_store_shape_parity() -> None:
+    """For a minimal one-slice/one-step task, FsTaskStore.read() and CueTaskStore.read()
+    should agree on top-level keys and on plan.slices[0]'s keys (shape parity, not
+    byte-identical output - list contents/order aren't compared here)."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        cue_path = Path(tmp) / "minimal.cue"
+        cue_path.write_text(MINIMAL_CUE_FIXTURE)
+        cue_task = module.CueTaskStore(cue_path).read()
+
+        fs_base = Path(tmp) / "fsminimal"
+        fs_base.mkdir()
+        (fs_base / "title").write_text("Minimal fixture\n")
+        (fs_base / "status").write_text("in_progress\n")
+        (fs_base / "source").write_text("jira: \ndiscovered: \ncontext: \n")
+        (fs_base / "project").write_text("key: minimal\nname: Minimal\nroute: \ncontext: \n")
+        (fs_base / "context").write_text("minimal context\n")
+        store = module.FsTaskStore(fs_base)
+        store.add_slice(key="s1", title="Slice one", goal="Goal one", extra_fields={}, final_steps=[], after=None)
+        store.add_step(slice_key="s1", key="step1", title="Step one", note="", terminal=False, after=None)
+
+        fs_task = store.read()
+
+        assert set(fs_task.keys()) == set(cue_task.keys()), (sorted(fs_task.keys()), sorted(cue_task.keys()))
+        fs_slice0 = fs_task["plan"]["slices"][0]
+        cue_slice0 = cue_task["plan"]["slices"][0]
+        assert set(fs_slice0.keys()) == set(cue_slice0.keys()), (sorted(fs_slice0.keys()), sorted(cue_slice0.keys()))
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -2074,6 +2333,11 @@ def main() -> None:
     test_add_pr_after_set_worktree_preserves_worktree()
     test_show_renders_repo_work_worktree_and_prs()
     test_add_slice_still_works_with_repo_work_in_schema()
+    test_fs_task_store_round_trip()
+    test_fs_task_store_ordering()
+    test_fs_task_store_depends_on_symlink()
+    test_fs_task_store_invalid_status_dies_on_read()
+    test_fs_and_cue_task_store_shape_parity()
     print("pi-job tests passed")
 
 
