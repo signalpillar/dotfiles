@@ -1445,8 +1445,10 @@ def test_migrate_task_reports_already_migrated() -> None:
     """Task with no local defs (pure shared-schema style) reports already migrated."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "shared-schema.cue"
-        # Use the standard preamble without local defs
-        fixture = TASK_PREAMBLE + """
+        # Use NO preamble with local defs - just package and task
+        fixture = """
+package task
+
 task: {
     title: "Shared schema task"
     status: "in_progress"
