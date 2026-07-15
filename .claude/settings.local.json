@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/volodymyrvitvitskyi/.local/share/chezmoi/**)",
+      "Bash(chezmoi apply *)",
+      "Bash(tmux source-file *)",
+      "Bash(chmod +x /home/volodymyrvitvitskyi/.local/share/chezmoi/bin/executable_tmux-cpu)",
+      "Bash(sed -i 's|set -g status-right-length 70|set -g status-right-length 90|' /home/volodymyrvitvitskyi/.local/share/chezmoi/dot_tmux.conf.tmpl)",
+      "Bash(sed -i 's|set -g status-right \"#\\\\[fg=cyan\\\\]MEM:#\\(free | awk '\\\\''/Mem/{printf \\\\\\\\\"%.0f%%\\\\\\\\\", \\\\$3/\\\\$2\\\\*100}'\\\\''\\) #\\\\[fg=white\\\\]L:#\\(cut -d'\\\\'' '\\\\'' -f1 /proc/loadavg\\) #\\\\[fg=white\\\\]« #\\\\[fg=yellow\\\\]%H:%M\"|set -g status-right \"#[fg=cyan]CPU:#\\(tmux-cpu\\) MEM:#\\(free | awk '\\\\''/Mem/{printf \\\\\\\\\"%.0f%%\\\\\\\\\", \\\\$3/\\\\$2\\\\*100}'\\\\''\\) #[fg=white]L:#\\(cut -d'\\\\'' '\\\\'' -f1-3 /proc/loadavg\\) #[fg=white]« #[fg=yellow]%H:%M\"|' /home/volodymyrvitvitskyi/.local/share/chezmoi/dot_tmux.conf.tmpl)",
+      "Bash(echo \"exit $?\")",
+      "Bash(bash ~/.local/bin/tmux-cpu)",
+      "Bash(bash /home/volodymyrvitvitskyi/.local/share/chezmoi/bin/executable_tmux-cpu)",
+      "Bash(chezmoi managed *)",
+      "Bash(chezmoi target-path *)",
+      "Bash(chezmoi cat *)",
+      "Bash(~/bin/tmux-cpu)",
+      "Bash(git add *)"
+    ]
+  }
+}

@@ -23,6 +23,7 @@ from typing import Any
 ROOT = Path.cwd()
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 PROFILE_CONTRACT = PACKAGE_DIR / "profile-contract.cue"
+TASK_SCHEMA = PACKAGE_DIR / "task-schema.cue"
 STATUS_DONE = {"done", "skipped"}
 GLYPH = {"done": "✓", "skipped": "⊘", "in_progress": "▸", "blocked": "✗", "planned": "○"}
 
@@ -46,42 +47,6 @@ def example_task_cue(*, title: str = "Example bounded change") -> str:
     """Generic task-file scaffold. Types/structure only; no real work content."""
     safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
     return f'''package task
-
-#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
-
-#Step: {{
-	key:    string
-	title:  string
-	status: #Status
-	note:   string
-}}
-
-#Decision: {{
-	date:   string
-	note:   string
-	source: string
-}}
-
-#Artifact: {{
-	status: #Status
-	path?:  string
-	note:   string
-}}
-
-#Slice: {{
-	key:    string
-	title:  string
-	goal:   string
-	status: #Status
-	note:   string
-	steps: [...#Step]
-	final_steps: [
-		#Step & {{key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap"}},
-		#Step & {{key: "reconcile-artifacts", title: "Reconcile toolbelt aids with what shipped — update or confirm no drift"}},
-		#Step & {{key: "share-with-team", title: "Share with team: ticket + PR for this slice's repo"}},
-		#Step & {{key: "update-task-file", title: "Update this task file plan"}},
-	]
-}}
 
 task: {{
 	title:  "{safe_title}"
@@ -155,7 +120,7 @@ def run(argv: list[str], *, cwd: Path = ROOT, capture: bool = True) -> subproces
 def load_task(task_file: Path) -> dict[str, Any]:
     if not task_file.exists():
         die(missing_task_hint(task_file))
-    res = run(["cue", "export", str(task_file), "-e", "task", "--out", "json"])
+    res = run(["cue", "export", str(task_file), str(TASK_SCHEMA), "-e", "task", "--out", "json"])
     if res.returncode != 0:
         die(f"cue export failed for {task_file}:\n{res.stderr.strip()}")
     try:
@@ -282,28 +247,25 @@ def next_cursor(task: dict[str, Any], profile_key: str) -> Cursor | None:
     """Compute the next actionable cursor.
 
     While task.plan.slices has unfinished work, walk slices/steps under the
-    profile's slice-work contract phase. Once all slices are done (or the
-    profile has no slice-work phase, e.g. research/review-only/share-only),
-    walk the remaining profile phases in contract order, anchored on the
-    saved cursor's phase so repeated calls advance monotonically.
+    profile's slice-work contract phase, skipping slices with unmet dependencies
+    or blocked status. Once all slices are done (or the profile has no
+    slice-work phase, e.g. research/review-only/share-only), walk the remaining
+    profile phases in contract order, anchored on the saved cursor's phase so
+    repeated calls advance monotonically.
     """
     contract_phase = slice_work_contract_phase(profile_key)
 
     if contract_phase is not None:
+        status_map = slice_status_map(task)
+        any_unfinished = False
         for task_slice in task.get("plan", {}).get("slices", []):
-            slice_key = str(task_slice.get("key") or "")
-            if status_value(task_slice) in STATUS_DONE:
+            if status_value(task_slice) not in STATUS_DONE:
+                any_unfinished = True
+            if not is_actionable(task_slice, status_map):
                 continue
-
-            for step in task_slice.get("steps", []):
-                if status_value(step) not in STATUS_DONE:
-                    return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
-
-            for step in task_slice.get("final_steps", []):
-                if status_value(step) not in STATUS_DONE:
-                    return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
-
-            return Cursor(phase=contract_phase, slice=slice_key)
+            return slice_cursor(contract_phase, task_slice)
+        if any_unfinished:
+            return None
 
     # All slices are done (or this profile has no slice-work phase): walk
     # remaining profile phases in contract order.
@@ -325,6 +287,66 @@ def next_cursor(task: dict[str, Any], profile_key: str) -> Cursor | None:
     return None
 
 
+def slice_status_map(task: dict[str, Any]) -> dict[str, str]:
+    """Return {slice_key: status_value} for all slices in the task."""
+    return {str(task_slice.get("key") or ""): status_value(task_slice) for task_slice in task.get("plan", {}).get("slices", [])}
+
+
+def dependency_satisfied(task_slice: dict[str, Any], status_map: dict[str, str]) -> bool:
+    """Return True if all declared dependencies are done/skipped."""
+    deps = task_slice.get("depends_on") or []
+    return all(status_map.get(k) in STATUS_DONE for k in deps)
+
+
+def is_actionable(task_slice: dict[str, Any], status_map: dict[str, str]) -> bool:
+    """Return True if slice is unfinished, not blocked, and has satisfied dependencies."""
+    return (
+        status_value(task_slice) not in STATUS_DONE
+        and status_value(task_slice) != "blocked"
+        and dependency_satisfied(task_slice, status_map)
+    )
+
+
+def unknown_dependency_keys(task: dict[str, Any], status_map: dict[str, str]) -> list[tuple[str, str]]:
+    """Return [(slice_key, missing_dep_key)] for unknown dependency references."""
+    missing = []
+    for task_slice in task.get("plan", {}).get("slices", []):
+        slice_key = str(task_slice.get("key") or "")
+        for dep_key in (task_slice.get("depends_on") or []):
+            if dep_key not in status_map:
+                missing.append((slice_key, dep_key))
+    return missing
+
+
+def ready_slices(task: dict[str, Any], profile_key: str) -> list[dict[str, Any]]:
+    """Return list of slices where is_actionable() is true, in array order."""
+    contract_phase = slice_work_contract_phase(profile_key)
+    if contract_phase is None:
+        return []
+    status_map = slice_status_map(task)
+    return [s for s in task.get("plan", {}).get("slices", []) if is_actionable(s, status_map)]
+
+
+def all_slices_done(task: dict[str, Any]) -> bool:
+    """Return True if all slices are done/skipped."""
+    return all(status_value(s) in STATUS_DONE for s in task.get("plan", {}).get("slices", []))
+
+
+def slice_cursor(contract_phase: str, task_slice: dict[str, Any]) -> Cursor:
+    """Return the first unfinished step cursor in a slice, or the slice itself if all steps are done."""
+    slice_key = str(task_slice.get("key") or "")
+
+    for step in task_slice.get("steps", []):
+        if status_value(step) not in STATUS_DONE:
+            return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
+
+    for step in task_slice.get("final_steps", []):
+        if status_value(step) not in STATUS_DONE:
+            return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
+
+    return Cursor(phase=contract_phase, slice=slice_key)
+
+
 def print_status(task_file: Path, task: dict[str, Any]) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
     print(f"File: {task_file}")
@@ -344,7 +366,32 @@ def print_status(task_file: Path, task: dict[str, Any]) -> None:
     cursor = current_cursor(task)
     print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
     nxt = next_cursor(task, profile) if profile in valid_profiles() else None
-    print(f"Next: {nxt.label() if nxt else 'done'}")
+    if nxt is None:
+        if all_slices_done(task):
+            print("Next: done")
+        else:
+            print("Next: blocked (no dependency-satisfied slice ready)")
+    else:
+        print(f"Next: {nxt.label()}")
+
+    # Stale cursor warning
+    if cursor is not None and nxt is not None and cursor != nxt:
+        print(f"⚠ stored cursor is stale — cursor: {cursor.label()} vs computed next: {nxt.label()}; run `pi-job advance` to resync")
+
+    # Ready slices line
+    if profile in valid_profiles():
+        ready = ready_slices(task, profile)
+        if ready:
+            ready_keys = [str(s.get("key") or "") for s in ready]
+            print(f"Ready: {', '.join(ready_keys)}")
+        else:
+            print("Ready: none")
+
+        # Unknown dependency key warnings
+        status_map = slice_status_map(task)
+        unknown = unknown_dependency_keys(task, status_map)
+        for slice_key, dep_key in unknown:
+            print(f"⚠ slice '{slice_key}' depends_on unknown slice key '{dep_key}'")
 
 
 def cursor_block(cursor: Cursor) -> str:
@@ -381,6 +428,414 @@ def write_and_format(task_file: Path, text: str) -> None:
     fmt = run(["cue", "fmt", str(task_file)])
     if fmt.returncode != 0:
         die(f"cue fmt failed after task update:\n{fmt.stderr.strip()}")
+
+
+def line_indent(line: str) -> str:
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
+def is_blank(line: str) -> bool:
+    return line.strip() == ""
+
+
+def toggles_raw_string(line: str) -> bool:
+    """True if this line ends with a lone `\"\"\"` marker (opens or closes a multiline
+    string) — a boolean toggle per such line correctly tracks open/close state without
+    distinguishing which, since both forms end a line with the same 3-char marker."""
+    return line.rstrip().endswith('"""')
+
+
+def find_block_close(lines: list[str], open_idx: int) -> int:
+    """First line after open_idx whose indentation is <= the opening line's, skipping
+    blank lines and lines inside a triple-quoted string span."""
+    open_indent = line_indent(lines[open_idx])
+    in_raw_string = False
+    for i in range(open_idx + 1, len(lines)):
+        content = lines[i]
+        if in_raw_string:
+            if toggles_raw_string(content):
+                in_raw_string = False
+            continue
+        if toggles_raw_string(content):
+            in_raw_string = True
+            continue
+        if is_blank(content):
+            continue
+        if len(line_indent(content)) <= len(open_indent):
+            return i
+    die(f"could not find closing boundary for block opened at line {open_idx + 1}")
+
+
+def find_line(lines: list[str], pattern: re.Pattern[str], start: int = 0, end: int | None = None) -> int:
+    end = len(lines) if end is None else end
+    for i in range(start, end):
+        if pattern.search(lines[i]):
+            return i
+    return -1
+
+
+def find_local_def(lines: list[str], def_name: str) -> tuple[int, int] | None:
+    """Scan raw file text for a top-level declaration of def_name (e.g. '#Slice', '#Status').
+    Returns (open_idx, close_idx) or None if not found. For single-line disjunctions,
+    both indices point to the same line."""
+    pattern = re.compile(r"^" + re.escape(def_name) + r':\s*[{"]')
+    open_idx = find_line(lines, pattern)
+    if open_idx == -1:
+        return None
+    # Check if it's a single-line declaration (disjunction like #Status: "a" | "b" | ...)
+    if lines[open_idx].rstrip().endswith('"') or "|" in lines[open_idx]:
+        return (open_idx, open_idx)
+    # Multi-line block: find closing brace
+    return (open_idx, find_block_close(lines, open_idx))
+
+
+def find_key_struct_span(lines, key_value, start=0, end=None) -> tuple[int, int] | None:
+    """[open_idx, close_idx] of a `#Slice & {...}`/`#Step & {...}` literal identified by
+    `key: "VALUE"`. Handles single-line literals (whole struct on one line — open==close)
+    and multi-line ones (scan backward from the key line for the nearest shallower line
+    ending in `{`, then find_block_close from there)."""
+    end = len(lines) if end is None else end
+    key_pat = re.compile(r'\bkey:\s*"' + re.escape(key_value) + r'"')
+    key_idx = find_line(lines, key_pat, start, end)
+    if key_idx == -1:
+        return None
+    content = lines[key_idx]
+    if "{" in content[: content.index("key:")]:
+        return (key_idx, key_idx)
+    key_indent_len = len(line_indent(content))
+    for i in range(key_idx - 1, start - 1, -1):
+        if is_blank(lines[i]):
+            continue
+        indent_len = len(line_indent(lines[i]))
+        if indent_len < key_indent_len and lines[i].rstrip().endswith("{"):
+            return (i, find_block_close(lines, i))
+        if indent_len < key_indent_len - 1:
+            # Gone too far: less indented than "one level up" from key
+            break
+    die(f"could not locate opening brace for struct literal with key {key_value!r}")
+
+
+def find_array_span(lines, field_name, start=0, end=None) -> tuple[int, int, bool]:
+    """[open_idx, close_idx, is_empty_inline] for `<field_name>: [...]`. is_empty_inline
+    means the field is a single line `field_name: []` — caller must replace, not insert
+    around, that line to add the first element."""
+    end = len(lines) if end is None else end
+    empty_pat = re.compile(r"^[ \t]*" + re.escape(field_name) + r":\s*\[\s*\]\s*,?\s*$")
+    idx = find_line(lines, empty_pat, start, end)
+    if idx != -1:
+        return (idx, idx, True)
+    open_pat = re.compile(r"^[ \t]*" + re.escape(field_name) + r":\s*\[\s*$")
+    idx = find_line(lines, open_pat, start, end)
+    if idx == -1:
+        die(f"could not find {field_name!r} array in expected range")
+    return (idx, find_block_close(lines, idx), False)
+
+
+def insert_lines(lines, at_idx, new_lines, *, after: bool) -> list[str]:
+    insert_at = at_idx + 1 if after else at_idx
+    return lines[:insert_at] + new_lines + lines[insert_at:]
+
+
+def split_csv(value: str | None) -> list[str]:
+    return [v.strip() for v in value.split(",") if v.strip()] if value else []
+
+
+@dataclass(frozen=True)
+class FieldSpec:
+    name: str
+    optional: bool
+    kind: str  # "scalar" | "open_list" | "closed_list"
+    closed_items: tuple[tuple[str, str], ...] = ()  # (key, title) pairs, only for kind == "closed_list"
+
+
+def bracket_delta(text: str) -> int:
+    """Return the net {[ count minus }] count for a string, skipping quoted spans (handling \" escapes)."""
+    depth = 0
+    i = 0
+    in_string = False
+    while i < len(text):
+        c = text[i]
+        if in_string:
+            if c == "\\" and i + 1 < len(text):
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            i += 1
+            continue
+        if c in "{[":
+            depth += 1
+        elif c in "}]":
+            depth -= 1
+        i += 1
+    return depth
+
+
+def scan_balanced(text: str, open_idx: int) -> tuple[str, int]:
+    """Scan from open_idx (expecting a '{') to matching close, returning (inner_text, close_idx).
+    Tracks {[ depth while skipping over double-quoted string contents (handling \" escapes)."""
+    depth = 0
+    i = open_idx
+    in_string = False
+    start_inner = open_idx + 1
+    while i < len(text):
+        c = text[i]
+        if in_string:
+            if c == "\\" and i + 1 < len(text):
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            i += 1
+            continue
+        if c in "{[":
+            depth += 1
+        elif c in "}]":
+            depth -= 1
+            if depth == 0:
+                return text[start_inner:i], i
+        i += 1
+    die(f"scan_balanced: unclosed bracket starting at position {open_idx}")
+
+
+def split_top_level_fields(body: str) -> list[tuple[str, bool, str]]:
+    r"""Parse body text and yield (field_name, optional, value_text) for each top-level field.
+    Splits at depth-0 lines matching `^\s*(\w+)(\?)?:\s*(.*)$`, accumulating value text across
+    continuation lines until depth returns to 0. Uses bracket_delta() to skip quoted spans."""
+    lines = body.split("\n")
+    fields: list[tuple[str, bool, str]] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        match = re.match(r"^\s*(\w+)(\?)?:\s*(.*)", line)
+        if match:
+            field_name = match.group(1)
+            optional = match.group(2) == "?"
+            first_value = match.group(3)
+            # Accumulate value text across lines until depth returns to 0
+            value_text = first_value
+            depth = bracket_delta(first_value)
+            i += 1
+            while i < len(lines) and depth > 0:
+                line_text = lines[i]
+                depth += bracket_delta(line_text)
+                value_text += "\n" + line_text
+                i += 1
+            fields.append((field_name, optional, value_text))
+        else:
+            i += 1
+    return fields
+
+
+def parse_closed_step_items(value_text: str) -> list[tuple[str, str]]:
+    """Parse a closed list literal like `[STEP.#x & {...}, STEP.#x & {...}]` and extract
+    (key, title) pairs from each item's CUE-syntax struct."""
+    items: list[tuple[str, str]] = []
+    # Find each {...} struct and extract key and title
+    in_struct = False
+    struct_text = ""
+    for c in value_text:
+        if c == "{":
+            in_struct = True
+            struct_text = "{"
+        elif c == "}" and in_struct:
+            struct_text += "}"
+            # Parse this struct for key and title
+            key_match = re.search(r'key:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', struct_text)
+            title_match = re.search(r'title:\s*"([^"\\]*(?:\\.[^"\\]*)*)"', struct_text)
+            if key_match and title_match:
+                key = key_match.group(1)
+                title = title_match.group(1)
+                items.append((key, title))
+            in_struct = False
+            struct_text = ""
+        elif in_struct:
+            struct_text += c
+    return items
+
+
+def cue_def_fields_from(files: list[Path], def_name: str) -> list[FieldSpec]:
+    """Shell `cue def` with an explicit file list and parse the extracted definition's
+    top-level field list, in declaration order. Reuses the same struct parser as cue_def_fields()."""
+    res = run(["cue", "def", *[str(f) for f in files], "-e", def_name])
+    if res.returncode != 0:
+        die(f"cue def failed for {def_name} in {files}:\n{res.stderr.strip()}")
+    return parse_def_struct_fields(res.stdout)
+
+
+def cue_def_fields(task_file: Path, def_name: str) -> list[FieldSpec]:
+    """Shell `cue def <task_file> <TASK_SCHEMA> -e <def_name>` and parse the extracted
+    definition's top-level field list, in declaration order. Passing TASK_SCHEMA resolves
+    correctly whether this file has its own local #Slice/#Step or relies entirely on the
+    shared one — either way this reads the file's REAL unified type, not a guess."""
+    return cue_def_fields_from([task_file, TASK_SCHEMA], def_name)
+
+
+def cue_def_disjunction_values(files: list[Path]) -> list[str]:
+    """Shell `cue def` for #Status and extract all disjunction values as a list of strings."""
+    res = run(["cue", "def", *[str(f) for f in files], "-e", "#Status"])
+    if res.returncode != 0:
+        die(f"cue def failed for #Status in {files}:\n{res.stderr.strip()}")
+    return re.findall(r'"([^"]*)"', res.stdout)
+
+
+def split_on_top_level_and(text: str) -> list[str]:
+    """Split text on top-level & operators (& that are at bracket depth 0 relative to text's start).
+    Tracks {[ depth while skipping over double-quoted string contents (handling \\" escapes).
+    Returns a list of operands; if no & at depth 0, returns [text]."""
+    operands: list[str] = []
+    current: list[str] = []
+    depth = 0
+    i = 0
+    in_string = False
+
+    while i < len(text):
+        c = text[i]
+        if in_string:
+            current.append(c)
+            if c == "\\" and i + 1 < len(text):
+                current.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            current.append(c)
+            i += 1
+            continue
+        if c in "{[":
+            depth += 1
+            current.append(c)
+        elif c in "}]":
+            depth -= 1
+            current.append(c)
+        elif c == "&" and depth == 0:
+            operand_text = "".join(current).strip()
+            if operand_text:
+                operands.append(operand_text)
+            current = []
+            i += 1
+            while i < len(text) and text[i] in " \t\n":
+                i += 1
+            continue
+        else:
+            current.append(c)
+        i += 1
+
+    operand_text = "".join(current).strip()
+    if operand_text:
+        operands.append(operand_text)
+
+    return operands
+
+
+def resolve_field_spec(name: str, optional: bool, value_text: str) -> FieldSpec:
+    """Resolve a field's FieldSpec by splitting on top-level & operators and classifying each operand.
+    Returns the most specific: closed_list > open_list > scalar. Closed_list is returned if any
+    operand is a closed list; open_list if any is open; otherwise scalar."""
+    operands = split_on_top_level_and(value_text)
+
+    closed_list_spec: FieldSpec | None = None
+    has_open_list = False
+
+    for operand in operands:
+        operand = operand.strip()
+        if operand.startswith("[..."):
+            has_open_list = True
+        elif operand.startswith("["):
+            if closed_list_spec is None:
+                items = tuple(parse_closed_step_items(operand))
+                closed_list_spec = FieldSpec(name, optional, "closed_list", closed_items=items)
+
+    if closed_list_spec is not None:
+        return closed_list_spec
+    elif has_open_list:
+        return FieldSpec(name, optional, "open_list")
+    else:
+        return FieldSpec(name, optional, "scalar")
+
+
+def parse_def_struct_fields(text: str) -> list[FieldSpec]:
+    """Parse `cue def`'s CUE-syntax output. This text is machine-generated and compact
+    (no prose, no multiline strings, no author-formatting variance) — a real bracket-depth
+    scanner is tractable and safe here, unlike scanning an arbitrary task file's freeform
+    text. Skips over double-quoted string spans (respecting \\" escapes) so a title
+    containing literal brackets can't confuse the depth counter. Only extracts the OUTER
+    struct's direct fields — nested `let STATUS = {...}` / `let STEP = {...}` hoisted
+    cross-reference blocks (emitted after the main struct) are ignored; field VALUES that
+    reference them (`status: STATUS.#x`) are just opaque scalar leaves to this parser.
+
+    Handles unified field values (e.g. from cue def when both the local file and shared
+    schema contribute to the same field) by splitting on top-level & operators and
+    classifying each operand independently, resolving to the most specific."""
+    open_idx = text.index("{")
+    body, _ = scan_balanced(text, open_idx)  # returns (inner_text, close_idx); see helper below
+    fields: list[FieldSpec] = []
+    for name, optional, value_text in split_top_level_fields(body):
+        value_text = value_text.strip()
+        fields.append(resolve_field_spec(name, optional, value_text))
+    return fields
+
+
+def cue_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def step_literal(key: str, title: str, *, status: str = "planned", note: str = "") -> str:
+    return (
+        f'#Step & {{key: "{cue_escape(key)}", title: "{cue_escape(title)}", '
+        f'status: "{status}", note: "{cue_escape(note)}"}},\n'
+    )
+
+
+def slice_literal(*, key: str, title: str, goal: str, extra_fields: list[tuple[str, str]], final_steps: list[tuple[str, str]]) -> str:
+    """extra_fields is [(field_name, cue_value_text), ...] for whatever non-baseline
+    fields this file's #Slice schema declares and the caller resolved a value for
+    (already CUE-syntax-ready, e.g. '["a", "b"]') — driven entirely by cue_def_fields(),
+    no hardcoded field list. final_steps is [(key, title), ...] — either copied from the
+    schema's closed-list literal, or empty when the schema's final_steps is open."""
+    lines = [
+        "#Slice & {\n",
+        f'key: "{cue_escape(key)}"\n',
+        f'title: "{cue_escape(title)}"\n',
+        f'goal: "{cue_escape(goal)}"\n',
+        'status: "planned"\n',
+        'note: ""\n',
+    ]
+    for field_name, value_text in extra_fields:
+        lines.append(f"{field_name}: {value_text}\n")
+    lines.append("steps: []\n")
+    if final_steps:
+        lines.append("final_steps: [\n")
+        lines += [step_literal(k, t) for k, t in final_steps]
+        lines.append("]\n")
+    else:
+        lines.append("final_steps: []\n")
+    lines.append("},\n")
+    return "".join(lines)
+
+
+def write_and_validate(task_file: Path, original_text: str, new_text: str) -> None:
+    task_file.write_text(new_text)
+    fmt_res = run(["cue", "fmt", str(task_file)])
+    if fmt_res.returncode != 0:
+        task_file.write_text(original_text)
+        die(f"generated CUE failed to format and was rolled back:\n{fmt_res.stderr.strip()}")
+    export_res = run(["cue", "export", str(task_file), str(TASK_SCHEMA), "-e", "task", "--out", "json"])
+    if export_res.returncode != 0:
+        task_file.write_text(original_text)
+        die(f"generated CUE failed validation and was rolled back:\n{export_res.stderr.strip()}")
 
 
 def set_cursor(task_file: Path, cursor: Cursor) -> None:
@@ -708,11 +1163,27 @@ def cmd_next(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
     profile_key = require_profile(task_file, task)
-    cursor = next_cursor(task, profile_key)
-    if cursor is None:
-        print("done")
-        return
-    print(cursor.label())
+    if args.all:
+        ready = ready_slices(task, profile_key)
+        if ready:
+            contract_phase = slice_work_contract_phase(profile_key)
+            for s in ready:
+                cursor = slice_cursor(contract_phase, s)
+                print(cursor.label())
+        else:
+            if all_slices_done(task):
+                print("done")
+            else:
+                print("blocked: no dependency-satisfied slice ready")
+    else:
+        cursor = next_cursor(task, profile_key)
+        if cursor is None:
+            if all_slices_done(task):
+                print("done")
+            else:
+                print("blocked: no dependency-satisfied slice ready")
+            return
+        print(cursor.label())
 
 
 def cmd_advance(args: argparse.Namespace) -> None:
@@ -738,7 +1209,10 @@ def cmd_advance(args: argparse.Namespace) -> None:
     else:
         cursor = next_cursor(task, profile_key)
     if cursor is None:
-        die("task has no next cursor")
+        if all_slices_done(task):
+            die("task has no next cursor (all slices are done)")
+        else:
+            die("no dependency-satisfied slice is ready; use --phase/--slice/--step to jump explicitly")
     if args.dry_run:
         print(cursor_block(cursor))
         return
@@ -792,6 +1266,7 @@ def cmd_show(args: argparse.Namespace) -> None:
     lines.append("")
 
     slices = task.get("plan", {}).get("slices", [])
+    status_map = slice_status_map(task)
     done_slices = done_steps = total_steps = 0
     for task_slice in slices:
         st = status_value(task_slice)
@@ -806,6 +1281,19 @@ def cmd_show(args: argparse.Namespace) -> None:
         glyph = GLYPH["in_progress"] if is_current else GLYPH.get(st, "○")
         repos = ", ".join(task_slice.get("repos", []) or [])
         lines.append(f"{glyph} {str(task_slice.get('key') or ''):<22} [{d}/{t}] {repos}".rstrip())
+
+        # Render dependencies if present
+        deps = task_slice.get("depends_on") or []
+        if deps:
+            dep_strs = []
+            for dep_key in deps:
+                dep_status = status_map.get(dep_key, "missing")
+                dep_strs.append(f"{dep_key}:{dep_status}")
+            deps_line = f"    deps: [{', '.join(dep_strs)}]"
+            if not is_actionable(task_slice, status_map):
+                deps_line += "  (not ready)"
+            lines.append(deps_line)
+
         if args.all or is_current:
             current_step = cursor.step if is_current and cursor else None
             for step in task_slice.get("steps", []):
@@ -848,7 +1336,13 @@ def cmd_init(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     task = load_task(task_file)
     get_profile(args.profile)
-    cursor = next_cursor(task, args.profile) or Cursor("done")
+    cursor = next_cursor(task, args.profile)
+    if cursor is None:
+        if all_slices_done(task):
+            cursor = Cursor("done")
+        else:
+            # No ready slices: unmet dependencies or cycles at init time.
+            die("no slice is dependency-satisfied yet; check depends_on for a forward reference or cycle among the first slices")
     if args.dry_run:
         print(orchestration_block(args.profile, cursor))
         return
@@ -873,6 +1367,319 @@ def cmd_scaffold(args: argparse.Namespace) -> None:
     print(f"  pi-job --task {task_file} plan")
 
 
+BASELINE_SLICE_FIELDS = {"key", "title", "goal", "status", "note", "steps", "final_steps"}
+CLI_FILLABLE_SLICE_FIELDS = {"repos": lambda args: split_csv(args.repos), "depends_on": lambda args: split_csv(args.depends_on)}
+
+
+def cmd_add_slice(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+
+    status_map = slice_status_map(task)
+    if args.key in status_map:
+        die(f"slice key already exists: {args.key!r}")
+    if args.after and args.after not in status_map:
+        die(f"--after slice not found: {args.after!r}; known: {', '.join(status_map)}")
+
+    fields = cue_def_fields(task_file, "#Slice")
+    by_name = {f.name: f for f in fields}
+    for required in ("key", "title", "goal", "status", "note", "steps", "final_steps"):
+        if required not in by_name:
+            die(f"this file's #Slice schema is missing expected field {required!r}; unsupported shape, add the slice by hand")
+
+    extra_fields: list[tuple[str, str]] = []
+    for f in fields:
+        if f.name in BASELINE_SLICE_FIELDS:
+            continue
+        if f.name not in CLI_FILLABLE_SLICE_FIELDS:
+            if not f.optional:
+                die(f"this file's #Slice requires field {f.name!r}, which add-slice doesn't know how to fill; add the slice by hand")
+            continue  # optional and unsupported: fine to omit
+        values = CLI_FILLABLE_SLICE_FIELDS[f.name](args)
+        if not f.optional and not values:
+            die(f"this file's #Slice requires {f.name!r}; pass --{f.name.replace('_', '-')} v1,v2,...")
+        if values:
+            extra_fields.append((f.name, "[" + ", ".join(f'"{cue_escape(v)}"' for v in values) + "]"))
+    for cli_field, getter in CLI_FILLABLE_SLICE_FIELDS.items():
+        if cli_field not in by_name and getter(args):
+            die(f"this file's #Slice schema has no {cli_field!r} field; drop --{cli_field.replace('_', '-')}, or add the field to the schema first")
+
+    final_steps = list(by_name["final_steps"].closed_items) if by_name["final_steps"].kind == "closed_list" else []
+
+    literal = slice_literal(key=args.key, title=args.title, goal=args.goal, extra_fields=extra_fields, final_steps=final_steps)
+    if args.dry_run:
+        print(literal, end="")
+        return
+
+    original_text = task_file.read_text()
+    lines = original_text.splitlines(keepends=True)
+    plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+    if plan_idx == -1:
+        die("could not find task.plan block")
+    plan_close = find_block_close(lines, plan_idx)
+    slices_open, slices_close, is_empty = find_array_span(lines, "slices", plan_idx, plan_close)
+
+    new_lines = literal.splitlines(keepends=True)
+    if args.after:
+        span = find_key_struct_span(lines, args.after, slices_open, slices_close)
+        if span is None:
+            die(f"--after slice {args.after!r} not found in slices array text (unexpected)")
+        lines = insert_lines(lines, span[1], new_lines, after=True)
+    elif is_empty:
+        lines = lines[:slices_open] + ["slices: [\n", *new_lines, "]\n"] + lines[slices_open + 1:]
+    else:
+        lines = insert_lines(lines, slices_close, new_lines, after=False)
+
+    write_and_validate(task_file, original_text, "".join(lines))
+    print(f"added slice: {args.key}")
+
+
+BASELINE_STEP_FIELDS = {"key", "title", "status", "note"}
+
+
+def cmd_add_step(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    task = load_task(task_file)
+
+    slices = task.get("plan", {}).get("slices", [])
+    task_slice = next((s for s in slices if s.get("key") == args.slice), None)
+    if task_slice is None:
+        known = ", ".join(str(s.get("key") or "") for s in slices)
+        die(f"slice not found: {args.slice!r}; known slice keys: {known}")
+
+    step_fields = cue_def_fields(task_file, "#Step")
+    for f in step_fields:
+        if f.name not in BASELINE_STEP_FIELDS and not f.optional:
+            die(f"this file's #Step requires field {f.name!r}, which add-step doesn't know how to fill; add the step by hand")
+    for required in BASELINE_STEP_FIELDS:
+        if required not in {f.name for f in step_fields}:
+            die(f"this file's #Step schema is missing expected field {required!r}; unsupported shape, add the step by hand")
+
+    existing = {str(s.get("key") or "") for s in task_slice.get("steps", [])} | {
+        str(s.get("key") or "") for s in task_slice.get("final_steps", [])
+    }
+    if args.key in existing:
+        die(f"step key already exists in slice {args.slice!r}: {args.key!r}")
+
+    group = "final_steps" if args.final else "steps"
+    group_keys = [str(s.get("key") or "") for s in task_slice.get(group, [])]
+    if args.after and args.after not in group_keys:
+        die(f"--after step not found in {args.slice!r}.{group}: {args.after!r}; known: {', '.join(group_keys) or '(none)'}")
+
+    literal = step_literal(args.key, args.title, note=args.note or "")
+    if args.dry_run:
+        print(literal, end="")
+        return
+
+    original_text = task_file.read_text()
+    lines = original_text.splitlines(keepends=True)
+    slice_span = find_key_struct_span(lines, args.slice)
+    if slice_span is None:
+        die(f"could not locate slice {args.slice!r} in task file text (unexpected)")
+    arr_open, arr_close, is_empty = find_array_span(lines, group, slice_span[0], slice_span[1])
+
+    new_lines = literal.splitlines(keepends=True)
+    if args.after:
+        span = find_key_struct_span(lines, args.after, arr_open, arr_close)
+        if span is None:
+            die(f"--after step {args.after!r} not found in {group} text (unexpected)")
+        lines = insert_lines(lines, span[1], new_lines, after=True)
+    elif is_empty:
+        lines = lines[:arr_open] + [f"{group}: [\n", *new_lines, "]\n"] + lines[arr_open + 1:]
+    else:
+        lines = insert_lines(lines, arr_close, new_lines, after=False)
+
+    write_and_validate(task_file, original_text, "".join(lines))
+    print(f"added step: {args.slice}/{args.key} ({group})")
+
+
+LOCAL_DEF_NAMES = ("#Status", "#Step", "#Decision", "#Artifact", "#Slice")
+
+
+def cmd_migrate_task(args: argparse.Namespace) -> None:
+    """Diagnose a task file's local schema declarations against the shared task-schema.cue
+    and print migration guidance. Read-only: never modifies the file."""
+    task_file = args.task.resolve()
+    if not task_file.exists():
+        die(missing_task_hint(task_file))
+
+    # Read the file's raw text once for line-based scanning and grepping
+    raw_text = task_file.read_text()
+    lines = raw_text.splitlines(keepends=False)
+
+    # Scan for each of the 5 known def names
+    found_defs: dict[str, tuple[int, int]] = {}
+    for def_name in LOCAL_DEF_NAMES:
+        span = find_local_def(lines, def_name)
+        if span:
+            found_defs[def_name] = span
+
+    # Build output
+    output_lines = [
+        "PI-JOB MIGRATION INSTRUCTION",
+        "",
+        f"Task file: {task_file}",
+        f"Shared schema: {TASK_SCHEMA}",
+        "",
+    ]
+
+    if not found_defs:
+        output_lines.append("Status: already migrated — no local type declarations found; relies entirely on the shared schema.")
+        print("\n".join(output_lines))
+        return
+
+    # Process each found definition
+    for def_name in LOCAL_DEF_NAMES:
+        if def_name not in found_defs:
+            continue
+
+        open_idx, close_idx = found_defs[def_name]
+        line_range = f"{open_idx + 1}-{close_idx + 1}"  # 1-indexed for display
+
+        if def_name == "#Status":
+            block = diagnose_status(task_file, lines, raw_text, open_idx, close_idx, line_range)
+        elif def_name in ("#Step", "#Decision", "#Artifact"):
+            block = diagnose_struct_def(task_file, def_name, line_range)
+        elif def_name == "#Slice":
+            block = diagnose_slice(task_file, line_range)
+        else:
+            block = ""
+
+        if block:
+            output_lines.append("")
+            output_lines.append(block)
+
+    output_lines += [
+        "",
+        "Next steps:",
+        "- This command only diagnoses; it does not modify the file. Make the edits above with your",
+        "  normal editing tools.",
+        "- After editing, run `pi-job status` and `pi-job show` on this file to confirm it still validates.",
+    ]
+
+    print("\n".join(output_lines))
+
+
+def diagnose_status(task_file: Path, lines: list[str], raw_text: str, open_idx: int, close_idx: int, line_range: str) -> str:
+    """Diagnose #Status: compare local vs shared disjunction values."""
+    try:
+        local_values = cue_def_disjunction_values([task_file])
+        shared_values = cue_def_disjunction_values([TASK_SCHEMA])
+    except:
+        return f"#Status (lines {line_range}):\n  Diagnosis error: could not extract disjunction values"
+
+    extra = [v for v in local_values if v not in shared_values]
+
+    lines_str = "\n".join([f"  Local values: {', '.join(local_values)}", f"  Shared values: {', '.join(shared_values)}"])
+
+    if not extra:
+        recommendation = f"DELETE line {open_idx + 1} — the local declaration matches the shared schema exactly."
+        return f"#Status (lines {line_range}):\n{lines_str}\n  Recommendation: {recommendation}"
+
+    # Check if extra values are used in instance data (status: "value" outside the #Status declaration)
+    usages: dict[str, int] = {v: 0 for v in extra}
+    # Grep for status: "<value>" but not in the #Status declaration line itself
+    for i, line in enumerate(lines):
+        # Skip the declaration line(s)
+        if i >= open_idx and i <= close_idx:
+            continue
+        for value in extra:
+            pattern = r'status:\s*"' + re.escape(value) + r'"'
+            if re.search(pattern, line):
+                usages[value] += 1
+
+    extra_str = ", ".join(extra)
+    used_count = sum(usages.values())
+
+    if used_count == 0:
+        recommendation = f"DELETE line {open_idx + 1} — the extra values are declared but never used in instance data."
+        return f"#Status (lines {line_range}):\n{lines_str}\n  Extra (local-only, unused in this file): {extra_str}\n  Recommendation: {recommendation}"
+    else:
+        recommendation = f"KEEP AS-IS — the extra values are used in instance data ({used_count} usages total across the file)."
+        usages_str = ", ".join(f"{v}:{usages[v]}" for v in extra)
+        return f"#Status (lines {line_range}):\n{lines_str}\n  Extra (local-only, used in this file): {extra_str} ({usages_str})\n  Recommendation: {recommendation}"
+
+
+def diagnose_struct_def(task_file: Path, def_name: str, line_range: str) -> str:
+    """Diagnose #Step/#Decision/#Artifact: simple field-set-identical check."""
+    try:
+        local_fields = cue_def_fields_from([task_file], def_name)
+        shared_fields = cue_def_fields_from([TASK_SCHEMA], def_name)
+    except:
+        return f"{def_name} (lines {line_range}):\n  Diagnosis error: could not extract field specs"
+
+    local_sig = {(f.name, f.optional, f.kind) for f in local_fields}
+    shared_sig = {(f.name, f.optional, f.kind) for f in shared_fields}
+
+    if local_sig == shared_sig:
+        recommendation = f"DELETE line {line_range.split('-')[0]} — the local declaration is identical to the shared schema."
+        return f"{def_name} (lines {line_range}):\n  Recommendation: {recommendation}"
+    else:
+        # List differences
+        local_names = {f.name for f in local_fields}
+        shared_names = {f.name for f in shared_fields}
+        only_local = local_names - shared_names
+        only_shared = shared_names - local_names
+        diff_lines = []
+        if only_local:
+            diff_lines.append(f"    Local-only fields: {', '.join(sorted(only_local))}")
+        if only_shared:
+            diff_lines.append(f"    Shared-only fields: {', '.join(sorted(only_shared))}")
+        diff_str = "\n".join(diff_lines) if diff_lines else "    (field-level differences exist)"
+        recommendation = f"KEEP AS-IS — this definition differs from the shared schema and should not be deleted without review."
+        return f"{def_name} (lines {line_range}):\n{diff_str}\n  Recommendation: {recommendation}"
+
+
+def diagnose_slice(task_file: Path, line_range: str) -> str:
+    """Diagnose #Slice: identify redundant vs delta fields."""
+    try:
+        local_fields = cue_def_fields_from([task_file], "#Slice")
+        shared_fields = cue_def_fields_from([TASK_SCHEMA], "#Slice")
+    except:
+        return f"#Slice (lines {line_range}):\n  Diagnosis error: could not extract field specs"
+
+    local_by_name = {f.name: f for f in local_fields}
+    shared_by_name = {f.name: f for f in shared_fields}
+
+    # Identify redundant fields (same name, same kind, same optional)
+    redundant = []
+    delta_fields = []
+
+    for name, local_field in local_by_name.items():
+        shared_field = shared_by_name.get(name)
+        if shared_field and (local_field.name, local_field.optional, local_field.kind) == (shared_field.name, shared_field.optional, shared_field.kind):
+            redundant.append(name)
+        else:
+            delta_fields.append((name, local_field))
+
+    redundant_str = ", ".join(sorted(redundant))
+
+    if not delta_fields:
+        recommendation = f"DELETE lines {line_range} — all fields are identical to the shared schema."
+        return f"#Slice (lines {line_range}):\n  Redundant with shared (safe to drop): {redundant_str}\n  Recommendation: {recommendation}"
+
+    # Build recommendation with delta fields and closed_items if present
+    delta_names = [name for name, _ in delta_fields]
+    delta_str = ", ".join(sorted(delta_names))
+
+    # Generate the replacement code
+    replacement_lines = ["    #Slice: {"]
+    for name, field in delta_fields:
+        if field.kind == "closed_list" and field.closed_items:
+            replacement_lines.append(f"        {name}: [")
+            for key, title in field.closed_items:
+                replacement_lines.append(f'            #Step & {{key: "{cue_escape(key)}", title: "{cue_escape(title)}"}},')
+            replacement_lines.append("        ]")
+        else:
+            replacement_lines.append(f"        {name}: ...")
+    replacement_lines.append("    }")
+
+    replacement_code = "\n".join(replacement_lines)
+
+    recommendation = f"REPLACE lines {line_range} with:\n{replacement_code}"
+    return f"#Slice (lines {line_range}):\n  Redundant with shared (safe to drop): {redundant_str}\n  Local-only delta (must keep): {delta_str}\n  Recommendation: {recommendation}"
+
+
 def main() -> None:
     profiles = sorted(valid_profiles())
     ap = argparse.ArgumentParser(description=__doc__)
@@ -888,6 +1695,7 @@ def main() -> None:
     init.set_defaults(fn=cmd_init)
 
     nxt = sub.add_parser("next", help="print the next unfinished slice/step")
+    nxt.add_argument("--all", action="store_true", help="list all dependency-satisfied slices")
     nxt.set_defaults(fn=cmd_next)
 
     adv = sub.add_parser("advance", help="set cursor to the next unfinished step or an explicit cursor")
@@ -927,6 +1735,29 @@ def main() -> None:
     scaffold.add_argument("--force", action="store_true", help="overwrite an existing task file")
     scaffold.add_argument("--dry-run", action="store_true", help="print the scaffold without writing")
     scaffold.set_defaults(fn=cmd_scaffold)
+
+    add_slice = sub.add_parser("add-slice", help="append a new #Slice to plan.slices, deriving required fields/final_steps shape from this file's own #Slice schema (cue def)")
+    add_slice.add_argument("--key", required=True)
+    add_slice.add_argument("--title", required=True)
+    add_slice.add_argument("--goal", required=True)
+    add_slice.add_argument("--repos", help="comma-separated; required if this file's #Slice schema declares repos as non-optional")
+    add_slice.add_argument("--depends-on", help="comma-separated slice keys this slice depends on")
+    add_slice.add_argument("--after", help="insert after this existing slice key; default: end of plan.slices")
+    add_slice.add_argument("--dry-run", action="store_true")
+    add_slice.set_defaults(fn=cmd_add_slice)
+
+    add_step = sub.add_parser("add-step", help="append a new #Step to a slice's steps (or final_steps with --final)")
+    add_step.add_argument("--slice", required=True)
+    add_step.add_argument("--key", required=True)
+    add_step.add_argument("--title", required=True)
+    add_step.add_argument("--note", default="")
+    add_step.add_argument("--final", action="store_true")
+    add_step.add_argument("--after", help="insert after this existing step key; default: end of the target array")
+    add_step.add_argument("--dry-run", action="store_true")
+    add_step.set_defaults(fn=cmd_add_step)
+
+    migrate_task = sub.add_parser("migrate-task", help="diagnose a task file's legacy local schema declarations against the shared task-schema.cue and print migration guidance")
+    migrate_task.set_defaults(fn=cmd_migrate_task)
 
     args = ap.parse_args()
     args.fn(args)

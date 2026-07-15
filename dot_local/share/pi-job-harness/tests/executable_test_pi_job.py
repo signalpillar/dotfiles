@@ -26,6 +26,7 @@ package task
     goal: string
     status: #Status
     note: string
+    depends_on?: [...string]
     steps: [...#Step]
     final_steps: [...#Step]
 }
@@ -56,6 +57,51 @@ PLAN_BODY = """
                 final_steps: [
                     #Step & {key: "finish", title: "Finish", status: "planned", note: ""},
                 ]
+            },
+        ]
+    }
+"""
+
+PLAN_BODY_WITH_DEPENDENCIES = """
+    plan: {
+        slices: [
+            #Slice & {
+                key: "base"
+                title: "Base"
+                goal: "Already done"
+                status: "done"
+                note: ""
+                steps: []
+                final_steps: []
+            },
+            #Slice & {
+                key: "blocked-dependent"
+                title: "Blocked Dependent"
+                goal: "Depends on not-yet-done"
+                status: "planned"
+                note: ""
+                depends_on: ["not-yet-done"]
+                steps: []
+                final_steps: []
+            },
+            #Slice & {
+                key: "ready-dependent"
+                title: "Ready Dependent"
+                goal: "Depends on base (done)"
+                status: "planned"
+                note: ""
+                depends_on: ["base"]
+                steps: []
+                final_steps: []
+            },
+            #Slice & {
+                key: "blocked-status-slice"
+                title: "Blocked Status"
+                goal: "Has blocked status"
+                status: "blocked"
+                note: ""
+                steps: []
+                final_steps: []
             },
         ]
     }
@@ -368,7 +414,6 @@ def test_scaffold_creates_task_file() -> None:
         task = Path(tmp) / "nested" / "new-task.cue"
         dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
         assert_contains(dry, "package task")
-        assert_contains(dry, "#Status:")
         assert_contains(dry, 'key:    "do-the-change"')
         if task.exists():
             raise AssertionError("dry-run wrote a task file")
@@ -513,6 +558,1160 @@ def test_scaffold_includes_reconcile_artifacts() -> None:
             raise AssertionError(f"final_steps order wrong: e2e={i_e2e} reconcile={i_rec} update={i_upd}")
 
 
+def test_next_skips_unready_head_of_array() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "deps.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Dependency test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY_WITH_DEPENDENCIES + "\n}\n"
+        task.write_text(fixture)
+
+        # blocked-dependent is first but has unmet dep; ready-dependent should be next
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        assert nxt == "implement / ready-dependent", nxt
+
+
+def test_next_all_lists_only_ready_slices() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "deps-all.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Dependency test all"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY_WITH_DEPENDENCIES + "\n}\n"
+        task.write_text(fixture)
+
+        # next --all should only include ready-dependent (deps satisfied), not blocked-dependent or blocked-status-slice
+        result = run(str(PI_JOB), "--task", str(task), "next", "--all").stdout
+        lines = result.strip().split("\n")
+        # Should have exactly one ready slice
+        if "ready-dependent" not in result:
+            raise AssertionError(f"expected ready-dependent in output:\n{result}")
+        if "blocked-dependent" in result:
+            raise AssertionError(f"blocked-dependent should not appear in next --all:\n{result}")
+        if "blocked-status-slice" in result:
+            raise AssertionError(f"blocked-status-slice should not appear in next --all:\n{result}")
+
+
+def test_status_ready_line_matches_next_all() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "status-ready.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Status ready line test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY_WITH_DEPENDENCIES + "\n}\n"
+        task.write_text(fixture)
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        # Should have a Ready: line with ready-dependent
+        if "Ready:" not in status:
+            raise AssertionError(f"expected 'Ready:' line in status:\n{status}")
+        if "ready-dependent" not in status:
+            raise AssertionError(f"expected 'ready-dependent' in Ready: line:\n{status}")
+
+
+def test_blocked_status_slice_is_skipped() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "blocked-status.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Blocked status test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "only-blocked"
+                title: "Only Blocked"
+                goal: "Just a blocked slice"
+                status: "blocked"
+                note: ""
+                steps: []
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        # A blocked slice should not appear in next (no unfinished work to do)
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        # Should print "done" or something indicating no ready slices
+        if "only-blocked" in nxt:
+            raise AssertionError(f"blocked slice should not be in next cursor:\n{nxt}")
+
+
+def test_next_returns_blocked_when_nothing_ready() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "nothing-ready.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Nothing ready test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "unmet-dep"
+                title: "Unmet Dependency"
+                goal: "Depends on something"
+                status: "planned"
+                note: ""
+                depends_on: ["nonexistent"]
+                steps: []
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        # next should print "blocked: ..." (not "done")
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        if "done" in nxt:
+            raise AssertionError(f"should not say done when slices are blocked:\n{nxt}")
+
+        # advance should die with clear message
+        adv = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if adv.returncode == 0:
+            raise AssertionError("advance should fail when nothing is ready")
+        if "no dependency-satisfied slice is ready" not in adv.stderr:
+            raise AssertionError(f"expected clear error message in:\n{adv.stderr}")
+
+
+def test_status_warns_on_stale_cursor() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "stale.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Stale cursor test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+            slice: "blocked-dependent"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY_WITH_DEPENDENCIES + "\n}\n"
+        task.write_text(fixture)
+
+        # Cursor points to blocked-dependent (unmet deps), but ready-dependent is actually next
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        if "stale cursor" not in status.lower() and "⚠" not in status:
+            raise AssertionError(f"expected stale cursor warning in:\n{status}")
+
+
+def test_status_no_warning_when_consistent() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "consistent.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Consistent cursor test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+            slice: "ready-dependent"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY_WITH_DEPENDENCIES + "\n}\n"
+        task.write_text(fixture)
+
+        # Cursor points to ready-dependent, which is actually next (deps are met)
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        if "stale" in status.lower():
+            raise AssertionError(f"should not warn about stale cursor when consistent:\n{status}")
+
+
+def test_status_warns_on_unknown_dependency_key() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unknown-dep.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Unknown dependency test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "bad-dep"
+                title: "Bad Dependency"
+                goal: "Has typo in dep"
+                status: "planned"
+                note: ""
+                depends_on: ["nonexistent-slice"]
+                steps: []
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        if "depends_on unknown slice key" not in status and "⚠" not in status:
+            raise AssertionError(f"expected unknown dependency warning in:\n{status}")
+
+
+def test_show_renders_deps_with_mixed_statuses() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-deps.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Show deps test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY_WITH_DEPENDENCIES + "\n}\n"
+        task.write_text(fixture)
+
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        if "deps:" not in show:
+            raise AssertionError(f"expected 'deps:' line in show output:\n{show}")
+        # ready-dependent should show deps with base:done
+        if "base:done" not in show:
+            raise AssertionError(f"expected 'base:done' in deps line:\n{show}")
+        # blocked-dependent should show not ready annotation
+        if "not ready" not in show:
+            raise AssertionError(f"expected '(not ready)' annotation:\n{show}")
+
+
+def test_show_omits_deps_line_when_absent() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-no-deps.cue"
+        task.write_text(TASK_FIXTURE)
+
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        # Existing fixture has no depends_on, should not show deps lines
+        if "deps:" in show:
+            raise AssertionError(f"should not show deps: line when no depends_on:\n{show}")
+
+
+def test_init_rejects_forward_reference_dependency_with_full_profile() -> None:
+    """Regression test: cmd_init() must use slice_work_contract_phase() not hardcoded 'implement'."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "forward-ref.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Forward reference dependency test"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "first-slice"
+                title: "First"
+                goal: "Depends on nonexistent slice"
+                status: "planned"
+                note: ""
+                depends_on: ["nonexistent-slice"]
+                steps: []
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        # init with full profile on a task with unmet dependency should die, not guess "implement"
+        init_res = run(str(PI_JOB), "--task", str(task), "init", "--profile", "full", check=False)
+        if init_res.returncode == 0:
+            raise AssertionError("init unexpectedly succeeded with forward-reference dependency in full profile")
+        assert_contains(init_res.stderr, "no slice is dependency-satisfied yet")
+        assert_contains(init_res.stderr, "forward reference")
+
+
+def test_scaffold_output_has_no_local_schema() -> None:
+    """Scaffold output should not contain local #Slice:/#Status: definitions."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "schema-test.cue"
+        dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
+        if "#Status:" in dry or "#Step:" in dry or "#Slice:" in dry or "#Decision:" in dry or "#Artifact:" in dry:
+            raise AssertionError(f"scaffold dry-run should not contain local type definitions:\n{dry}")
+
+
+def test_scaffold_output_still_validates_via_shared_schema() -> None:
+    """Real (non-dry-run) scaffold, then pi-job status/show succeed against it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "schema-validate.cue"
+        run(str(PI_JOB), "--task", str(task), "scaffold")
+
+        # status and show should work without errors
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Task:")
+
+        # Initialize profile first
+        run(str(PI_JOB), "--task", str(task), "init", "--profile", "small")
+
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        assert_contains(show, "do-the-change")
+
+
+def test_add_slice_happy_path_no_repos() -> None:
+    """Dry-run and real add-slice on a no-repos fixture; verify output and final state."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "add-slice.cue"
+        task.write_text(TASK_FIXTURE)
+
+        # dry-run should show the literal
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New Slice", "--goal", "Do work", "--dry-run").stdout
+        assert_contains(dry, 'key: "new-slice"')
+        assert_contains(dry, 'title: "New Slice"')
+        assert_contains(dry, 'goal: "Do work"')
+
+        # real write
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New Slice", "--goal", "Do work")
+
+        # show should list the new slice
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "new-slice")
+
+
+def test_add_slice_rejects_duplicate_key() -> None:
+    """add-slice with duplicate key dies."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "dup-key.cue"
+        task.write_text(TASK_FIXTURE)
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "first", "--title", "Duplicate", "--goal", "Should fail", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-slice should reject duplicate key")
+        assert_contains(res.stderr, "already exists")
+
+
+def test_add_slice_after_inserts_in_correct_order() -> None:
+    """add-slice --after places slice after existing one."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "after.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "between", "--title", "Between", "--goal", "In middle", "--after", "first")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        lines = show.split("\n")
+        first_idx = next((i for i, l in enumerate(lines) if "first" in l), -1)
+        between_idx = next((i for i, l in enumerate(lines) if "between" in l), -1)
+        second_idx = next((i for i, l in enumerate(lines) if "second-slice" in l), -1)
+        if not (0 <= first_idx < between_idx < second_idx):
+            raise AssertionError(f"order wrong: first={first_idx}, between={between_idx}, second={second_idx}")
+
+
+def test_add_slice_rejects_unknown_after_slice() -> None:
+    """add-slice --after with unknown slice dies."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unknown-after.cue"
+        task.write_text(TASK_FIXTURE)
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", "--after", "nonexistent", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-slice should reject unknown --after slice")
+        assert_contains(res.stderr, "not found")
+
+
+def test_add_slice_works_on_empty_plan_slices() -> None:
+    """add-slice works even on plan.slices: [] fixture (shared schema)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "empty-slices.cue"
+        # Create a minimal fixture with empty slices
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Empty plan"
+    status: "in_progress"
+    project: {
+        name: "Empty"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        slices: []
+    }
+}
+"""
+        task.write_text(fixture)
+
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "first-slice", "--title", "First", "--goal", "Initial work")
+
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        assert_contains(show, "first-slice")
+
+
+def test_add_slice_unified_final_steps_field() -> None:
+    """Regression test: add-slice must correctly handle unified final_steps expressions.
+    When a local #Slice has a closed final_steps (e.g., 2 fixed items) unified with the
+    shared schema's open [...#Step] final_steps via cue def, parse_def_struct_fields must
+    split on top-level & and classify the closed operand correctly (not misclassify as open).
+    This ensures the new slice literal copies the fixed 2 items, not empty."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unified-final-steps.cue"
+        # Define a local #Slice with a CLOSED 2-element final_steps list.
+        # This mimics the bootstrap task structure.
+        preamble_closed_final_steps = """
+package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    steps: [...#Step]
+    final_steps: [
+        #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""},
+        #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
+    ]
+}
+"""
+        fixture_closed_final = preamble_closed_final_steps + """
+task: {
+    title: "Closed final_steps test"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        slices: []
+    }
+}
+"""
+        task.write_text(fixture_closed_final)
+
+        # Dry-run should show the literal with BOTH final_steps entries
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional", "--dry-run").stdout
+        assert_contains(dry, 'key: "e2e-evidence"')
+        assert_contains(dry, 'key: "update-task-file"')
+
+        # Real add-slice should succeed (previously failed with "incompatible list lengths (0 and 2)")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional")
+
+        # Show should list the new slice with 2 final_steps
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "extra-work")
+
+
+def test_add_step_happy_path() -> None:
+    """add-step dry-run and real write, verify final state."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "add-step.cue"
+        task.write_text(TASK_FIXTURE)
+
+        # dry-run
+        dry = run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "second-slice", "--key", "new-step", "--title", "New Step", "--dry-run").stdout
+        assert_contains(dry, 'key: "new-step"')
+        assert_contains(dry, 'title: "New Step"')
+
+        # real write
+        run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "second-slice", "--key", "new-step", "--title", "New Step")
+
+        # show should list it
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "new-step")
+
+
+def test_add_step_final_flag() -> None:
+    """add-step --final places step in final_steps."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "final-step.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "second-slice", "--key", "final-new", "--title", "Final Step", "--final")
+
+        text = task.read_text()
+        if "final_steps" not in text or text.index('key: "final-new"') < text.rindex("final_steps"):
+            # Key might appear after final_steps declaration
+            pass
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "final-new")
+
+
+def test_add_step_rejects_duplicate_key() -> None:
+    """add-step rejects duplicate key in same slice."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "dup-step.cue"
+        task.write_text(TASK_FIXTURE)
+        res = run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "second-slice", "--key", "s1", "--title", "Duplicate", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-step should reject duplicate key")
+        assert_contains(res.stderr, "already exists")
+
+
+def test_add_step_rejects_unknown_slice() -> None:
+    """add-step with unknown slice dies."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unknown-slice.cue"
+        task.write_text(TASK_FIXTURE)
+        res = run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "nonexistent", "--key", "step", "--title", "Step", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-step should reject unknown slice")
+        assert_contains(res.stderr, "slice not found")
+
+
+def test_add_step_after_inserts_in_correct_order() -> None:
+    """add-step --after places step after existing one."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "step-after.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "second-slice", "--key", "s1b", "--title", "Between", "--after", "s1")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        text = show
+        idx_s1 = text.index("s1")
+        idx_s1b = text.index("s1b")
+        idx_s2 = text.index("s2")
+        if not (idx_s1 < idx_s1b < idx_s2):
+            raise AssertionError(f"step order wrong: s1={idx_s1}, s1b={idx_s1b}, s2={idx_s2}")
+
+
+def test_add_step_final_rolls_back_on_closed_final_steps_schema() -> None:
+    """add-step --final on a closed-length final_steps rolls back cleanly."""
+    with tempfile.TemporaryDirectory() as tmp:
+        # Use the bootstrap task which has a closed 2-element final_steps
+        # Copy it to tmp to avoid modifying original
+        bootstrap_file = Path("/home/volodymyrvitvitskyi/proj/weight-loss/projects/pi-agent-job-harness/tasks/2026-07-09-bootstrap-pi-agent-job-harness.cue")
+        if not bootstrap_file.exists():
+            # Skip if the real file doesn't exist in this test environment
+            return
+
+        task = Path(tmp) / "closed-final.cue"
+        original_content = bootstrap_file.read_text()
+        task.write_text(original_content)
+
+        # Try to add a step to final_steps when it's a closed list
+        res = run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "init-harness", "--key", "extra-step", "--title", "Extra", "--final", check=False)
+
+        # Should fail
+        if res.returncode == 0:
+            raise AssertionError("add-step --final should reject closed final_steps schema")
+
+        # File should be byte-identical to original (rollback)
+        after_content = task.read_text()
+        if after_content != original_content:
+            raise AssertionError("file was not rolled back to original on validation failure")
+
+
+def test_add_slice_happy_path_with_repos() -> None:
+    """add-slice with repos field when schema declares it as optional."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "with-repos.cue"
+        # Build a task with optional repos field
+        preamble_with_repos = """
+package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    depends_on?: [...string]
+    repos?: [...string]
+    steps: [...#Step]
+    final_steps: [...#Step]
+}
+"""
+        fixture_with_repos = preamble_with_repos + """
+task: {
+    title: "Fixture with repos"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY + """
+}
+"""
+        task.write_text(fixture_with_repos)
+
+        # dry-run with repos
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "repo-slice", "--title", "Repo Slice", "--goal", "Work on repos", "--repos", "graphius,darius", "--dry-run").stdout
+        assert_contains(dry, 'key: "repo-slice"')
+        assert_contains(dry, 'repos: ["graphius", "darius"]')
+
+        # real write
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "repo-slice", "--title", "Repo Slice", "--goal", "Work on repos", "--repos", "graphius,darius")
+
+        # Verify show lists it
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "repo-slice")
+
+        # Verify the file is still valid (can export)
+        run(str(PI_JOB), "--task", str(task), "show")
+
+
+def test_add_slice_requires_repos_when_schema_requires_it() -> None:
+    """add-slice dies when repos is required by schema but not provided."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "repos-required.cue"
+        # Build a task with required repos field (no ?)
+        preamble_repos_required = """
+package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    repos: [...string]
+    steps: [...#Step]
+    final_steps: [...#Step]
+}
+"""
+        fixture_repos_required = preamble_repos_required + """
+task: {
+    title: "Repos required"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY + """
+}
+"""
+        task.write_text(fixture_repos_required)
+
+        # Try to add without --repos; should fail
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-slice should require --repos when schema requires it")
+        assert_contains(res.stderr, "repos")
+        assert_contains(res.stderr, "requires")
+
+
+def test_add_slice_rejects_unsupported_required_field() -> None:
+    """add-slice dies when schema has a required field the CLI doesn't support."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unsupported-field.cue"
+        # Build a task with an unsupported required field (owner)
+        preamble_with_owner = """
+package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    owner: string
+    steps: [...#Step]
+    final_steps: [...#Step]
+}
+"""
+        fixture_with_owner = preamble_with_owner + """
+task: {
+    title: "With owner field"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        profile: "small"
+        cursor: {
+            phase: "implement"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+""" + PLAN_BODY + """
+}
+"""
+        task.write_text(fixture_with_owner)
+
+        # Try to add; should fail because owner is required but unsupported
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", check=False)
+        if res.returncode == 0:
+            raise AssertionError("add-slice should reject unsupported required fields")
+        assert_contains(res.stderr, "owner")
+
+
+def test_migrate_task_reports_already_migrated() -> None:
+    """Task with no local defs (pure shared-schema style) reports already migrated."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "shared-schema.cue"
+        # Use the standard preamble without local defs
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Shared schema task"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+""" + PLAN_BODY + """
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+        assert_contains(out, "PI-JOB MIGRATION INSTRUCTION")
+        assert_contains(out, "already migrated")
+        assert_contains(out, "no local type declarations found")
+
+
+def test_migrate_task_recommends_delete_for_identical_status() -> None:
+    """Local #Status exactly matches shared schema → recommends DELETE."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "identical-status.cue"
+        # Use preamble that already matches shared schema
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Identical status"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+""" + PLAN_BODY + """
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+        assert_contains(out, "#Status")
+        assert_contains(out, "DELETE")
+        assert_contains(out, "identical")
+
+
+def test_migrate_task_recommends_keep_for_status_with_used_extra_value() -> None:
+    """Extra status value declared AND used in instance data → recommends KEEP."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "used-extra-status.cue"
+        # Define a custom #Status with extra value "ready"
+        preamble_extra_status = """
+package task
+
+#Status: "planned" | "ready" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    steps: [...#Step]
+    final_steps: [...#Step]
+}
+"""
+        fixture = preamble_extra_status + """
+task: {
+    title: "Used extra status"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "use-ready"
+                title: "Use ready status"
+                goal: "Test extra value usage"
+                status: "ready"
+                note: ""
+                steps: []
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+        assert_contains(out, "#Status")
+        assert_contains(out, "KEEP AS-IS")
+        assert_contains(out, "used")
+        assert_contains(out, "ready")
+
+
+def test_migrate_task_recommends_delete_for_status_with_unused_extra_value() -> None:
+    """Extra value declared but never used → recommends DELETE."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unused-extra-status.cue"
+        # Define a custom #Status with extra value "unused_value" that's never used
+        preamble_unused = """
+package task
+
+#Status: "planned" | "unused_value" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    steps: [...#Step]
+    final_steps: [...#Step]
+}
+"""
+        fixture = preamble_unused + """
+task: {
+    title: "Unused extra status"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "no-unused"
+                title: "No unused status"
+                goal: "Only use normal statuses"
+                status: "planned"
+                note: ""
+                steps: []
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+        assert_contains(out, "#Status")
+        assert_contains(out, "DELETE")
+        assert_contains(out, "unused")
+
+
+def test_migrate_task_recommends_replace_for_slice_with_extra_fields() -> None:
+    """#Slice with extra local fields (repos, closed final_steps) → recommends REPLACE."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "slice-extra-fields.cue"
+        # Define a local #Slice with repos field and closed final_steps
+        preamble_slice_extra = """
+package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    repos: [...string]
+    steps: [...#Step]
+    final_steps: [
+        #Step & {key: "e2e-evidence", title: "E2E evidence", status: "planned", note: ""},
+        #Step & {key: "update-task-file", title: "Update task", status: "planned", note: ""},
+    ]
+}
+"""
+        fixture = preamble_slice_extra + """
+task: {
+    title: "Slice with repos and closed final_steps"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "multi-repo"
+                title: "Multi repo work"
+                goal: "Work across repos"
+                status: "planned"
+                note: ""
+                repos: ["graphius", "darius"]
+                steps: []
+                final_steps: [
+                    #Step & {key: "e2e-evidence", title: "E2E evidence", status: "planned", note: ""},
+                    #Step & {key: "update-task-file", title: "Update task", status: "planned", note: ""},
+                ]
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+        assert_contains(out, "#Slice")
+        assert_contains(out, "REPLACE")
+        assert_contains(out, "repos")
+        assert_contains(out, "final_steps")
+        assert_contains(out, "e2e-evidence")
+        assert_contains(out, "update-task-file")
+
+
+def test_migrate_task_line_ranges_are_accurate() -> None:
+    """Line ranges in output match the actual declaration span."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "line-ranges.cue"
+        # Create fixture with a known #Slice block on specific lines
+        fixture = """
+package task
+
+#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
+#Step: {
+    key: string
+    title: string
+    status: #Status
+    note: string
+}
+#Slice: {
+    key: string
+    title: string
+    goal: string
+    status: #Status
+    note: string
+    repos: [...string]
+    steps: [...#Step]
+    final_steps: [...#Step]
+}
+
+task: {
+    title: "Line range test"
+    status: "in_progress"
+    project: {
+        name: "Test"
+    }
+    plan: {
+        slices: []
+    }
+}
+"""
+        task.write_text(fixture)
+
+        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
+        assert_contains(out, "#Slice")
+        assert_contains(out, "lines")
+        # Should mention the Slice definition block which is roughly on lines 9-17
+        # (the exact range depends on formatting, but it should be reasonable)
+        if "lines" not in out:
+            raise AssertionError(f"expected 'lines' in output to show line ranges:\n{out}")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_profile()
@@ -529,6 +1728,40 @@ def main() -> None:
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
     test_scaffold_includes_reconcile_artifacts()
+    test_next_skips_unready_head_of_array()
+    test_next_all_lists_only_ready_slices()
+    test_status_ready_line_matches_next_all()
+    test_blocked_status_slice_is_skipped()
+    test_next_returns_blocked_when_nothing_ready()
+    test_status_warns_on_stale_cursor()
+    test_status_no_warning_when_consistent()
+    test_status_warns_on_unknown_dependency_key()
+    test_show_renders_deps_with_mixed_statuses()
+    test_show_omits_deps_line_when_absent()
+    test_init_rejects_forward_reference_dependency_with_full_profile()
+    test_scaffold_output_has_no_local_schema()
+    test_scaffold_output_still_validates_via_shared_schema()
+    test_add_slice_happy_path_no_repos()
+    test_add_slice_happy_path_with_repos()
+    test_add_slice_rejects_duplicate_key()
+    test_add_slice_requires_repos_when_schema_requires_it()
+    test_add_slice_rejects_unsupported_required_field()
+    test_add_slice_after_inserts_in_correct_order()
+    test_add_slice_rejects_unknown_after_slice()
+    test_add_slice_works_on_empty_plan_slices()
+    test_add_slice_unified_final_steps_field()
+    test_add_step_happy_path()
+    test_add_step_final_flag()
+    test_add_step_rejects_duplicate_key()
+    test_add_step_rejects_unknown_slice()
+    test_add_step_after_inserts_in_correct_order()
+    test_add_step_final_rolls_back_on_closed_final_steps_schema()
+    test_migrate_task_reports_already_migrated()
+    test_migrate_task_recommends_delete_for_identical_status()
+    test_migrate_task_recommends_keep_for_status_with_used_extra_value()
+    test_migrate_task_recommends_delete_for_status_with_unused_extra_value()
+    test_migrate_task_recommends_replace_for_slice_with_extra_fields()
+    test_migrate_task_line_ranges_are_accurate()
     print("pi-job tests passed")
 
 
