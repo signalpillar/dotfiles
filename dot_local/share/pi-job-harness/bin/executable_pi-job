@@ -2411,6 +2411,85 @@ def cmd_plan(args: argparse.Namespace) -> None:
     print(build_plan(task_file, task, profile))
 
 
+def cmd_sync(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    store = open_task_store(task_file)
+    task = store.read()
+    profile = require_profile(task_file, task)
+    status_filter = set(args.status.split(",")) if args.status else None
+    print(build_sync_instruction(task_file, task, profile, status_filter))
+
+
+def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) -> list[dict[str, Any]]:
+    """Slices worth re-verifying: with an explicit status_filter, exactly those statuses;
+    otherwise any in_progress/blocked slice, or any slice carrying an open PR (its recorded
+    state could have changed - e.g. merged - since last checked)."""
+    candidates = []
+    for task_slice in task.get("plan", {}).get("slices", []):
+        st = status_value(task_slice)
+        if status_filter is not None:
+            if st in status_filter:
+                candidates.append(task_slice)
+            continue
+        if st in ("in_progress", "blocked"):
+            candidates.append(task_slice)
+            continue
+        repo_work = task_slice.get("repo_work") or {}
+        if any(pr.get("status") == "open" for work in repo_work.values() for pr in (work.get("prs") or [])):
+            candidates.append(task_slice)
+    return candidates
+
+
+def build_sync_instruction(
+    task_file: Path, task: dict[str, Any], profile_key: str, status_filter: set[str] | None
+) -> str:
+    candidates = sync_candidate_slices(task, status_filter)
+    contract_phase = slice_work_contract_phase(profile_key) or ""
+
+    lines = [
+        "PI-JOB SYNC CHECKLIST",
+        "",
+        f"Task file: {task_file}",
+        f"Repository root: {ROOT}",
+        f"{len(candidates)} slice(s) to verify.",
+        "",
+    ]
+    if not candidates:
+        lines.append("Nothing matched the sync criteria (in_progress/blocked slices, or slices with an open PR).")
+        return "\n".join(lines)
+
+    lines += [
+        "For each slice below: dispatch a subagent to check its actual state against what's",
+        "recorded (PR merged/closed? described changes actually present?). It's expected and",
+        "fine to hand-edit this task file directly to record findings - e.g. `pi-job add-pr`",
+        "to upsert a PR's real status, or editing a step/slice's status/note by hand - same as",
+        "PR status updates already work today.",
+        "",
+    ]
+    for i, task_slice in enumerate(candidates, start=1):
+        key = str(task_slice.get("key") or "")
+        st = status_value(task_slice)
+        lines.append(f"{i}. {key} ({st})")
+        repo_work = task_slice.get("repo_work") or {}
+        for repo_name, work in repo_work.items():
+            worktree = work.get("worktree")
+            suffix = f"  worktree: {worktree}" if worktree else ""
+            lines.append(f"   repo: {repo_name}{suffix}")
+            for pr in work.get("prs") or []:
+                lines.append(f"   pr: {pr.get('url')} [{pr.get('status')}]")
+        current = slice_cursor(contract_phase, task_slice)
+        if current.step:
+            step = find_current_step(task_slice, current)
+            step_status = status_value(step) if step else "?"
+            lines.append(f"   current step: {current.step} ({step_status})")
+        lines.append(
+            "   check: verify PR/merge state and whether the recorded step/slice status "
+            "still matches reality; update via `pi-job add-pr` or by hand-editing this task file."
+        )
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def slice_counts(task_slice: dict[str, Any]) -> tuple[int, int]:
     steps = list(task_slice.get("steps", [])) + list(task_slice.get("final_steps", []))
     done = sum(1 for s in steps if status_value(s) in STATUS_DONE)
@@ -2927,6 +3006,13 @@ def main() -> None:
 
     plan = sub.add_parser("plan", help="print profile phase plan from profile-contract.cue")
     plan.set_defaults(fn=cmd_plan)
+
+    sync = sub.add_parser(
+        "sync",
+        help="print a checklist of slices worth re-verifying (in_progress/blocked, or carrying an open PR) for the orchestrator to dispatch subagents against",
+    )
+    sync.add_argument("--status", help="comma-separated slice statuses to check instead of the default in_progress/blocked-or-open-PR selection")
+    sync.set_defaults(fn=cmd_sync)
 
     tb = sub.add_parser("toolbelt", help="list toolbelt aids for the profile, or add one")
     tb.add_argument("action", nargs="?", choices=["add"], help="'add' to register an aid")

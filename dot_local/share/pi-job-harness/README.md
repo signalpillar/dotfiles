@@ -196,6 +196,11 @@ Every coding profile (`small`, `full`, `spike-prototype` - the three that walk `
 
 No new `pi-job` logic enforces this - it's the same step-ordering gate `advance`/`next` already apply to any step, just pointed at two new conventional step keys. A genuinely trivial single-file edit may skip both (status `skipped`, note recording why), the same exception class `coding_execution.exceptions` already covers. This is distinct from the `full` profile's task-level `grill_plan` *phase* (which grills overall scope before slices exist) - `create-plan`/`grill-plan` are the finer-grained, per-slice equivalent, and the only grilling `small`/`spike-prototype` slices get at all. See `profile-contract.cue#plan_and_grill_guardrail`.
 
+## Syncing recorded state with reality: `sync`
+
+- `pi-job --task <t> sync [--status s1,s2]` — print a checklist of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR (its recorded state could have changed - e.g. merged - since last checked); `--status` overrides the selection to an exact status set, same convention as `show --status`.
+- `pi-job` never spawns agents itself (see Principles) - `sync` only enumerates and prints instructions. The orchestrator is expected to dispatch a subagent per listed slice to check its actual state, then record findings by hand-editing the task file directly or via `pi-job add-pr` - the same way PR status updates already work today.
+
 ## Repo work: worktrees & PRs
 
 - `pi-job --task <t> set-worktree --slice K --repo R --path P` — record/update the filesystem

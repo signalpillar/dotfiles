@@ -2108,6 +2108,71 @@ def test_add_slice_still_works_with_repo_work_in_schema() -> None:
         assert_contains(show, "new-slice")
 
 
+SYNC_FIXTURE_CUE = """package task
+
+task: {
+	title:  "Sync fixture"
+	status: "in_progress"
+	source: {jira: "", discovered: "", context: ""}
+	project: {key: "sync", name: "Sync", route: "", context: ""}
+	context: ""
+	orchestration: {
+		profile: "full"
+		cursor: {phase: "implement_slices"}
+		policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
+	}
+	decisions: []
+	plan: {
+		note: ""
+		slices: [
+			#Slice & {
+				key: "active-slice", title: "Active", goal: "g", status: "in_progress", note: ""
+				steps: [#Step & {key: "s1", title: "s1", status: "in_progress", note: ""}]
+				final_steps: []
+			},
+			#Slice & {
+				key: "blocked-slice", title: "Blocked", goal: "g", status: "blocked", note: ""
+				steps: [#Step & {key: "s1", title: "s1", status: "planned", note: ""}]
+				final_steps: []
+			},
+			#Slice & {
+				key: "planned-slice", title: "Planned", goal: "g", status: "planned", note: ""
+				steps: [#Step & {key: "s1", title: "s1", status: "planned", note: ""}]
+				final_steps: []
+			},
+			#Slice & {
+				key: "done-with-open-pr", title: "Done but PR open", goal: "g", status: "done", note: ""
+				repo_work: {"some-repo": {prs: [#PR & {url: "https://example.com/pr/9", status: "open", note: ""}]}}
+				steps: []
+				final_steps: []
+			},
+		]
+	}
+}
+"""
+
+
+def test_sync_default_selection_and_status_override() -> None:
+    """Default sync selection: in_progress/blocked slices, plus any slice carrying an
+    open PR even if its own status is done. --status overrides to an exact status set."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "sync.cue"
+        task.write_text(SYNC_FIXTURE_CUE)
+
+        default_out = run(str(PI_JOB), "--task", str(task), "sync").stdout
+        assert_contains(default_out, "active-slice")
+        assert_contains(default_out, "blocked-slice")
+        assert_contains(default_out, "done-with-open-pr")
+        if "planned-slice" in default_out:
+            raise AssertionError(f"planned-slice (no PR, not in_progress/blocked) should be excluded by default:\n{default_out}")
+
+        status_out = run(str(PI_JOB), "--task", str(task), "sync", "--status", "planned").stdout
+        assert_contains(status_out, "planned-slice")
+        for excluded in ("active-slice", "blocked-slice", "done-with-open-pr"):
+            if excluded in status_out:
+                raise AssertionError(f"{excluded} should be excluded by --status planned override:\n{status_out}")
+
+
 MINIMAL_CUE_FIXTURE = """package task
 
 task: {
@@ -2539,6 +2604,7 @@ def main() -> None:
     test_add_pr_rejects_unknown_slice()
     test_add_pr_after_set_worktree_preserves_worktree()
     test_show_renders_repo_work_worktree_and_prs()
+    test_sync_default_selection_and_status_override()
     test_add_slice_still_works_with_repo_work_in_schema()
     test_fs_task_store_round_trip()
     test_fs_task_store_ordering()
