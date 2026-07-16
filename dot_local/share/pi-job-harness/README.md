@@ -183,7 +183,7 @@ Once every slice/step is `done`/`skipped`, `next`/`advance` continue walking the
 
 - `pi-job --task <t> toolbelt` — list planning aids whose `suits` includes the task's profile, with each aid's registered status.
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` — register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
-- `pi-job --task <t> show [--all] [--status s1,s2]` — render the task as a cursor-focused slice/step tree with a toolbelt footer. Slices already `in_progress` or `blocked` expand by default (not just the current cursor's slice) — `--all` additionally expands not-yet-started (`planned`) slices; `--status` filters slices.
+- `pi-job --task <t> show [--all] [--started] [--status s1,s2]` — render the task as a cursor-focused slice/step tree with a toolbelt footer. By default only the current cursor's slice expands; `--started` additionally expands any slice whose status isn't `planned`; `--all` expands every slice regardless of status. `--status` is a separate filter on which slices are listed at all.
 
 The `full` profile runs a `select_toolbelt` phase before `plan_slices`: the model picks the aids that help write the plan and registers them (`--status planned`); each is produced during `plan_slices` and reconciled against shipped code by the `reconcile-artifacts` terminal step. The catalog lives in `profile-contract.cue#toolbelt`.
 

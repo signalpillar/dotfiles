@@ -560,10 +560,11 @@ def test_show_renders_tree_and_footer() -> None:
         assert_contains(footer, "docs/seq.md")
 
 
-def test_show_expands_started_slices_by_default() -> None:
-    """Slices already in_progress or blocked expand by default (steps visible without
-    --all), even when they are not the current cursor's slice; not-yet-started slices
-    (status planned) still collapse to a one-line summary."""
+def test_show_started_flag_expands_non_planned_slices() -> None:
+    """By default only the current cursor's slice expands - in_progress/blocked slices
+    that are NOT the cursor's slice stay collapsed. --started additionally expands any
+    slice whose status isn't planned (even if not the cursor's slice); a still-planned
+    slice stays collapsed even with --started."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "started.cue"
         fixture = TASK_PREAMBLE + """
@@ -627,11 +628,21 @@ task: {
 """
         task.write_text(fixture)
 
-        out = run(str(PI_JOB), "--task", str(task), "show").stdout
-        assert_contains(out, "ip-1")
-        assert_contains(out, "bl-1")
-        if "ns-1" in out:
-            raise AssertionError(f"not-started slice should NOT expand by default:\n{out}")
+        default_out = run(str(PI_JOB), "--task", str(task), "show").stdout
+        for key in ("ip-1", "bl-1", "ns-1"):
+            if key in default_out:
+                raise AssertionError(f"{key} should NOT expand by default (not the cursor's slice):\n{default_out}")
+
+        started_out = run(str(PI_JOB), "--task", str(task), "show", "--started").stdout
+        assert_contains(started_out, "ip-1")
+        assert_contains(started_out, "bl-1")
+        if "ns-1" in started_out:
+            raise AssertionError(f"still-planned slice should NOT expand with --started:\n{started_out}")
+
+        all_out = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(all_out, "ip-1")
+        assert_contains(all_out, "bl-1")
+        assert_contains(all_out, "ns-1")
 
 
 def test_scaffold_includes_reconcile_artifacts() -> None:
@@ -2413,7 +2424,7 @@ def main() -> None:
     test_select_toolbelt_phase_and_instruction()
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
-    test_show_expands_started_slices_by_default()
+    test_show_started_flag_expands_non_planned_slices()
     test_scaffold_includes_reconcile_artifacts()
     test_next_skips_unready_head_of_array()
     test_next_all_lists_only_ready_slices()

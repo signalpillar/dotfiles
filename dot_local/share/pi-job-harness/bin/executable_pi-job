@@ -2474,7 +2474,7 @@ def cmd_show(args: argparse.Namespace) -> None:
                 note_suffix = f" — {pr.get('note')}" if pr.get("note") else ""
                 lines.append(f"        pr {pr.get('status')} {pr.get('url')}{note_suffix}")
 
-        if args.all or is_current or st in ("in_progress", "blocked"):
+        if args.all or is_current or (args.started and st != "planned"):
             current_step = cursor.step if is_current and cursor else None
             for step in task_slice.get("steps", []):
                 lines.append(step_line(step, terminal=False, current_step=current_step))
@@ -2936,6 +2936,10 @@ def main() -> None:
 
     show = sub.add_parser("show", help="render the task as a cursor-focused slice/step tree")
     show.add_argument("--all", action="store_true", help="expand every slice's steps")
+    show.add_argument(
+        "--started", action="store_true",
+        help="also expand slices whose status is not 'planned' (work has started), even if not the current cursor's slice",
+    )
     show.add_argument("--status", help="comma-separated slice statuses to include")
     show.set_defaults(fn=cmd_show)
 
