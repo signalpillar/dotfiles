@@ -85,6 +85,8 @@ task: {{
 				status: "in_progress"
 				note:   ""
 				steps: [
+					#Step & {{key: "create-plan", title: "Plan the code change (files touched, approach, tradeoffs)", status: "planned", note: ""}},
+					#Step & {{key: "grill-plan", title: "Grill the plan (skills/grill-me) before writing code", status: "planned", note: ""}},
 					#Step & {{key: "edit-code", title: "Edit the code", status: "planned", note: ""}},
 					#Step & {{key: "verify", title: "Run checks", status: "planned", note: ""}},
 				]

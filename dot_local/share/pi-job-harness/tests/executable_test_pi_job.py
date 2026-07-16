@@ -659,6 +659,74 @@ def test_scaffold_includes_reconcile_artifacts() -> None:
             raise AssertionError(f"final_steps order wrong: e2e={i_e2e} reconcile={i_rec} update={i_upd}")
 
 
+def test_scaffold_includes_create_plan_and_grill_plan_before_edit_code() -> None:
+    """The scaffold's steps must lead with create-plan then grill-plan, before edit-code -
+    modeling the per-slice planning convention for anyone reading a fresh scaffold."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "new.cue"
+        dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
+        assert_contains(dry, 'key: "create-plan"')
+        assert_contains(dry, 'key: "grill-plan"')
+        i_plan = dry.index("create-plan")
+        i_grill = dry.index("grill-plan")
+        i_edit = dry.index("edit-code")
+        if not (i_plan < i_grill < i_edit):
+            raise AssertionError(f"steps order wrong: create-plan={i_plan} grill-plan={i_grill} edit-code={i_edit}")
+
+
+def test_next_walks_create_plan_then_grill_plan_before_edit_code() -> None:
+    """pi-job's existing step-ordering gate, applied to the new convention: next must
+    report create-plan first, then grill-plan once create-plan is done, then edit-code
+    only once both are done - proving the guardrail is actually enforced, not just
+    documented."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "task.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Plan-and-grill gating test"
+    status: "in_progress"
+    orchestration: {
+        profile: "small"
+        cursor: {phase: "implement"}
+        policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "only-slice"
+                title: "Only slice"
+                goal: "Exercise the gate"
+                status: "in_progress"
+                note: ""
+                steps: [
+                    #Step & {key: "create-plan", title: "Plan", status: "planned", note: ""},
+                    #Step & {key: "grill-plan", title: "Grill", status: "planned", note: ""},
+                    #Step & {key: "edit-code", title: "Edit", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        task.write_text(fixture)
+
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        assert_contains(nxt, "create-plan")
+
+        text = task.read_text().replace('key: "create-plan", title: "Plan", status: "planned"', 'key: "create-plan", title: "Plan", status: "done"')
+        task.write_text(text)
+
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        assert_contains(nxt, "grill-plan")
+
+        text = task.read_text().replace('key: "grill-plan", title: "Grill", status: "planned"', 'key: "grill-plan", title: "Grill", status: "done"')
+        task.write_text(text)
+
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        assert_contains(nxt, "edit-code")
+
+
 def test_next_skips_unready_head_of_array() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "deps.cue"
@@ -2426,6 +2494,8 @@ def main() -> None:
     test_show_renders_tree_and_footer()
     test_show_started_flag_expands_non_planned_slices()
     test_scaffold_includes_reconcile_artifacts()
+    test_scaffold_includes_create_plan_and_grill_plan_before_edit_code()
+    test_next_walks_create_plan_then_grill_plan_before_edit_code()
     test_next_skips_unready_head_of_array()
     test_next_all_lists_only_ready_slices()
     test_status_ready_line_matches_next_all()

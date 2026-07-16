@@ -187,6 +187,15 @@ Once every slice/step is `done`/`skipped`, `next`/`advance` continue walking the
 
 The `full` profile runs a `select_toolbelt` phase before `plan_slices`: the model picks the aids that help write the plan and registers them (`--status planned`); each is produced during `plan_slices` and reconciled against shipped code by the `reconcile-artifacts` terminal step. The catalog lives in `profile-contract.cue#toolbelt`.
 
+## Planning before code changes: `create-plan` / `grill-plan`
+
+Every coding profile (`small`, `full`, `spike-prototype` - the three that walk `task.plan.slices` under a slice-work phase) requires each slice's `steps` to lead with two steps, in order, before anything else in that slice starts:
+
+1. `create-plan` - the detailed implementation plan for that slice specifically (approach, files/functions touched, key tradeoffs), not a restatement of the slice's goal.
+2. `grill-plan` - interrogate that plan with the grill-me skill (`skills/grill-me/SKILL.md`) before writing code. If grilling surfaces a real gap, the loop is: revise `create-plan`'s note, grill again, only mark `grill-plan` done once the plan survives.
+
+No new `pi-job` logic enforces this - it's the same step-ordering gate `advance`/`next` already apply to any step, just pointed at two new conventional step keys. A genuinely trivial single-file edit may skip both (status `skipped`, note recording why), the same exception class `coding_execution.exceptions` already covers. This is distinct from the `full` profile's task-level `grill_plan` *phase* (which grills overall scope before slices exist) - `create-plan`/`grill-plan` are the finer-grained, per-slice equivalent, and the only grilling `small`/`spike-prototype` slices get at all. See `profile-contract.cue#plan_and_grill_guardrail`.
+
 ## Repo work: worktrees & PRs
 
 - `pi-job --task <t> set-worktree --slice K --repo R --path P` — record/update the filesystem

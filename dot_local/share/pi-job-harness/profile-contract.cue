@@ -152,6 +152,28 @@ pr_template_guardrail: string & """
 	case.
 	"""
 
+// Explicit, non-improvisable per-slice planning requirement. Referenced by every
+// coding profile's slice-work phase (small.implement, full.implement_slices,
+// spike_prototype.implement) so it shows up verbatim in instruction packets.
+plan_and_grill_guardrail: string & """
+	Before any other step in a slice starts, that slice's steps must begin with exactly
+	two leading steps, in order:
+	(1) create-plan - note records the actual implementation plan for THIS slice
+	    specifically: approach, files/functions touched, key tradeoffs. Not a
+	    restatement of the slice's goal.
+	(2) grill-plan - interrogate create-plan's plan using the grill-me skill
+	    (skills/grill-me/SKILL.md). note records what was challenged and what changed.
+	    If grilling surfaces a real gap, revise create-plan's note and grill again
+	    before marking grill-plan done - this is a loop, not a one-shot rubber stamp.
+	Mark both done only once the plan has survived grilling; advance refuses to pass an
+	incomplete step, so edit-code-style steps stay unreachable until both are done.
+	Distinct from the full profile's task-level grill_plan PHASE (which grills overall
+	scope before slices exist) - this is the per-slice equivalent, and it's the only
+	grilling small/spike-prototype slices get at all.
+	Exception: a genuinely trivial single-file edit may skip both steps (status:
+	skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+	"""
+
 profiles: {
 	small: #Profile & {
 		key:         "small"
@@ -165,7 +187,15 @@ profiles: {
 		phases: [
 			#Phase & {key: "explore_context", title: "Explore context", owner: "orchestrator", inputs: ["task.source", "task.context"], outputs: ["known_repos", "adjacent_context"], validators: ["repos-or-explicitly-not-applicable"]},
 			#Phase & {key: "clarify_if_needed", title: "Clarify only blocking ambiguity", owner: "orchestrator", inputs: ["adjacent_context"], outputs: ["resolved_scope_or_no_questions"], validators: ["blocking-ambiguity-resolved"], skip_rule: "skip when exploration answers the implementation-relevant questions"},
-			#Phase & {key: "implement", title: "Implement", owner: "subagent", inputs: ["resolved_scope_or_no_questions"], outputs: ["changed_files", "commands_run", "risks"], validators: ["coding-policy-recorded", "worktree-used-when-repo-editing"]},
+			#Phase & {
+				key:   "implement"
+				title: "Implement"
+				owner: "subagent"
+				inputs: ["resolved_scope_or_no_questions"]
+				outputs: ["changed_files", "commands_run", "risks"]
+				validators: ["coding-policy-recorded", "worktree-used-when-repo-editing", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
+				guidance: plan_and_grill_guardrail
+			},
 			#Phase & {key: "verify", title: "Verify", owner: "orchestrator", inputs: ["changed_files", "commands_run"], outputs: ["verification_evidence"], validators: ["relevant-tests-or-gap-recorded"]},
 			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", inputs: ["verification_evidence"], outputs: ["task_record_updated"], validators: ["task-cursor-advanced"]},
 		]
@@ -206,8 +236,8 @@ profiles: {
 				owner: "subagent"
 				inputs: ["task.plan.slices"]
 				outputs: ["slice_evidence", "changed_repos"]
-				validators: ["each-slice-loop-complete", "pr-template-checked"]
-				guidance: "Each atomic slice runs its full loop and ends with its own terminal steps: e2e-evidence, then share-with-team (ticket + PR for that slice's repo). An atomic slice ships its repo change as it completes rather than waiting for a terminal bundle; downstream slices build on the merged prerequisite. " + pr_template_guardrail
+				validators: ["each-slice-loop-complete", "pr-template-checked", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
+				guidance: plan_and_grill_guardrail + " Each atomic slice runs its full loop and ends with its own terminal steps: e2e-evidence, then share-with-team (ticket + PR for that slice's repo). An atomic slice ships its repo change as it completes rather than waiting for a terminal bundle; downstream slices build on the merged prerequisite. " + pr_template_guardrail
 				artifact_gates: [
 					#ArtifactGate & {key: "ticket", required: true, when: "an atomic slice completes its repo change", source: "changed_repos", output: "one ticket for the slice's repo"},
 					#ArtifactGate & {key: "pull_request", required: true, when: "an atomic slice completes its repo change", source: "changed_files", output: "one PR for the slice's repo, opened as the slice completes, body written from the checked repo template or the share-with-team fallback (never freehanded)"},
@@ -309,7 +339,15 @@ profiles: {
 		}
 		phases: [
 			#Phase & {key: "clarify_scope", title: "Define learning question", owner: "orchestrator", inputs: ["task.context"], outputs: ["learning_question", "timebox"], validators: ["timebox-recorded"]},
-			#Phase & {key: "implement", title: "Prototype", owner: "subagent", inputs: ["learning_question", "timebox"], outputs: ["prototype_evidence"], validators: ["scope-contained"]},
+			#Phase & {
+				key:   "implement"
+				title: "Prototype"
+				owner: "subagent"
+				inputs: ["learning_question", "timebox"]
+				outputs: ["prototype_evidence"]
+				validators: ["scope-contained", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
+				guidance: plan_and_grill_guardrail
+			},
 			#Phase & {key: "verify", title: "Evaluate", owner: "orchestrator", inputs: ["prototype_evidence"], outputs: ["keep_change_discard"], validators: ["recommendation-recorded"]},
 			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", inputs: ["keep_change_discard"], outputs: ["task_record_updated"], validators: ["learning-recorded"]},
 		]
