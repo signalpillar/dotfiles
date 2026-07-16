@@ -83,6 +83,91 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
                                    +-- evidence back into task file
 ```
 
+## Concepts: how slices, steps, guards, and validators fit together
+
+Two nested levels - task/phase (macro) and slice/step (the thing that lives *inside* one phase).
+
+```text
+MACRO: task -> profile -> phases (profile-contract.cue)
+════════════════════════════════════════════════════════
+
+  task.orchestration.profile ──► profiles[profile_key].phases[]  (ordered list)
+
+    explore_context ──► clarify_scope ──► grill_plan ──► select_toolbelt ──► plan_slices
+                                                                                    │
+                                                                                    ▼
+                                                              ┌─────────────────────────────────┐
+                                                              │   implement_slices / implement   │  ◄── the ONE phase that owns
+                                                              │   (owner: subagent)               │      task.plan.slices - see MICRO
+                                                              └─────────────────────────────────┘
+                                                                                    │
+                                                                                    ▼
+                                          review ──► share_with_team ──► wait_for_team_feedback ──► ... ──► update_task_record
+
+  cursor = (phase, slice, step)  -- saved resume point, walks left-to-right through the above,
+                                     descending into MICRO only while phase == the slice-work phase.
+
+  Each #Phase carries, all advisory text UNLESS noted:
+    owner:      orchestrator | subagent | external_tool
+    inputs/outputs:  descriptive data-flow labels (not type-checked)
+    guidance:   free text, often a shared constant (pr_template_guardrail, plan_and_grill_guardrail)
+                so it's non-improvisable - shows up VERBATIM in `instruction`, never left to inference
+    skip_rule:  the one escape hatch - "skip when X" - still advisory, self-attested
+    validators: [string, ...] - descriptive checklist for the ORCHESTRATOR to self-check;
+                pi-job does NOT parse or verify these strings
+    artifact_gates: [...] - REAL tracked state (task.orchestration.artifacts[key].status),
+                     the one part of a phase pi-job actually persists and can report on
+
+
+MICRO: one slice's steps, inside implement_slices/implement
+═════════════════════════════════════════════════════════
+
+  task.plan.slices[]                 each slice:
+    │                                  key, title, goal, status, note
+    ├─ depends_on: [...]  ◄── GUARD: dependency_satisfied() / is_actionable() -
+    │                          next_cursor() skips a slice whose deps aren't done/skipped
+    │
+    └─ steps: [ ... ]  +  final_steps: [ ... ]      (walked in order, steps then final_steps)
+
+         create-plan ──► grill-plan ──► edit-code ──► verify ──► ... ──► e2e-evidence ──► share-with-team ──► update-task-file ──► wait-for-feedback
+              │               │                                                                │
+              └── GUARD ──────┘                                                                 └── GUARD: same mechanism, applied to the
+              blocking_incomplete_step(): advance/next refuse to move past a step whose               standardized terminal steps every slice
+              status isn't done/skipped - the SAME mechanism gates create-plan→grill-plan→            ends with (e2e-evidence, share-with-team, ...)
+              edit-code as gates any other pair of steps; nothing new was built for it.
+
+  Escape hatch, same guard, different outcome: mark a step `status: "skipped"` + a
+  reason in `note` - advance treats skipped exactly like done. This is how
+  coding_execution.exceptions and the create-plan/grill-plan "trivial edit" exception
+  actually work: there's no separate exception-handling code path, just "skipped" status.
+
+
+GUARD vs VALIDATOR - the actual distinction
+════════════════════════════════════════════
+
+  GUARD       = code that can make a command DIE or refuse to advance.
+                Exactly three of these exist in the whole harness:
+                  1. blocking_incomplete_step()   - can't advance past an incomplete step
+                  2. dependency_satisfied()/is_actionable() - next_cursor skips unready slices
+                  3. enforce_owner_policy()        - dies if owner=subagent but the contract
+                                                      says subagent_required=false with no
+                                                      recorded exception
+                All three are STRUCTURAL (status fields, dependency graph) - none of them
+                parse a validator string.
+
+  VALIDATOR   = a descriptive string on a #Phase (e.g. "grill-done-or-user-declined",
+                "scope-echoed", "pr-template-checked"). Purely advisory: printed in
+                `instruction`/`plan` output for the orchestrator to self-check against.
+                pi-job never reads validators back to confirm anything happened.
+
+  The create-plan/grill-plan validator name
+  ("create-plan-and-grill-plan-done-or-skip-reason-before-other-steps") LOOKS like the
+  others, but is actually backed by guard #1 above - it's the one validator whose claim
+  pi-job can't NOT enforce, because it's just naming the existing step-order gate.
+```
+
+Two takeaways this makes concrete: almost everything in the contract is advisory text the orchestrator self-polices - only three actual code paths can block anything; and `create-plan`/`grill-plan` is interesting precisely because it's a validator that rides on a *real* guard rather than being pure prose, which is why it needed zero new enforcement logic.
+
 ## Principles
 
 - Task state lives in exactly one `TaskStore` backend (CUE file by default; see [Task storage backends](#task-storage-backends)) - no parallel YAML cursor, no agent memory as state.
