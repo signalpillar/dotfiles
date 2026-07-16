@@ -2,8 +2,8 @@
 
 Portable deterministic job harness for CUE task files.
 
-`pi-job` keeps the CUE task file as the source of truth.
-It reads `task` with `cue export`, loads package-local `profile-contract.cue` for valid profiles and phase ownership, requires an explicit profile before execution, computes the next unfinished slice/step, updates the orchestration cursor, prints the profile phase plan, and emits deterministic instruction packets for the orchestrating model.
+`pi-job` keeps a task's durable state in exactly one `TaskStore` backend - a CUE file by default; see [Task storage backends](#task-storage-backends) for the experimental directory-backed one.
+It reads `task` via that backend, loads package-local `profile-contract.cue` for valid profiles and phase ownership, requires an explicit profile before execution, computes the next unfinished slice/step, updates the orchestration cursor, prints the profile phase plan, and emits deterministic instruction packets for the orchestrating model.
 
 ## Contents
 
@@ -85,7 +85,7 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
 
 ## Principles
 
-- The CUE task file is the only durable source of truth. No parallel YAML cursor, no agent memory as state.
+- Task state lives in exactly one `TaskStore` backend (CUE file by default; see [Task storage backends](#task-storage-backends)) - no parallel YAML cursor, no agent memory as state.
 - Profiles are configuration in `profile-contract.cue`, not hardcoded Python. Repo/user layering can evolve; contract wins for phase meaning.
 - The harness is deterministic and fail-closed: missing task -> `scaffold`; missing profile -> `init`; then `plan` / `instruction` / `advance`.
 - `pi-job` emits instruction packets. It does not spawn agents. The orchestrator chooses models and launches subagents.
@@ -196,6 +196,25 @@ The `full` profile runs a `select_toolbelt` phase before `plan_slices`: the mode
   new `--status` updates the existing entry rather than duplicating it).
 - `pi-job --task <t> show [--all]` — also renders each slice's `repo_work`: worktree path (or
   "not set") and each PR's status/url/note.
+
+## Task storage backends
+
+`--task` accepts either a `.cue` file or a directory; `open_task_store()` picks the backend from that shape, no separate flag needed.
+
+- **`CueTaskStore`** (default) - the CUE file described throughout this README. All commands work as documented.
+- **`FsTaskStore`** (experimental) - a directory-backed, "everything is a file" backend. `task.title`/`task.status`/etc become files; `task.plan.slices[]` become subdirectories; `depends_on` becomes a directory of symlinks, each pointing at the sibling slice directory it depends on. Ordered collections nothing external ever references (steps, final_steps, decisions, PRs) use gapped numeric-prefix directory names (`0010-`, `0020-`, ...) so inserting between two existing entries never requires renaming them. Slices instead use a stable key-named directory plus a `.order` file for sequence, since slice directories are also `depends_on` symlink targets and must never be renamed.
+
+Both backends implement the same `TaskStore` protocol (`read`, `describe`, `set_cursor`, `set_profile`, `init_task`, `set_plan_note`, `add_decision`, `add_slice`, `add_step`, `set_worktree`, `add_pr`, `write_artifact`) - command handlers never touch CUE-file or filesystem-tree mechanics directly.
+
+`scaffold`, `init`, and `migrate-task` remain CUE-specific; they have no settled meaning for a directory-backed task yet.
+
+## Converting between backends: `project`
+
+- `pi-job --task <source> project --to <dest>` - copies a task's full state from `<source>` into `<dest>` using only `TaskStore` methods, so it works in either direction between `CueTaskStore` and `FsTaskStore`.
+- `<dest>` as a `.cue` path is bootstrapped from an empty, placeholder-free skeleton if it doesn't exist yet - not `scaffold`'s example shape, which ships one slice that `project` would then append after rather than replace. If `<dest>` already has slices or decisions, `project` refuses rather than risk shifting existing entries.
+- `<dest>` as a directory is created if missing.
+
+Verified against a real production task file (10 slices, 24 decisions, PRs and repo_work): CUE -> fresh directory -> fresh CUE file round-trips with zero semantic difference under `cue export`.
 
 ## How it works
 
