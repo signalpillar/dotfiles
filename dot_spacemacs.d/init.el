@@ -199,6 +199,8 @@ This function should only modify configuration layer settings."
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
+                                      paper-theme
+                                      naysayer-theme
                                       cue-mode
                                       alabaster-themes
                                       hyperbole
@@ -359,6 +361,7 @@ It should only modify the values of Spacemacs settings."
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
+                         paper
                          leuven
                          ;; Without :package, Spacemacs looks for `alabaster-themes-light-bg-theme'.
                          (alabaster-themes-light :package alabaster-themes)
