@@ -777,6 +777,19 @@ task: {
         assert_contains(all_out, "deps:")
 
 
+def test_show_color_always_tints_glyphs_never_stays_plain() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "color.cue"
+        task.write_text(TASK_FIXTURE)
+
+        plain = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
+        colored = run(str(PI_JOB), "--task", str(task), "show", "--color", "always").stdout
+        if "\033[" in plain:
+            raise AssertionError(f"--color never must not emit ANSI escapes:\n{plain!r}")
+        assert_contains(colored, "\033[32m✓\033[0m")  # done green
+        assert_contains(colored, "\033[36m▸\033[0m")  # current / in_progress cyan
+
+
 def test_scaffold_includes_reconcile_artifacts() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "new.cue"
@@ -2663,6 +2676,7 @@ def main() -> None:
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
     test_show_started_flag_expands_non_planned_slices()
+    test_show_color_always_tints_glyphs_never_stays_plain()
     test_scaffold_includes_reconcile_artifacts()
     test_scaffold_includes_create_plan_and_grill_plan_before_edit_code()
     test_next_walks_create_plan_then_grill_plan_before_edit_code()

@@ -29,6 +29,37 @@ PROFILE_CONTRACT = PACKAGE_DIR / "profile-contract.cue"
 TASK_SCHEMA = PACKAGE_DIR / "task-schema.cue"
 STATUS_DONE = {"done", "skipped"}
 GLYPH = {"done": "✓", "skipped": "⊘", "in_progress": "▸", "blocked": "✗", "planned": "○"}
+# ANSI styles for human-facing show glyphs only (default off unless TTY / --color).
+_RESET = "\033[0m"
+_GLYPH_STYLE = {
+    "done": "\033[32m",        # green tick
+    "skipped": "\033[33m",     # yellow
+    "in_progress": "\033[36m", # cyan
+    "blocked": "\033[31m",     # red cross
+    "planned": "\033[2m",      # dim
+}
+
+
+def color_enabled(mode: str) -> bool:
+    """Resolve --color auto|always|never. Respects NO_COLOR / FORCE_COLOR."""
+    if mode == "always":
+        return True
+    if mode == "never":
+        return False
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    return sys.stdout.isatty()
+
+
+def paint_glyph(glyph: str, status: str, *, color: bool) -> str:
+    if not color:
+        return glyph
+    style = _GLYPH_STYLE.get(status, "")
+    if not style:
+        return glyph
+    return f"{style}{glyph}{_RESET}"
 
 
 def die(message: str) -> None:
@@ -2592,9 +2623,11 @@ def slice_counts(task_slice: dict[str, Any]) -> tuple[int, int]:
     return done, len(steps)
 
 
-def step_line(step: dict[str, Any], *, terminal: bool, current_step: str | None) -> str:
+def step_line(step: dict[str, Any], *, terminal: bool, current_step: str | None, color: bool) -> str:
     st = status_value(step)
-    glyph = "·" if (terminal and st not in STATUS_DONE) else GLYPH.get(st, "○")
+    raw = "·" if (terminal and st not in STATUS_DONE) else GLYPH.get(st, "○")
+    paint_status = "planned" if raw == "·" else st
+    glyph = paint_glyph(raw, paint_status, color=color)
     key = str(step.get("key") or "")
     suffix = "   ← current" if current_step is not None and key == current_step else ""
     return f"    {glyph} {key}{suffix}"
@@ -2607,6 +2640,7 @@ def cmd_show(args: argparse.Namespace) -> None:
     require_initialized(task_file, task)
     cursor = current_cursor(task)
     status_filter = set(args.status.split(",")) if args.status else None
+    color = color_enabled(args.color)
 
     lines = [f"{task.get('title', '<untitled>')}"]
     if cursor:
@@ -2626,7 +2660,8 @@ def cmd_show(args: argparse.Namespace) -> None:
         if status_filter and st not in status_filter:
             continue
         is_current = bool(cursor and cursor.slice == task_slice.get("key"))
-        glyph = GLYPH["in_progress"] if is_current else GLYPH.get(st, "○")
+        glyph_status = "in_progress" if is_current else st
+        glyph = paint_glyph(GLYPH.get(glyph_status, "○"), glyph_status, color=color)
         kind = str(task_slice.get("kind") or "")
         repos = ", ".join(task_slice.get("repos", []) or [])
         lines.append(f"{glyph} {str(task_slice.get('key') or ''):<22} [{kind}/{d}/{t}] {repos}".rstrip())
@@ -2665,9 +2700,9 @@ def cmd_show(args: argparse.Namespace) -> None:
         if expand_steps:
             current_step = cursor.step if is_current and cursor else None
             for step in task_slice.get("steps", []):
-                lines.append(step_line(step, terminal=False, current_step=current_step))
+                lines.append(step_line(step, terminal=False, current_step=current_step, color=color))
             for step in task_slice.get("final_steps", []):
-                lines.append(step_line(step, terminal=True, current_step=current_step))
+                lines.append(step_line(step, terminal=True, current_step=current_step, color=color))
 
     lines += ["", f"{done_slices}/{len(slices)} slices · {done_steps}/{total_steps} steps", "— toolbelt —"]
     artifacts = task_artifacts(task)
@@ -2675,7 +2710,8 @@ def cmd_show(args: argparse.Namespace) -> None:
         lines.append("no aids registered")
     else:
         for key, art in artifacts.items():
-            g = GLYPH.get(str(art.get("status")), "○")
+            art_st = str(art.get("status") or "")
+            g = paint_glyph(GLYPH.get(art_st, "○"), art_st, color=color)
             lines.append(f"{g} {key}   {art.get('path', '')}".rstrip())
     print("\n".join(lines))
 
@@ -3170,6 +3206,12 @@ def main() -> None:
         help="also expand in_progress/blocked slices (not the cursor's slice); done/skipped stay collapsed unless --all",
     )
     show.add_argument("--status", help="comma-separated slice statuses to include")
+    show.add_argument(
+        "--color",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="color status glyphs (✓ green, ✗ red, …); auto = TTY only, respects NO_COLOR",
+    )
     show.set_defaults(fn=cmd_show)
 
     instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")

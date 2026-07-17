@@ -264,12 +264,13 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
-- `pi-job --task <t> show [--all] [--started] [--status s1,s2]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
+- `pi-job --task <t> show [--all] [--started] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
   By default only the current cursor slice expands.
   `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps).
   `--started` additionally expands `in_progress`/`blocked` slices.
   `--all` expands every slice including finished ones.
   `--status` filters which slices are listed.
+  `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
 
 The setup slice's `select-toolbelt` step picks aids suited to the task's slice kinds; `plan-slices` produces them.
 The catalog lives in `profile-contract.cue#toolbelt`.
