@@ -668,6 +668,26 @@ def test_show_renders_tree_and_footer() -> None:
         assert_contains(footer, "docs/api.http")
 
 
+def test_show_aligns_kind_counts_after_longest_key() -> None:
+    """Slice headers align [kind/N/M] just after the longest key (one space), not a fixed wide column."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "align.cue"
+        task.write_text(TASK_FIXTURE)
+        out = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
+        cols = []
+        for line in out.splitlines():
+            if "[" in line and "/" in line and line.lstrip()[:1] in "✓⊘▸✗○":
+                cols.append(line.index("["))
+        if len(cols) < 2:
+            raise AssertionError(f"expected >=2 slice headers with [kind/N/M]:\n{out}")
+        if len(set(cols)) != 1:
+            raise AssertionError(f"[kind/N/M] columns should match, got {cols}:\n{out}")
+        # TASK_FIXTURE keys: "first", "second-slice" → longest 12; "✓ " + pad + " ["
+        expected = 2 + len("second-slice") + 1
+        if cols[0] != expected:
+            raise AssertionError(f"expected [ at column {expected} (tight to longest key), got {cols[0]}:\n{out}")
+
+
 def test_show_started_flag_expands_non_planned_slices() -> None:
     """By default only the current cursor's slice expands. --started additionally
     expands in_progress/blocked slices; done/skipped and still-planned stay collapsed.
@@ -780,7 +800,11 @@ task: {
 def test_show_color_always_tints_glyphs_never_stays_plain() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "color.cue"
-        task.write_text(TASK_FIXTURE)
+        fixture = TASK_FIXTURE.replace(
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
+        )
+        task.write_text(fixture)
 
         plain = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
         colored = run(str(PI_JOB), "--task", str(task), "show", "--color", "always").stdout
@@ -788,6 +812,10 @@ def test_show_color_always_tints_glyphs_never_stays_plain() -> None:
             raise AssertionError(f"--color never must not emit ANSI escapes:\n{plain!r}")
         assert_contains(colored, "\033[32m✓\033[0m")  # done green
         assert_contains(colored, "\033[36m▸\033[0m")  # current / in_progress cyan
+        assert_contains(colored, "\033[1;36m← current\033[0m")  # cursor marker bold cyan
+        assert_contains(plain, "← current")
+        if "\033[1;36m" in plain:
+            raise AssertionError("--color never must not tint ← current")
 
 
 def test_scaffold_includes_reconcile_artifacts() -> None:
@@ -2576,7 +2604,7 @@ task: {
 	}
 
 	decisions: [
-		#Decision & {date: "2026-07-01", note: "First decision.", source: "chat:2026-07-01"},
+		#Decision & {date: "2026-07-01", note: "First \\"quoted\\" decision.\\n\\nSecond paragraph — still one note.", source: "chat:2026-07-01"},
 		#Decision & {date: "2026-07-02", note: "Second decision.", source: "chat:2026-07-02"},
 	]
 
@@ -2595,12 +2623,12 @@ task: {
 					"repo-a": {
 						worktree: "/tmp/worktrees/alpha"
 						prs: [
-							#PR & {url: "https://example.com/pr/1", status: "open", note: "first PR"},
+							#PR & {url: "https://example.com/pr/1", status: "open", note: "first PR — with emdash"},
 						]
 					}
 				}
 				steps: [
-					#Step & {key: "edit-code", title: "Edit code", status: "done", note: "Done already."},
+					#Step & {key: "edit-code", title: "Add \\"on-hold\\": \\"mapped\\"", status: "done", note: "Done already.\\n\\nUpdated later with more detail."},
 					#Step & {key: "verify", title: "Verify", status: "planned", note: ""},
 				]
 				final_steps: [
@@ -2624,10 +2652,22 @@ task: {
 """
 
 
+def test_cue_escape_escapes_newlines_quotes_and_tabs() -> None:
+    """Double-quoted CUE literals must escape control characters, not embed raw newlines."""
+    module = load_pi_job_module()
+    escaped = module.cue_escape('a\n"b"\tc\\d')
+    assert escaped == 'a\\n\\"b\\"\\tc\\\\d', escaped
+    assert "\n" not in escaped
+    assert "\t" not in escaped
+
+
 def test_cmd_project_cue_to_fs_to_cue_round_trip() -> None:
     """project() must be lossless: CUE fixture -> fresh FS dir -> fresh CUE file should
     produce a CueTaskStore.read() dict identical to the original fixture's, covering
-    orchestration, decisions, plan.note, and every slice/step/repo_work/PR field."""
+    orchestration, decisions, plan.note, and every slice/step/repo_work/PR field.
+
+    Fixture deliberately includes newlines, quotes, and em dashes in notes/titles - the
+    shape that broke FS→CUE on real tasks when cue_escape left raw newlines unescaped."""
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         fixture_path = Path(tmp) / "fixture.cue"
@@ -2642,6 +2682,10 @@ def test_cmd_project_cue_to_fs_to_cue_round_trip() -> None:
         original = module.CueTaskStore(fixture_path).read()
         roundtrip = module.CueTaskStore(roundtrip_path).read()
         assert original == roundtrip, (original, roundtrip)
+        # Sanity: the tricky fields survived, not just empty-fixture equality.
+        assert "\n\n" in original["decisions"][0]["note"]
+        assert '"quoted"' in original["decisions"][0]["note"]
+        assert "\n\n" in original["plan"]["slices"][0]["steps"][0]["note"]
 
 
 def test_cmd_project_refuses_nonempty_cue_destination() -> None:
@@ -2675,6 +2719,7 @@ def main() -> None:
     test_select_toolbelt_step_and_instruction()
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
+    test_show_aligns_kind_counts_after_longest_key()
     test_show_started_flag_expands_non_planned_slices()
     test_show_color_always_tints_glyphs_never_stays_plain()
     test_scaffold_includes_reconcile_artifacts()
@@ -2730,6 +2775,7 @@ def main() -> None:
     test_fs_task_store_depends_on_symlink()
     test_fs_task_store_invalid_status_dies_on_read()
     test_fs_and_cue_task_store_shape_parity()
+    test_cue_escape_escapes_newlines_quotes_and_tabs()
     test_cmd_project_cue_to_fs_to_cue_round_trip()
     test_cmd_project_refuses_nonempty_cue_destination()
     print("pi-job tests passed")

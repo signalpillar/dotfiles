@@ -38,6 +38,7 @@ _GLYPH_STYLE = {
     "blocked": "\033[31m",     # red cross
     "planned": "\033[2m",      # dim
 }
+_CURRENT_STYLE = "\033[1;36m"  # bold cyan for "← current"
 
 
 def color_enabled(mode: str) -> bool:
@@ -2066,7 +2067,19 @@ def parse_def_struct_fields_from_raw(lines: list[str], open_idx: int, close_idx:
 
 
 def cue_escape(s: str) -> str:
-    return s.replace("\\", "\\\\").replace('"', '\\"')
+    """Escape a value for inclusion inside a CUE double-quoted string literal.
+
+    Order matters: backslash first, then the characters that become backslash escapes.
+    Without newline/tab/CR escapes, FS→CUE projection embeds raw control characters and
+    cue fmt rejects the file (string literal not terminated).
+    """
+    return (
+        s.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
 
 
 def expand_inline_plan_block(text: str) -> str:
@@ -2629,7 +2642,11 @@ def step_line(step: dict[str, Any], *, terminal: bool, current_step: str | None,
     paint_status = "planned" if raw == "·" else st
     glyph = paint_glyph(raw, paint_status, color=color)
     key = str(step.get("key") or "")
-    suffix = "   ← current" if current_step is not None and key == current_step else ""
+    if current_step is not None and key == current_step:
+        marker = "← current"
+        suffix = f"   {_CURRENT_STYLE}{marker}{_RESET}" if color else f"   {marker}"
+    else:
+        suffix = ""
     return f"    {glyph} {key}{suffix}"
 
 
@@ -2649,6 +2666,11 @@ def cmd_show(args: argparse.Namespace) -> None:
 
     slices = task.get("plan", {}).get("slices", [])
     status_map = slice_status_map(task)
+    visible_slices = [
+        s for s in slices
+        if not status_filter or status_value(s) in status_filter
+    ]
+    key_width = max((len(str(s.get("key") or "")) for s in visible_slices), default=0)
     done_slices = done_steps = total_steps = 0
     for task_slice in slices:
         st = status_value(task_slice)
@@ -2664,7 +2686,8 @@ def cmd_show(args: argparse.Namespace) -> None:
         glyph = paint_glyph(GLYPH.get(glyph_status, "○"), glyph_status, color=color)
         kind = str(task_slice.get("kind") or "")
         repos = ", ".join(task_slice.get("repos", []) or [])
-        lines.append(f"{glyph} {str(task_slice.get('key') or ''):<22} [{kind}/{d}/{t}] {repos}".rstrip())
+        key = str(task_slice.get("key") or "")
+        lines.append(f"{glyph} {key:<{key_width}} [{kind}/{d}/{t}] {repos}".rstrip())
 
         # Done/skipped slices stay header-only unless --all (no deps, repo_work, or steps).
         if st in STATUS_DONE and not args.all:
