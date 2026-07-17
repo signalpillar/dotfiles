@@ -2988,6 +2988,25 @@ def cmd_project(args: argparse.Namespace) -> None:
 LOCAL_DEF_NAMES = ("#Status", "#Step", "#Decision", "#Artifact", "#Slice")
 
 
+def cmd_validate(args: argparse.Namespace) -> None:
+    """Canonical task validation: always loads the shared task-schema with the task.
+
+    Prefer this over bare `cue vet`/`cue export` on the task file alone — those fail with
+    'reference #Step not found' after migration, which is expected and not a task bug.
+    """
+    task_arg = args.task.resolve()
+    store = open_task_store(task_arg)
+    task = store.read()
+    title = task.get("title") or "<untitled>"
+    print(f"ok: {store.describe()}")
+    print(f"title: {title}")
+    if isinstance(store, CueTaskStore):
+        print(f"schema: {TASK_SCHEMA}")
+        print("note: use `pi-job validate` (not bare `cue vet`/`cue export` on the task alone).")
+    else:
+        print("note: directory store checked via FsTaskStore.read().")
+
+
 def cmd_migrate_task(args: argparse.Namespace) -> None:
     """Diagnose a task file's local schema declarations against the shared task-schema.cue
     and print migration guidance. Read-only: never modifies the file."""
@@ -3046,10 +3065,10 @@ def cmd_migrate_task(args: argparse.Namespace) -> None:
         "Next steps:",
         "- This command only diagnoses; it does not modify the file. Make the edits above with your",
         "  normal editing tools.",
-        "- After editing, run `pi-job status` and `pi-job show` on this file to confirm it still validates.",
+        "- After editing, run `pi-job validate` on this file to confirm it still validates.",
         "- Note: a bare `cue vet` or `cue export` on the migrated task file alone will fail with",
-        "  'reference not found' errors — this is expected, not breakage. Only `pi-job` subcommands",
-        "  (or `cue` invoked with both files explicitly) validate the migrated file correctly.",
+        "  'reference not found' errors — this is expected, not breakage. Use `pi-job validate`",
+        "  (or `cue` invoked with both the task file and task-schema.cue).",
     ]
 
     print("\n".join(output_lines))
@@ -3185,6 +3204,12 @@ def main() -> None:
 
     status = sub.add_parser("status", help="show task status, saved cursor, and next cursor")
     status.set_defaults(fn=cmd_status)
+
+    validate = sub.add_parser(
+        "validate",
+        help="validate the task against shared task-schema.cue (canonical check; prefer over bare cue vet)",
+    )
+    validate.set_defaults(fn=cmd_validate)
 
     init = sub.add_parser("init", help="initialize task orchestration (optional --kind seeds first slice from template)")
     init.add_argument("--kind", choices=slice_kinds, help="seed an initial slice from slice_kinds[ kind ].step_template when plan.slices is empty")

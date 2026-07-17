@@ -220,6 +220,7 @@ pi-job --task projects/example/tasks/task.cue scaffold
 pi-job --task projects/example/tasks/task.cue init --kind setup
 
 pi-job --task projects/example/tasks/task.cue status
+pi-job --task projects/example/tasks/task.cue validate
 pi-job --task projects/example/tasks/task.cue plan
 pi-job --task projects/example/tasks/task.cue next
 pi-job --task projects/example/tasks/task.cue instruction --current
@@ -228,6 +229,12 @@ pi-job --task projects/example/tasks/task.cue advance
 
 If `--task` points at a missing file, commands fail closed and tell the agent to run `scaffold`, then edit and `init`.
 A task without `task.orchestration` is not initialized; run `init` before `plan`, `next`, `advance`, or `instruction`.
+
+### validate
+
+- `pi-job --task <t> validate` is the **canonical** way to check a task file.
+- Always loads the shared `task-schema.cue` alongside the task (same as every other `pi-job` command).
+- Prefer this over bare `cue vet` / `cue export` on the task file alone - those fail with `reference "#Step" not found` after migration, which is expected and not a task bug.
 
 ### init and add-slice
 
@@ -248,10 +255,10 @@ These are now legacy - the shared `task-schema.cue` is unified into every `pi-jo
 
 `pi-job migrate-task` diagnoses a task file for these legacy declarations and prints safe deletion or refactoring recommendations.
 It never modifies the file - you use your normal editor to apply the changes.
-After editing, run `pi-job status` and `pi-job show` to confirm the migrated file still validates (these commands automatically load both the task file and shared schema).
+After editing, run `pi-job validate` to confirm the migrated file still validates.
 
 Note: a bare `cue vet` or `cue export` invoked on the migrated task file *alone* will fail with missing reference errors like `reference "#Step" not found` - this is expected and not breakage.
-Only `pi-job` subcommands (or `cue` explicitly passed both files) validate the migrated file correctly.
+Use `pi-job validate` (or pass both the task file and `task-schema.cue` to `cue` explicitly).
 
 ### Migrating from v1 profile/phase model
 

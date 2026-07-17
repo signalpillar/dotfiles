@@ -1746,6 +1746,88 @@ task: {
         assert_contains(res.stderr, "owner")
 
 
+def test_validate_passes_shared_schema_task() -> None:
+    """validate is the canonical check: loads task + shared schema and exits 0."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "ok.cue"
+        task.write_text(
+            """
+package task
+
+task: {
+    title: "Validate ok"
+    status: "in_progress"
+    project: {name: "Fixture"}
+    orchestration: {
+        cursor: {slice: "only", step: "create-plan"}
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        note: ""
+        slices: [
+            #Slice & {
+                key: "only"
+                kind: "implement"
+                title: "Only"
+                goal: "g"
+                status: "planned"
+                note: ""
+                steps: [#Step & {key: "create-plan", title: "Plan", status: "planned", note: ""}]
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        )
+        out = run(str(PI_JOB), "--task", str(task), "validate").stdout
+        assert_contains(out, "ok:")
+        assert_contains(out, "task-schema.cue")
+        assert_contains(out, "pi-job validate")
+
+
+def test_validate_fails_invalid_step_status() -> None:
+    """validate must fail closed when a #Step status violates shared #Status."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bad.cue"
+        task.write_text(
+            """
+package task
+
+task: {
+    title: "Bad step status"
+    status: "in_progress"
+    project: {name: "Fixture"}
+    plan: {
+        note: ""
+        slices: [
+            #Slice & {
+                key: "only"
+                kind: "implement"
+                title: "Only"
+                goal: "g"
+                status: "planned"
+                note: ""
+                steps: [#Step & {key: "x", title: "X", status: "bogus", note: ""}]
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
+        )
+        res = run(str(PI_JOB), "--task", str(task), "validate", check=False)
+        if res.returncode == 0:
+            raise AssertionError("validate should fail on invalid #Step status")
+        assert_contains(res.stderr, "cue export failed")
+
+
 def test_migrate_task_reports_already_migrated() -> None:
     """Task with no local defs (pure shared-schema style) reports already migrated."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -2753,6 +2835,8 @@ def main() -> None:
     test_add_step_rejects_unknown_slice()
     test_add_step_after_inserts_in_correct_order()
     test_add_step_final_rolls_back_on_closed_final_steps_schema()
+    test_validate_passes_shared_schema_task()
+    test_validate_fails_invalid_step_status()
     test_migrate_task_reports_already_migrated()
     test_migrate_task_recommends_delete_for_identical_status()
     test_migrate_task_recommends_keep_for_status_with_used_extra_value()
