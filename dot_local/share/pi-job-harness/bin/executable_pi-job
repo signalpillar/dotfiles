@@ -2,9 +2,9 @@
 """Deterministic task harness prototype for pi-agent jobs.
 
 The CUE task file remains the source of truth. This script reads task state via
-`cue export`, loads the package-local `profile-contract.cue` for profiles and
-phase ownership, computes the next actionable slice/step, can update the saved
-orchestration cursor, and emits deterministic execution instructions for the
+`cue export`, loads the package-local `profile-contract.cue` for step/slice-kind
+ownership and policies, computes the next actionable slice/step, can update the
+saved orchestration cursor, and emits deterministic execution instructions for the
 orchestrating model.
 """
 
@@ -41,8 +41,8 @@ def missing_task_hint(task_file: Path) -> str:
         f"task file not found: {task_file}\n"
         f"create one from the example shape with:\n"
         f"  pi-job --task {task_file} scaffold\n"
-        f"then initialize a profile:\n"
-        f"  pi-job --task {task_file} init --profile <profile>"
+        f"then initialize orchestration:\n"
+        f"  pi-job --task {task_file} init [--kind setup|implement|...]"
     )
 
 
@@ -80,13 +80,14 @@ task: {{
 		slices: [
 			#Slice & {{
 				key:    "do-the-change"
+				kind:   "implement"
 				title:  "Do the change"
 				goal:   "Ship the bounded edit with verification."
 				status: "in_progress"
 				note:   ""
 				steps: [
-					#Step & {{key: "create-plan", title: "Plan the code change (files touched, approach, tradeoffs)", status: "planned", note: ""}},
-					#Step & {{key: "grill-plan", title: "Grill the plan (skills/grill-me) before writing code", status: "planned", note: ""}},
+					#Step & {{key: "create-plan", title: "Plan the code change (write sibling plan file; approach, files, tradeoffs)", status: "planned", note: ""}},
+					#Step & {{key: "grill-plan", title: "Grill the plan file (skills/grill-me) before writing code", status: "planned", note: ""}},
 					#Step & {{key: "edit-code", title: "Edit the code", status: "planned", note: ""}},
 					#Step & {{key: "verify", title: "Run checks", status: "planned", note: ""}},
 				]
@@ -141,17 +142,13 @@ task: {
 
 @dataclass(frozen=True)
 class Cursor:
-    phase: str
-    slice: str | None = None
+    slice: str
     step: str | None = None
 
     def label(self) -> str:
-        parts = [self.phase]
-        if self.slice:
-            parts.append(self.slice)
         if self.step:
-            parts.append(self.step)
-        return " / ".join(parts)
+            return f"{self.slice} / {self.step}"
+        return self.slice
 
 
 class TaskStore(Protocol):
@@ -169,8 +166,8 @@ class TaskStore(Protocol):
         """Update the saved cursor position."""
         ...
 
-    def set_profile(self, profile: str, cursor: Cursor) -> None:
-        """Initialize orchestration with a profile and cursor."""
+    def init_orchestration(self, cursor: Cursor) -> None:
+        """Initialize orchestration with a cursor and default policy."""
         ...
 
     def init_task(
@@ -200,9 +197,11 @@ class TaskStore(Protocol):
         self,
         *,
         key: str,
+        kind: str,
         title: str,
         goal: str,
         extra_fields: dict[str, list[str]],
+        steps: list[tuple[str, str]],
         final_steps: list[tuple[str, str]],
         after: str | None,
         status: str = "planned",
@@ -210,7 +209,8 @@ class TaskStore(Protocol):
     ) -> None:
         """Add a new slice to the task plan. extra_fields maps a non-baseline
         #Slice field name to its plain string values - backend-neutral, no
-        pre-rendered CUE (or other backend-specific) syntax."""
+        pre-rendered CUE (or other backend-specific) syntax. steps/final_steps are
+        [(step_key, title), ...] tuples."""
         ...
 
     def add_step(
@@ -225,6 +225,12 @@ class TaskStore(Protocol):
         status: str = "planned",
     ) -> None:
         """Add a new step to a slice (terminal=True for final_steps, False for steps)."""
+        ...
+
+    def set_step_status(
+        self, *, slice_key: str, step_key: str, status: str, note: str
+    ) -> None:
+        """Set a step's status and note (used by advance --force to record a skip)."""
         ...
 
     def set_worktree(self, *, slice_key: str, repo: str, path: str) -> None:
@@ -264,18 +270,12 @@ class CueTaskStore:
             die("could not find exactly one orchestration cursor block to replace")
         write_and_format(self.path, new_text)
 
-    def set_profile(self, profile: str, cursor: Cursor) -> None:
-        get_profile(profile)
-
+    def init_orchestration(self, cursor: Cursor) -> None:
         text = self.path.read_text()
-        block = orchestration_block(profile, cursor)
+        block = orchestration_block(cursor)
         if re.search(r"(?m)^[ \t]*orchestration:\s*\{", text):
-            profile_pattern = re.compile(r'(?m)^([ \t]*profile:\s*)"[^"]*"')
-            new_text, count = profile_pattern.subn(rf'\1"{profile}"', text, count=1)
-            if count != 1:
-                die("found orchestration block but could not replace profile")
             cursor_pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
-            new_text, cursor_count = cursor_pattern.subn(cursor_block(cursor), new_text, count=1)
+            new_text, cursor_count = cursor_pattern.subn(cursor_block(cursor), text, count=1)
             if cursor_count != 1:
                 die("found orchestration block but could not replace cursor")
         else:
@@ -366,20 +366,23 @@ class CueTaskStore:
         self,
         *,
         key: str,
+        kind: str,
         title: str,
         goal: str,
         extra_fields: dict[str, list[str]],
+        steps: list[tuple[str, str]],
         final_steps: list[tuple[str, str]],
         after: str | None,
         status: str = "planned",
         note: str = "",
     ) -> None:
         literal = slice_literal(
-            key=key, title=title, goal=goal, extra_fields=extra_fields, final_steps=final_steps,
-            status=status, note=note,
+            key=key, kind=kind, title=title, goal=goal, extra_fields=extra_fields,
+            steps=steps, final_steps=final_steps, status=status, note=note,
         )
 
         original_text = self.path.read_text()
+        original_text = expand_inline_plan_block(original_text)
         lines = original_text.splitlines(keepends=True)
         plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
         if plan_idx == -1:
@@ -432,6 +435,39 @@ class CueTaskStore:
         else:
             lines = insert_lines(lines, arr_close, new_lines, after=False)
 
+        write_and_validate(self.path, original_text, "".join(lines))
+
+    def set_step_status(
+        self, *, slice_key: str, step_key: str, status: str, note: str
+    ) -> None:
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        slice_span = find_key_struct_span(lines, slice_key)
+        if slice_span is None:
+            die(f"could not locate slice {slice_key!r} in task file text (unexpected)")
+        start, end = slice_span
+        # Steps are usually a single #Step & { ... }, line. Match key then rewrite status/note.
+        step_re = re.compile(
+            rf'(#Step\s*&\s*\{{[^\n]*\bkey:\s*"{re.escape(step_key)}"[^\n]*\}})'
+        )
+        replaced = 0
+        for i in range(start, end + 1):
+            m = step_re.search(lines[i])
+            if not m:
+                continue
+            lit = m.group(1)
+            lit = re.sub(r'\bstatus:\s*"[^"]*"', f'status: "{status}"', lit, count=1)
+            lit = re.sub(
+                r'\bnote:\s*"(?:\\.|[^"\\])*"',
+                f'note: "{cue_escape(note)}"',
+                lit,
+                count=1,
+            )
+            lines[i] = lines[i][: m.start(1)] + lit + lines[i][m.end(1) :]
+            replaced += 1
+            break
+        if replaced != 1:
+            die(f"could not find step {step_key!r} in slice {slice_key!r} to update status")
         write_and_validate(self.path, original_text, "".join(lines))
 
     def set_worktree(self, *, slice_key: str, repo: str, path: str) -> None:
@@ -499,13 +535,13 @@ class CueTaskStore:
             write_and_format(self.path, new_text)
             return
 
-        # No artifacts block yet: create one right after the profile line inside orchestration.
-        prof = re.search(r'(?m)^([ \t]*)profile:\s*"[^"]*"', text)
-        if not prof:
-            die("cannot register toolbelt aid: task has no orchestration.profile (run init first)")
-        indent = prof.group(1)
+        # No artifacts block yet: create one right after orchestration opening brace.
+        orch = re.search(r"(?m)^([ \t]*)orchestration:\s*\{", text)
+        if not orch:
+            die("cannot register toolbelt aid: task has no orchestration block (run init first)")
+        indent = orch.group(1)
         block = f"\n{indent}artifacts: {{\n{entry}\n{indent}}}"
-        new_text = text[: prof.end()] + block + text[prof.end():]
+        new_text = text[: orch.end()] + block + text[orch.end():]
         write_and_format(self.path, new_text)
 
 
@@ -538,7 +574,6 @@ class TaskLayout:
 
     # ---- orchestration ----
     def orchestration_dir(self) -> Path: return self.base / "orchestration"
-    def profile_file(self) -> Path: return self.orchestration_dir() / "profile"
     def cursor_file(self) -> Path: return self.orchestration_dir() / "cursor"
     def policy_file(self) -> Path: return self.orchestration_dir() / "policy"
     def artifacts_dir(self) -> Path: return self.orchestration_dir() / "artifacts"
@@ -609,6 +644,9 @@ class TaskLayout:
 
     def slice_note_file(self, slice_key: str) -> Path:
         return self.slice_dir(slice_key) / "note"
+
+    def slice_kind_file(self, slice_key: str) -> Path:
+        return self.slice_dir(slice_key) / "kind"
 
     def slice_repos_file(self, slice_key: str) -> Path:
         return self.slice_dir(slice_key) / "repos"
@@ -847,9 +885,11 @@ class FsTaskStore:
                 entry["path"] = path_val
             entry["note"] = self._read_text(L.artifact_note_file(key))
             artifacts[key] = entry
-        return {
-            "profile": self._read_text(L.profile_file()),
-            "cursor": dict(cursor_rec),
+        cursor = {"slice": cursor_rec.get("slice", ""), "step": cursor_rec.get("step")}
+        if cursor_rec.get("step") is None:
+            cursor.pop("step", None)
+        result: dict[str, Any] = {
+            "cursor": cursor,
             "policy": {
                 "coding_execution": {
                     "subagent_required": self._read_bool_field(
@@ -865,6 +905,7 @@ class FsTaskStore:
             },
             "artifacts": artifacts,
         }
+        return result
 
     def _read_plan(self) -> dict[str, Any]:
         L = self.layout
@@ -878,6 +919,7 @@ class FsTaskStore:
         key = slice_dir.name
         entry: dict[str, Any] = {
             "key": key,
+            "kind": self._read_text(L.slice_kind_file(key)),
             "title": self._read_text(L.slice_title_file(key)),
             "goal": self._read_text(L.slice_goal_file(key)),
             "status": self._read_status(L.slice_status_file(key), f"plan.slices[{key}].status"),
@@ -934,15 +976,12 @@ class FsTaskStore:
         self._write_cursor(cursor)
 
     def _write_cursor(self, cursor: Cursor) -> None:
-        self._write_record(
-            self.layout.cursor_file(),
-            {"phase": cursor.phase, "slice": cursor.slice, "step": cursor.step},
-        )
+        fields: dict[str, str | None] = {"slice": cursor.slice, "step": cursor.step}
+        self._write_record(self.layout.cursor_file(), fields)
 
-    def set_profile(self, profile: str, cursor: Cursor) -> None:
-        get_profile(profile)
+    def init_orchestration(self, cursor: Cursor) -> None:
         L = self.layout
-        self._write_text(L.profile_file(), profile)
+        L.orchestration_dir().mkdir(parents=True, exist_ok=True)
         self._write_cursor(cursor)
         self._write_record(
             L.policy_file(),
@@ -989,9 +1028,11 @@ class FsTaskStore:
         self,
         *,
         key: str,
+        kind: str,
         title: str,
         goal: str,
         extra_fields: dict[str, list[str]],
+        steps: list[tuple[str, str]],
         final_steps: list[tuple[str, str]],
         after: str | None,
         status: str = "planned",
@@ -1017,12 +1058,22 @@ class FsTaskStore:
         staging = L.slices_dir() / f".tmp-{uuid4().hex}"
         staging.mkdir(parents=True)
         try:
+            (staging / "kind").write_text(kind + "\n")
             (staging / "title").write_text(title + "\n")
             (staging / "goal").write_text(goal + "\n")
             (staging / "status").write_text(status + "\n")
             (staging / "note").write_text((note or "") + "\n")
             if repos:
                 (staging / "repos").write_text("".join(f"{r}\n" for r in repos))
+            if steps:
+                steps_dir = staging / "steps"
+                steps_dir.mkdir()
+                for i, (step_key, step_title) in enumerate(steps, start=1):
+                    step_dir = steps_dir / f"{_format_prefix(_PREFIX_GAP * i)}-{step_key}"
+                    step_dir.mkdir()
+                    (step_dir / "title").write_text(step_title + "\n")
+                    (step_dir / "status").write_text("planned\n")
+                    (step_dir / "note").write_text("\n")
             if final_steps:
                 final_steps_dir = staging / "final_steps"
                 final_steps_dir.mkdir()
@@ -1083,6 +1134,19 @@ class FsTaskStore:
         except Exception:
             shutil.rmtree(staging, ignore_errors=True)
             raise
+
+    def set_step_status(
+        self, *, slice_key: str, step_key: str, status: str, note: str
+    ) -> None:
+        L = self.layout
+        for terminal in (False, True):
+            for step_dir in L.step_dirs(slice_key, terminal=terminal):
+                key = step_dir.name.split("-", 1)[-1]
+                if key == step_key:
+                    self._write_text(L.step_status_file(step_dir), status)
+                    self._write_text(L.step_note_file(step_dir), note)
+                    return
+        die(f"could not find step {step_key!r} in slice {slice_key!r} to update status")
 
     def set_worktree(self, *, slice_key: str, repo: str, path: str) -> None:
         self._write_text(self.layout.slice_repo_worktree_file(slice_key, repo), path)
@@ -1148,9 +1212,8 @@ def project(src: TaskStore, dst: TaskStore) -> None:
     orch = task.get("orchestration")
     if orch:
         cursor_dict = orch.get("cursor") or {}
-        dst.set_profile(
-            orch.get("profile", ""),
-            Cursor(phase=cursor_dict.get("phase", ""), slice=cursor_dict.get("slice"), step=cursor_dict.get("step")),
+        dst.init_orchestration(
+            Cursor(slice=str(cursor_dict.get("slice") or ""), step=cursor_dict.get("step")),
         )
         for key, artifact in (orch.get("artifacts") or {}).items():
             dst.write_artifact(
@@ -1173,11 +1236,13 @@ def project(src: TaskStore, dst: TaskStore) -> None:
 
         dst.add_slice(
             key=sl["key"],
+            kind=str(sl.get("kind") or "implement"),
             title=sl.get("title", ""),
             goal=sl.get("goal", ""),
             status=sl.get("status", "planned"),
             note=sl.get("note", ""),
             extra_fields=extra_fields,
+            steps=[],
             final_steps=[],
             after=prev_slice_key,
         )
@@ -1228,7 +1293,7 @@ def load_task(task_file: Path) -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def load_profile_contract() -> dict[str, Any]:
     if not PROFILE_CONTRACT.exists():
-        die(f"profile contract not found: {PROFILE_CONTRACT}")
+        die(f"step/slice-kind contract not found: {PROFILE_CONTRACT}")
     res = run(["cue", "export", str(PROFILE_CONTRACT), "--out", "json"])
     if res.returncode != 0:
         die(f"cue export failed for {PROFILE_CONTRACT}:\n{res.stderr.strip()}")
@@ -1236,32 +1301,58 @@ def load_profile_contract() -> dict[str, Any]:
         data = json.loads(res.stdout)
     except json.JSONDecodeError as exc:
         die(f"cue export returned invalid JSON for {PROFILE_CONTRACT}: {exc}")
-    if "profiles" not in data:
-        die(f"profile contract missing profiles: {PROFILE_CONTRACT}")
+    if "step_kinds" not in data or "slice_kinds" not in data:
+        die(f"step/slice-kind contract missing step_kinds/slice_kinds: {PROFILE_CONTRACT}")
     return data
 
 
-def contract_profiles() -> dict[str, dict[str, Any]]:
-    """Map hyphenated profile keys (e.g. review-only) to profile objects."""
-    profiles: dict[str, dict[str, Any]] = {}
-    for entry in load_profile_contract().get("profiles", {}).values():
+def contract_step_kinds() -> dict[str, dict[str, Any]]:
+    kinds: dict[str, dict[str, Any]] = {}
+    for entry in load_profile_contract().get("step_kinds", {}).values():
         key = str(entry.get("key") or "")
         if key:
-            profiles[key] = entry
-    if not profiles:
-        die(f"profile contract has no usable profiles: {PROFILE_CONTRACT}")
-    return profiles
+            kinds[key] = entry
+    if not kinds:
+        die(f"step/slice-kind contract has no usable step_kinds: {PROFILE_CONTRACT}")
+    return kinds
 
 
-def valid_profiles() -> set[str]:
-    return set(contract_profiles())
+def contract_slice_kinds() -> dict[str, dict[str, Any]]:
+    kinds: dict[str, dict[str, Any]] = {}
+    for entry in load_profile_contract().get("slice_kinds", {}).values():
+        key = str(entry.get("key") or "")
+        if key:
+            kinds[key] = entry
+    if not kinds:
+        die(f"step/slice-kind contract has no usable slice_kinds: {PROFILE_CONTRACT}")
+    return kinds
 
 
-def get_profile(profile_key: str) -> dict[str, Any]:
-    profiles = contract_profiles()
-    if profile_key not in profiles:
-        die(f"unknown pi-job profile {profile_key!r}; expected one of: {', '.join(sorted(profiles))}")
-    return profiles[profile_key]
+def valid_slice_kinds() -> set[str]:
+    return set(contract_slice_kinds())
+
+
+def get_step_kind(step_key: str) -> dict[str, Any]:
+    kinds = contract_step_kinds()
+    if step_key not in kinds:
+        die(f"unknown step kind {step_key!r}; expected one of: {', '.join(sorted(kinds))}")
+    return kinds[step_key]
+
+
+def get_slice_kind(kind_key: str) -> dict[str, Any]:
+    kinds = contract_slice_kinds()
+    if kind_key not in kinds:
+        die(f"unknown slice kind {kind_key!r}; expected one of: {', '.join(sorted(kinds))}")
+    return kinds[kind_key]
+
+
+def steps_from_kind_template(kind_key: str) -> list[tuple[str, str]]:
+    template = get_slice_kind(kind_key).get("step_template") or []
+    return [(str(step_key), str(get_step_kind(str(step_key)).get("title") or step_key)) for step_key in template]
+
+
+def task_slice_kinds(task: dict[str, Any]) -> set[str]:
+    return {str(sl.get("kind") or "") for sl in task.get("plan", {}).get("slices", []) if sl.get("kind")}
 
 
 def contract_toolbelt() -> dict[str, dict[str, Any]]:
@@ -1270,29 +1361,22 @@ def contract_toolbelt() -> dict[str, dict[str, Any]]:
     return {str(key): entry for key, entry in toolbelt.items()}
 
 
-def toolbelt_for_profile(profile_key: str) -> list[dict[str, Any]]:
-    """Catalog aids whose `suits` includes profile_key, sorted by key."""
+def toolbelt_for_kinds(kind_keys: set[str]) -> list[dict[str, Any]]:
+    """Catalog aids whose `suits` intersects kind_keys, sorted by key."""
     aids = [
         entry
         for entry in contract_toolbelt().values()
-        if profile_key in (entry.get("suits") or [])
+        if kind_keys & set(entry.get("suits") or [])
     ]
     return sorted(aids, key=lambda e: str(e.get("key") or ""))
 
 
+def toolbelt_for_kind(kind_key: str) -> list[dict[str, Any]]:
+    return toolbelt_for_kinds({kind_key})
+
+
 def task_artifacts(task: dict[str, Any]) -> dict[str, Any]:
     return task.get("orchestration", {}).get("artifacts", {}) or {}
-
-
-def profile_phases(profile_key: str) -> list[dict[str, Any]]:
-    return list(get_profile(profile_key).get("phases") or [])
-
-
-def find_contract_phase(profile_key: str, phase_key: str) -> dict[str, Any] | None:
-    for phase in profile_phases(profile_key):
-        if phase.get("key") == phase_key:
-            return phase
-    return None
 
 
 def status_value(item: dict[str, Any]) -> str:
@@ -1303,83 +1387,27 @@ def current_cursor(task: dict[str, Any]) -> Cursor | None:
     cursor = task.get("orchestration", {}).get("cursor")
     if not cursor:
         return None
-    return Cursor(
-        phase=str(cursor.get("phase") or ""),
-        slice=cursor.get("slice"),
-        step=cursor.get("step"),
-    )
-
-
-def slice_work_contract_phase(profile_key: str) -> str | None:
-    """Return the profile contract phase that owns task.plan slice work."""
-    for phase in profile_phases(profile_key):
-        inputs = phase.get("inputs") or []
-        if "task.plan.slices" in inputs:
-            return str(phase["key"])
-    for phase in profile_phases(profile_key):
-        key = str(phase.get("key") or "")
-        if key in ("implement", "implement_slices"):
-            return str(key)
-    return None
-
-
-def profile_value(task: dict[str, Any]) -> str | None:
-    profile = task.get("orchestration", {}).get("profile")
-    return str(profile) if profile else None
-
-
-def require_profile(task_file: Path, task: dict[str, Any]) -> str:
-    profile = profile_value(task)
-    if not profile:
-        die(
-            "task is not initialized for pi-job: missing task.orchestration.profile\n"
-            f"run: ./scripts/pi-job --task {task_file} init --profile <profile>"
-        )
-    get_profile(profile)
-    return profile
-
-
-def next_cursor(task: dict[str, Any], profile_key: str) -> Cursor | None:
-    """Compute the next actionable cursor.
-
-    While task.plan.slices has unfinished work, walk slices/steps under the
-    profile's slice-work contract phase, skipping slices with unmet dependencies
-    or blocked status. Once all slices are done (or the profile has no
-    slice-work phase, e.g. research/review-only/share-only), walk the remaining
-    profile phases in contract order, anchored on the saved cursor's phase so
-    repeated calls advance monotonically.
-    """
-    contract_phase = slice_work_contract_phase(profile_key)
-
-    if contract_phase is not None:
-        status_map = slice_status_map(task)
-        any_unfinished = False
-        for task_slice in task.get("plan", {}).get("slices", []):
-            if status_value(task_slice) not in STATUS_DONE:
-                any_unfinished = True
-            if not is_actionable(task_slice, status_map):
-                continue
-            return slice_cursor(contract_phase, task_slice)
-        if any_unfinished:
-            return None
-
-    # All slices are done (or this profile has no slice-work phase): walk
-    # remaining profile phases in contract order.
-    phase_keys = [str(phase.get("key") or "") for phase in profile_phases(profile_key)]
-    if not phase_keys:
+    slice_key = cursor.get("slice")
+    if not slice_key:
         return None
+    return Cursor(slice=str(slice_key), step=cursor.get("step"))
 
-    current = current_cursor(task)
-    if current is not None and current.phase in phase_keys:
-        anchor = phase_keys.index(current.phase)
-    elif contract_phase is not None and contract_phase in phase_keys:
-        anchor = phase_keys.index(contract_phase)
-    else:
-        anchor = -1
 
-    next_index = anchor + 1
-    if next_index < len(phase_keys):
-        return Cursor(phase=phase_keys[next_index])
+def require_initialized(task_file: Path, task: dict[str, Any]) -> None:
+    if not task.get("orchestration"):
+        die(
+            "task is not initialized for pi-job: missing task.orchestration\n"
+            f"run: pi-job --task {task_file} init [--kind setup|implement|...]"
+        )
+
+
+def next_cursor(task: dict[str, Any]) -> Cursor | None:
+    """Compute the next actionable cursor by walking plan.slices in array order."""
+    status_map = slice_status_map(task)
+    for task_slice in task.get("plan", {}).get("slices", []):
+        if not is_actionable(task_slice, status_map):
+            continue
+        return slice_cursor(task_slice)
     return None
 
 
@@ -1414,11 +1442,8 @@ def unknown_dependency_keys(task: dict[str, Any], status_map: dict[str, str]) ->
     return missing
 
 
-def ready_slices(task: dict[str, Any], profile_key: str) -> list[dict[str, Any]]:
+def ready_slices(task: dict[str, Any]) -> list[dict[str, Any]]:
     """Return list of slices where is_actionable() is true, in array order."""
-    contract_phase = slice_work_contract_phase(profile_key)
-    if contract_phase is None:
-        return []
     status_map = slice_status_map(task)
     return [s for s in task.get("plan", {}).get("slices", []) if is_actionable(s, status_map)]
 
@@ -1428,19 +1453,34 @@ def all_slices_done(task: dict[str, Any]) -> bool:
     return all(status_value(s) in STATUS_DONE for s in task.get("plan", {}).get("slices", []))
 
 
-def slice_cursor(contract_phase: str, task_slice: dict[str, Any]) -> Cursor:
+def slice_cursor(task_slice: dict[str, Any]) -> Cursor:
     """Return the first unfinished step cursor in a slice, or the slice itself if all steps are done."""
     slice_key = str(task_slice.get("key") or "")
 
     for step in task_slice.get("steps", []):
         if status_value(step) not in STATUS_DONE:
-            return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
+            return Cursor(slice=slice_key, step=str(step.get("key") or ""))
 
     for step in task_slice.get("final_steps", []):
         if status_value(step) not in STATUS_DONE:
-            return Cursor(phase=contract_phase, slice=slice_key, step=str(step.get("key") or ""))
+            return Cursor(slice=slice_key, step=str(step.get("key") or ""))
 
-    return Cursor(phase=contract_phase, slice=slice_key)
+    return Cursor(slice=slice_key)
+
+
+def slice_kind_policy(task_slice: dict[str, Any]) -> dict[str, Any]:
+    kind = str(task_slice.get("kind") or "")
+    if not kind:
+        return {}
+    return get_slice_kind(kind).get("policies") or {}
+
+
+def merged_coding_policy(task: dict[str, Any], task_slice: dict[str, Any] | None) -> dict[str, Any]:
+    contract_policy = (slice_kind_policy(task_slice) if task_slice else {}).get("coding_execution") or {}
+    task_policy = task.get("orchestration", {}).get("policy", {}).get("coding_execution", {}) or {}
+    merged = dict(contract_policy)
+    merged.update(task_policy)
+    return merged
 
 
 def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
@@ -1448,20 +1488,14 @@ def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
     print(f"File: {task_file_desc}")
     print(f"Status: {task.get('status', '<unknown>')}")
     print(f"Contract: {PROFILE_CONTRACT}")
-    profile = profile_value(task)
-    print(f"Profile: {profile if profile else '<unset>'}")
-    if not profile:
+    if not task.get("orchestration"):
         print("Initialization: required")
-        print(f"Next: initialize profile with ./scripts/pi-job --task {task_file_desc} init --profile <profile>")
-        return
-    if profile not in valid_profiles():
-        print("Initialization: invalid-profile")
-        print(f"Next: choose one of {', '.join(sorted(valid_profiles()))}")
+        print(f"Next: initialize with pi-job --task {task_file_desc} init [--kind setup|implement|...]")
         return
     print("Initialization: ok")
     cursor = current_cursor(task)
     print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
-    nxt = next_cursor(task, profile) if profile in valid_profiles() else None
+    nxt = next_cursor(task)
     if nxt is None:
         if all_slices_done(task):
             print("Next: done")
@@ -1475,37 +1509,33 @@ def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
         print(f"⚠ stored cursor is stale — cursor: {cursor.label()} vs computed next: {nxt.label()}; run `pi-job advance` to resync")
 
     # Ready slices line
-    if profile in valid_profiles():
-        ready = ready_slices(task, profile)
-        if ready:
-            ready_keys = [str(s.get("key") or "") for s in ready]
-            print(f"Ready: {', '.join(ready_keys)}")
-        else:
-            print("Ready: none")
+    ready = ready_slices(task)
+    if ready:
+        ready_keys = [str(s.get("key") or "") for s in ready]
+        print(f"Ready: {', '.join(ready_keys)}")
+    else:
+        print("Ready: none")
 
-        # Unknown dependency key warnings
-        status_map = slice_status_map(task)
-        unknown = unknown_dependency_keys(task, status_map)
-        for slice_key, dep_key in unknown:
-            print(f"⚠ slice '{slice_key}' depends_on unknown slice key '{dep_key}'")
+    # Unknown dependency key warnings
+    status_map = slice_status_map(task)
+    unknown = unknown_dependency_keys(task, status_map)
+    for slice_key, dep_key in unknown:
+        print(f"⚠ slice '{slice_key}' depends_on unknown slice key '{dep_key}'")
 
 
 def cursor_block(cursor: Cursor) -> str:
     lines = ["\t\tcursor: {"]
-    lines.append(f'\t\t\tphase: "{cursor.phase}"')
-    if cursor.slice is not None:
-        lines.append(f'\t\t\tslice: "{cursor.slice}"')
+    lines.append(f'\t\t\tslice: "{cursor.slice}"')
     if cursor.step is not None:
         lines.append(f'\t\t\tstep:  "{cursor.step}"')
     lines.append("\t\t}")
     return "\n".join(lines)
 
 
-def orchestration_block(profile: str, cursor: Cursor) -> str:
+def orchestration_block(cursor: Cursor) -> str:
     return "\n".join(
         [
             "\torchestration: {",
-            f'\t\tprofile: "{profile}"',
             cursor_block(cursor),
             "\t\tpolicy: {",
             "\t\t\tcoding_execution: {",
@@ -2008,6 +2038,31 @@ def cue_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def expand_inline_plan_block(text: str) -> str:
+    """Turn a single-line `plan: {note: \"\", slices: []}` into a multiline block
+    so add_slice/init can find `plan: {` on its own line."""
+    pattern = re.compile(
+        r"(?m)^(?P<indent>[ \t]*)plan:\s*\{(?P<body>[^}]*)\}\s*$"
+    )
+
+    def repl(m: re.Match[str]) -> str:
+        indent = m.group("indent")
+        body = m.group("body")
+        # Only expand empty/minimal inline plans (no nested braces already stripped by [^}]*)
+        if "slices" not in body:
+            return m.group(0)
+        note_m = re.search(r'note:\s*"((?:\\.|[^"\\])*)"', body)
+        note = note_m.group(1) if note_m else ""
+        return (
+            f"{indent}plan: {{\n"
+            f'{indent}\tnote: "{note}"\n'
+            f"{indent}\tslices: []\n"
+            f"{indent}}}"
+        )
+
+    return pattern.sub(repl, text, count=1)
+
+
 def step_literal(key: str, title: str, *, status: str = "planned", note: str = "") -> str:
     return (
         f'#Step & {{key: "{cue_escape(key)}", title: "{cue_escape(title)}", '
@@ -2018,22 +2073,22 @@ def step_literal(key: str, title: str, *, status: str = "planned", note: str = "
 def slice_literal(
     *,
     key: str,
+    kind: str,
     title: str,
     goal: str,
     extra_fields: dict[str, list[str]],
+    steps: list[tuple[str, str]],
     final_steps: list[tuple[str, str]],
     status: str = "planned",
     note: str = "",
 ) -> str:
     """extra_fields maps a non-baseline #Slice field name to its plain string values,
     for whatever fields this file's #Slice schema declares and the caller resolved
-    values for - driven entirely by cue_def_fields(), no hardcoded field list. Rendered
-    here as a CUE string-list literal; callers pass plain data, not CUE syntax. final_steps
-    is [(key, title), ...] - either copied from the schema's closed-list literal, or empty
-    when the schema's final_steps is open."""
+    values for - driven entirely by cue_def_fields(), no hardcoded field list."""
     lines = [
         "#Slice & {\n",
         f'key: "{cue_escape(key)}"\n',
+        f'kind: "{cue_escape(kind)}"\n',
         f'title: "{cue_escape(title)}"\n',
         f'goal: "{cue_escape(goal)}"\n',
         f'status: "{status}"\n',
@@ -2042,7 +2097,12 @@ def slice_literal(
     for field_name, values in extra_fields.items():
         rendered = "[" + ", ".join(f'"{cue_escape(v)}"' for v in values) + "]"
         lines.append(f"{field_name}: {rendered}\n")
-    lines.append("steps: []\n")
+    if steps:
+        lines.append("steps: [\n")
+        lines += [step_literal(k, t) for k, t in steps]
+        lines.append("]\n")
+    else:
+        lines.append("steps: []\n")
     if final_steps:
         lines.append("final_steps: [\n")
         lines += [step_literal(k, t) for k, t in final_steps]
@@ -2085,10 +2145,11 @@ def toolbelt_add(store: TaskStore, task: dict[str, Any], args: argparse.Namespac
     print(f"registered toolbelt aid: {key} [{args.status}]")
 
 
-def toolbelt_block(task: dict[str, Any], profile_key: str) -> list[str]:
-    aids = toolbelt_for_profile(profile_key)
+def toolbelt_block(task: dict[str, Any], kind_keys: set[str] | None = None) -> list[str]:
+    kinds = kind_keys if kind_keys is not None else task_slice_kinds(task)
+    aids = toolbelt_for_kinds(kinds) if kinds else []
     if not aids:
-        return ["", "Toolbelt (planning aids): none suited to this profile."]
+        return ["", "Toolbelt (planning aids): none suited to this task's slice kinds."]
     artifacts = task_artifacts(task)
     lines = ["", "Toolbelt (planning aids) — register with `pi-job toolbelt add <key>`:"]
     for aid in aids:
@@ -2130,11 +2191,22 @@ def blocking_incomplete_step(task: dict[str, Any], cursor: Cursor | None) -> str
     return None
 
 
-def phase_owner(profile_key: str, cursor: Cursor) -> str:
-    phase = find_contract_phase(profile_key, cursor.phase)
-    if not phase:
-        die(f"unknown contract phase {cursor.phase!r} for profile {profile_key!r}")
-    return str(phase.get("owner") or "orchestrator")
+def try_get_step_kind(step_key: str) -> dict[str, Any] | None:
+    return contract_step_kinds().get(step_key)
+
+
+def step_owner(task: dict[str, Any], cursor: Cursor) -> str:
+    task_slice = find_current_slice(task, cursor)
+    step = find_current_step(task_slice, cursor)
+    if step:
+        step_kind = try_get_step_kind(str(step.get("key") or ""))
+        if step_kind:
+            return str(step_kind.get("owner") or "orchestrator")
+    if cursor.step:
+        step_kind = try_get_step_kind(cursor.step)
+        if step_kind:
+            return str(step_kind.get("owner") or "orchestrator")
+    return "orchestrator"
 
 
 def enforce_owner_policy(
@@ -2147,79 +2219,90 @@ def enforce_owner_policy(
     exceptions = contract_policy.get("exceptions") or []
     if owner == "subagent" and not subagent_required and not exceptions:
         die(
-            "contract phase owner is subagent but coding_execution.subagent_required is false "
+            "step owner is subagent but coding_execution.subagent_required is false "
             "without a recorded exception"
         )
     if owner == "subagent" and subagent_required:
         return
 
 
-def build_plan(task_file: Path, task: dict[str, Any], profile_key: str) -> str:
-    profile = get_profile(profile_key)
+def build_plan(task_file: Path, task: dict[str, Any]) -> str:
     cursor = current_cursor(task)
-    nxt = next_cursor(task, profile_key)
+    nxt = next_cursor(task)
     lines = [
-        "PI-JOB PROFILE PLAN",
+        "PI-JOB TASK PLAN",
         "",
         f"Task file: {task_file}",
         f"Contract: {PROFILE_CONTRACT}",
-        f"Profile: {profile_key} ({profile.get('title', '')})",
-        f"Description: {profile.get('description', '')}",
         f"Task cursor: {cursor.label() if cursor else '<unset>'}",
         f"Next slice step: {nxt.label() if nxt else 'done'}",
         "",
-        "Profile phases:",
+        "Plan slices:",
     ]
-    for index, phase in enumerate(profile_phases(profile_key), start=1):
-        key = str(phase.get("key") or "")
-        owner = str(phase.get("owner") or "orchestrator")
-        required = "required" if phase.get("required", True) else "optional"
+    for index, task_slice in enumerate(task.get("plan", {}).get("slices", []), start=1):
+        slice_key = str(task_slice.get("key") or "")
+        kind = str(task_slice.get("kind") or "<unset>")
+        st = status_value(task_slice)
         marker = ""
-        if cursor and cursor.phase == key:
-            marker = "  <-- current"
-        elif nxt and nxt.phase == key:
-            marker = "  <-- next"
-        lines.append(f"{index:2}. {key} [{owner}/{required}] {phase.get('title', '')}{marker}")
-        validators = phase.get("validators") or []
-        if validators:
-            lines.append(f"    validators: {', '.join(validators)}")
-        skip_rule = phase.get("skip_rule")
-        if skip_rule:
-            lines.append(f"    skip_rule: {skip_rule}")
-        guidance = phase.get("guidance")
-        if guidance:
-            lines.append(f"    guidance: {guidance}")
-        gates = phase.get("artifact_gates") or []
-        for gate in gates:
-            req = "required" if gate.get("required") else "optional"
-            lines.append(f"    artifact: {gate.get('key')} ({req}) when {gate.get('when')}")
+        if cursor and cursor.slice == slice_key:
+            marker = "  <-- current slice"
+        elif nxt and nxt.slice == slice_key:
+            marker = "  <-- next slice"
+        kind_entry = get_slice_kind(kind) if kind in valid_slice_kinds() else {}
+        lines.append(f"{index:2}. {slice_key} [kind:{kind}/{st}] {task_slice.get('title', '')}{marker}")
+        if kind_entry.get("description"):
+            lines.append(f"    kind: {kind_entry.get('title', kind)} — {kind_entry.get('description')}")
+        for step in list(task_slice.get("steps", [])) + list(task_slice.get("final_steps", [])):
+            step_key = str(step.get("key") or "")
+            step_st = status_value(step)
+            step_marker = ""
+            if cursor and cursor.slice == slice_key and cursor.step == step_key:
+                step_marker = "  <-- current step"
+            elif nxt and nxt.slice == slice_key and nxt.step == step_key:
+                step_marker = "  <-- next step"
+            step_kinds = contract_step_kinds()
+            owner = step_kinds.get(step_key, {}).get("owner", "?")
+            lines.append(f"    - {step_key} [{owner}/{step_st}] {step.get('title', '')}{step_marker}")
     lines += [
         "",
         "Orchestrator todo instruction:",
-        "- Use the session todo capability to track this profile plan.",
-        "- Create one todo per required profile phase (and optional phases you intend to run).",
-        "- Mark the current/next phase in_progress; mark completed phases done as evidence lands.",
+        "- Use the session todo capability to track this task plan.",
+        "- Create one todo per slice (or per step when helpful).",
+        "- Mark the current/next slice/step in_progress; mark completed items done as evidence lands.",
         "- Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.",
         "",
-        "Note: next/advance walk task.plan slices under the profile's slice-work contract phase.",
+        "Note: next/advance walk task.plan.slices in array order; closing work is just another slice.",
     ]
-    lines += toolbelt_block(task, profile_key)
+    lines += toolbelt_block(task)
     return "\n".join(lines)
 
 
+def slice_plan_file(task_file: Path, slice_key: str) -> Path:
+    """Sibling Markdown plan for a slice: <task-stem>.plans/<slice-key>.md."""
+    return task_file.parent / f"{task_file.stem}.plans" / f"{slice_key}.md"
+
+
+def slice_plan_note_pointer(task_file: Path, slice_key: str) -> str:
+    """create-plan step note value: path relative to the task file's directory."""
+    return f"Plan file: {task_file.stem}.plans/{slice_key}.md"
+
+
 def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
-    profile_key = require_profile(task_file, task)
-    policy = task.get("orchestration", {}).get("policy", {}).get("coding_execution", {})
-    contract_policy = get_profile(profile_key).get("policies", {}).get("coding_execution") or {}
+    require_initialized(task_file, task)
     task_slice = find_current_slice(task, cursor)
     step = find_current_step(task_slice, cursor)
-    contract_phase = find_contract_phase(profile_key, cursor.phase)
-    owner = phase_owner(profile_key, cursor)
+    contract_policy = merged_coding_policy(task, task_slice)
+    owner = step_owner(task, cursor)
     enforce_owner_policy(
         owner,
-        policy=policy,
+        policy=task.get("orchestration", {}).get("policy", {}).get("coding_execution", {}),
         contract_policy=contract_policy,
     )
+    step_kind = None
+    if step:
+        step_kind = try_get_step_kind(str(step.get("key") or ""))
+    elif cursor.step:
+        step_kind = try_get_step_kind(cursor.step)
     title = step.get("title") if step else task_slice.get("title") if task_slice else cursor.label()
     note = step.get("note") if step else task_slice.get("note") if task_slice else ""
 
@@ -2229,12 +2312,12 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         f"Task file: {task_file}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE_CONTRACT}",
-        f"Profile: {profile_key}",
         f"Current cursor: {cursor.label()}",
         f"Owner: {owner}",
     ]
     if task_slice:
-        lines.append(f"Slice: {task_slice.get('key')} — {task_slice.get('title', '<untitled>')}")
+        kind = str(task_slice.get("kind") or "")
+        lines.append(f"Slice: {task_slice.get('key')} [{kind}] — {task_slice.get('title', '<untitled>')}")
         slice_goal = task_slice.get("goal")
         if slice_goal:
             lines.append(f"Slice goal: {slice_goal}")
@@ -2246,39 +2329,35 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
     lines.append(f"Step title: {title or '<untitled>'}")
     if note:
         lines.append(f"Step note: {note}")
-    if contract_phase:
+    if task_slice and step and step.get("key") in ("create-plan", "grill-plan"):
+        plan_path = slice_plan_file(task_file, str(task_slice.get("key")))
+        lines.append(
+            f"Slice plan file: {plan_path} "
+            f"(create-plan writes this Markdown; grill-plan revises it; "
+            f"create-plan note must be only `{slice_plan_note_pointer(task_file, str(task_slice.get('key')))}`)"
+        )
+    if step_kind:
         lines += [
-            f"Contract phase: {contract_phase.get('key')} — {contract_phase.get('title', '')}",
-            f"Contract owner: {contract_phase.get('owner', owner)}",
+            f"Step kind: {step_kind.get('key')} — {step_kind.get('title', '')}",
         ]
-        validators = contract_phase.get("validators") or []
+        validators = step_kind.get("validators") or []
         if validators:
             lines.append(f"Validators: {', '.join(validators)}")
-        inputs = contract_phase.get("inputs") or []
-        if inputs:
-            lines.append(f"Inputs: {', '.join(inputs)}")
-        outputs = contract_phase.get("outputs") or []
-        if outputs:
-            lines.append(f"Outputs: {', '.join(outputs)}")
-        skip_rule = contract_phase.get("skip_rule")
+        skip_rule = step_kind.get("skip_rule")
         if skip_rule:
             lines.append(f"Skip rule: {skip_rule}")
-        guidance = contract_phase.get("guidance")
+        guidance = step_kind.get("guidance")
         if guidance:
             lines.append(f"Guidance: {guidance}")
-        for gate in contract_phase.get("artifact_gates") or []:
+        for gate in step_kind.get("artifact_gates") or []:
             req = "required" if gate.get("required") else "optional"
             lines.append(
                 f"Artifact gate: {gate.get('key')} ({req}) — {gate.get('output')} when {gate.get('when')}"
             )
 
-    subagent_required = policy.get("subagent_required", contract_policy.get("subagent_required", True))
-    lower_power = policy.get(
-        "lower_power_model_preferred", contract_policy.get("lower_power_model_preferred", True)
-    )
-    reviews = policy.get(
-        "orchestrator_reviews_subagent", contract_policy.get("orchestrator_reviews_subagent", True)
-    )
+    subagent_required = contract_policy.get("subagent_required", True)
+    lower_power = contract_policy.get("lower_power_model_preferred", True)
+    reviews = contract_policy.get("orchestrator_reviews_subagent", True)
     lines += [
         "",
         "Execution policy:",
@@ -2289,7 +2368,7 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
     todo_lines = [
         "",
         "Todo tracking:",
-        "- Keep session todos aligned with `pi-job plan` for this profile.",
+        "- Keep session todos aligned with `pi-job plan` for this task.",
         f"- Set the todo for cursor {cursor.label()} to in_progress before executing.",
         "- Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.",
     ]
@@ -2305,7 +2384,7 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             "",
             "Subagent prompt:",
             f"Read the task file first: {task_file}",
-            f"Read the profile contract: {PROFILE_CONTRACT}",
+            f"Read the step/slice-kind contract: {PROFILE_CONTRACT}",
             f"Execute only cursor {cursor.label()}.",
             "Return changed files, commands run, verification evidence, and unresolved risks.",
             "Do not advance the task record unless this cursor step explicitly asks for task-record updates.",
@@ -2315,12 +2394,12 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             "",
             "Orchestrator instruction:",
             "- Execute this step in the main orchestration session.",
-            "- Do not skip required artifacts or validators from the task/profile contract.",
+            "- Do not skip required artifacts or validators from the task contract.",
             "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
             *todo_lines,
         ]
-    if cursor.phase in ("select_toolbelt", "plan_slices"):
-        lines += toolbelt_block(task, profile_key)
+    if step and step.get("key") in ("select-toolbelt", "plan-slices"):
+        lines += toolbelt_block(task, task_slice_kinds(task))
     return "\n".join(lines)
 
 
@@ -2332,13 +2411,12 @@ def cmd_status(args: argparse.Namespace) -> None:
 def cmd_next(args: argparse.Namespace) -> None:
     store = open_task_store(args.task.resolve())
     task = store.read()
-    profile_key = require_profile(args.task.resolve(), task)
+    require_initialized(args.task.resolve(), task)
     if args.all:
-        ready = ready_slices(task, profile_key)
+        ready = ready_slices(task)
         if ready:
-            contract_phase = slice_work_contract_phase(profile_key)
             for s in ready:
-                cursor = slice_cursor(contract_phase, s)
+                cursor = slice_cursor(s)
                 print(cursor.label())
         else:
             if all_slices_done(task):
@@ -2346,7 +2424,7 @@ def cmd_next(args: argparse.Namespace) -> None:
             else:
                 print("blocked: no dependency-satisfied slice ready")
     else:
-        cursor = next_cursor(task, profile_key)
+        cursor = next_cursor(task)
         if cursor is None:
             if all_slices_done(task):
                 print("done")
@@ -2359,7 +2437,8 @@ def cmd_next(args: argparse.Namespace) -> None:
 def cmd_advance(args: argparse.Namespace) -> None:
     store = open_task_store(args.task.resolve())
     task = store.read()
-    profile_key = require_profile(args.task.resolve(), task)
+    task_file = args.task.resolve()
+    require_initialized(task_file, task)
 
     if not args.dry_run:
         block_reason = blocking_incomplete_step(task, current_cursor(task))
@@ -2372,17 +2451,35 @@ def cmd_advance(args: argparse.Namespace) -> None:
         if args.force and not args.reason:
             die("--force requires --reason '<why>' to record why the step is being skipped")
 
-    if args.phase:
-        cursor = Cursor(args.phase, args.slice, args.step)
-        if find_contract_phase(profile_key, cursor.phase) is None:
-            die(f"unknown contract phase {cursor.phase!r} for profile {profile_key!r}")
+    if args.slice:
+        if not args.step:
+            die("--slice requires --step when jumping explicitly")
+        cursor = Cursor(slice=args.slice, step=args.step)
     else:
-        cursor = next_cursor(task, profile_key)
+        # --force without an explicit jump: mark the incomplete current step skipped
+        # so next_cursor can move past it (otherwise next_cursor returns the same step).
+        current = current_cursor(task)
+        if (
+            not args.dry_run
+            and args.force
+            and args.reason
+            and current is not None
+            and current.step
+            and blocking_incomplete_step(task, current)
+        ):
+            store.set_step_status(
+                slice_key=current.slice,
+                step_key=current.step,
+                status="skipped",
+                note=args.reason,
+            )
+            task = store.read()
+        cursor = next_cursor(task)
     if cursor is None:
         if all_slices_done(task):
             die("task has no next cursor (all slices are done)")
         else:
-            die("no dependency-satisfied slice is ready; use --phase/--slice/--step to jump explicitly")
+            die("no dependency-satisfied slice is ready; use --slice/--step to jump explicitly")
     if args.dry_run:
         print(cursor_block(cursor))
         return
@@ -2396,8 +2493,8 @@ def cmd_instruction(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     task = store.read()
-    profile_key = require_profile(task_file, task)
-    cursor = current_cursor(task) if args.current else next_cursor(task, profile_key)
+    require_initialized(task_file, task)
+    cursor = current_cursor(task) if args.current else next_cursor(task)
     if cursor is None:
         die("task has no cursor for instruction")
     print(build_instruction(task_file, task, cursor))
@@ -2407,17 +2504,17 @@ def cmd_plan(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     task = store.read()
-    profile = require_profile(task_file, task)
-    print(build_plan(task_file, task, profile))
+    require_initialized(task_file, task)
+    print(build_plan(task_file, task))
 
 
 def cmd_sync(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     task = store.read()
-    profile = require_profile(task_file, task)
+    require_initialized(task_file, task)
     status_filter = set(args.status.split(",")) if args.status else None
-    print(build_sync_instruction(task_file, task, profile, status_filter))
+    print(build_sync_instruction(task_file, task, status_filter))
 
 
 def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) -> list[dict[str, Any]]:
@@ -2441,10 +2538,9 @@ def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) 
 
 
 def build_sync_instruction(
-    task_file: Path, task: dict[str, Any], profile_key: str, status_filter: set[str] | None
+    task_file: Path, task: dict[str, Any], status_filter: set[str] | None
 ) -> str:
     candidates = sync_candidate_slices(task, status_filter)
-    contract_phase = slice_work_contract_phase(profile_key) or ""
 
     lines = [
         "PI-JOB SYNC CHECKLIST",
@@ -2477,7 +2573,7 @@ def build_sync_instruction(
             lines.append(f"   repo: {repo_name}{suffix}")
             for pr in work.get("prs") or []:
                 lines.append(f"   pr: {pr.get('url')} [{pr.get('status')}]")
-        current = slice_cursor(contract_phase, task_slice)
+        current = slice_cursor(task_slice)
         if current.step:
             step = find_current_step(task_slice, current)
             step_status = status_value(step) if step else "?"
@@ -2508,13 +2604,13 @@ def cmd_show(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     task = store.read()
-    profile_key = require_profile(task_file, task)
+    require_initialized(task_file, task)
     cursor = current_cursor(task)
     status_filter = set(args.status.split(",")) if args.status else None
 
-    lines = [f"{task.get('title', '<untitled>')}     profile: {profile_key}"]
+    lines = [f"{task.get('title', '<untitled>')}"]
     if cursor:
-        lines.append(f"cursor → {cursor.slice or '-'} / {cursor.step or '-'}")
+        lines.append(f"cursor → {cursor.slice} / {cursor.step or '-'}")
     lines.append("")
 
     slices = task.get("plan", {}).get("slices", [])
@@ -2531,8 +2627,13 @@ def cmd_show(args: argparse.Namespace) -> None:
             continue
         is_current = bool(cursor and cursor.slice == task_slice.get("key"))
         glyph = GLYPH["in_progress"] if is_current else GLYPH.get(st, "○")
+        kind = str(task_slice.get("kind") or "")
         repos = ", ".join(task_slice.get("repos", []) or [])
-        lines.append(f"{glyph} {str(task_slice.get('key') or ''):<22} [{d}/{t}] {repos}".rstrip())
+        lines.append(f"{glyph} {str(task_slice.get('key') or ''):<22} [{kind}/{d}/{t}] {repos}".rstrip())
+
+        # Done/skipped slices stay header-only unless --all (no deps, repo_work, or steps).
+        if st in STATUS_DONE and not args.all:
+            continue
 
         # Render dependencies if present
         deps = task_slice.get("depends_on") or []
@@ -2555,7 +2656,13 @@ def cmd_show(args: argparse.Namespace) -> None:
                 note_suffix = f" — {pr.get('note')}" if pr.get("note") else ""
                 lines.append(f"        pr {pr.get('status')} {pr.get('url')}{note_suffix}")
 
-        if args.all or is_current or (args.started and st != "planned"):
+        # Expand steps for the cursor slice, --all, or --started (active work only).
+        expand_steps = (
+            args.all
+            or is_current
+            or (args.started and st not in STATUS_DONE and st != "planned")
+        )
+        if expand_steps:
             current_step = cursor.step if is_current and cursor else None
             for step in task_slice.get("steps", []):
                 lines.append(step_line(step, terminal=False, current_step=current_step))
@@ -2576,14 +2683,21 @@ def cmd_show(args: argparse.Namespace) -> None:
 def cmd_toolbelt(args: argparse.Namespace) -> None:
     store = open_task_store(args.task.resolve())
     task = store.read()
-    profile_key = require_profile(args.task.resolve(), task)
+    task_file = args.task.resolve()
+    require_initialized(task_file, task)
     if args.action == "add":
         toolbelt_add(store, task, args)
         return
-    aids = toolbelt_for_profile(profile_key)
-    print(f"Toolbelt aids suited to profile {profile_key}:")
+    if args.kind:
+        get_slice_kind(args.kind)
+        kinds = {args.kind}
+    else:
+        kinds = task_slice_kinds(task)
+    aids = toolbelt_for_kinds(kinds)
+    kind_desc = args.kind if args.kind else ", ".join(sorted(kinds)) or "(none)"
+    print(f"Toolbelt aids suited to slice kind(s) {kind_desc}:")
     if not aids:
-        print("  (none — this profile suggests no planning aids)")
+        print("  (none — these slice kinds suggest no planning aids)")
         return
     artifacts = task_artifacts(task)
     for aid in aids:
@@ -2596,19 +2710,35 @@ def cmd_toolbelt(args: argparse.Namespace) -> None:
 def cmd_init(args: argparse.Namespace) -> None:
     store = open_task_store(args.task.resolve())
     task = store.read()
-    get_profile(args.profile)
-    cursor = next_cursor(task, args.profile)
+    task_file = args.task.resolve()
+
+    kind: str | None = args.kind
+    if kind:
+        get_slice_kind(kind)
+        if not task.get("plan", {}).get("slices"):
+            store.add_slice(
+                key=f"{kind}-slice",
+                kind=kind,
+                title=get_slice_kind(kind).get("title", kind),
+                goal=f"Initial {kind} slice seeded by pi-job init",
+                extra_fields={},
+                steps=steps_from_kind_template(kind),
+                final_steps=[],
+                after=None,
+            )
+            task = store.read()
+
+    cursor = next_cursor(task)
     if cursor is None:
         if all_slices_done(task):
-            cursor = Cursor("done")
+            die("task has no actionable slice/step; add slices with pi-job add-slice --kind ...")
         else:
-            # No ready slices: unmet dependencies or cycles at init time.
             die("no slice is dependency-satisfied yet; check depends_on for a forward reference or cycle among the first slices")
     if args.dry_run:
-        print(orchestration_block(args.profile, cursor))
+        print(orchestration_block(cursor))
         return
-    store.set_profile(args.profile, cursor)
-    print(f"initialized profile: {args.profile}")
+    store.init_orchestration(cursor)
+    print("initialized orchestration")
     print(f"cursor: {cursor.label()}")
 
 
@@ -2624,11 +2754,11 @@ def cmd_scaffold(args: argparse.Namespace) -> None:
     write_and_format(task_file, content)
     print(f"scaffolded task file: {task_file}")
     print("next: edit project/source/plan, then run:")
-    print(f"  pi-job --task {task_file} init --profile <profile>")
+    print(f"  pi-job --task {task_file} init [--kind setup|implement|...]")
     print(f"  pi-job --task {task_file} plan")
 
 
-BASELINE_SLICE_FIELDS = {"key", "title", "goal", "status", "note", "steps", "final_steps"}
+BASELINE_SLICE_FIELDS = {"key", "kind", "title", "goal", "status", "note", "steps", "final_steps"}
 CLI_FILLABLE_SLICE_FIELDS = {"repos": lambda args: split_csv(args.repos), "depends_on": lambda args: split_csv(args.depends_on)}
 
 
@@ -2636,6 +2766,10 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     task = store.read()
+
+    if not args.kind:
+        die(f"--kind is required; expected one of: {', '.join(sorted(valid_slice_kinds()))}")
+    get_slice_kind(args.kind)
 
     status_map = slice_status_map(task)
     if args.key in status_map:
@@ -2645,7 +2779,7 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
 
     fields = cue_def_fields(task_file, "#Slice")
     by_name = {f.name: f for f in fields}
-    for required in ("key", "title", "goal", "status", "note", "steps", "final_steps"):
+    for required in ("key", "kind", "title", "goal", "status", "note", "steps", "final_steps"):
         if required not in by_name:
             die(f"this file's #Slice schema is missing expected field {required!r}; unsupported shape, add the slice by hand")
 
@@ -2667,13 +2801,20 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
             die(f"this file's #Slice schema has no {cli_field!r} field; drop --{cli_field.replace('_', '-')}, or add the field to the schema first")
 
     final_steps = list(by_name["final_steps"].closed_items) if by_name["final_steps"].kind == "closed_list" else []
+    steps = steps_from_kind_template(args.kind)
 
-    literal = slice_literal(key=args.key, title=args.title, goal=args.goal, extra_fields=extra_fields, final_steps=final_steps)
+    literal = slice_literal(
+        key=args.key, kind=args.kind, title=args.title, goal=args.goal,
+        extra_fields=extra_fields, steps=steps, final_steps=final_steps,
+    )
     if args.dry_run:
         print(literal, end="")
         return
 
-    store.add_slice(key=args.key, title=args.title, goal=args.goal, extra_fields=extra_fields, final_steps=final_steps, after=args.after)
+    store.add_slice(
+        key=args.key, kind=args.kind, title=args.title, goal=args.goal,
+        extra_fields=extra_fields, steps=steps, final_steps=final_steps, after=args.after,
+    )
     print(f"added slice: {args.key}")
 
 
@@ -2978,7 +3119,7 @@ def diagnose_slice(lines: list[str], open_idx: int, close_idx: int, line_range: 
 
 
 def main() -> None:
-    profiles = sorted(valid_profiles())
+    slice_kinds = sorted(valid_slice_kinds())
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--task", type=Path, required=True, help="CUE task file to orchestrate")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -2986,8 +3127,8 @@ def main() -> None:
     status = sub.add_parser("status", help="show task status, saved cursor, and next cursor")
     status.set_defaults(fn=cmd_status)
 
-    init = sub.add_parser("init", help="initialize task orchestration with an explicit profile")
-    init.add_argument("--profile", required=True, choices=profiles)
+    init = sub.add_parser("init", help="initialize task orchestration (optional --kind seeds first slice from template)")
+    init.add_argument("--kind", choices=slice_kinds, help="seed an initial slice from slice_kinds[ kind ].step_template when plan.slices is empty")
     init.add_argument("--dry-run", action="store_true")
     init.set_defaults(fn=cmd_init)
 
@@ -2996,15 +3137,14 @@ def main() -> None:
     nxt.set_defaults(fn=cmd_next)
 
     adv = sub.add_parser("advance", help="set cursor to the next unfinished step or an explicit cursor")
-    adv.add_argument("--phase", help="explicit phase to set; defaults to computed next")
-    adv.add_argument("--slice", help="explicit slice key")
+    adv.add_argument("--slice", help="explicit slice key (requires --step)")
     adv.add_argument("--step", help="explicit step key")
     adv.add_argument("--dry-run", action="store_true")
     adv.add_argument("--force", action="store_true", help="advance past an unfinished current step")
     adv.add_argument("--reason", help="required with --force; recorded skip reason")
     adv.set_defaults(fn=cmd_advance)
 
-    plan = sub.add_parser("plan", help="print profile phase plan from profile-contract.cue")
+    plan = sub.add_parser("plan", help="print slice/step plan from the task file and step/slice-kind contract")
     plan.set_defaults(fn=cmd_plan)
 
     sync = sub.add_parser(
@@ -3014,19 +3154,20 @@ def main() -> None:
     sync.add_argument("--status", help="comma-separated slice statuses to check instead of the default in_progress/blocked-or-open-PR selection")
     sync.set_defaults(fn=cmd_sync)
 
-    tb = sub.add_parser("toolbelt", help="list toolbelt aids for the profile, or add one")
+    tb = sub.add_parser("toolbelt", help="list toolbelt aids for slice kind(s), or add one")
     tb.add_argument("action", nargs="?", choices=["add"], help="'add' to register an aid")
     tb.add_argument("key", nargs="?", help="aid key when using add")
+    tb.add_argument("--kind", choices=slice_kinds, help="filter aids to those suiting this slice kind")
     tb.add_argument("--path", help="artifact path to record")
     tb.add_argument("--status", default="planned", help="artifact status (default planned)")
     tb.add_argument("--note", default="", help="artifact note")
     tb.set_defaults(fn=cmd_toolbelt)
 
     show = sub.add_parser("show", help="render the task as a cursor-focused slice/step tree")
-    show.add_argument("--all", action="store_true", help="expand every slice's steps")
+    show.add_argument("--all", action="store_true", help="expand every slice (including done/skipped detail)")
     show.add_argument(
         "--started", action="store_true",
-        help="also expand slices whose status is not 'planned' (work has started), even if not the current cursor's slice",
+        help="also expand in_progress/blocked slices (not the cursor's slice); done/skipped stay collapsed unless --all",
     )
     show.add_argument("--status", help="comma-separated slice statuses to include")
     show.set_defaults(fn=cmd_show)
@@ -3044,8 +3185,9 @@ def main() -> None:
     scaffold.add_argument("--dry-run", action="store_true", help="print the scaffold without writing")
     scaffold.set_defaults(fn=cmd_scaffold)
 
-    add_slice = sub.add_parser("add-slice", help="append a new #Slice to plan.slices, deriving required fields/final_steps shape from this file's own #Slice schema (cue def)")
+    add_slice = sub.add_parser("add-slice", help="append a new #Slice to plan.slices (--kind required; steps from slice_kinds template)")
     add_slice.add_argument("--key", required=True)
+    add_slice.add_argument("--kind", required=True, choices=slice_kinds)
     add_slice.add_argument("--title", required=True)
     add_slice.add_argument("--goal", required=True)
     add_slice.add_argument("--repos", help="comma-separated; required if this file's #Slice schema declares repos as non-optional")

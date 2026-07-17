@@ -38,6 +38,7 @@ package task
 }
 #Slice: {
     key: string
+    kind: string
     title: string
     goal: string
     status: #Status
@@ -53,6 +54,7 @@ PLAN_BODY = """
         slices: [
             #Slice & {
                 key: "first"
+                kind: "implement"
                 title: "First"
                 goal: "Already done"
                 status: "done"
@@ -62,6 +64,7 @@ PLAN_BODY = """
             },
             #Slice & {
                 key: "second-slice"
+                kind:   "implement"
                 title: "Second"
                 goal: "Find next planned step"
                 status: "in_progress"
@@ -83,6 +86,7 @@ PLAN_BODY_WITH_DEPENDENCIES = """
         slices: [
             #Slice & {
                 key: "base"
+                kind:   "implement"
                 title: "Base"
                 goal: "Already done"
                 status: "done"
@@ -92,6 +96,7 @@ PLAN_BODY_WITH_DEPENDENCIES = """
             },
             #Slice & {
                 key: "blocked-dependent"
+                kind:   "implement"
                 title: "Blocked Dependent"
                 goal: "Depends on not-yet-done"
                 status: "planned"
@@ -102,6 +107,7 @@ PLAN_BODY_WITH_DEPENDENCIES = """
             },
             #Slice & {
                 key: "ready-dependent"
+                kind:   "implement"
                 title: "Ready Dependent"
                 goal: "Depends on base (done)"
                 status: "planned"
@@ -112,6 +118,7 @@ PLAN_BODY_WITH_DEPENDENCIES = """
             },
             #Slice & {
                 key: "blocked-status-slice"
+                kind:   "implement"
                 title: "Blocked Status"
                 goal: "Has blocked status"
                 status: "blocked"
@@ -131,9 +138,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
         cursor: {
-            phase: "old_phase"
             slice: "old-slice"
             step:  "old-step"
         }
@@ -180,104 +185,119 @@ def test_profiled_task() -> None:
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Initialization: ok")
-        assert_contains(status, "Cursor: old_phase / old-slice / old-step")
-        assert_contains(status, "Next: implement / second-slice / s2")
+        assert_contains(status, "Cursor: old-slice / old-step")
+        assert_contains(status, "Next: second-slice / s2")
 
         nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "implement / second-slice / s2", nxt
+        assert nxt == "second-slice / s2", nxt
 
         dry = run(str(PI_JOB), "--task", str(task), "advance", "--dry-run").stdout
-        assert_contains(dry, 'phase: "implement"')
+        assert_contains(dry, 'slice: "second-slice"')
         assert_contains(dry, 'step:  "s2"')
 
         run(str(PI_JOB), "--task", str(task), "advance")
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(advanced, "Cursor: implement / second-slice / s2")
+        assert_contains(advanced, "Cursor: second-slice / s2")
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "PI-JOB EXECUTION INSTRUCTION")
-        assert_contains(instruction, "Owner: subagent")
-        assert_contains(instruction, "Contract phase: implement")
-        assert_contains(instruction, "Slice: second-slice — Second")
+        assert_contains(instruction, "Owner: orchestrator")
+        assert_contains(instruction, "Slice: second-slice [implement]")
         assert_contains(instruction, "Slice goal: Find next planned step")
         assert_contains(instruction, "Step: s2 — Next")
-        assert_contains(instruction, "Run this step in a subagent.")
+        assert_contains(instruction, "Execute this step in the main orchestration session.")
 
         plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
-        assert_contains(plan, "PI-JOB PROFILE PLAN")
-        assert_contains(plan, "Profile: small")
-        assert_contains(plan, "implement [subagent/required]")
-        assert_contains(plan, "explore_context [orchestrator/required]")
-        assert_contains(plan, "Use the session todo capability to track this profile plan.")
+        assert_contains(plan, "PI-JOB TASK PLAN")
+        assert_contains(plan, "second-slice [kind:implement/in_progress]")
+        assert_contains(plan, "Use the session todo capability to track this task plan.")
 
         assert_contains(instruction, "Todo tracking:")
         assert_contains(instruction, "Keep session todos aligned with `pi-job plan`")
 
 
-def test_uninitialized_task_requires_profile() -> None:
+def test_uninitialized_task_requires_orchestration() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "uninitialized.cue"
         task.write_text(UNINITIALIZED_TASK_FIXTURE)
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(status, "Profile: <unset>")
         assert_contains(status, "Initialization: required")
-        assert_contains(status, "init --profile <profile>")
+        assert_contains(status, "init [--kind setup|implement|...]")
 
         nxt = run(str(PI_JOB), "--task", str(task), "next", check=False)
         if nxt.returncode == 0:
             raise AssertionError("next unexpectedly succeeded for uninitialized task")
-        assert_contains(nxt.stderr, "missing task.orchestration.profile")
+        assert_contains(nxt.stderr, "missing task.orchestration")
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if instruction.returncode == 0:
             raise AssertionError("instruction unexpectedly succeeded for uninitialized task")
-        assert_contains(instruction.stderr, "missing task.orchestration.profile")
+        assert_contains(instruction.stderr, "missing task.orchestration")
 
-        init_dry = run(str(PI_JOB), "--task", str(task), "init", "--profile", "small", "--dry-run").stdout
-        assert_contains(init_dry, 'profile: "small"')
-        assert_contains(init_dry, 'phase: "implement"')
+        init_dry = run(str(PI_JOB), "--task", str(task), "init", "--dry-run").stdout
+        assert_contains(init_dry, 'slice: "second-slice"')
+        assert_contains(init_dry, 'step:  "s2"')
 
-        run(str(PI_JOB), "--task", str(task), "init", "--profile", "small")
+        run(str(PI_JOB), "--task", str(task), "init")
         initialized = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(initialized, "Profile: small")
         assert_contains(initialized, "Initialization: ok")
-        assert_contains(initialized, "Cursor: implement / second-slice / s2")
+        assert_contains(initialized, "Cursor: second-slice / s2")
 
 
-def test_full_profile_slice_work_uses_implement_slices() -> None:
+def test_init_with_kind_setup_seeds_setup_slice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "full.cue"
-        fixture = TASK_FIXTURE.replace('profile: "small"', 'profile: "full"').replace(
-            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
-            'phase: "implement_slices"\n            slice: "second-slice"\n            step:  "s2"',
-        )
+        task = Path(tmp) / "empty-plan.cue"
+        task.write_text(TASK_PREAMBLE + """
+task: {
+    title: "Empty plan"
+    status: "in_progress"
+    plan: {note: "", slices: []}
+}
+""")
+        run(str(PI_JOB), "--task", str(task), "init", "--kind", "setup")
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Cursor: setup-slice / explore-context")
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "setup-slice")
+        assert_contains(show, "explore-context")
+
+
+def test_edit_code_owner_from_step_kinds() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "edit-code-owner.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Edit code owner"
+    status: "in_progress"
+    orchestration: {
+        cursor: {slice: "only-slice", step: "edit-code"}
+        policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "only-slice"
+                kind: "implement"
+                title: "Only"
+                goal: "Check owner"
+                status: "in_progress"
+                note: ""
+                steps: [
+                    #Step & {key: "create-plan", title: "Plan", status: "done", note: ""},
+                    #Step & {key: "grill-plan", title: "Grill", status: "done", note: ""},
+                    #Step & {key: "edit-code", title: "Edit", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
         task.write_text(fixture)
-
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "implement_slices / second-slice / s2", nxt
-
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "Owner: subagent")
-        assert_contains(instruction, "Contract phase: implement_slices")
-        assert_contains(instruction, "Validators: each-slice-loop-complete")
-        assert_contains(instruction, "Inputs: task.plan.slices")
-        assert_contains(instruction, "Outputs: slice_evidence")
-        assert_contains(instruction, "Run this step in a subagent.")
-
-
-def test_contract_owner_for_implement_phase() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "implement.cue"
-        fixture = TASK_FIXTURE.replace(
-            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
-            'phase: "implement"\n            slice: "second-slice"\n            step:  "s2"',
-        )
-        task.write_text(fixture)
-
-        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        assert_contains(instruction, "Owner: subagent")
-        assert_contains(instruction, "Contract phase: implement")
+        assert_contains(instruction, "Step kind: edit-code")
         assert_contains(instruction, "Run this step in a subagent.")
 
 
@@ -286,6 +306,7 @@ ALL_DONE_PLAN_BODY = """
         slices: [
             #Slice & {
                 key: "first"
+                kind: "implement"
                 title: "First"
                 goal: "Already done"
                 status: "done"
@@ -295,6 +316,7 @@ ALL_DONE_PLAN_BODY = """
             },
             #Slice & {
                 key: "second-slice"
+                kind:   "implement"
                 title: "Second"
                 goal: "Also done"
                 status: "done"
@@ -312,7 +334,84 @@ ALL_DONE_PLAN_BODY = """
 """
 
 
-def test_next_walks_profile_phases_after_slices_done() -> None:
+CLOSING_PLAN_BODY = """
+    plan: {
+        slices: [
+            #Slice & {
+                key: "implement-done"
+                kind: "implement"
+                title: "Implement done"
+                goal: "Already done"
+                status: "done"
+                note: ""
+                steps: [
+                    #Step & {key: "edit-code", title: "Edit", status: "done", note: ""},
+                ]
+                final_steps: []
+            },
+            #Slice & {
+                key: "closing"
+                kind: "closing"
+                title: "Closing"
+                goal: "Cross-slice bookkeeping"
+                status: "planned"
+                note: ""
+                steps: [
+                    #Step & {key: "update-test-plan", title: "Update test plan", status: "planned", note: ""},
+                    #Step & {key: "update-docs", title: "Update docs", status: "planned", note: ""},
+                    #Step & {key: "capture-metrics", title: "Capture metrics", status: "planned", note: ""},
+                    #Step & {key: "update-task-file", title: "Update task file", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+        ]
+    }
+"""
+
+
+def test_next_walks_to_closing_slice_after_implement_done() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "all-implement-done.cue"
+        fixture = (
+            TASK_PREAMBLE
+            + """
+task: {
+    title: "Implement done fixture"
+    status: "in_progress"
+    project: {
+        name: "Fixture"
+    }
+    orchestration: {
+        cursor: {
+            slice: "implement-done"
+            step:  "edit-code"
+        }
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+"""
+            + CLOSING_PLAN_BODY
+            + "\n}\n"
+        )
+        task.write_text(fixture)
+
+        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
+        assert nxt == "closing / update-test-plan", nxt
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Next: closing / update-test-plan")
+
+        run(str(PI_JOB), "--task", str(task), "advance")
+        advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(advanced, "Cursor: closing / update-test-plan")
+
+
+def test_next_done_when_all_slices_finished() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "all-slices-done.cue"
         fixture = (
@@ -325,9 +424,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
         cursor: {
-            phase: "implement"
             slice: "second-slice"
             step:  "finish"
         }
@@ -345,33 +442,19 @@ task: {
         )
         task.write_text(fixture)
 
-        # small profile phase order: explore_context, clarify_if_needed, implement, verify, update_task_record.
-        # Saved cursor.phase is "implement" (slice work done) -> next should be "verify".
         nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "verify", nxt
+        assert nxt == "done", nxt
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(status, "Next: verify")
-
-        # Advancing should move the saved cursor to "verify" (step marked done -> not blocked).
-        run(str(PI_JOB), "--task", str(task), "advance")
-        advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(advanced, "Cursor: verify")
-        assert_contains(advanced, "Next: update_task_record")
-
-        # One more advance walks to the final phase.
-        run(str(PI_JOB), "--task", str(task), "advance")
-        final_status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(final_status, "Cursor: update_task_record")
-        assert_contains(final_status, "Next: done")
+        assert_contains(status, "Next: done")
 
 
 def test_advance_blocked_on_incomplete_current_step() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "incomplete.cue"
         fixture = TASK_FIXTURE.replace(
-            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
-            'phase: "implement"\n            slice: "second-slice"\n            step:  "s2"',
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
         )
         task.write_text(fixture)
 
@@ -400,18 +483,7 @@ def test_advance_blocked_on_incomplete_current_step() -> None:
         task2 = Path(tmp) / "incomplete-dry.cue"
         task2.write_text(fixture)
         dry = run(str(PI_JOB), "--task", str(task2), "advance", "--dry-run").stdout
-        assert_contains(dry, "phase:")
-
-
-def test_advance_rejects_unknown_phase() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "unknown-phase.cue"
-        task.write_text(TASK_FIXTURE)
-
-        res = run(str(PI_JOB), "--task", str(task), "advance", "--phase", "not_a_real_phase", check=False)
-        if res.returncode == 0:
-            raise AssertionError("advance unexpectedly succeeded with an unknown --phase")
-        assert_contains(res.stderr, "unknown contract phase")
+        assert_contains(dry, "slice:")
 
 
 def test_missing_task_points_to_scaffold() -> None:
@@ -422,7 +494,7 @@ def test_missing_task_points_to_scaffold() -> None:
             raise AssertionError("status unexpectedly succeeded for missing task")
         assert_contains(res.stderr, "task file not found")
         assert_contains(res.stderr, "scaffold")
-        assert_contains(res.stderr, "init --profile")
+        assert_contains(res.stderr, "init [--kind")
 
 
 def test_scaffold_creates_task_file() -> None:
@@ -447,7 +519,6 @@ def test_scaffold_creates_task_file() -> None:
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Task: Scaffolded example")
-        assert_contains(status, "Profile: <unset>")
         assert_contains(status, "Initialization: required")
 
         again = run(str(PI_JOB), "--task", str(task), "scaffold", check=False)
@@ -456,46 +527,54 @@ def test_scaffold_creates_task_file() -> None:
         assert_contains(again.stderr, "already exists")
 
 
-def test_toolbelt_lists_for_profile() -> None:
+def test_toolbelt_lists_for_slice_kinds() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        # full profile: all six aids suit it
-        full_task = Path(tmp) / "full.cue"
-        full_task.write_text(TASK_FIXTURE.replace('profile: "small"', 'profile: "full"'))
-        out = run(str(PI_JOB), "--task", str(full_task), "toolbelt").stdout
-        assert_contains(out, "profile full")
-        for key in (
-            "httpyac-api-spec", "sequence-diagram", "test-case-table",
-            "state-transition-table", "config-flag-matrix", "data-shape-sketch",
-        ):
+        implement_task = Path(tmp) / "implement.cue"
+        implement_task.write_text(TASK_FIXTURE)
+        out = run(str(PI_JOB), "--task", str(implement_task), "toolbelt").stdout
+        assert_contains(out, "implement")
+        for key in ("httpyac-api-spec", "test-case-table"):
             assert_contains(out, key)
         assert_contains(out, "[not registered]")
 
-        # small profile: no suited aids
-        small_task = Path(tmp) / "small.cue"
-        small_task.write_text(TASK_FIXTURE)
-        out_small = run(str(PI_JOB), "--task", str(small_task), "toolbelt").stdout
-        assert_contains(out_small, "none")
+        out_setup = run(str(PI_JOB), "--task", str(implement_task), "toolbelt", "--kind", "setup").stdout
+        assert_contains(out_setup, "setup")
+        assert_contains(out_setup, "config-flag-matrix")
+
+        research_task = Path(tmp) / "research.cue"
+        research_fixture = TASK_PREAMBLE + """
+task: {
+    title: "Research"
+    status: "in_progress"
+    orchestration: {cursor: {slice: "r", step: "explore-context"}, policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}}
+    plan: {slices: [#Slice & {key: "r", kind: "research", title: "R", goal: "g", status: "in_progress", note: "", steps: [#Step & {key: "explore-context", title: "Explore", status: "planned", note: ""}], final_steps: []}]}
+}
+"""
+        research_task.write_text(research_fixture)
+        out_research = run(str(PI_JOB), "--task", str(research_task), "toolbelt").stdout
+        assert_contains(out_research, "sequence-diagram")
+        assert_contains(out_research, "state-transition-table")
 
 
 def test_toolbelt_add_records_artifact() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "full.cue"
-        task.write_text(TASK_FIXTURE.replace('profile: "small"', 'profile: "full"'))
+        task.write_text(TASK_FIXTURE)
 
         out = run(
-            str(PI_JOB), "--task", str(task), "toolbelt", "add", "sequence-diagram",
-            "--path", "docs/seq.md", "--status", "done", "--note", "Appendix B",
+            str(PI_JOB), "--task", str(task), "toolbelt", "add", "httpyac-api-spec",
+            "--path", "docs/api.http", "--status", "done", "--note", "Appendix B",
         ).stdout
-        assert_contains(out, "registered toolbelt aid: sequence-diagram [done]")
+        assert_contains(out, "registered toolbelt aid: httpyac-api-spec [done]")
 
         listed = run(str(PI_JOB), "--task", str(task), "toolbelt").stdout
-        assert_contains(listed, "sequence-diagram [done]")
+        assert_contains(listed, "httpyac-api-spec [done]")
 
         # idempotent update in place (status changes, no duplicate key)
-        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "sequence-diagram", "--status", "planned")
+        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "httpyac-api-spec", "--status", "planned")
         text = task.read_text()
-        if text.count('"sequence-diagram":') != 1:
-            raise AssertionError(f"expected one sequence-diagram entry, got {text.count(chr(34)+'sequence-diagram'+chr(34)+':')}")
+        if text.count('"httpyac-api-spec":') != 1:
+            raise AssertionError(f"expected one httpyac-api-spec entry, got {text.count(chr(34)+'httpyac-api-spec'+chr(34)+':')}")
         assert_contains(text, 'status: "planned"')
 
         # unknown key fails closed
@@ -505,28 +584,58 @@ def test_toolbelt_add_records_artifact() -> None:
         assert_contains(bad.stderr, "unknown toolbelt aid")
 
 
-def test_select_toolbelt_phase_and_instruction() -> None:
+def test_select_toolbelt_step_and_instruction() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "full.cue"
-        fixture = TASK_FIXTURE.replace('profile: "small"', 'profile: "full"').replace(
-            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
-            'phase: "select_toolbelt"',
-        )
+        task = Path(tmp) / "setup.cue"
+        fixture = TASK_PREAMBLE + """
+task: {
+    title: "Setup toolbelt"
+    status: "in_progress"
+    orchestration: {
+        cursor: {slice: "setup-slice", step: "select-toolbelt"}
+        policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
+    }
+    plan: {
+        slices: [
+            #Slice & {
+                key: "setup-slice"
+                kind: "setup"
+                title: "Setup"
+                goal: "Pick aids"
+                status: "in_progress"
+                note: ""
+                steps: [
+                    #Step & {key: "explore-context", title: "Explore", status: "done", note: ""},
+                    #Step & {key: "select-toolbelt", title: "Select toolbelt", status: "planned", note: ""},
+                ]
+                final_steps: []
+            },
+        ]
+    }
+}
+"""
         task.write_text(fixture)
 
         plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
-        assert_contains(plan, "select_toolbelt")
+        assert_contains(plan, "select-toolbelt")
 
         instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        assert_contains(instr, "Contract phase: select_toolbelt")
+        assert_contains(instr, "Step kind: select-toolbelt")
         assert_contains(instr, "Toolbelt (planning aids)")
-        assert_contains(instr, "sequence-diagram")
+        assert_contains(instr, "config-flag-matrix")
 
 
 def test_toolbelt_block_in_plan() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "full.cue"
-        task.write_text(TASK_FIXTURE.replace('profile: "small"', 'profile: "full"'))
+        task = Path(tmp) / "setup-plan.cue"
+        task.write_text(TASK_PREAMBLE + """
+task: {
+    title: "Setup plan"
+    status: "in_progress"
+    orchestration: {cursor: {slice: "setup-slice", step: "select-toolbelt"}, policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}}
+    plan: {slices: [#Slice & {key: "setup-slice", kind: "setup", title: "Setup", goal: "g", status: "in_progress", note: "", steps: [#Step & {key: "select-toolbelt", title: "Select", status: "planned", note: ""}], final_steps: []}]}
+}
+""")
         plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
         assert_contains(plan, "Toolbelt (planning aids)")
         assert_contains(plan, "config-flag-matrix")
@@ -534,37 +643,35 @@ def test_toolbelt_block_in_plan() -> None:
 
 def test_show_renders_tree_and_footer() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "full.cue"
-        fixture = TASK_FIXTURE.replace('profile: "small"', 'profile: "full"').replace(
-            'phase: "old_phase"\n            slice: "old-slice"\n            step:  "old-step"',
-            'phase: "implement_slices"\n            slice: "second-slice"\n            step:  "s2"',
+        task = Path(tmp) / "show.cue"
+        fixture = TASK_FIXTURE.replace(
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
         )
         task.write_text(fixture)
 
         out = run(str(PI_JOB), "--task", str(task), "show").stdout
         assert_contains(out, "Fixture task")
-        assert_contains(out, "profile: full")
+        assert_contains(out, "implement/1/3")
         assert_contains(out, "second-slice")
-        assert_contains(out, "[1/3]")                 # second-slice: s1 done of s1,s2,finish
         assert_contains(out, "1/2 slices · 1/3 steps")
-        assert_contains(out, "← current")             # cursor on second-slice/s2
+        assert_contains(out, "← current")
         assert_contains(out, "no aids registered")
 
         all_out = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         assert_contains(all_out, "s1")
 
         # footer reflects a registered aid
-        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "sequence-diagram", "--path", "docs/seq.md", "--status", "done")
+        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "httpyac-api-spec", "--path", "docs/api.http", "--status", "done")
         footer = run(str(PI_JOB), "--task", str(task), "show").stdout
-        assert_contains(footer, "sequence-diagram")
-        assert_contains(footer, "docs/seq.md")
+        assert_contains(footer, "httpyac-api-spec")
+        assert_contains(footer, "docs/api.http")
 
 
 def test_show_started_flag_expands_non_planned_slices() -> None:
-    """By default only the current cursor's slice expands - in_progress/blocked slices
-    that are NOT the cursor's slice stay collapsed. --started additionally expands any
-    slice whose status isn't planned (even if not the cursor's slice); a still-planned
-    slice stays collapsed even with --started."""
+    """By default only the current cursor's slice expands. --started additionally
+    expands in_progress/blocked slices; done/skipped and still-planned stay collapsed.
+    --all expands everything."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "started.cue"
         fixture = TASK_PREAMBLE + """
@@ -575,10 +682,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -590,7 +694,22 @@ task: {
     plan: {
         slices: [
             #Slice & {
+                key: "done-not-current"
+                kind:   "implement"
+                title: "Done"
+                goal: "Finished"
+                status: "done"
+                note: ""
+                repos: ["graphius"]
+                depends_on: ["not-started"]
+                steps: [
+                    #Step & {key: "done-1", title: "Step one", status: "done", note: ""},
+                ]
+                final_steps: []
+            },
+            #Slice & {
                 key: "in-progress-not-current"
+                kind:   "implement"
                 title: "In progress"
                 goal: "Started work"
                 status: "in_progress"
@@ -602,6 +721,7 @@ task: {
             },
             #Slice & {
                 key: "blocked-not-current"
+                kind:   "implement"
                 title: "Blocked"
                 goal: "Stuck on external thing"
                 status: "blocked"
@@ -613,6 +733,7 @@ task: {
             },
             #Slice & {
                 key: "not-started"
+                kind:   "implement"
                 title: "Not started"
                 goal: "Still queued"
                 status: "planned"
@@ -629,20 +750,31 @@ task: {
         task.write_text(fixture)
 
         default_out = run(str(PI_JOB), "--task", str(task), "show").stdout
-        for key in ("ip-1", "bl-1", "ns-1"):
+        for key in ("ip-1", "bl-1", "ns-1", "done-1"):
             if key in default_out:
                 raise AssertionError(f"{key} should NOT expand by default (not the cursor's slice):\n{default_out}")
+        # Done slices collapse completely: no deps / repos detail either.
+        done_block = default_out.split("done-not-current", 1)[1].split("in-progress-not-current", 1)[0]
+        if "deps:" in done_block or "repo_work" in done_block or "done-1" in done_block:
+            raise AssertionError(f"done slice should be header-only by default:\n{default_out}")
 
         started_out = run(str(PI_JOB), "--task", str(task), "show", "--started").stdout
         assert_contains(started_out, "ip-1")
         assert_contains(started_out, "bl-1")
         if "ns-1" in started_out:
             raise AssertionError(f"still-planned slice should NOT expand with --started:\n{started_out}")
+        if "done-1" in started_out:
+            raise AssertionError(f"done slice should NOT expand with --started:\n{started_out}")
+        started_done_block = started_out.split("done-not-current", 1)[1].split("in-progress-not-current", 1)[0]
+        if "deps:" in started_done_block or "repo_work" in started_done_block:
+            raise AssertionError(f"done slice should stay header-only with --started:\n{started_out}")
 
         all_out = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         assert_contains(all_out, "ip-1")
         assert_contains(all_out, "bl-1")
         assert_contains(all_out, "ns-1")
+        assert_contains(all_out, "done-1")
+        assert_contains(all_out, "deps:")
 
 
 def test_scaffold_includes_reconcile_artifacts() -> None:
@@ -686,14 +818,14 @@ task: {
     title: "Plan-and-grill gating test"
     status: "in_progress"
     orchestration: {
-        profile: "small"
-        cursor: {phase: "implement"}
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
     }
     plan: {
         slices: [
             #Slice & {
                 key: "only-slice"
+                kind:   "implement"
                 title: "Only slice"
                 goal: "Exercise the gate"
                 status: "in_progress"
@@ -738,10 +870,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -755,7 +884,7 @@ task: {
 
         # blocked-dependent is first but has unmet dep; ready-dependent should be next
         nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "implement / ready-dependent", nxt
+        assert nxt == "ready-dependent", nxt
 
 
 def test_next_all_lists_only_ready_slices() -> None:
@@ -769,10 +898,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -807,10 +933,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -841,10 +964,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -857,6 +977,7 @@ task: {
         slices: [
             #Slice & {
                 key: "only-blocked"
+                kind:   "implement"
                 title: "Only Blocked"
                 goal: "Just a blocked slice"
                 status: "blocked"
@@ -888,10 +1009,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -904,6 +1022,7 @@ task: {
         slices: [
             #Slice & {
                 key: "unmet-dep"
+                kind:   "implement"
                 title: "Unmet Dependency"
                 goal: "Depends on something"
                 status: "planned"
@@ -942,9 +1061,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
         cursor: {
-            phase: "implement"
             slice: "blocked-dependent"
         }
         policy: {
@@ -975,9 +1092,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
         cursor: {
-            phase: "implement"
             slice: "ready-dependent"
         }
         policy: {
@@ -1008,10 +1123,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1024,6 +1136,7 @@ task: {
         slices: [
             #Slice & {
                 key: "bad-dep"
+                kind:   "implement"
                 title: "Bad Dependency"
                 goal: "Has typo in dep"
                 status: "planned"
@@ -1054,10 +1167,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1091,7 +1201,7 @@ def test_show_omits_deps_line_when_absent() -> None:
             raise AssertionError(f"should not show deps: line when no depends_on:\n{show}")
 
 
-def test_init_rejects_forward_reference_dependency_with_full_profile() -> None:
+def test_init_rejects_forward_reference_dependency() -> None:
     """Regression test: cmd_init() must use slice_work_contract_phase() not hardcoded 'implement'."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "forward-ref.cue"
@@ -1106,6 +1216,7 @@ task: {
         slices: [
             #Slice & {
                 key: "first-slice"
+                kind:   "implement"
                 title: "First"
                 goal: "Depends on nonexistent slice"
                 status: "planned"
@@ -1121,11 +1232,10 @@ task: {
         task.write_text(fixture)
 
         # init with full profile on a task with unmet dependency should die, not guess "implement"
-        init_res = run(str(PI_JOB), "--task", str(task), "init", "--profile", "full", check=False)
+        init_res = run(str(PI_JOB), "--task", str(task), "init", check=False)
         if init_res.returncode == 0:
             raise AssertionError("init unexpectedly succeeded with forward-reference dependency in full profile")
         assert_contains(init_res.stderr, "no slice is dependency-satisfied yet")
-        assert_contains(init_res.stderr, "forward reference")
 
 
 def test_scaffold_output_has_no_local_schema() -> None:
@@ -1148,7 +1258,7 @@ def test_scaffold_output_still_validates_via_shared_schema() -> None:
         assert_contains(status, "Task:")
 
         # Initialize profile first
-        run(str(PI_JOB), "--task", str(task), "init", "--profile", "small")
+        run(str(PI_JOB), "--task", str(task), "init")
 
         show = run(str(PI_JOB), "--task", str(task), "show").stdout
         assert_contains(show, "do-the-change")
@@ -1161,13 +1271,13 @@ def test_add_slice_happy_path_no_repos() -> None:
         task.write_text(TASK_FIXTURE)
 
         # dry-run should show the literal
-        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New Slice", "--goal", "Do work", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New Slice", "--goal", "Do work", "--kind", "implement", "--dry-run").stdout
         assert_contains(dry, 'key: "new-slice"')
         assert_contains(dry, 'title: "New Slice"')
         assert_contains(dry, 'goal: "Do work"')
 
         # real write
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New Slice", "--goal", "Do work")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New Slice", "--goal", "Do work", "--kind", "implement")
 
         # show should list the new slice
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
@@ -1179,7 +1289,7 @@ def test_add_slice_rejects_duplicate_key() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "dup-key.cue"
         task.write_text(TASK_FIXTURE)
-        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "first", "--title", "Duplicate", "--goal", "Should fail", check=False)
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "first", "--title", "Duplicate", "--goal", "Should fail", "--kind", "implement", check=False)
         if res.returncode == 0:
             raise AssertionError("add-slice should reject duplicate key")
         assert_contains(res.stderr, "already exists")
@@ -1191,7 +1301,7 @@ def test_add_slice_after_inserts_in_correct_order() -> None:
         task = Path(tmp) / "after.cue"
         task.write_text(TASK_FIXTURE)
 
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "between", "--title", "Between", "--goal", "In middle", "--after", "first")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "between", "--title", "Between", "--goal", "In middle", "--kind", "implement", "--after", "first")
 
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         lines = show.split("\n")
@@ -1207,7 +1317,7 @@ def test_add_slice_rejects_unknown_after_slice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "unknown-after.cue"
         task.write_text(TASK_FIXTURE)
-        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", "--after", "nonexistent", check=False)
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", "--kind", "implement", "--after", "nonexistent", check=False)
         if res.returncode == 0:
             raise AssertionError("add-slice should reject unknown --after slice")
         assert_contains(res.stderr, "not found")
@@ -1226,10 +1336,7 @@ task: {
         name: "Empty"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1245,7 +1352,7 @@ task: {
 """
         task.write_text(fixture)
 
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "first-slice", "--title", "First", "--goal", "Initial work")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "first-slice", "--title", "First", "--goal", "Initial work", "--kind", "implement")
 
         show = run(str(PI_JOB), "--task", str(task), "show").stdout
         assert_contains(show, "first-slice")
@@ -1292,10 +1399,7 @@ task: {
         name: "Test"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1312,12 +1416,12 @@ task: {
         task.write_text(fixture_closed_final)
 
         # Dry-run should show the literal with BOTH final_steps entries
-        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional", "--kind", "implement", "--dry-run").stdout
         assert_contains(dry, 'key: "e2e-evidence"')
         assert_contains(dry, 'key: "update-task-file"')
 
         # Real add-slice should succeed (previously failed with "incompatible list lengths (0 and 2)")
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional", "--kind", "implement")
 
         # Show should list the new slice with 2 final_steps
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
@@ -1460,10 +1564,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1478,12 +1579,12 @@ task: {
         task.write_text(fixture_with_repos)
 
         # dry-run with repos
-        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "repo-slice", "--title", "Repo Slice", "--goal", "Work on repos", "--repos", "graphius,darius", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "repo-slice", "--title", "Repo Slice", "--goal", "Work on repos", "--kind", "implement", "--repos", "graphius,darius", "--dry-run").stdout
         assert_contains(dry, 'key: "repo-slice"')
         assert_contains(dry, 'repos: ["graphius", "darius"]')
 
         # real write
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "repo-slice", "--title", "Repo Slice", "--goal", "Work on repos", "--repos", "graphius,darius")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "repo-slice", "--title", "Repo Slice", "--goal", "Work on repos", "--kind", "implement", "--repos", "graphius,darius")
 
         # Verify show lists it
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
@@ -1527,10 +1628,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1545,7 +1643,7 @@ task: {
         task.write_text(fixture_repos_required)
 
         # Try to add without --repos; should fail
-        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", check=False)
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", "--kind", "implement", check=False)
         if res.returncode == 0:
             raise AssertionError("add-slice should require --repos when schema requires it")
         assert_contains(res.stderr, "repos")
@@ -1586,10 +1684,7 @@ task: {
         name: "Fixture"
     }
     orchestration: {
-        profile: "small"
-        cursor: {
-            phase: "implement"
-        }
+        cursor: {slice: "only-slice", step: "create-plan"}
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -1604,7 +1699,7 @@ task: {
         task.write_text(fixture_with_owner)
 
         # Try to add; should fail because owner is required but unsupported
-        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", check=False)
+        res = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new", "--title", "New", "--goal", "Work", "--kind", "implement", check=False)
         if res.returncode == 0:
             raise AssertionError("add-slice should reject unsupported required fields")
         assert_contains(res.stderr, "owner")
@@ -1694,6 +1789,7 @@ task: {
         slices: [
             #Slice & {
                 key: "use-ready"
+                kind:   "implement"
                 title: "Use ready status"
                 goal: "Test extra value usage"
                 status: "ready"
@@ -1750,6 +1846,7 @@ task: {
         slices: [
             #Slice & {
                 key: "no-unused"
+                kind:   "implement"
                 title: "No unused status"
                 goal: "Only use normal statuses"
                 status: "planned"
@@ -1809,6 +1906,7 @@ task: {
         slices: [
             #Slice & {
                 key: "multi-repo"
+                kind:   "implement"
                 title: "Multi repo work"
                 goal: "Work across repos"
                 status: "planned"
@@ -1927,6 +2025,7 @@ task: {
         slices: [
             #Slice & {
                 key: "test-slice"
+                kind:   "implement"
                 title: "Test Slice"
                 goal: "Test"
                 status: "planned"
@@ -2096,12 +2195,12 @@ def test_add_slice_still_works_with_repo_work_in_schema() -> None:
         task.write_text(TASK_FIXTURE)
 
         # dry-run should not include repo_work
-        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New", "--goal", "Work", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New", "--goal", "Work", "--kind", "implement", "--dry-run").stdout
         if "repo_work" in dry:
             raise AssertionError(f"add-slice dry-run should not mention repo_work:\n{dry}")
 
         # real add-slice should still succeed
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New", "--goal", "Work")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "new-slice", "--title", "New", "--goal", "Work", "--kind", "implement")
 
         # show should include the new slice
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
@@ -2117,8 +2216,7 @@ task: {
 	project: {key: "sync", name: "Sync", route: "", context: ""}
 	context: ""
 	orchestration: {
-		profile: "full"
-		cursor: {phase: "implement_slices"}
+		cursor: {slice: "only-slice", step: "create-plan"}
 		policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
 	}
 	decisions: []
@@ -2126,22 +2224,26 @@ task: {
 		note: ""
 		slices: [
 			#Slice & {
-				key: "active-slice", title: "Active", goal: "g", status: "in_progress", note: ""
+				key: "active-slice"
+                kind:   "implement", title: "Active", goal: "g", status: "in_progress", note: ""
 				steps: [#Step & {key: "s1", title: "s1", status: "in_progress", note: ""}]
 				final_steps: []
 			},
 			#Slice & {
-				key: "blocked-slice", title: "Blocked", goal: "g", status: "blocked", note: ""
+				key: "blocked-slice"
+                kind:   "implement", title: "Blocked", goal: "g", status: "blocked", note: ""
 				steps: [#Step & {key: "s1", title: "s1", status: "planned", note: ""}]
 				final_steps: []
 			},
 			#Slice & {
-				key: "planned-slice", title: "Planned", goal: "g", status: "planned", note: ""
+				key: "planned-slice"
+                kind:   "implement", title: "Planned", goal: "g", status: "planned", note: ""
 				steps: [#Step & {key: "s1", title: "s1", status: "planned", note: ""}]
 				final_steps: []
 			},
 			#Slice & {
-				key: "done-with-open-pr", title: "Done but PR open", goal: "g", status: "done", note: ""
+				key: "done-with-open-pr"
+                kind:   "implement", title: "Done but PR open", goal: "g", status: "done", note: ""
 				repo_work: {"some-repo": {prs: [#PR & {url: "https://example.com/pr/9", status: "open", note: ""}]}}
 				steps: []
 				final_steps: []
@@ -2200,6 +2302,7 @@ task: {
 		note: ""
 		slices: [
 			#Slice & {
+				kind:   "implement"
 				key:    "s1"
 				title:  "Slice one"
 				goal:   "Goal one"
@@ -2228,19 +2331,19 @@ def test_fs_task_store_round_trip() -> None:
         (base / "status").write_text("in_progress\n")
 
         store = module.FsTaskStore(base)
-        store.set_profile("small", module.Cursor(phase="explore_context"))
+        store.init_orchestration(module.Cursor(slice="alpha", step="edit-code"))
 
         store.add_slice(
             key="alpha",
+            kind="implement",
             title="Alpha",
             goal="Alpha goal",
             extra_fields={"repos": ["repo-a", "repo-b"]},
+            steps=[("edit-code", "Edit code")],
             final_steps=[("wrap-up", "Wrap up")],
             after=None,
         )
-        store.add_slice(key="beta", title="Beta", goal="Beta goal", extra_fields={}, final_steps=[], after="alpha")
-
-        store.add_step(slice_key="alpha", key="edit-code", title="Edit code", note="", terminal=False, after=None)
+        store.add_slice(key="beta", kind="implement", title="Beta", goal="Beta goal", extra_fields={}, steps=[], final_steps=[], after="alpha")
 
         store.set_worktree(slice_key="alpha", repo="repo-a", path="/tmp/worktrees/alpha")
 
@@ -2249,7 +2352,7 @@ def test_fs_task_store_round_trip() -> None:
 
         store.write_artifact("share_with_team", status="planned", path=None, note="registered")
 
-        store.set_cursor(module.Cursor(phase="implement", slice="alpha", step="edit-code"))
+        store.set_cursor(module.Cursor(slice="alpha", step="edit-code"))
 
         task = store.read()
 
@@ -2261,8 +2364,8 @@ def test_fs_task_store_round_trip() -> None:
         assert task["decisions"] == []
 
         orch = task["orchestration"]
-        assert orch["profile"] == "small"
-        assert orch["cursor"] == {"phase": "implement", "slice": "alpha", "step": "edit-code"}
+        assert "profile" not in orch
+        assert orch["cursor"] == {"slice": "alpha", "step": "edit-code"}
         assert orch["policy"]["coding_execution"] == {
             "subagent_required": True,
             "lower_power_model_preferred": True,
@@ -2276,6 +2379,7 @@ def test_fs_task_store_round_trip() -> None:
         assert [s["key"] for s in slices] == ["alpha", "beta"]
 
         alpha = slices[0]
+        assert alpha["kind"] == "implement"
         assert alpha["title"] == "Alpha"
         assert alpha["goal"] == "Alpha goal"
         assert alpha["status"] == "planned"
@@ -2309,9 +2413,9 @@ def test_fs_task_store_ordering() -> None:
         (base / "status").write_text("in_progress\n")
         store = module.FsTaskStore(base)
 
-        store.add_slice(key="one", title="One", goal="g", extra_fields={}, final_steps=[], after=None)
-        store.add_slice(key="three", title="Three", goal="g", extra_fields={}, final_steps=[], after=None)
-        store.add_slice(key="two", title="Two", goal="g", extra_fields={}, final_steps=[], after="one")
+        store.add_slice(key="one", kind="implement", title="One", goal="g", extra_fields={}, steps=[], final_steps=[], after=None)
+        store.add_slice(key="three", kind="implement", title="Three", goal="g", extra_fields={}, steps=[], final_steps=[], after=None)
+        store.add_slice(key="two", kind="implement", title="Two", goal="g", extra_fields={}, steps=[], final_steps=[], after="one")
 
         order_file = base / "plan" / "slices" / ".order"
         assert order_file.read_text().splitlines() == ["one", "two", "three"]
@@ -2339,12 +2443,14 @@ def test_fs_task_store_depends_on_symlink() -> None:
         (base / "status").write_text("in_progress\n")
         store = module.FsTaskStore(base)
 
-        store.add_slice(key="base-slice", title="Base", goal="g", extra_fields={}, final_steps=[], after=None)
+        store.add_slice(key="base-slice", kind="implement", title="Base", goal="g", extra_fields={}, steps=[], final_steps=[], after=None)
         store.add_slice(
             key="dependent",
+            kind="implement",
             title="Dependent",
             goal="g",
             extra_fields={"depends_on": ["base-slice"]},
+            steps=[],
             final_steps=[],
             after=None,
         )
@@ -2375,7 +2481,7 @@ def test_fs_task_store_invalid_status_dies_on_read() -> None:
         (base / "title").write_text("Bad status task\n")
         (base / "status").write_text("in_progress\n")
         store = module.FsTaskStore(base)
-        store.add_slice(key="one", title="One", goal="g", extra_fields={}, final_steps=[], after=None)
+        store.add_slice(key="one", kind="implement", title="One", goal="g", extra_fields={}, steps=[], final_steps=[], after=None)
 
         (base / "plan" / "slices" / "one" / "status").write_text("not-a-real-status\n")
 
@@ -2405,8 +2511,7 @@ def test_fs_and_cue_task_store_shape_parity() -> None:
         (fs_base / "project").write_text("key: minimal\nname: Minimal\nroute: \ncontext: \n")
         (fs_base / "context").write_text("minimal context\n")
         store = module.FsTaskStore(fs_base)
-        store.add_slice(key="s1", title="Slice one", goal="Goal one", extra_fields={}, final_steps=[], after=None)
-        store.add_step(slice_key="s1", key="step1", title="Step one", note="", terminal=False, after=None)
+        store.add_slice(key="s1", kind="implement", title="Slice one", goal="Goal one", extra_fields={}, steps=[("step1", "Step one")], final_steps=[], after=None)
 
         fs_task = store.read()
 
@@ -2441,10 +2546,8 @@ task: {
 		\"\"\"
 
 	orchestration: {
-		profile: "small"
 		cursor: {
-			phase: "implement"
-			slice: "alpha"
+            slice: "alpha"
 			step:  "edit-code"
 		}
 		policy: {
@@ -2468,6 +2571,7 @@ task: {
 		note: "Real plan note, not the scaffold placeholder."
 		slices: [
 			#Slice & {
+				kind:   "implement"
 				key:    "alpha"
 				title:  "Alpha slice"
 				goal:   "Alpha goal"
@@ -2491,6 +2595,7 @@ task: {
 				]
 			},
 			#Slice & {
+				kind:   "implement"
 				key:    "beta"
 				title:  "Beta slice"
 				goal:   "Beta goal"
@@ -2544,17 +2649,17 @@ def test_cmd_project_refuses_nonempty_cue_destination() -> None:
 
 def main() -> None:
     test_profiled_task()
-    test_uninitialized_task_requires_profile()
-    test_full_profile_slice_work_uses_implement_slices()
-    test_contract_owner_for_implement_phase()
-    test_next_walks_profile_phases_after_slices_done()
+    test_uninitialized_task_requires_orchestration()
+    test_init_with_kind_setup_seeds_setup_slice()
+    test_edit_code_owner_from_step_kinds()
+    test_next_walks_to_closing_slice_after_implement_done()
+    test_next_done_when_all_slices_finished()
     test_advance_blocked_on_incomplete_current_step()
-    test_advance_rejects_unknown_phase()
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
-    test_toolbelt_lists_for_profile()
+    test_toolbelt_lists_for_slice_kinds()
     test_toolbelt_add_records_artifact()
-    test_select_toolbelt_phase_and_instruction()
+    test_select_toolbelt_step_and_instruction()
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
     test_show_started_flag_expands_non_planned_slices()
@@ -2571,7 +2676,7 @@ def main() -> None:
     test_status_warns_on_unknown_dependency_key()
     test_show_renders_deps_with_mixed_statuses()
     test_show_omits_deps_line_when_absent()
-    test_init_rejects_forward_reference_dependency_with_full_profile()
+    test_init_rejects_forward_reference_dependency()
     test_scaffold_output_has_no_local_schema()
     test_scaffold_output_still_validates_via_shared_schema()
     test_add_slice_happy_path_no_repos()

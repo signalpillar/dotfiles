@@ -1,17 +1,17 @@
 package harness
 
-// Deterministic profile/phase contract for the pi-agent job harness.
-// Source: projects/pi-agent-job-harness/tasks/2026-07-09-bootstrap-pi-agent-job-harness.cue
+// Deterministic step/slice-kind contract for the pi-agent job harness.
+// Task files carry slices with `kind` and steps with keys; meaning (owner,
+// guidance, validators) lives here and is looked up live so old tasks pick up
+// contract updates without rewriting step bodies.
 
 #Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
 
-#ProfileKey: "small" | "full" | "research" | "review-only" | "share-only" | "spike-prototype"
+#SliceKindKey: "setup" | "implement" | "closing" | "research" | "spike"
 
 #ExecutionOwner: "orchestrator" | "subagent" | "external_tool"
 
 #ArtifactKey: "task_record" | "decision_review_deck" | "daily_boo" | "share_with_team" | "ticket" | "pull_request" | "e2e_evidence"
-
-#PhaseKey: "explore_context" | "clarify_scope" | "clarify_if_needed" | "grill_plan" | "select_toolbelt" | "plan_slices" | "implement" | "implement_slices" | "verify" | "review" | "investigate" | "synthesize" | "share_with_team" | "wait_for_team_feedback" | "clarify_feedback" | "address_feedback" | "decision_review_deck" | "daily_boo_reflection" | "update_task_record"
 
 #ConfigLayering: {
 	user_defaults:  true
@@ -48,33 +48,30 @@ package harness
 	key:     string
 	title:   string
 	purpose: string
-	suits: [...#ProfileKey]
+	suits: [...#SliceKindKey]
 	example?: string
 }
 
-#Phase: {
-	key:      #PhaseKey
-	title:    string
-	owner:    #ExecutionOwner
-	required: bool | *true
-	inputs: [...string]
-	outputs: [...string]
+#StepKind: {
+	key:   string
+	title: string
+	owner: #ExecutionOwner
 	validators: [...string]
 	skip_rule?: string
-	// Human-readable advice surfaced when the phase runs (non-blocking guidance).
-	guidance?: string
+	guidance?:  string
 	artifact_gates?: [...#ArtifactGate]
 }
 
-#Profile: {
-	key:         #ProfileKey
+#SliceKind: {
+	key:         #SliceKindKey
 	title:       string
 	description: string
 	policies: {
 		coding_execution?: #CodingExecutionPolicy
 		no_code_changes?:  bool
 	}
-	phases: [#Phase, ...#Phase]
+	// Default step keys for a NEW slice of this kind (add-slice / init templates).
+	step_template: [...string]
 }
 
 config_layering: #ConfigLayering
@@ -113,34 +110,31 @@ artifact_rules: {
 	share_with_team: #ArtifactRule & {
 		key:     "share_with_team"
 		purpose: "Create team-facing tickets and PRs from the completed work."
-		trigger: "full or share-only profile reaches the handoff phase"
-		inputs: ["task.plan", "verification_evidence", "review_findings_resolved"]
+		trigger: "an implement slice reaches share-with-team, or a closing reconciliation finds an unshared repo"
+		inputs: ["task.plan", "verification_evidence"]
 		outputs: ["ticket keys", "pull request URLs", "team feedback thread"]
 		guardrails: [
 			"invoke share-with-team once per repository changed",
-			"reconcile against repos already shared during implement_slices; do not double-open a ticket or PR for an already-shared repo",
+			"reconcile against repos already shared; do not double-open a ticket or PR for an already-shared repo",
 			"use the share-with-team ticket template (skills/share-with-team/SKILL.md § Ticket)",
 			pr_template_guardrail,
 			"include e2e evidence or explicitly record the gap",
 			"do not treat sharing as terminal; wait for team feedback and loop on it",
 		]
-		validator: "ticket and PR links recorded with feedback wait state, or skip reason recorded for profiles where optional"
+		validator: "ticket and PR links recorded with feedback wait state, or skip reason recorded"
 	}
 }
 
 toolbelt: [Key=string]: #ToolbeltAid & {key: Key}
 toolbelt: {
-	"httpyac-api-spec": {title: "httpyac API spec", purpose: "Request/response contract for new/changed endpoints; doubles as a manual test once built.", suits: ["full", "spike-prototype"]}
-	"sequence-diagram": {title: "Sequence diagram", purpose: "Cross-service / hand-off flow (park/resume, timers, polling).", suits: ["full", "research"]}
-	"test-case-table": {title: "Test-case table", purpose: "Core journeys + edge cases, each marked v0/v1/v2.", suits: ["full", "spike-prototype"]}
-	"state-transition-table": {title: "State-transition table", purpose: "Resource lifecycle / status transitions with the rule per edge.", suits: ["full", "research"]}
-	"config-flag-matrix": {title: "Config / flag matrix", purpose: "Feature-flag x market/programme x env/region grid with default values.", suits: ["full"]}
-	"data-shape-sketch": {title: "Data-shape sketch", purpose: "FHIR resource / extension / ValueSet shapes being added or read.", suits: ["full", "research"]}
+	"httpyac-api-spec": {title: "httpyac API spec", purpose: "Request/response contract for new/changed endpoints; doubles as a manual test once built.", suits: ["setup", "implement", "spike"]}
+	"sequence-diagram": {title: "Sequence diagram", purpose: "Cross-service / hand-off flow (park/resume, timers, polling).", suits: ["setup", "research"]}
+	"test-case-table": {title: "Test-case table", purpose: "Core journeys + edge cases, each marked v0/v1/v2.", suits: ["setup", "implement", "spike"]}
+	"state-transition-table": {title: "State-transition table", purpose: "Resource lifecycle / status transitions with the rule per edge.", suits: ["setup", "research"]}
+	"config-flag-matrix": {title: "Config / flag matrix", purpose: "Feature-flag x market/programme x env/region grid with default values.", suits: ["setup"]}
+	"data-shape-sketch": {title: "Data-shape sketch", purpose: "FHIR resource / extension / ValueSet shapes being added or read.", suits: ["setup", "research"]}
 }
 
-// Explicit, non-improvisable PR-template lookup sequence. Referenced by every
-// pull_request artifact_gate so it shows up verbatim in instruction packets —
-// never left as an inferred guardrail bullet the model can skip past.
 pr_template_guardrail: string & """
 	Before writing any PR body: (1) check the target repo for a template at
 	.github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
@@ -152,204 +146,199 @@ pr_template_guardrail: string & """
 	case.
 	"""
 
-// Explicit, non-improvisable per-slice planning requirement. Referenced by every
-// coding profile's slice-work phase (small.implement, full.implement_slices,
-// spike_prototype.implement) so it shows up verbatim in instruction packets.
 plan_and_grill_guardrail: string & """
-	Before any other step in a slice starts, that slice's steps must begin with exactly
-	two leading steps, in order:
-	(1) create-plan - note records the actual implementation plan for THIS slice
-	    specifically: approach, files/functions touched, key tradeoffs. Not a
-	    restatement of the slice's goal.
-	(2) grill-plan - interrogate create-plan's plan using the grill-me skill
-	    (skills/grill-me/SKILL.md). note records what was challenged and what changed.
-	    If grilling surfaces a real gap, revise create-plan's note and grill again
-	    before marking grill-plan done - this is a loop, not a one-shot rubber stamp.
+	Before any other step in an implement/spike slice starts, that slice's steps must
+	begin with exactly two leading steps, in order:
+	(1) create-plan - write the actual implementation plan for THIS slice to a sibling
+	    Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
+	    restatement of the slice's goal. Do NOT inline the plan body in the task file.
+	    Naming: beside the task file, directory `<task-stem>.plans/`, file
+	    `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.cue` + slice `wire-api`
+	    -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
+	    a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
+	    task file's directory).
+	(2) grill-plan - interrogate that plan file using the grill-me skill
+	    (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
+	    what changed. If grilling surfaces a real gap, revise the plan FILE (not the
+	    task-file note), grill again, only mark grill-plan done once the plan survives
+	    - this is a loop, not a one-shot rubber stamp.
 	Mark both done only once the plan has survived grilling; advance refuses to pass an
 	incomplete step, so edit-code-style steps stay unreachable until both are done.
-	Distinct from the full profile's task-level grill_plan PHASE (which grills overall
-	scope before slices exist) - this is the per-slice equivalent, and it's the only
-	grilling small/spike-prototype slices get at all.
+	Distinct from the setup slice's `grill` step (overall scope before implement slices
+	exist) - grill-plan is the per-slice equivalent.
 	Exception: a genuinely trivial single-file edit may skip both steps (status:
 	skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
 	"""
 
-profiles: {
-	small: #Profile & {
-		key:         "small"
-		title:       "Small Task"
-		description: "Bounded work with little ambiguity; keeps task-state discipline without full ticket/PR ceremony."
-		policies: {
-			coding_execution: #CodingExecutionPolicy & {
-				exceptions: ["trivial-single-file-edit", "user-explicitly-requests-orchestrator"]
-			}
-		}
-		phases: [
-			#Phase & {key: "explore_context", title: "Explore context", owner: "orchestrator", inputs: ["task.source", "task.context"], outputs: ["known_repos", "adjacent_context"], validators: ["repos-or-explicitly-not-applicable"]},
-			#Phase & {key: "clarify_if_needed", title: "Clarify only blocking ambiguity", owner: "orchestrator", inputs: ["adjacent_context"], outputs: ["resolved_scope_or_no_questions"], validators: ["blocking-ambiguity-resolved"], skip_rule: "skip when exploration answers the implementation-relevant questions"},
-			#Phase & {
-				key:   "implement"
-				title: "Implement"
-				owner: "subagent"
-				inputs: ["resolved_scope_or_no_questions"]
-				outputs: ["changed_files", "commands_run", "risks"]
-				validators: ["coding-policy-recorded", "worktree-used-when-repo-editing", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
-				guidance: plan_and_grill_guardrail
-			},
-			#Phase & {key: "verify", title: "Verify", owner: "orchestrator", inputs: ["changed_files", "commands_run"], outputs: ["verification_evidence"], validators: ["relevant-tests-or-gap-recorded"]},
-			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", inputs: ["verification_evidence"], outputs: ["task_record_updated"], validators: ["task-cursor-advanced"]},
-		]
+step_kinds: [Key=string]: #StepKind & {key: Key}
+step_kinds: {
+	"explore-context": {
+		title:    "Explore context"
+		owner:    "orchestrator"
+		guidance: "Read the adjacent code/docs needed to act. Record known repos and adjacent context - or explicitly note none apply."
+		validators: ["repos-or-explicitly-not-applicable"]
 	}
 
-	full: #Profile & {
-		key:         "full"
-		title:       "Full Delivery"
-		description: "End-to-end implementation through review, team sharing, ticket, and PR."
-		policies: {
-			coding_execution: #CodingExecutionPolicy
-		}
-		phases: [
-			#Phase & {key: "explore_context", title: "Explore context", owner: "orchestrator", inputs: ["task.source"], outputs: ["repo_paths", "task_record", "tracker_state"], validators: ["repo-paths-known"]},
-			#Phase & {key: "clarify_scope", title: "Clarify scope", owner: "orchestrator", inputs: ["repo_paths", "task_record"], outputs: ["scope", "definition_of_done", "epic_decision"], validators: ["scope-echoed"]},
-			#Phase & {key: "grill_plan", title: "Grill plan", owner: "orchestrator", inputs: ["scope"], outputs: ["plan_decisions"], validators: ["grill-done-or-user-declined"], skip_rule: "only when user explicitly declines"},
-			#Phase & {
-				key:   "select_toolbelt"
-				title: "Select planning aids from the toolbelt"
-				owner: "orchestrator"
-				inputs: ["scope", "plan_decisions", "toolbelt"]
-				outputs: ["registered_toolbelt_aids"]
-				validators: ["toolbelt-selection-recorded"]
-				guidance: "From the aids whose suits includes this profile (see `pi-job toolbelt`), select the subset that will help you write this plan. Register each with `pi-job toolbelt add <key> --status planned` plus a one-line why, and record a skip reason for the rest. Do not produce the aid files yet — they are written during plan_slices and flipped to done when the file exists."
-			},
-			#Phase & {
-				key:   "plan_slices"
-				title: "Plan slices"
-				owner: "orchestrator"
-				inputs: ["scope", "plan_decisions"]
-				outputs: ["task.plan.slices"]
-				validators: ["at-least-one-slice", "slices-repo-scoped-and-atomic"]
-				guidance: "Prefer one slice per repository. Make each slice atomic — self-contained end to end — so it carries its own terminal delivery steps (e2e-evidence and share-with-team: ticket + PR) and the repo change ships within the slice. Split multi-repo work into one atomic slice per repo, ordered by dependency (a prerequisite repo's slice ships before the slices that consume it)."
-			},
-			#Phase & {
-				key:   "implement_slices"
-				title: "Implement slices"
-				owner: "subagent"
-				inputs: ["task.plan.slices"]
-				outputs: ["slice_evidence", "changed_repos"]
-				validators: ["each-slice-loop-complete", "pr-template-checked", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
-				guidance: plan_and_grill_guardrail + " Each atomic slice runs its full loop and ends with its own terminal steps: e2e-evidence, then share-with-team (ticket + PR for that slice's repo). An atomic slice ships its repo change as it completes rather than waiting for a terminal bundle; downstream slices build on the merged prerequisite. " + pr_template_guardrail
-				artifact_gates: [
-					#ArtifactGate & {key: "ticket", required: true, when: "an atomic slice completes its repo change", source: "changed_repos", output: "one ticket for the slice's repo"},
-					#ArtifactGate & {key: "pull_request", required: true, when: "an atomic slice completes its repo change", source: "changed_files", output: "one PR for the slice's repo, opened as the slice completes, body written from the checked repo template or the share-with-team fallback (never freehanded)"},
-				]
-			},
-			#Phase & {key: "review", title: "Review", owner: "orchestrator", inputs: ["slice_evidence"], outputs: ["review_findings_resolved"], validators: ["volod-style-review-done"]},
-			#Phase & {
-				key:   "decision_review_deck"
-				title: "Decision review deck"
-				owner: "orchestrator"
-				inputs: ["task.decisions"]
-				outputs: ["decision_review_deck_path_or_skip_reason"]
-				validators: ["deck-created-or-not-needed-recorded"]
-				artifact_gates: [#ArtifactGate & {key: "decision_review_deck", required: false, when: "durable decisions need async team review", source: "task.decisions", output: "dated markdown deck in project directory"}]
-			},
-			#Phase & {
-				key:   "share_with_team"
-				title: "Share with team (reconciliation)"
-				owner: "orchestrator"
-				inputs: ["review_findings_resolved", "verification_evidence", "changed_repos"]
-				outputs: ["ticket_keys", "pull_request_urls"]
-				validators: ["share-with-team-template-used", "every-changed-repo-has-ticket-and-pr", "pr-template-checked"]
-				guidance: "With atomic per-repo slices this is a reconciliation catch-all, usually a no-op: each slice already shared its repo. Only share here the repos that were NOT shared atomically (e.g. bundled or cross-cutting changes). Reconcile — never re-open a ticket/PR for an already-shared repo. " + pr_template_guardrail
-				artifact_gates: [
-					#ArtifactGate & {key: "ticket", required: true, when: "a changed repo was not shared atomically during implement_slices", source: "changed_repos", output: "one ticket per unshared changed repo"},
-					#ArtifactGate & {key: "pull_request", required: true, when: "a changed repo was not PR'd atomically during implement_slices", source: "changed_repos", output: "one PR per unshared changed repo, body written from the checked repo template or the share-with-team fallback (never freehanded)"},
-				]
-			},
-			#Phase & {key: "wait_for_team_feedback", title: "Wait for team feedback", owner: "orchestrator", inputs: ["ticket_keys", "pull_request_urls"], outputs: ["team_feedback_or_no_response"], validators: ["feedback-window-recorded"]},
-			#Phase & {key: "clarify_feedback", title: "Clarify team feedback", owner: "orchestrator", inputs: ["team_feedback_or_no_response"], outputs: ["clarified_feedback_or_no_action"], validators: ["ambiguous-feedback-clarified-or-deferred"], skip_rule: "skip only when no feedback arrives or feedback is already actionable"},
-			#Phase & {key: "address_feedback", title: "Address feedback", owner: "subagent", required: false, inputs: ["clarified_feedback_or_no_action"], outputs: ["feedback_changes_or_noop_reason"], validators: ["requested-changes-addressed-or-deferred"], skip_rule: "skip when feedback requires no changes"},
-			#Phase & {key: "verify", title: "Verify feedback changes", owner: "orchestrator", required: false, inputs: ["feedback_changes_or_noop_reason"], outputs: ["post_feedback_verification"], validators: ["relevant-tests-or-gap-recorded"], skip_rule: "skip when no feedback changes were made"},
-			#Phase & {key: "update_task_record", title: "Update task record after feedback", owner: "orchestrator", inputs: ["team_feedback_or_no_response", "post_feedback_verification"], outputs: ["feedback_loop_recorded"], validators: ["feedback-status-recorded"]},
-			#Phase & {
-				key:   "daily_boo_reflection"
-				title: "Daily boo reflection"
-				owner: "orchestrator"
-				inputs: ["session_insights"]
-				outputs: ["daily_boo_append_or_skip_reason"]
-				validators: ["append-only-or-skip-recorded"]
-				skip_rule: "skip when there is no real aha worth revisiting"
-				artifact_gates: [#ArtifactGate & {key: "daily_boo", required: false, when: artifact_rules.daily_boo.trigger, source: "session_insights", output: "daily.boo.txt append or skip reason"}]
-			},
-		]
+	"clarify-scope": {
+		title:    "Clarify scope"
+		owner:    "orchestrator"
+		guidance: "Resolve blocking ambiguity with the user before planning. Skip only when exploration already answered the implementation-relevant questions."
+		validators: ["blocking-ambiguity-resolved"]
+		skip_rule:  "skip when exploration answers the implementation-relevant questions"
 	}
 
-	research: #Profile & {
-		key:         "research"
+	"grill": {
+		title:    "Grill overall scope"
+		owner:    "orchestrator"
+		guidance: "Interrogate overall task scope using the grill-me skill (skills/grill-me/SKILL.md). note records what was challenged and what changed. Loop: revise, grill again, until it survives - not a one-shot rubber stamp."
+		validators: ["grill-done-or-user-declined"]
+		skip_rule:  "only when user explicitly declines"
+	}
+
+	"select-toolbelt": {
+		title:    "Select planning aids from the toolbelt"
+		owner:    "orchestrator"
+		guidance: "From the aids whose suits includes a relevant slice kind (see `pi-job toolbelt`), select the subset that will help write the plan. Register each with `pi-job toolbelt add <key> --status planned` plus a one-line why. Do not produce the aid files yet — they are written during plan-slices and flipped to done when the file exists."
+		validators: ["toolbelt-selection-recorded"]
+	}
+
+	"plan-slices": {
+		title:    "Plan slices"
+		owner:    "orchestrator"
+		guidance: "Prefer one slice per repository. Make each slice atomic - self-contained end to end - ordered by dependency. Add implement slices with `pi-job add-slice --kind implement`."
+		validators: ["at-least-one-slice", "slices-repo-scoped-and-atomic"]
+	}
+
+	"create-plan": {
+		title:     "Create plan"
+		owner:     "subagent"
+		guidance:  plan_and_grill_guardrail
+		validators: ["plan-recorded", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
+	}
+
+	"grill-plan": {
+		title:     "Grill the plan file"
+		owner:     "orchestrator"
+		guidance:  plan_and_grill_guardrail
+		validators: ["grill-done-or-user-declined", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
+	}
+
+	"edit-code": {
+		title:    "Edit code"
+		owner:    "subagent"
+		guidance: "Make the change described by this slice's create-plan step. Use a worktree when editing a repo other than the current one."
+		validators: ["coding-policy-recorded", "worktree-used-when-repo-editing"]
+	}
+
+	"verify": {
+		title:    "Verify"
+		owner:    "orchestrator"
+		guidance: "Run the relevant tests/checks for what changed, or record the gap."
+		validators: ["relevant-tests-or-gap-recorded"]
+	}
+
+	"e2e-evidence": {
+		title: "Provide e2e/acceptance evidence or record the gap"
+		owner: "orchestrator"
+		validators: ["evidence-or-gap-recorded"]
+	}
+
+	"share-with-team": {
+		title:    "Share with team: ticket + PR for this slice's repo"
+		owner:    "orchestrator"
+		guidance: pr_template_guardrail
+		artifact_gates: [
+			#ArtifactGate & {key: "ticket", required: true, when: "this slice completes its repo change", source: "changed_repos", output: "one ticket for the slice's repo"},
+			#ArtifactGate & {key: "pull_request", required: true, when: "this slice completes its repo change", source: "changed_files", output: "one PR, body from the checked repo template or the fallback"},
+		]
+		validators: ["pr-template-checked", "share-with-team-template-used"]
+	}
+
+	"wait-for-feedback": {
+		title:    "Wait for team feedback: loop on PR review until merged"
+		owner:    "orchestrator"
+		guidance: "Not terminal until the PR merges or is explicitly abandoned. Re-check via `pi-job sync`."
+		validators: ["feedback-window-recorded"]
+	}
+
+	"update-task-file": {
+		title: "Update this task file"
+		owner: "orchestrator"
+		validators: ["task-file-current"]
+	}
+
+	"investigate": {
+		title:    "Investigate"
+		owner:    "orchestrator"
+		guidance: "Gather evidence-backed findings for the research question."
+		validators: ["evidence-backed-findings"]
+	}
+
+	"synthesize": {
+		title:    "Synthesize"
+		owner:    "orchestrator"
+		guidance: "Produce the answer or doc; call out open questions."
+		validators: ["open-questions-called-out"]
+	}
+
+	"update-test-plan": {
+		title:    "Update the test plan"
+		owner:    "orchestrator"
+		guidance: "Reconcile the PRD/plan's test-case table against what actually shipped across all slices."
+		validators: ["test-plan-reconciled-or-not-applicable"]
+	}
+
+	"update-docs": {
+		title:    "Update documentation"
+		owner:    "orchestrator"
+		guidance: "Update FACT_MAP / workflow docs / README that the shipped slices affect, or record not applicable."
+		validators: ["docs-updated-or-not-applicable"]
+	}
+
+	"capture-metrics": {
+		title:    "Capture metrics to watch"
+		owner:    "orchestrator"
+		guidance: "Record which dashboards/alerts to watch post-ship, or that none apply."
+		validators: ["metrics-recorded-or-not-applicable"]
+	}
+}
+
+slice_kinds: [Key=#SliceKindKey]: #SliceKind & {key: Key}
+slice_kinds: {
+	setup: {
+		title:       "Task setup"
+		description: "Explore, clarify, grill scope, pick toolbelt, plan the implementation slices. Runs once, first."
+		step_template: ["explore-context", "clarify-scope", "grill", "select-toolbelt", "plan-slices"]
+	}
+
+	implement: {
+		title:       "Implementation"
+		description: "One atomic, repo-scoped change - planned, grilled, built, verified, shipped as it completes."
+		policies: coding_execution: #CodingExecutionPolicy & {
+			exceptions: ["trivial-single-file-edit", "user-explicitly-requests-orchestrator"]
+		}
+		step_template: ["create-plan", "grill-plan", "edit-code", "verify", "e2e-evidence", "share-with-team", "update-task-file", "wait-for-feedback"]
+	}
+
+	closing: {
+		title:       "Task closing"
+		description: "Cross-slice bookkeeping once every implementation slice is done. Runs once, last."
+		step_template: ["update-test-plan", "update-docs", "capture-metrics", "update-task-file"]
+	}
+
+	research: {
 		title:       "Research"
-		description: "Investigation and synthesis without code changes."
-		policies: {no_code_changes: true}
-		phases: [
-			#Phase & {key: "explore_context", title: "Explore context", owner: "orchestrator", inputs: ["task.context"], outputs: ["sources"], validators: ["sources-recorded"]},
-			#Phase & {key: "clarify_scope", title: "Clarify question", owner: "orchestrator", inputs: ["sources"], outputs: ["research_question"], validators: ["question-clear"]},
-			#Phase & {key: "investigate", title: "Investigate", owner: "orchestrator", inputs: ["research_question"], outputs: ["findings"], validators: ["evidence-backed-findings"]},
-			#Phase & {key: "synthesize", title: "Synthesize", owner: "orchestrator", inputs: ["findings"], outputs: ["answer_or_doc"], validators: ["open-questions-called-out"]},
-			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", inputs: ["answer_or_doc"], outputs: ["task_record_updated"], validators: ["task-cursor-advanced"]},
-		]
+		description: "Investigation without code changes."
+		policies: no_code_changes: true
+		step_template: ["explore-context", "clarify-scope", "investigate", "synthesize", "update-task-file"]
 	}
 
-	review_only: #Profile & {
-		key:         "review-only"
-		title:       "Review Only"
-		description: "Code, design, or plan review where findings are the primary output."
-		policies: {no_code_changes: true}
-		phases: [
-			#Phase & {key: "explore_context", title: "Gather review context", owner: "orchestrator", inputs: ["review_target"], outputs: ["review_material"], validators: ["target-readable"]},
-			#Phase & {key: "review", title: "Review", owner: "orchestrator", inputs: ["review_material"], outputs: ["findings"], validators: ["findings-first-format"]},
-			#Phase & {key: "synthesize", title: "Summarize risk", owner: "orchestrator", inputs: ["findings"], outputs: ["risk_summary"], validators: ["residual-risk-stated"]},
-			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", required: false, inputs: ["risk_summary"], outputs: ["task_record_updated_or_skip_reason"], validators: ["skip-reason-recorded"]},
-		]
-	}
-
-	share_only: #Profile & {
-		key:         "share-only"
-		title:       "Share Only"
-		description: "Turn already-finished work into team-facing ticket, PR, or review artifacts."
-		policies: {}
-		phases: [
-			#Phase & {key: "explore_context", title: "Gather finished work", owner: "orchestrator", inputs: ["task_record", "diff_or_summary"], outputs: ["share_context"], validators: ["work-status-known"]},
-			#Phase & {key: "decision_review_deck", title: "Decision review deck", owner: "orchestrator", required: false, inputs: ["task.decisions"], outputs: ["decision_review_deck_path_or_skip_reason"], validators: ["deck-created-or-not-needed-recorded"], artifact_gates: [#ArtifactGate & {key: "decision_review_deck", required: false, when: artifact_rules.decision_review_deck.trigger, source: "task.decisions", output: "dated markdown deck in project directory"}]},
-			#Phase & {key: "share_with_team", title: "Share with team", owner: "orchestrator", inputs: ["share_context"], outputs: ["ticket_keys_or_pr_urls"], validators: ["share-with-team-template-used", "pr-template-checked"], guidance: pr_template_guardrail, artifact_gates: [#ArtifactGate & {key: "share_with_team", required: true, when: artifact_rules.share_with_team.trigger, source: "share_context", output: "ticket keys and pull request URLs, PR body written from the checked repo template or the share-with-team fallback (never freehanded)"}]},
-			#Phase & {key: "wait_for_team_feedback", title: "Wait for team feedback", owner: "orchestrator", inputs: ["ticket_keys_or_pr_urls"], outputs: ["team_feedback_or_no_response"], validators: ["feedback-window-recorded"]},
-			#Phase & {key: "clarify_feedback", title: "Clarify team feedback", owner: "orchestrator", inputs: ["team_feedback_or_no_response"], outputs: ["clarified_feedback_or_no_action"], validators: ["ambiguous-feedback-clarified-or-deferred"], skip_rule: "skip only when no feedback arrives or feedback is already actionable"},
-			#Phase & {key: "address_feedback", title: "Address feedback", owner: "subagent", required: false, inputs: ["clarified_feedback_or_no_action"], outputs: ["feedback_changes_or_noop_reason"], validators: ["requested-changes-addressed-or-deferred"], skip_rule: "skip when feedback requires no changes"},
-			#Phase & {key: "verify", title: "Verify feedback changes", owner: "orchestrator", required: false, inputs: ["feedback_changes_or_noop_reason"], outputs: ["post_feedback_verification"], validators: ["relevant-tests-or-gap-recorded"], skip_rule: "skip when no feedback changes were made"},
-			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", inputs: ["team_feedback_or_no_response", "post_feedback_verification"], outputs: ["task_record_updated"], validators: ["feedback-status-recorded", "session-links-recorded"]},
-		]
-	}
-
-	spike_prototype: #Profile & {
-		key:         "spike-prototype"
-		title:       "Spike / Prototype"
-		description: "Time-boxed learning where the output is evidence and a keep/change/discard recommendation."
-		policies: {
-			coding_execution: #CodingExecutionPolicy & {
-				exceptions: ["throwaway-local-prototype"]
-			}
+	spike: {
+		title:       "Spike / prototype"
+		description: "Time-boxed learning; output is evidence + a keep/change/discard call."
+		policies: coding_execution: #CodingExecutionPolicy & {
+			exceptions: ["throwaway-local-prototype"]
 		}
-		phases: [
-			#Phase & {key: "clarify_scope", title: "Define learning question", owner: "orchestrator", inputs: ["task.context"], outputs: ["learning_question", "timebox"], validators: ["timebox-recorded"]},
-			#Phase & {
-				key:   "implement"
-				title: "Prototype"
-				owner: "subagent"
-				inputs: ["learning_question", "timebox"]
-				outputs: ["prototype_evidence"]
-				validators: ["scope-contained", "create-plan-and-grill-plan-done-or-skip-reason-before-other-steps"]
-				guidance: plan_and_grill_guardrail
-			},
-			#Phase & {key: "verify", title: "Evaluate", owner: "orchestrator", inputs: ["prototype_evidence"], outputs: ["keep_change_discard"], validators: ["recommendation-recorded"]},
-			#Phase & {key: "update_task_record", title: "Update task record", owner: "orchestrator", inputs: ["keep_change_discard"], outputs: ["task_record_updated"], validators: ["learning-recorded"]},
-		]
+		step_template: ["clarify-scope", "create-plan", "grill-plan", "edit-code", "verify", "update-task-file"]
 	}
 }

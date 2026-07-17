@@ -36,6 +36,7 @@ package task
 
 #Slice: {
 	key:    string
+	kind:   string
 	title:  string
 	goal:   string
 	status: #Status
