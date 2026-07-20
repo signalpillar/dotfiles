@@ -940,7 +940,8 @@ before packages are loaded."
       (with-temp-buffer
         (insert text)
         (call-process-region (point-min) (point-max) "osc52-yank"))))
-  (unless (display-graphic-p)
+  (when (and (not (display-graphic-p))
+             (not (eq system-type 'darwin)))
     (setq interprogram-cut-function #'my/osc52-yank-to-host))
 
   (spacemacs/set-leader-keys
