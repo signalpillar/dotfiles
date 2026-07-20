@@ -440,6 +440,79 @@ function osx_ldd {
     otool -L $@
 }
 
+function osx_brew_validate {
+    local brewfile="${1:-$HOME/Brewfile}"
+    local result=0
+    local missing
+    local emacs_prefix
+    local native_comp_dir
+    local native_comp_source
+
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        echo "osx_brew_validate: this function only supports macOS" >&2
+        return 1
+    fi
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "osx_brew_validate: Homebrew is not installed" >&2
+        return 1
+    fi
+    if [[ ! -f "$brewfile" ]]; then
+        echo "osx_brew_validate: Brewfile not found: $brewfile" >&2
+        return 1
+    fi
+
+    echo "Checking Brewfile declarations..."
+    brew bundle check --no-upgrade --verbose --file="$brewfile" || result=1
+
+    echo "Checking installed formula dependencies..."
+    missing="$(brew missing)"
+    if [[ -n "$missing" ]]; then
+        echo "$missing"
+        result=1
+    else
+        echo "No missing Homebrew dependencies."
+    fi
+
+    echo "Running Homebrew diagnostics (advisory)..."
+    brew doctor || echo "Homebrew reported advisory warnings; review them above."
+
+    if brew list --formula emacs-plus@32 >/dev/null 2>&1; then
+        echo "Checking Emacs native compilation..."
+        emacs_prefix="$(brew --prefix emacs-plus@32)"
+        native_comp_dir="$(mktemp -d "${TMPDIR:-/tmp}/emacs-native-comp.XXXXXX")" || return 1
+        native_comp_source="$native_comp_dir/native-comp-check.el"
+        printf '%s\n' ';;; -*- lexical-binding: t; -*-' \
+            '(defun native-comp-check () 42)' > "$native_comp_source"
+
+        if ! NATIVE_COMP_TEST_DIR="$native_comp_dir" \
+             NATIVE_COMP_TEST_SOURCE="$native_comp_source" \
+             "$emacs_prefix/bin/emacs" -Q --batch \
+             --eval '(progn
+                       (require (quote comp))
+                       (setq native-comp-eln-load-path
+                             (list (getenv "NATIVE_COMP_TEST_DIR")))
+                       (native-compile (getenv "NATIVE_COMP_TEST_SOURCE"))
+                       (princ "Emacs native compilation succeeded.\n"))'; then
+            result=1
+        fi
+        rm -rf "$native_comp_dir"
+    fi
+
+    return "$result"
+}
+
+function osx_brew_sync {
+    local brewfile="${1:-$HOME/Brewfile}"
+
+    if [[ ! -f "$brewfile" ]]; then
+        echo "osx_brew_sync: Brewfile not found: $brewfile" >&2
+        return 1
+    fi
+
+    brew bundle install --no-upgrade --file="$brewfile" &&
+        osx_brew_validate "$brewfile"
+}
+
 function git-clone-project {
     local -r https_url=$1
     cd ~/proj

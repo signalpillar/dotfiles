@@ -5,10 +5,15 @@ tap "buo/cask-upgrade"
 tap "d12frosted/emacs-plus"
 
 # Core Tools
+brew "mplayer"
 brew "cue"
 brew "mas"
 brew "neovim"
+# Keep the complete native-compilation toolchain explicit so dependencies are
+# retained and validated independently of formula transitions.
 brew "emacs-plus@32"
+brew "gcc"
+brew "libgccjit"
 brew "tmux"
 brew "starship"
 brew "gemini-cli"

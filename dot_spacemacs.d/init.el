@@ -199,7 +199,7 @@ This function should only modify configuration layer settings."
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
-                                      paper-theme
+                                       paper-theme
                                       naysayer-theme
                                       cue-mode
                                       alabaster-themes
@@ -752,6 +752,39 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
    x-select-enable-clipboard t
    undo-tree-auto-save-history nil
    )
+
+  ;; Smartparens 1.11 predates Emacs 32's explicit Lisp dialect warning.
+  ;; Suppress it only for that third-party package's files.
+  (require 'warnings)
+  (dolist (file (file-expand-wildcards
+                 (expand-file-name
+                  "elpa/*/*/smartparens-*/*.el" user-emacs-directory)))
+    (add-to-list 'warning-suppress-log-types
+                 `(files missing-lexbind-cookie
+                         ,(abbreviate-file-name file))))
+
+  ;; Emacs 32 warns when loading generated Elisp without an explicit dialect.
+  ;; Keep company-statistics' cache valid across both loading and rewriting.
+  (defun my/company-statistics-ensure-cache-cookie (&rest _)
+    (when (and (boundp 'company-statistics-file)
+               (file-exists-p company-statistics-file))
+      (with-temp-buffer
+        (set-buffer-multibyte nil)
+        (insert-file-contents-literally company-statistics-file)
+        (unless (looking-at-p ";;; -\\*- lexical-binding: t; -\\*-")
+          (goto-char (point-min))
+          (insert ";;; -*- lexical-binding: t; -*-\n")
+          (let ((coding-system-for-write 'binary))
+            (write-region nil nil company-statistics-file nil 'silent))))))
+  (with-eval-after-load 'company-statistics
+    (unless (advice-member-p #'my/company-statistics-ensure-cache-cookie
+                             'company-statistics--load)
+      (advice-add 'company-statistics--load :before
+                  #'my/company-statistics-ensure-cache-cookie))
+    (unless (advice-member-p #'my/company-statistics-ensure-cache-cookie
+                             'company-statistics--save)
+      (advice-add 'company-statistics--save :after
+                  #'my/company-statistics-ensure-cache-cookie)))
   )
 
 (defface my/ts-signature-type-face
@@ -992,6 +1025,7 @@ before packages are loaded."
 
   (use-package fontaine
     :ensure t
+    :if (or (daemonp) (display-graphic-p))
     :config
     (setq fontaine-presets
           '((regular
