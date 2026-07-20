@@ -818,18 +818,20 @@ def test_show_color_always_tints_glyphs_never_stays_plain() -> None:
             raise AssertionError("--color never must not tint ← current")
 
 
-def test_scaffold_includes_reconcile_artifacts() -> None:
+def test_scaffold_mirrors_implement_template() -> None:
+    """The scaffold example slice must be generated from the implement step_template so
+    it never drifts from the contract. It should carry every template step (including
+    wait-for-feedback) and must NOT carry retired keys like reconcile-artifacts."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "new.cue"
         dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
-        assert_contains(dry, 'key: "reconcile-artifacts"')
-        assert_contains(dry, 'key: "share-with-team"')
-        # order: reconcile-artifacts after e2e-evidence, before update-task-file
-        i_e2e = dry.index("e2e-evidence")
-        i_rec = dry.index("reconcile-artifacts")
-        i_upd = dry.index("update-task-file")
-        if not (i_e2e < i_rec < i_upd):
-            raise AssertionError(f"final_steps order wrong: e2e={i_e2e} reconcile={i_rec} update={i_upd}")
+        for key in (
+            "create-plan", "grill-plan", "edit-code", "verify",
+            "e2e-evidence", "share-with-team", "update-task-file", "wait-for-feedback",
+        ):
+            assert_contains(dry, f'key: "{key}"')
+        if "reconcile-artifacts" in dry:
+            raise AssertionError("scaffold still emits retired step key reconcile-artifacts")
 
 
 def test_scaffold_includes_create_plan_and_grill_plan_before_edit_code() -> None:
@@ -1778,8 +1780,18 @@ task: {
                 goal: "g"
                 status: "planned"
                 note: ""
-                steps: [#Step & {key: "create-plan", title: "Plan", status: "planned", note: ""}]
-                final_steps: []
+                steps: [
+                    #Step & {key: "create-plan", title: "Plan", status: "planned", note: ""},
+                    #Step & {key: "grill-plan", title: "Grill", status: "planned", note: ""},
+                    #Step & {key: "edit-code", title: "Edit", status: "planned", note: ""},
+                    #Step & {key: "verify", title: "Verify", status: "planned", note: ""},
+                ]
+                final_steps: [
+                    #Step & {key: "e2e-evidence", title: "Evidence", status: "planned", note: ""},
+                    #Step & {key: "share-with-team", title: "Share", status: "planned", note: ""},
+                    #Step & {key: "update-task-file", title: "Update", status: "planned", note: ""},
+                    #Step & {key: "wait-for-feedback", title: "Wait", status: "planned", note: ""},
+                ]
             },
         ]
     }
@@ -1826,6 +1838,118 @@ task: {
         if res.returncode == 0:
             raise AssertionError("validate should fail on invalid #Step status")
         assert_contains(res.stderr, "cue export failed")
+
+
+def _structure_task(slice_body: str) -> str:
+    return (
+        """
+package task
+
+task: {
+    title: "Structure lint"
+    status: "in_progress"
+    project: {name: "Fixture"}
+    plan: {
+        note: ""
+        slices: [
+"""
+        + slice_body
+        + """
+        ]
+    }
+}
+"""
+    )
+
+
+def test_validate_fails_when_slice_missing_template_steps() -> None:
+    """Structural lint: an implement slice missing template steps (here everything past
+    create-plan, including edit-code) must fail validate, naming the missing keys."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "missing-steps.cue"
+        task.write_text(
+            _structure_task(
+                """
+            #Slice & {
+                key: "only"
+                kind: "implement"
+                title: "Only"
+                goal: "g"
+                status: "planned"
+                note: ""
+                steps: [#Step & {key: "create-plan", title: "Plan", status: "planned", note: ""}]
+                final_steps: []
+            },
+"""
+            )
+        )
+        res = run(str(PI_JOB), "--task", str(task), "validate", check=False)
+        if res.returncode == 0:
+            raise AssertionError("validate should fail when a slice omits its kind's template steps")
+        assert_contains(res.stderr, "missing required step(s)")
+        assert_contains(res.stderr, "edit-code")
+
+
+def test_validate_allows_extra_steps_beyond_template() -> None:
+    """The template is a minimum, not an exact set: a slice may carry additional steps
+    (here a domain step between grill-plan and edit-code) and still validate."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "extra-steps.cue"
+        task.write_text(
+            _structure_task(
+                """
+            #Slice & {
+                key: "only"
+                kind: "implement"
+                title: "Only"
+                goal: "g"
+                status: "planned"
+                note: ""
+                steps: [
+                    #Step & {key: "create-plan", title: "Plan", status: "planned", note: ""},
+                    #Step & {key: "grill-plan", title: "Grill", status: "planned", note: ""},
+                    #Step & {key: "extra-domain-step", title: "Extra", status: "planned", note: ""},
+                    #Step & {key: "edit-code", title: "Edit", status: "planned", note: ""},
+                    #Step & {key: "verify", title: "Verify", status: "planned", note: ""},
+                ]
+                final_steps: [
+                    #Step & {key: "e2e-evidence", title: "Evidence", status: "planned", note: ""},
+                    #Step & {key: "share-with-team", title: "Share", status: "planned", note: ""},
+                    #Step & {key: "update-task-file", title: "Update", status: "planned", note: ""},
+                    #Step & {key: "wait-for-feedback", title: "Wait", status: "planned", note: ""},
+                ]
+            },
+"""
+            )
+        )
+        out = run(str(PI_JOB), "--task", str(task), "validate").stdout
+        assert_contains(out, "ok:")
+
+
+def test_validate_fails_on_unknown_slice_kind() -> None:
+    """A slice whose kind is not in the contract's slice_kinds must fail validate."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bad-kind.cue"
+        task.write_text(
+            _structure_task(
+                """
+            #Slice & {
+                key: "only"
+                kind: "banana"
+                title: "Only"
+                goal: "g"
+                status: "planned"
+                note: ""
+                steps: [#Step & {key: "create-plan", title: "Plan", status: "planned", note: ""}]
+                final_steps: []
+            },
+"""
+            )
+        )
+        res = run(str(PI_JOB), "--task", str(task), "validate", check=False)
+        if res.returncode == 0:
+            raise AssertionError("validate should fail on an unknown slice kind")
+        assert_contains(res.stderr, "unknown kind")
 
 
 def test_migrate_task_reports_already_migrated() -> None:
@@ -2804,7 +2928,7 @@ def main() -> None:
     test_show_aligns_kind_counts_after_longest_key()
     test_show_started_flag_expands_non_planned_slices()
     test_show_color_always_tints_glyphs_never_stays_plain()
-    test_scaffold_includes_reconcile_artifacts()
+    test_scaffold_mirrors_implement_template()
     test_scaffold_includes_create_plan_and_grill_plan_before_edit_code()
     test_next_walks_create_plan_then_grill_plan_before_edit_code()
     test_next_skips_unready_head_of_array()
@@ -2837,6 +2961,9 @@ def main() -> None:
     test_add_step_final_rolls_back_on_closed_final_steps_schema()
     test_validate_passes_shared_schema_task()
     test_validate_fails_invalid_step_status()
+    test_validate_fails_when_slice_missing_template_steps()
+    test_validate_allows_extra_steps_beyond_template()
+    test_validate_fails_on_unknown_slice_kind()
     test_migrate_task_reports_already_migrated()
     test_migrate_task_recommends_delete_for_identical_status()
     test_migrate_task_recommends_keep_for_status_with_used_extra_value()

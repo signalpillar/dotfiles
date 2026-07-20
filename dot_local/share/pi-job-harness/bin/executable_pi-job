@@ -79,8 +79,17 @@ def missing_task_hint(task_file: Path) -> str:
 
 
 def example_task_cue(*, title: str = "Example bounded change") -> str:
-    """Generic task-file scaffold. Types/structure only; no real work content."""
-    safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
+    """Generic task-file scaffold. Types/structure only; no real work content.
+
+    The example implement slice's steps are generated from the profile-contract's
+    `implement` step_template so a fresh scaffold always mirrors the current contract
+    (create-plan -> grill-plan -> ... -> wait-for-feedback). This keeps the example a
+    reader copies from drifting out of sync with step_kinds/slice_kinds."""
+    safe_title = cue_escape(title)
+    step_block = "".join(
+        "\t\t\t\t\t" + step_literal(step_key, step_title)
+        for step_key, step_title in steps_from_kind_template("implement")
+    )
     return f'''package task
 
 task: {{
@@ -118,17 +127,8 @@ task: {{
 				status: "in_progress"
 				note:   ""
 				steps: [
-					#Step & {{key: "create-plan", title: "Plan the code change (write sibling plan file; approach, files, tradeoffs)", status: "planned", note: ""}},
-					#Step & {{key: "grill-plan", title: "Grill the plan file (skills/grill-me) before writing code", status: "planned", note: ""}},
-					#Step & {{key: "edit-code", title: "Edit the code", status: "planned", note: ""}},
-					#Step & {{key: "verify", title: "Run checks", status: "planned", note: ""}},
-				]
-				final_steps: [
-					#Step & {{key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""}},
-					#Step & {{key: "reconcile-artifacts", title: "Reconcile toolbelt aids with what shipped — update or confirm no drift", status: "planned", note: ""}},
-					#Step & {{key: "share-with-team", title: "Share with team: ticket + PR for this slice's repo", status: "planned", note: ""}},
-					#Step & {{key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""}},
-				]
+{step_block}				]
+				final_steps: []
 			}},
 		]
 	}}
@@ -1385,6 +1385,40 @@ def steps_from_kind_template(kind_key: str) -> list[tuple[str, str]]:
 
 def task_slice_kinds(task: dict[str, Any]) -> set[str]:
     return {str(sl.get("kind") or "") for sl in task.get("plan", {}).get("slices", []) if sl.get("kind")}
+
+
+def slice_structure_issues(task: dict[str, Any]) -> list[str]:
+    """Structural lint for plan.slices, independent of the step-ordering gate.
+
+    Each slice must (1) carry a `kind` that exists in the contract's slice_kinds and
+    (2) contain at least every step key its kind's step_template lists. Extra steps are
+    fine; the template is the bare minimum. Placement across steps/final_steps does not
+    matter - the union is checked - so a slice that keeps closing steps in final_steps
+    still passes. Returns a list of human-readable issues (empty means conformant)."""
+    valid = valid_slice_kinds()
+    valid_hint = ", ".join(sorted(valid))
+    issues: list[str] = []
+    slices = task.get("plan", {}).get("slices", []) or []
+    for idx, sl in enumerate(slices):
+        key = str(sl.get("key") or f"#{idx}")
+        kind = sl.get("kind")
+        if not kind:
+            issues.append(f"slice {key!r}: missing 'kind' (expected one of: {valid_hint})")
+            continue
+        kind = str(kind)
+        if kind not in valid:
+            issues.append(f"slice {key!r}: unknown kind {kind!r} (expected one of: {valid_hint})")
+            continue
+        template = [str(s) for s in (get_slice_kind(kind).get("step_template") or [])]
+        present = {str(s.get("key") or "") for s in (sl.get("steps") or [])}
+        present |= {str(s.get("key") or "") for s in (sl.get("final_steps") or [])}
+        missing = [t for t in template if t not in present]
+        if missing:
+            issues.append(
+                f"slice {key!r} (kind {kind!r}): missing required step(s) {', '.join(missing)}; "
+                f"kind {kind!r} template requires: {', '.join(template)}"
+            )
+    return issues
 
 
 def contract_toolbelt() -> dict[str, dict[str, Any]]:
@@ -2997,6 +3031,12 @@ def cmd_validate(args: argparse.Namespace) -> None:
     task_arg = args.task.resolve()
     store = open_task_store(task_arg)
     task = store.read()
+    issues = slice_structure_issues(task)
+    if issues:
+        die(
+            "slice structure invalid (every slice needs a contract kind and its "
+            "kind's template steps):\n  - " + "\n  - ".join(issues)
+        )
     title = task.get("title") or "<untitled>"
     print(f"ok: {store.describe()}")
     print(f"title: {title}")
