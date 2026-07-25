@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Day Mosaic</title>
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --bg: #f5f1e8;
+        --ink: #1c1c1c;
+        --card: #fffdf8;
+        --line: rgba(0, 0, 0, 0.14);
+        --muted: #6b6b63;
+        --red: #d94f3d;
+        --blue: #1e3a8a;
+        --yellow: #eab308;
+        --green: #3f7d58;
+        --gray: #8c8c86;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      main {
+        width: min(38rem, 100%);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
+        display: grid;
+        gap: 1rem;
+        align-content: start;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      a {
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      a:hover,
+      a:focus-visible {
+        text-decoration: underline;
+        outline: none;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.02em;
+      }
+
+      .icon-btn {
+        min-width: 2.75rem;
+        min-height: 2.75rem;
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        background: var(--card);
+        color: var(--ink);
+        font-size: 1.1rem;
+        cursor: pointer;
+      }
+
+      .card {
+        border: 2px solid var(--ink);
+        border-radius: 1.1rem;
+        background: var(--card);
+        box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.08);
+        padding: 1rem;
+      }
+
+      .nav-card {
+        display: grid;
+        gap: 0.85rem;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+        background: rgba(0, 0, 0, 0.05);
+        padding: 0.3rem;
+        border-radius: 0.9rem;
+      }
+
+      .segmented button {
+        min-height: 2.6rem;
+        border: 0;
+        border-radius: 0.7rem;
+        background: transparent;
+        color: var(--ink);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .segmented button.active {
+        background: var(--ink);
+        color: var(--card);
+      }
+
+      .date-nav {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .range-label {
+        text-align: center;
+        font-weight: 800;
+        font-size: 1.05rem;
+      }
+
+      .switcher-card {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .current-label {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 900;
+      }
+
+      .current-elapsed {
+        margin: 0;
+        font-variant-numeric: tabular-nums;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .chip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+        gap: 0.6rem;
+      }
+
+      .chip {
+        min-height: 3.4rem;
+        border: 3px solid transparent;
+        border-radius: 0.9rem;
+        padding: 0 0.75rem;
+        color: white;
+        font-weight: 800;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .chip.active {
+        border-color: var(--ink);
+      }
+
+      .view-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+      }
+
+      .view-tabs button {
+        min-height: 2.8rem;
+        border: 2px solid var(--ink);
+        border-radius: 0.8rem;
+        background: var(--card);
+        color: var(--ink);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .view-tabs button.active {
+        background: var(--ink);
+        color: var(--card);
+      }
+
+      .canvas-card {
+        padding: 0.75rem;
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .mosaic-canvas {
+        display: flex;
+        flex-direction: column;
+        height: 24rem;
+        border: 2px solid var(--ink);
+        border-radius: 0.6rem;
+        overflow: hidden;
+      }
+
+      .mosaic-segment {
+        display: flex;
+        align-items: center;
+        padding: 0 0.6rem;
+        border-bottom: 4px solid var(--ink);
+        color: white;
+        font-weight: 800;
+        font-size: 0.82rem;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        overflow: hidden;
+      }
+
+      .mosaic-segment:last-child {
+        border-bottom: 0;
+      }
+
+      .mosaic-segment.untracked {
+        background: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.05) 8px, transparent 8px, transparent 16px);
+        color: var(--muted);
+        text-shadow: none;
+      }
+
+      .treemap-svg {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1;
+        display: block;
+        border: 2px solid var(--ink);
+        border-radius: 0.6rem;
+      }
+
+      .treemap-rect-label {
+        font-size: 11px;
+        font-weight: 800;
+        fill: white;
+        pointer-events: none;
+      }
+
+      .empty-state {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: var(--muted);
+        font-weight: 600;
+      }
+
+      .list-view {
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .entry-row {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        padding: 0.7rem 0.8rem;
+        border: 1px solid var(--line);
+        border-radius: 0.8rem;
+        background: rgba(0, 0, 0, 0.02);
+        cursor: pointer;
+        text-align: left;
+        width: 100%;
+      }
+
+      .entry-dot {
+        width: 0.9rem;
+        height: 0.9rem;
+        border-radius: 50%;
+        border: 2px solid var(--ink);
+        flex-shrink: 0;
+      }
+
+      .entry-info {
+        flex: 1;
+        display: grid;
+        gap: 0.1rem;
+      }
+
+      .entry-name {
+        font-weight: 800;
+      }
+
+      .entry-meta {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .entry-duration {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .add-entry-btn {
+        min-height: 3.2rem;
+        border: 2px dashed var(--ink);
+        border-radius: 0.9rem;
+        background: transparent;
+        color: var(--ink);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .categories-panel summary {
+        cursor: pointer;
+        font-weight: 800;
+        list-style: none;
+      }
+
+      .categories-panel summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .categories-panel summary::before {
+        content: "▸ ";
+      }
+
+      .categories-panel[open] summary::before {
+        content: "▾ ";
+      }
+
+      .category-rows {
+        display: grid;
+        gap: 0.6rem;
+        margin-top: 0.8rem;
+      }
+
+      .category-row {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .category-row input[type="text"] {
+        flex: 1;
+        min-height: 2.8rem;
+        padding: 0 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 0.7rem;
+        background: white;
+        color: var(--ink);
+      }
+
+      .swatch-btn {
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 50%;
+        border: 2px solid var(--ink);
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+      }
+
+      .small-btn {
+        min-height: 2.8rem;
+        padding: 0 0.9rem;
+        border: 1px solid var(--line);
+        border-radius: 0.7rem;
+        background: white;
+        color: var(--ink);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .small-btn.danger {
+        border-color: var(--red);
+        color: var(--red);
+      }
+
+      .small-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+
+      .add-category-form {
+        display: grid;
+        gap: 0.6rem;
+        margin-top: 1rem;
+        padding-top: 0.8rem;
+        border-top: 1px solid var(--line);
+      }
+
+      .add-category-form input[type="text"] {
+        min-height: 2.8rem;
+        padding: 0 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 0.7rem;
+        background: white;
+        color: var(--ink);
+      }
+
+      .swatch-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+      }
+
+      .primary-btn {
+        min-height: 3rem;
+        border: 0;
+        border-radius: 0.8rem;
+        background: var(--ink);
+        color: var(--card);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      a:focus-visible {
+        outline: 3px solid var(--blue);
+        outline-offset: 2px;
+      }
+
+      .entry-dialog {
+        border: 2px solid var(--ink);
+        border-radius: 1.1rem;
+        padding: 0;
+        width: min(24rem, 92vw);
+        background: var(--card);
+        color: var(--ink);
+      }
+
+      .entry-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.4);
+      }
+
+      .entry-form {
+        display: grid;
+        gap: 0.8rem;
+        padding: 1.1rem;
+      }
+
+      .entry-form h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .entry-form label {
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .entry-form select,
+      .entry-form input {
+        min-height: 2.9rem;
+        padding: 0 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 0.7rem;
+        background: white;
+        color: var(--ink);
+      }
+
+      .muted-note {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .error-note {
+        margin: 0;
+        color: var(--red);
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
+
+      .entry-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.5rem;
+        margin-top: 0.3rem;
+      }
+
+      @media (min-width: 45rem) {
+        main {
+          padding-top: 2rem;
+          padding-bottom: 2rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="index.html" aria-label="Back to prototypes">Back</a>
+        <h1>Day Mosaic</h1>
+        <button class="icon-btn" id="categoriesButton" type="button" aria-label="Manage categories">⚙</button>
+      </header>
+
+      <section class="nav-card card">
+        <div class="segmented" id="zoomToggle" aria-label="Zoom level">
+          <button type="button" data-zoom="day">Day</button>
+          <button type="button" data-zoom="week">Week</button>
+          <button type="button" data-zoom="month">Month</button>
+        </div>
+        <div class="date-nav">
+          <button class="icon-btn" id="prevRangeButton" type="button" aria-label="Previous">‹</button>
+          <span class="range-label" id="rangeLabel">Today</span>
+          <button class="icon-btn" id="nextRangeButton" type="button" aria-label="Next">›</button>
+        </div>
+      </section>
+
+      <section class="switcher-card card" id="switcherCard" aria-live="polite">
+        <p class="current-label" id="currentLabel">Not tracking</p>
+        <p class="current-elapsed" id="currentElapsed">Tap an activity to start.</p>
+        <div class="chip-grid" id="chipGrid"></div>
+      </section>
+
+      <div class="view-tabs" id="viewTabs" role="tablist">
+        <button type="button" data-view="chrono">Chronological</button>
+        <button type="button" data-view="activity">By Activity</button>
+        <button type="button" data-view="list">List</button>
+      </div>
+
+      <section class="canvas-card card">
+        <div class="mosaic-canvas" id="mosaicCanvas"></div>
+        <svg class="treemap-svg" id="treemapSvg" hidden xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="list-view" id="listView" hidden></div>
+        <button class="add-entry-btn" id="addEntryButton" type="button" hidden>+ Add entry</button>
+      </section>
+
+      <details class="categories-panel card" id="categoriesPanel">
+        <summary>Categories</summary>
+        <div class="category-rows" id="categoryRows"></div>
+        <form class="add-category-form" id="addCategoryForm">
+          <input id="newCategoryName" type="text" placeholder="New category name" required>
+          <div class="swatch-row" id="newCategorySwatches"></div>
+          <button class="primary-btn" type="submit">Add category</button>
+        </form>
+      </details>
+    </main>
+
+    <dialog class="entry-dialog" id="entryDialog">
+      <form class="entry-form" id="entryForm" method="dialog">
+        <h2 id="entryDialogTitle">Edit entry</h2>
+        <label>
+          Activity
+          <select id="entryCategorySelect"></select>
+        </label>
+        <label>
+          Date
+          <input id="entryDateInput" type="date" required>
+        </label>
+        <label>
+          Start
+          <input id="entryStartInput" type="time" step="60" required>
+        </label>
+        <label id="entryEndLabel">
+          End
+          <input id="entryEndInput" type="time" step="60">
+        </label>
+        <p class="muted-note" id="entryInProgressNote" hidden>Currently in progress - use the activity switcher to stop it, or edit the category/start time here.</p>
+        <p class="error-note" id="entryErrorNote" hidden></p>
+        <div class="entry-actions">
+          <button class="small-btn danger" id="entryDeleteButton" type="button">Delete</button>
+          <button class="small-btn" id="entryCancelButton" type="button">Cancel</button>
+          <button class="primary-btn" id="entrySaveButton" type="submit">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script>
+      const STORAGE_KEY = "day-mosaic-v1";
+
+      const MONDRIAN_PALETTE = [
+        { name: "Red", value: "#d94f3d" },
+        { name: "Blue", value: "#1e3a8a" },
+        { name: "Yellow", value: "#eab308" },
+        { name: "Green", value: "#3f7d58" },
+        { name: "Gray", value: "#8c8c86" },
+      ];
+
+      const DEFAULT_CATEGORIES = [
+        { id: "cat_home", name: "Home", color: "#8c8c86", archived: false },
+        { id: "cat_sleep", name: "Sleep", color: "#1e3a8a", archived: false },
+        { id: "cat_work", name: "Work", color: "#d94f3d", archived: false },
+        { id: "cat_exercise", name: "Exercise", color: "#3f7d58", archived: false },
+        { id: "cat_errand", name: "Errand", color: "#eab308", archived: false },
+      ];
+
+      function makeId(prefix) {
+        return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      }
+
+      function seedState() {
+        return { categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })), blocks: [], current: null };
+      }
+
+      function loadData() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return seedState();
+          const parsed = JSON.parse(raw);
+          if (!parsed || !Array.isArray(parsed.categories) || !Array.isArray(parsed.blocks)) return seedState();
+          return { categories: parsed.categories, blocks: parsed.blocks, current: parsed.current || null };
+        } catch {
+          return seedState();
+        }
+      }
+
+      function saveData() {
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ version: 1, categories: state.categories, blocks: state.blocks, current: state.current })
+          );
+        } catch {}
+      }
+
+      const persisted = loadData();
+
+      const state = {
+        categories: persisted.categories,
+        blocks: persisted.blocks,
+        current: persisted.current,
+        zoom: "day",
+        viewDate: todayKey(),
+        view: "chrono",
+        newCategoryColor: MONDRIAN_PALETTE[0].value,
+        editingEntry: null,
+      };
+
+      // -- Date / range helpers --------------------------------------------
+
+      function pad2(n) {
+        return String(n).padStart(2, "0");
+      }
+
+      function dayKeyFromDate(date) {
+        return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+      }
+
+      function todayKey() {
+        return dayKeyFromDate(new Date());
+      }
+
+      function dateFromDayKey(key) {
+        const [y, m, d] = key.split("-").map(Number);
+        return new Date(y, m - 1, d);
+      }
+
+      function addDays(date, n) {
+        const result = new Date(date);
+        result.setDate(result.getDate() + n);
+        return result;
+      }
+
+      function startOfWeek(date) {
+        const day = (date.getDay() + 6) % 7; // Monday = 0
+        return addDays(date, -day);
+      }
+
+      function startOfMonth(date) {
+        return new Date(date.getFullYear(), date.getMonth(), 1);
+      }
+
+      function endOfMonthExclusive(date) {
+        return new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      }
+
+      function getRange() {
+        const viewDate = dateFromDayKey(state.viewDate);
+        if (state.zoom === "day") return { start: viewDate, end: addDays(viewDate, 1) };
+        if (state.zoom === "week") {
+          const start = startOfWeek(viewDate);
+          return { start, end: addDays(start, 7) };
+        }
+        return { start: startOfMonth(viewDate), end: endOfMonthExclusive(viewDate) };
+      }
+
+      function currentRangeContainsToday() {
+        const { start, end } = getRange();
+        const now = Date.now();
+        return now >= start.getTime() && now < end.getTime();
+      }
+
+      function formatRangeLabel() {
+        const { start, end } = getRange();
+        if (state.zoom === "day") {
+          return start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+        }
+        if (state.zoom === "week") {
+          const lastDay = addDays(end, -1);
+          const sameMonth = start.getMonth() === lastDay.getMonth();
+          const startStr = start.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          const endStr = lastDay.toLocaleDateString(undefined, sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" });
+          return `${startStr} - ${endStr}`;
+        }
+        return start.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+      }
+
+      function stepRange(direction) {
+        if (direction > 0 && currentRangeContainsToday()) return;
+        const viewDate = dateFromDayKey(state.viewDate);
+        let next;
+        if (state.zoom === "day") next = addDays(viewDate, direction);
+        else if (state.zoom === "week") next = addDays(viewDate, direction * 7);
+        else next = new Date(viewDate.getFullYear(), viewDate.getMonth() + direction, 1);
+        state.viewDate = dayKeyFromDate(next);
+        render();
+      }
+
+      function formatDuration(ms) {
+        const totalMinutes = Math.max(1, Math.round(ms / 60000));
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        if (hours === 0) return `${minutes}m`;
+        if (minutes === 0) return `${hours}h`;
+        return `${hours}h ${minutes}m`;
+      }
+
+      // -- Data queries -----------------------------------------------------
+
+      function getSegments(rangeStart, rangeEnd) {
+        const rangeStartMs = rangeStart.getTime();
+        const rangeEndMs = rangeEnd.getTime();
+        const blocks = state.blocks.slice();
+        if (state.current) {
+          blocks.push({ id: "current", categoryId: state.current.categoryId, start: state.current.start, end: Date.now() });
+        }
+        const segments = [];
+        for (const block of blocks) {
+          const s = Math.max(block.start, rangeStartMs);
+          const e = Math.min(block.end, rangeEndMs);
+          if (e > s) segments.push({ id: block.id, categoryId: block.categoryId, start: s, end: e });
+        }
+        segments.sort((a, b) => a.start - b.start);
+        return segments;
+      }
+
+      function getBlocksForRange(rangeStart, rangeEnd) {
+        const rangeStartMs = rangeStart.getTime();
+        const rangeEndMs = rangeEnd.getTime();
+        const items = state.blocks.filter((b) => b.start >= rangeStartMs && b.start < rangeEndMs);
+        if (state.current && state.current.start >= rangeStartMs && state.current.start < rangeEndMs) {
+          items.push({ id: "current", categoryId: state.current.categoryId, start: state.current.start, end: null });
+        }
+        return items.sort((a, b) => b.start - a.start);
+      }
+
+      function getCategory(id) {
+        return state.categories.find((c) => c.id === id);
+      }
+
+      function colorFor(id) {
+        return getCategory(id)?.color ?? "#999999";
+      }
+
+      function nameFor(id) {
+        return getCategory(id)?.name ?? "Deleted category";
+      }
+
+      function activeCategories() {
+        return state.categories.filter((c) => !c.archived);
+      }
+
+      // -- Activity switcher + category CRUD ---------------------------------
+
+      function switchTo(categoryId) {
+        const now = Date.now();
+        if (state.current) {
+          const wasCategoryId = state.current.categoryId;
+          state.blocks.push({ id: makeId("blk"), categoryId: wasCategoryId, start: state.current.start, end: now });
+          state.current = null;
+          if (wasCategoryId === categoryId) {
+            saveData();
+            render();
+            return;
+          }
+        }
+        state.current = { categoryId, start: now };
+        saveData();
+        render();
+      }
+
+      function addCategory(name, color) {
+        state.categories.push({ id: makeId("cat"), name, color, archived: false });
+        saveData();
+        render();
+      }
+
+      function renameCategory(id, name) {
+        const category = getCategory(id);
+        if (category) {
+          category.name = name;
+          saveData();
+          render();
+        }
+      }
+
+      function recolorCategory(id, color) {
+        const category = getCategory(id);
+        if (category) {
+          category.color = color;
+          saveData();
+          render();
+        }
+      }
+
+      function deleteCategory(id) {
+        if (activeCategories().length <= 1) return;
+        const hasHistory = state.blocks.some((b) => b.categoryId === id) || (state.current && state.current.categoryId === id);
+        if (state.current && state.current.categoryId === id) {
+          state.blocks.push({ id: makeId("blk"), categoryId: id, start: state.current.start, end: Date.now() });
+          state.current = null;
+        }
+        if (hasHistory) {
+          const category = getCategory(id);
+          if (category) category.archived = true;
+        } else {
+          state.categories = state.categories.filter((c) => c.id !== id);
+        }
+        saveData();
+        render();
+      }
+
+      // -- Squarified treemap -------------------------------------------------
+
+      function squarify(items, x, y, w, h) {
+        const total = items.reduce((sum, item) => sum + item.value, 0);
+        if (total <= 0 || items.length === 0) return [];
+        const scale = (w * h) / total;
+        const queue = items.map((item) => ({ id: item.id, area: item.value * scale }));
+        const rects = [];
+        layoutTreemap(queue, x, y, w, h, rects);
+        return rects;
+      }
+
+      function layoutTreemap(queue, x, y, w, h, rects) {
+        if (queue.length === 0 || w <= 0 || h <= 0) return;
+        const side = Math.min(w, h);
+        let row = [queue[0]];
+        let rest = queue.slice(1);
+        while (rest.length > 0 && treemapRowWorst(row, side) >= treemapRowWorst([...row, rest[0]], side)) {
+          row.push(rest[0]);
+          rest = rest.slice(1);
+        }
+        placeTreemapRow(row, side, x, y, w, h, rects);
+        const rowArea = row.reduce((sum, item) => sum + item.area, 0);
+        if (w >= h) {
+          const rowWidth = rowArea / side;
+          layoutTreemap(rest, x + rowWidth, y, w - rowWidth, h, rects);
+        } else {
+          const rowHeight = rowArea / side;
+          layoutTreemap(rest, x, y + rowHeight, w, h - rowHeight, rects);
+        }
+      }
+
+      function treemapRowWorst(row, side) {
+        const sum = row.reduce((s, item) => s + item.area, 0);
+        if (sum === 0) return Infinity;
+        const maxArea = Math.max(...row.map((item) => item.area));
+        const minArea = Math.min(...row.map((item) => item.area));
+        return Math.max((side * side * maxArea) / (sum * sum), (sum * sum) / (side * side * minArea));
+      }
+
+      function placeTreemapRow(row, side, x, y, w, h, rects) {
+        const rowArea = row.reduce((sum, item) => sum + item.area, 0);
+        const rowThickness = rowArea / side;
+        const horizontal = w >= h;
+        let offset = 0;
+        for (const item of row) {
+          const itemLength = item.area / rowThickness;
+          if (horizontal) {
+            rects.push({ id: item.id, x, y: y + offset, w: rowThickness, h: itemLength });
+          } else {
+            rects.push({ id: item.id, x: x + offset, y, w: itemLength, h: rowThickness });
+          }
+          offset += itemLength;
+        }
+      }
+
+      // -- Element refs ---------------------------------------------------
+
+      const categoriesButton = document.querySelector("#categoriesButton");
+      const zoomButtons = document.querySelectorAll("#zoomToggle button");
+      const prevRangeButton = document.querySelector("#prevRangeButton");
+      const nextRangeButton = document.querySelector("#nextRangeButton");
+      const rangeLabel = document.querySelector("#rangeLabel");
+      const switcherCard = document.querySelector("#switcherCard");
+      const currentLabel = document.querySelector("#currentLabel");
+      const currentElapsed = document.querySelector("#currentElapsed");
+      const chipGrid = document.querySelector("#chipGrid");
+      const viewTabButtons = document.querySelectorAll("#viewTabs button");
+      const mosaicCanvas = document.querySelector("#mosaicCanvas");
+      const treemapSvg = document.querySelector("#treemapSvg");
+      const listView = document.querySelector("#listView");
+      const addEntryButton = document.querySelector("#addEntryButton");
+      const categoriesPanel = document.querySelector("#categoriesPanel");
+      const categoryRows = document.querySelector("#categoryRows");
+      const addCategoryForm = document.querySelector("#addCategoryForm");
+      const newCategoryName = document.querySelector("#newCategoryName");
+      const newCategorySwatches = document.querySelector("#newCategorySwatches");
+      const entryDialog = document.querySelector("#entryDialog");
+      const entryForm = document.querySelector("#entryForm");
+      const entryDialogTitle = document.querySelector("#entryDialogTitle");
+      const entryCategorySelect = document.querySelector("#entryCategorySelect");
+      const entryDateInput = document.querySelector("#entryDateInput");
+      const entryStartInput = document.querySelector("#entryStartInput");
+      const entryEndLabel = document.querySelector("#entryEndLabel");
+      const entryEndInput = document.querySelector("#entryEndInput");
+      const entryInProgressNote = document.querySelector("#entryInProgressNote");
+      const entryErrorNote = document.querySelector("#entryErrorNote");
+      const entryDeleteButton = document.querySelector("#entryDeleteButton");
+      const entryCancelButton = document.querySelector("#entryCancelButton");
+
+      // -- Rendering --------------------------------------------------------
+
+      function emptyStateNode(text) {
+        const div = document.createElement("div");
+        div.className = "empty-state";
+        div.textContent = text;
+        return div;
+      }
+
+      function renderNav() {
+        for (const button of zoomButtons) {
+          button.classList.toggle("active", button.dataset.zoom === state.zoom);
+        }
+        rangeLabel.textContent = formatRangeLabel();
+        nextRangeButton.disabled = currentRangeContainsToday();
+      }
+
+      function updateElapsedDisplay() {
+        if (!state.current) {
+          currentLabel.textContent = "Not tracking";
+          currentElapsed.textContent = "Tap an activity to start.";
+          return;
+        }
+        currentLabel.textContent = nameFor(state.current.categoryId);
+        currentElapsed.textContent = formatDuration(Date.now() - state.current.start);
+      }
+
+      function renderSwitcher() {
+        const visible = state.zoom === "day" && state.viewDate === todayKey();
+        switcherCard.hidden = !visible;
+        if (!visible) return;
+        chipGrid.replaceChildren();
+        for (const category of activeCategories()) {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "chip" + (state.current && state.current.categoryId === category.id ? " active" : "");
+          chip.style.background = category.color;
+          chip.textContent = category.name;
+          chip.addEventListener("click", () => switchTo(category.id));
+          chipGrid.append(chip);
+        }
+        updateElapsedDisplay();
+      }
+
+      function availableViews() {
+        return state.zoom === "day" ? ["chrono", "activity", "list"] : ["activity", "list"];
+      }
+
+      function renderViewTabs() {
+        const views = availableViews();
+        if (!views.includes(state.view)) state.view = views.includes("activity") ? "activity" : views[0];
+        for (const button of viewTabButtons) {
+          const view = button.dataset.view;
+          const available = views.includes(view);
+          button.hidden = !available;
+          button.classList.toggle("active", view === state.view);
+        }
+      }
+
+      function makeSegmentNode(categoryId, durationMs, totalMs) {
+        const div = document.createElement("div");
+        div.className = "mosaic-segment" + (categoryId ? "" : " untracked");
+        div.style.flexGrow = String(Math.max(durationMs, 1));
+        if (categoryId) div.style.background = colorFor(categoryId);
+        const fraction = durationMs / totalMs;
+        if (fraction > 0.06) {
+          div.textContent = categoryId ? `${nameFor(categoryId)} · ${formatDuration(durationMs)}` : "Untracked";
+        }
+        return div;
+      }
+
+      function renderChronological() {
+        const { start, end } = getRange();
+        const rangeStartMs = start.getTime();
+        const rangeEndMs = Math.min(end.getTime(), Date.now());
+        mosaicCanvas.replaceChildren();
+        if (rangeEndMs <= rangeStartMs) {
+          mosaicCanvas.append(emptyStateNode("This day hasn't started yet."));
+          return;
+        }
+        const segments = getSegments(new Date(rangeStartMs), new Date(rangeEndMs));
+        if (segments.length === 0) {
+          mosaicCanvas.append(emptyStateNode("No activity logged for this day."));
+          return;
+        }
+        const totalMs = rangeEndMs - rangeStartMs;
+        let cursor = rangeStartMs;
+        const nodes = [];
+        for (const segment of segments) {
+          if (segment.start > cursor) nodes.push(makeSegmentNode(null, segment.start - cursor, totalMs));
+          nodes.push(makeSegmentNode(segment.categoryId, segment.end - segment.start, totalMs));
+          cursor = segment.end;
+        }
+        if (cursor < rangeEndMs) nodes.push(makeSegmentNode(null, rangeEndMs - cursor, totalMs));
+        mosaicCanvas.append(...nodes);
+      }
+
+      function renderTreemap() {
+        const { start, end } = getRange();
+        const rangeEndMs = Math.min(end.getTime(), Date.now());
+        treemapSvg.replaceChildren();
+        const SIZE = 320;
+        treemapSvg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
+        if (rangeEndMs <= start.getTime()) return;
+        const segments = getSegments(start, new Date(rangeEndMs));
+        const totals = new Map();
+        for (const segment of segments) {
+          totals.set(segment.categoryId, (totals.get(segment.categoryId) || 0) + (segment.end - segment.start));
+        }
+        const items = [...totals.entries()]
+          .map(([categoryId, value]) => ({ id: categoryId, value }))
+          .filter((item) => item.value > 0)
+          .sort((a, b) => b.value - a.value);
+        if (items.length === 0) return;
+        const rects = squarify(items, 0, 0, SIZE, SIZE);
+        for (const rect of rects) {
+          const w = Math.max(rect.w, 0);
+          const h = Math.max(rect.h, 0);
+          const svgNs = "http://www.w3.org/2000/svg";
+          const g = document.createElementNS(svgNs, "g");
+          const r = document.createElementNS(svgNs, "rect");
+          r.setAttribute("x", rect.x);
+          r.setAttribute("y", rect.y);
+          r.setAttribute("width", w);
+          r.setAttribute("height", h);
+          r.setAttribute("fill", colorFor(rect.id));
+          r.setAttribute("stroke", "#1c1c1c");
+          r.setAttribute("stroke-width", "4");
+          g.append(r);
+          if (w > 46 && h > 26) {
+            const nameText = document.createElementNS(svgNs, "text");
+            nameText.setAttribute("x", rect.x + 8);
+            nameText.setAttribute("y", rect.y + 18);
+            nameText.setAttribute("class", "treemap-rect-label");
+            nameText.textContent = nameFor(rect.id);
+            const durationText = document.createElementNS(svgNs, "text");
+            durationText.setAttribute("x", rect.x + 8);
+            durationText.setAttribute("y", rect.y + 32);
+            durationText.setAttribute("class", "treemap-rect-label");
+            durationText.textContent = formatDuration(totals.get(rect.id));
+            g.append(nameText, durationText);
+          }
+          treemapSvg.append(g);
+        }
+      }
+
+      function renderList() {
+        const { start, end } = getRange();
+        const items = getBlocksForRange(start, end);
+        listView.replaceChildren();
+        if (items.length === 0) {
+          listView.append(emptyStateNode("No entries in this range."));
+          return;
+        }
+        for (const item of items) {
+          const row = document.createElement("button");
+          row.type = "button";
+          row.className = "entry-row";
+          const dot = document.createElement("span");
+          dot.className = "entry-dot";
+          dot.style.background = colorFor(item.categoryId);
+          const info = document.createElement("span");
+          info.className = "entry-info";
+          const name = document.createElement("span");
+          name.className = "entry-name";
+          name.textContent = nameFor(item.categoryId);
+          const meta = document.createElement("span");
+          meta.className = "entry-meta";
+          const startStr = new Date(item.start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+          if (item.end) {
+            const endStr = new Date(item.end).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+            meta.textContent = `${startStr} - ${endStr}`;
+          } else {
+            meta.textContent = `Started ${startStr} · in progress`;
+          }
+          info.append(name, meta);
+          const duration = document.createElement("span");
+          duration.className = "entry-duration";
+          duration.textContent = formatDuration((item.end ?? Date.now()) - item.start);
+          row.append(dot, info, duration);
+          row.addEventListener("click", () => openEntryDialog(item.id));
+          listView.append(row);
+        }
+      }
+
+      function renderCanvas() {
+        const showChrono = state.view === "chrono";
+        const showActivity = state.view === "activity";
+        const showList = state.view === "list";
+        mosaicCanvas.hidden = !showChrono;
+        // SVGElement's `hidden` IDL property does not reliably reflect the attribute
+        // in every browser, so toggle the attribute directly instead of `.hidden =`.
+        treemapSvg.toggleAttribute("hidden", !showActivity);
+        listView.hidden = !showList;
+        addEntryButton.hidden = !showList;
+        if (showChrono) renderChronological();
+        else if (showActivity) renderTreemap();
+        else renderList();
+      }
+
+      function renderNewCategorySwatches() {
+        newCategorySwatches.replaceChildren();
+        for (const color of MONDRIAN_PALETTE) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "swatch-btn";
+          button.style.background = color.value;
+          button.style.outline = state.newCategoryColor === color.value ? "3px solid var(--ink)" : "none";
+          button.style.outlineOffset = "2px";
+          button.setAttribute("aria-label", color.name);
+          button.addEventListener("click", () => {
+            state.newCategoryColor = color.value;
+            renderNewCategorySwatches();
+          });
+          newCategorySwatches.append(button);
+        }
+      }
+
+      function renderCategoryPanel() {
+        categoryRows.replaceChildren();
+        const active = activeCategories();
+        for (const category of active) {
+          const row = document.createElement("div");
+          row.className = "category-row";
+          const swatch = document.createElement("button");
+          swatch.type = "button";
+          swatch.className = "swatch-btn";
+          swatch.style.background = category.color;
+          swatch.setAttribute("aria-label", `Change color for ${category.name}`);
+          swatch.addEventListener("click", () => {
+            const idx = MONDRIAN_PALETTE.findIndex((p) => p.value === category.color);
+            const next = MONDRIAN_PALETTE[(idx + 1) % MONDRIAN_PALETTE.length];
+            recolorCategory(category.id, next.value);
+          });
+          const nameInput = document.createElement("input");
+          nameInput.type = "text";
+          nameInput.value = category.name;
+          nameInput.addEventListener("change", () => {
+            const value = nameInput.value.trim();
+            if (value) renameCategory(category.id, value);
+            else nameInput.value = category.name;
+          });
+          const deleteButton = document.createElement("button");
+          deleteButton.type = "button";
+          deleteButton.className = "small-btn danger";
+          deleteButton.textContent = "Delete";
+          deleteButton.disabled = active.length <= 1;
+          deleteButton.addEventListener("click", () => {
+            if (window.confirm(`Delete "${category.name}"?`)) deleteCategory(category.id);
+          });
+          row.append(swatch, nameInput, deleteButton);
+          categoryRows.append(row);
+        }
+        renderNewCategorySwatches();
+      }
+
+      function render() {
+        renderNav();
+        renderSwitcher();
+        renderViewTabs();
+        renderCanvas();
+        renderCategoryPanel();
+      }
+
+      // -- Entry dialog -------------------------------------------------------
+
+      function populateCategorySelect(selectedId) {
+        entryCategorySelect.replaceChildren();
+        for (const category of state.categories) {
+          const option = document.createElement("option");
+          option.value = category.id;
+          option.textContent = category.archived ? `${category.name} (archived)` : category.name;
+          entryCategorySelect.append(option);
+        }
+        entryCategorySelect.value = selectedId;
+      }
+
+      function findEntryById(id) {
+        if (id === "current") {
+          return state.current
+            ? { id: "current", categoryId: state.current.categoryId, start: state.current.start, end: null }
+            : null;
+        }
+        return state.blocks.find((b) => b.id === id) || null;
+      }
+
+      function openEntryDialog(entryId) {
+        const entry = findEntryById(entryId);
+        if (!entry) return;
+        state.editingEntry = entryId;
+        const isCurrent = entryId === "current";
+        entryDialogTitle.textContent = isCurrent ? "Current activity" : "Edit entry";
+        populateCategorySelect(entry.categoryId);
+        const startDate = new Date(entry.start);
+        entryDateInput.value = dayKeyFromDate(startDate);
+        entryStartInput.value = `${pad2(startDate.getHours())}:${pad2(startDate.getMinutes())}`;
+        entryEndLabel.hidden = isCurrent;
+        entryInProgressNote.hidden = !isCurrent;
+        entryDeleteButton.textContent = isCurrent ? "Discard" : "Delete";
+        entryDeleteButton.hidden = false;
+        if (!isCurrent) {
+          const endDate = new Date(entry.end);
+          entryEndInput.value = `${pad2(endDate.getHours())}:${pad2(endDate.getMinutes())}`;
+          entryEndInput.required = true;
+        } else {
+          entryEndInput.required = false;
+        }
+        entryErrorNote.hidden = true;
+        entryDialog.showModal();
+      }
+
+      function openNewEntryDialog() {
+        const now = new Date();
+        const fifteenAgo = new Date(now.getTime() - 15 * 60000);
+        state.editingEntry = null;
+        entryDialogTitle.textContent = "Add entry";
+        populateCategorySelect(activeCategories()[0]?.id);
+        entryDateInput.value = dayKeyFromDate(fifteenAgo);
+        entryStartInput.value = `${pad2(fifteenAgo.getHours())}:${pad2(fifteenAgo.getMinutes())}`;
+        entryEndLabel.hidden = false;
+        entryInProgressNote.hidden = true;
+        entryEndInput.value = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+        entryEndInput.required = true;
+        entryDeleteButton.hidden = true;
+        entryErrorNote.hidden = true;
+        entryDialog.showModal();
+      }
+
+      entryForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const categoryId = entryCategorySelect.value;
+        const [y, m, d] = entryDateInput.value.split("-").map(Number);
+        const [sh, sm] = entryStartInput.value.split(":").map(Number);
+        const startDate = new Date(y, m - 1, d, sh, sm, 0, 0);
+
+        if (state.editingEntry === "current") {
+          state.current = { categoryId, start: startDate.getTime() };
+          saveData();
+          entryDialog.close();
+          render();
+          return;
+        }
+
+        const [eh, em] = entryEndInput.value.split(":").map(Number);
+        let endDate = new Date(y, m - 1, d, eh, em, 0, 0);
+        if (endDate.getTime() <= startDate.getTime()) {
+          endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+        }
+        if (endDate.getTime() <= startDate.getTime()) {
+          entryErrorNote.textContent = "End must be after start.";
+          entryErrorNote.hidden = false;
+          return;
+        }
+
+        if (state.editingEntry) {
+          const block = state.blocks.find((b) => b.id === state.editingEntry);
+          if (block) {
+            block.categoryId = categoryId;
+            block.start = startDate.getTime();
+            block.end = endDate.getTime();
+          }
+        } else {
+          state.blocks.push({ id: makeId("blk"), categoryId, start: startDate.getTime(), end: endDate.getTime() });
+        }
+        saveData();
+        entryDialog.close();
+        render();
+      });
+
+      entryDeleteButton.addEventListener("click", () => {
+        if (state.editingEntry === "current") {
+          state.current = null;
+        } else if (state.editingEntry) {
+          state.blocks = state.blocks.filter((b) => b.id !== state.editingEntry);
+        }
+        saveData();
+        entryDialog.close();
+        render();
+      });
+
+      entryCancelButton.addEventListener("click", () => entryDialog.close());
+      addEntryButton.addEventListener("click", openNewEntryDialog);
+
+      // -- Nav / tab / category-panel listeners --------------------------------
+
+      for (const button of zoomButtons) {
+        button.addEventListener("click", () => {
+          if (state.zoom === button.dataset.zoom) return;
+          state.zoom = button.dataset.zoom;
+          render();
+        });
+      }
+
+      for (const button of viewTabButtons) {
+        button.addEventListener("click", () => {
+          if (button.hidden) return;
+          state.view = button.dataset.view;
+          render();
+        });
+      }
+
+      prevRangeButton.addEventListener("click", () => stepRange(-1));
+      nextRangeButton.addEventListener("click", () => stepRange(1));
+
+      categoriesButton.addEventListener("click", () => {
+        categoriesPanel.open = true;
+        categoriesPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        newCategoryName.focus();
+      });
+
+      addCategoryForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const name = newCategoryName.value.trim();
+        if (!name) return;
+        addCategory(name, state.newCategoryColor);
+        newCategoryName.value = "";
+      });
+
+      // -- Tick loops -----------------------------------------------------
+
+      setInterval(() => {
+        if (!switcherCard.hidden) updateElapsedDisplay();
+      }, 1000);
+
+      setInterval(() => {
+        if (state.current) saveData();
+      }, 20000);
+
+      setInterval(() => {
+        if (state.current) render();
+      }, 8000);
+
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) render();
+      });
+
+      render();
+    </script>
+  </body>
+</html>
