@@ -1,0 +1,427 @@
+# Live execution profile validated by ProfileDocument in bin/pi-job.
+# Mapping keys must match each entry's key field; step and slice references must resolve.
+config_layering:
+  user_defaults: true
+  repo_overrides: true
+  precedence: repo-over-user
+artifact_rules:
+  decision_review_deck:
+    key: decision_review_deck
+    purpose: Create a two-minute async decision review deck when durable decisions need team review.
+    trigger: task.decisions contains decisions worth presenting, or the user asks for a decision walkthrough
+    inputs:
+      - task.decisions
+      - task.plan.slices
+    outputs:
+      - projects/<project>/<YYYY-MM-DD>-<topic>-review.md
+    guardrails:
+      - pull decisions from the durable task record, not the diff
+      - use slides separated by ---
+      - include ASCII before/after or flow diagrams for decision slides
+      - avoid file names, function names, and test counts
+    validator: deck path recorded or skip reason recorded
+  daily_boo:
+    key: daily_boo
+    purpose: Append a personal aha-moment entry worth revisiting later.
+    trigger: session produced a real aha or revisit-worthy domain insight
+    inputs:
+      - session_insights
+    outputs:
+      - daily.boo.txt append
+    guardrails:
+      - append only via skills/daily-boo/scripts/append.sh
+      - never read daily.boo.txt
+      - do not use for task tracking, PR status, or agent lessons
+      - skip rather than pad a thin entry
+    validator: append command recorded or skip reason recorded
+  share_with_team:
+    key: share_with_team
+    purpose: Create team-facing tickets and PRs from the completed work.
+    trigger: an implement slice reaches share-with-team, or a closing reconciliation finds an unshared repo
+    inputs:
+      - task.plan
+      - verification_evidence
+    outputs:
+      - ticket keys
+      - pull request URLs
+      - team feedback thread
+    guardrails:
+      - invoke share-with-team once per repository changed
+      - reconcile against repos already shared; do not double-open a ticket or PR for an already-shared repo
+      - use the share-with-team ticket template (skills/share-with-team/SKILL.md § Ticket)
+      - |-
+        Before writing any PR body: (1) check the target repo for a template at
+        .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
+        under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
+        section by section - do not invent a different structure; (3) if absent, use the
+        share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
+        PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
+        Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
+        case.
+      - include e2e evidence or explicitly record the gap
+      - do not treat sharing as terminal; wait for team feedback and loop on it
+    validator: ticket and PR links recorded with feedback wait state, or skip reason recorded
+toolbelt:
+  httpyac-api-spec:
+    key: httpyac-api-spec
+    title: httpyac API spec
+    purpose: Request/response contract for new/changed endpoints; doubles as a manual test once built.
+    suits:
+      - setup
+      - implement
+      - spike
+  sequence-diagram:
+    key: sequence-diagram
+    title: Sequence diagram
+    purpose: Cross-service / hand-off flow (park/resume, timers, polling).
+    suits:
+      - setup
+      - research
+  test-case-table:
+    key: test-case-table
+    title: Test-case table
+    purpose: Core journeys + edge cases, each marked v0/v1/v2.
+    suits:
+      - setup
+      - implement
+      - spike
+  state-transition-table:
+    key: state-transition-table
+    title: State-transition table
+    purpose: Resource lifecycle / status transitions with the rule per edge.
+    suits:
+      - setup
+      - research
+  config-flag-matrix:
+    key: config-flag-matrix
+    title: Config / flag matrix
+    purpose: Feature-flag x market/programme x env/region grid with default values.
+    suits:
+      - setup
+  data-shape-sketch:
+    key: data-shape-sketch
+    title: Data-shape sketch
+    purpose: FHIR resource / extension / ValueSet shapes being added or read.
+    suits:
+      - setup
+      - research
+pr_template_guardrail: |-
+  Before writing any PR body: (1) check the target repo for a template at
+  .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
+  under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
+  section by section - do not invent a different structure; (3) if absent, use the
+  share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
+  PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
+  Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
+  case.
+plan_and_grill_guardrail: |-
+  Before any other step in an implement/spike slice starts, that slice's steps must
+  begin with exactly two leading steps, in order:
+  (1) create-plan - write the actual implementation plan for THIS slice to a sibling
+      Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
+      restatement of the slice's goal. Do NOT inline the plan body in the task file.
+      Naming: beside the task file, directory `<task-stem>.plans/`, file
+      `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
+      -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
+      a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
+      task file's directory).
+  (2) grill-plan - interrogate that plan file using the grill-me skill
+      (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
+      what changed. If grilling surfaces a real gap, revise the plan FILE (not the
+      task-file note), grill again, only mark grill-plan done once the plan survives
+      - this is a loop, not a one-shot rubber stamp.
+  Mark both done only once the plan has survived grilling; advance refuses to pass an
+  incomplete step, so edit-code-style steps stay unreachable until both are done.
+  Distinct from the setup slice's `grill` step (overall scope before implement slices
+  exist) - grill-plan is the per-slice equivalent.
+  Exception: a genuinely trivial single-file edit may skip both steps (status:
+  skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+step_kinds:
+  explore-context:
+    key: explore-context
+    title: Explore context
+    owner: orchestrator
+    validators:
+      - repos-or-explicitly-not-applicable
+    guidance: Read the adjacent code/docs needed to act. Record known repos and adjacent context - or explicitly note none apply.
+  clarify-scope:
+    key: clarify-scope
+    title: Clarify scope
+    owner: orchestrator
+    validators:
+      - blocking-ambiguity-resolved
+    skip_rule: skip when exploration answers the implementation-relevant questions
+    guidance: Resolve blocking ambiguity with the user before planning. Skip only when exploration already answered the implementation-relevant questions.
+  grill:
+    key: grill
+    title: Grill overall scope
+    owner: orchestrator
+    validators:
+      - grill-done-or-user-declined
+    skip_rule: only when user explicitly declines
+    guidance: 'Interrogate overall task scope using the grill-me skill (skills/grill-me/SKILL.md). note records what was challenged and what changed. Loop: revise, grill again, until it survives - not a one-shot rubber stamp.'
+  select-toolbelt:
+    key: select-toolbelt
+    title: Select planning aids from the toolbelt
+    owner: orchestrator
+    validators:
+      - toolbelt-selection-recorded
+    guidance: From the aids whose suits includes a relevant slice kind (see `pi-job toolbelt`), select the subset that will help write the plan. Register each with `pi-job toolbelt add <key> --status planned` plus a one-line why. Do not produce the aid files yet - they are written during plan-slices and flipped to done when the file exists.
+  plan-slices:
+    key: plan-slices
+    title: Plan slices
+    owner: orchestrator
+    validators:
+      - at-least-one-slice
+      - slices-repo-scoped-and-atomic
+    guidance: Prefer one slice per repository. Make each slice atomic - self-contained end to end - ordered by dependency. Add implement slices with `pi-job add-slice --kind implement`.
+  create-plan:
+    key: create-plan
+    title: Create plan
+    owner: subagent
+    validators:
+      - plan-recorded
+      - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
+    guidance: |-
+      Before any other step in an implement/spike slice starts, that slice's steps must
+      begin with exactly two leading steps, in order:
+      (1) create-plan - write the actual implementation plan for THIS slice to a sibling
+          Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
+          restatement of the slice's goal. Do NOT inline the plan body in the task file.
+          Naming: beside the task file, directory `<task-stem>.plans/`, file
+          `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
+          -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
+          a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
+          task file's directory).
+      (2) grill-plan - interrogate that plan file using the grill-me skill
+          (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
+          what changed. If grilling surfaces a real gap, revise the plan FILE (not the
+          task-file note), grill again, only mark grill-plan done once the plan survives
+          - this is a loop, not a one-shot rubber stamp.
+      Mark both done only once the plan has survived grilling; advance refuses to pass an
+      incomplete step, so edit-code-style steps stay unreachable until both are done.
+      Distinct from the setup slice's `grill` step (overall scope before implement slices
+      exist) - grill-plan is the per-slice equivalent.
+      Exception: a genuinely trivial single-file edit may skip both steps (status:
+      skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+  grill-plan:
+    key: grill-plan
+    title: Grill the plan file
+    owner: orchestrator
+    validators:
+      - grill-done-or-user-declined
+      - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
+    guidance: |-
+      Before any other step in an implement/spike slice starts, that slice's steps must
+      begin with exactly two leading steps, in order:
+      (1) create-plan - write the actual implementation plan for THIS slice to a sibling
+          Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
+          restatement of the slice's goal. Do NOT inline the plan body in the task file.
+          Naming: beside the task file, directory `<task-stem>.plans/`, file
+          `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
+          -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
+          a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
+          task file's directory).
+      (2) grill-plan - interrogate that plan file using the grill-me skill
+          (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
+          what changed. If grilling surfaces a real gap, revise the plan FILE (not the
+          task-file note), grill again, only mark grill-plan done once the plan survives
+          - this is a loop, not a one-shot rubber stamp.
+      Mark both done only once the plan has survived grilling; advance refuses to pass an
+      incomplete step, so edit-code-style steps stay unreachable until both are done.
+      Distinct from the setup slice's `grill` step (overall scope before implement slices
+      exist) - grill-plan is the per-slice equivalent.
+      Exception: a genuinely trivial single-file edit may skip both steps (status:
+      skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+  edit-code:
+    key: edit-code
+    title: Edit code
+    owner: subagent
+    validators:
+      - coding-policy-recorded
+      - worktree-used-when-repo-editing
+    guidance: Make the change described by this slice's create-plan step. Use a worktree when editing a repo other than the current one.
+  verify:
+    key: verify
+    title: Verify
+    owner: orchestrator
+    validators:
+      - relevant-tests-or-gap-recorded
+    guidance: Run the relevant tests/checks for what changed, or record the gap.
+  e2e-evidence:
+    key: e2e-evidence
+    title: Provide e2e/acceptance evidence or record the gap
+    owner: orchestrator
+    validators:
+      - evidence-or-gap-recorded
+  vulnerability-scan:
+    key: vulnerability-scan
+    title: Run an independent vulnerability scan
+    owner: orchestrator
+    requires_user_decision: true
+    different_model_from_step: edit-code
+    validators:
+      - user-decision-recorded
+      - scanner-model-differs-from-code-author-model
+      - vulnerabilities-resolved-or-risk-accepted
+    skip_rule: only when the user explicitly declines the scan for this implement slice
+    guidance: Ask the user whether this implement slice requires a vulnerability scan. If declined, record an explicit user-declined skip. If accepted, dispatch a vulnerability-focused reviewer whose fully qualified model ID differs from the model recorded on edit-code, regardless of whether edit-code ran in the orchestrator or a subagent. Record findings and ensure they are resolved or explicitly accepted before sharing.
+  share-with-team:
+    key: share-with-team
+    title: 'Share with team: ticket + PR for this slice''s repo'
+    owner: orchestrator
+    validators:
+      - pr-template-checked
+      - share-with-team-template-used
+    guidance: |-
+      Before writing any PR body: (1) check the target repo for a template at
+      .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
+      under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
+      section by section - do not invent a different structure; (3) if absent, use the
+      share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
+      PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
+      Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
+      case.
+    artifact_gates:
+      - key: ticket
+        required: true
+        when: this slice completes its repo change
+        source: changed_repos
+        output: one ticket for the slice's repo
+      - key: pull_request
+        required: true
+        when: this slice completes its repo change
+        source: changed_files
+        output: one PR, body from the checked repo template or the fallback
+  wait-for-feedback:
+    key: wait-for-feedback
+    title: 'Wait for team feedback: loop on PR review until merged'
+    owner: orchestrator
+    validators:
+      - feedback-window-recorded
+    guidance: Not terminal until the PR merges or is explicitly abandoned. Re-check via `pi-job sync`.
+  update-task-file:
+    key: update-task-file
+    title: Update this task file
+    owner: orchestrator
+    validators:
+      - task-file-current
+    guidance: Keep the task record current. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes.
+  investigate:
+    key: investigate
+    title: Investigate
+    owner: orchestrator
+    validators:
+      - evidence-backed-findings
+    guidance: Gather evidence-backed findings for the research question.
+  synthesize:
+    key: synthesize
+    title: Synthesize
+    owner: orchestrator
+    validators:
+      - open-questions-called-out
+    guidance: Produce the answer or doc; call out open questions.
+  update-test-plan:
+    key: update-test-plan
+    title: Update the test plan
+    owner: orchestrator
+    validators:
+      - test-plan-reconciled-or-not-applicable
+    guidance: Reconcile the PRD/plan's test-case table against what actually shipped across all slices.
+  update-docs:
+    key: update-docs
+    title: Update documentation
+    owner: orchestrator
+    validators:
+      - docs-updated-or-not-applicable
+    guidance: Update FACT_MAP / workflow docs / README that the shipped slices affect, or record not applicable.
+  capture-metrics:
+    key: capture-metrics
+    title: Capture metrics to watch
+    owner: orchestrator
+    validators:
+      - metrics-recorded-or-not-applicable
+    guidance: Record which dashboards/alerts to watch post-ship, or that none apply.
+slice_kinds:
+  setup:
+    key: setup
+    title: Task setup
+    description: Explore, clarify, grill scope, pick toolbelt, plan the implementation slices. Runs once, first.
+    policies: {}
+    step_template:
+      - explore-context
+      - clarify-scope
+      - grill
+      - select-toolbelt
+      - plan-slices
+  implement:
+    key: implement
+    title: Implementation
+    description: One atomic, repo-scoped change - planned, grilled, built, verified, shipped as it completes.
+    policies:
+      coding_execution:
+        subagent_required: true
+        lower_power_model_preferred: true
+        orchestrator_reviews_subagent: true
+        exceptions:
+          - trivial-single-file-edit
+          - user-explicitly-requests-orchestrator
+    step_template:
+      - create-plan
+      - grill-plan
+      - edit-code
+      - verify
+      - e2e-evidence
+      - vulnerability-scan
+      - share-with-team
+      - update-task-file
+      - wait-for-feedback
+    required_steps:
+      - create-plan
+      - grill-plan
+      - edit-code
+      - verify
+      - e2e-evidence
+      - share-with-team
+      - update-task-file
+      - wait-for-feedback
+  closing:
+    key: closing
+    title: Task closing
+    description: Cross-slice bookkeeping once every implementation slice is done. Runs once, last.
+    policies: {}
+    step_template:
+      - update-test-plan
+      - update-docs
+      - capture-metrics
+      - update-task-file
+  research:
+    key: research
+    title: Research
+    description: Investigation without code changes.
+    policies:
+      no_code_changes: true
+    step_template:
+      - explore-context
+      - clarify-scope
+      - investigate
+      - synthesize
+      - update-task-file
+  spike:
+    key: spike
+    title: Spike / prototype
+    description: Time-boxed learning; output is evidence + a keep/change/discard call.
+    policies:
+      coding_execution:
+        subagent_required: true
+        lower_power_model_preferred: true
+        orchestrator_reviews_subagent: true
+        exceptions:
+          - throwaway-local-prototype
+    step_template:
+      - clarify-scope
+      - create-plan
+      - grill-plan
+      - edit-code
+      - verify
+      - update-task-file

@@ -2,11 +2,18 @@ package task
 
 #Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
 
+#Execution: {
+	model:   string
+	started: string
+	ended?:  string
+}
+
 #Step: {
-	key:    string
-	title:  string
-	status: #Status
-	note:   string
+	key:        string
+	title:      string
+	status:     #Status
+	note:       string
+	execution?: #Execution
 }
 
 #Decision: {
@@ -41,6 +48,7 @@ package task
 	goal:   string
 	status: #Status
 	note:   string
+	execution?:   #Execution
 	repos?:       [...string]
 	depends_on?:  [...string]
 	repo_work?: {[string]: #RepoWork}

@@ -20,7 +20,7 @@ This project contains all my dotfiles that are moved from box to box.
 
 ## pi-job harness
 
-This repo ships a portable deterministic job harness for CUE task files:
+This repo ships a portable deterministic job harness for machine-owned YAML task files, with legacy CUE migration support:
 
 - source: [`dot_local/share/pi-job-harness/`](dot_local/share/pi-job-harness/)
 - installed: `~/.local/share/pi-job-harness/`

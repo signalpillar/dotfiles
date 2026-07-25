@@ -9,10 +9,14 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PI_JOB = Path(__file__).resolve().parents[1] / "bin" / "pi-job"
+if not PI_JOB.exists():
+    PI_JOB = PI_JOB.with_name("executable_pi-job")
 
 
 def load_pi_job_module():
@@ -167,6 +171,8 @@ task: {
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    if args and args[0] == str(PI_JOB) and not os.access(PI_JOB, os.X_OK):
+        args = (sys.executable, *args)
     res = subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
     if check and res.returncode != 0:
         raise AssertionError(f"command failed: {' '.join(args)}\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
@@ -214,6 +220,9 @@ def test_profiled_task() -> None:
 
         assert_contains(instruction, "Todo tracking:")
         assert_contains(instruction, "Keep session todos aligned with `pi-job plan`")
+        assert_contains(instruction, "Future-work capture:")
+        assert_contains(instruction, "technical debt")
+        assert_contains(instruction, "do not bury actionable follow-up work only in notes")
 
 
 def test_uninitialized_task_requires_orchestration() -> None:
@@ -827,7 +836,7 @@ def test_scaffold_mirrors_implement_template() -> None:
         dry = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
         for key in (
             "create-plan", "grill-plan", "edit-code", "verify",
-            "e2e-evidence", "share-with-team", "update-task-file", "wait-for-feedback",
+            "e2e-evidence", "vulnerability-scan", "share-with-team", "update-task-file", "wait-for-feedback",
         ):
             assert_contains(dry, f'key: "{key}"')
         if "reconcile-artifacts" in dry:
@@ -955,7 +964,6 @@ task: {
 
         # next --all should only include ready-dependent (deps satisfied), not blocked-dependent or blocked-status-slice
         result = run(str(PI_JOB), "--task", str(task), "next", "--all").stdout
-        lines = result.strip().split("\n")
         # Should have exactly one ready slice
         if "ready-dependent" not in result:
             raise AssertionError(f"expected ready-dependent in output:\n{result}")
@@ -1348,9 +1356,9 @@ def test_add_slice_after_inserts_in_correct_order() -> None:
 
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         lines = show.split("\n")
-        first_idx = next((i for i, l in enumerate(lines) if "first" in l), -1)
-        between_idx = next((i for i, l in enumerate(lines) if "between" in l), -1)
-        second_idx = next((i for i, l in enumerate(lines) if "second-slice" in l), -1)
+        first_idx = next((i for i, line in enumerate(lines) if "first" in line), -1)
+        between_idx = next((i for i, line in enumerate(lines) if "between" in line), -1)
+        second_idx = next((i for i, line in enumerate(lines) if "second-slice" in line), -1)
         if not (0 <= first_idx < between_idx < second_idx):
             raise AssertionError(f"order wrong: first={first_idx}, between={between_idx}, second={second_idx}")
 
@@ -1788,6 +1796,7 @@ task: {
                 ]
                 final_steps: [
                     #Step & {key: "e2e-evidence", title: "Evidence", status: "planned", note: ""},
+                    #Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""},
                     #Step & {key: "share-with-team", title: "Share", status: "planned", note: ""},
                     #Step & {key: "update-task-file", title: "Update", status: "planned", note: ""},
                     #Step & {key: "wait-for-feedback", title: "Wait", status: "planned", note: ""},
@@ -1802,6 +1811,18 @@ task: {
         assert_contains(out, "ok:")
         assert_contains(out, "task-schema.cue")
         assert_contains(out, "pi-job validate")
+
+
+def test_validate_warns_when_persisted_slice_predates_template_addition() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "older-template.cue"
+        scaffold = run(str(PI_JOB), "--task", str(task), "scaffold", "--dry-run").stdout
+        task.write_text("\n".join(
+            line for line in scaffold.splitlines() if 'key: "vulnerability-scan"' not in line
+        ) + "\n")
+        result = run(str(PI_JOB), "--task", str(task), "validate")
+        assert_contains(result.stdout, "ok:")
+        assert_contains(result.stdout, "predates template step(s) vulnerability-scan")
 
 
 def test_validate_fails_invalid_step_status() -> None:
@@ -1914,6 +1935,7 @@ def test_validate_allows_extra_steps_beyond_template() -> None:
                 ]
                 final_steps: [
                     #Step & {key: "e2e-evidence", title: "Evidence", status: "planned", note: ""},
+                    #Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""},
                     #Step & {key: "share-with-team", title: "Share", status: "planned", note: ""},
                     #Step & {key: "update-task-file", title: "Update", status: "planned", note: ""},
                     #Step & {key: "wait-for-feedback", title: "Wait", status: "planned", note: ""},
@@ -2590,6 +2612,17 @@ def test_fs_task_store_round_trip() -> None:
             final_steps=[("wrap-up", "Wrap up")],
             after=None,
         )
+        store.set_execution(
+            slice_key="alpha",
+            step_key="edit-code",
+            status="done",
+            note="implemented",
+            execution={
+                "model": "anthropic/claude-test",
+                "started": "2026-07-01T10:00:00Z",
+                "ended": "2026-07-01T10:05:00Z",
+            },
+        )
         store.add_slice(key="beta", kind="implement", title="Beta", goal="Beta goal", extra_fields={}, steps=[], final_steps=[], after="alpha")
 
         store.set_worktree(slice_key="alpha", repo="repo-a", path="/tmp/worktrees/alpha")
@@ -2634,6 +2667,8 @@ def test_fs_task_store_round_trip() -> None:
         assert alpha["repos"] == ["repo-a", "repo-b"]
         assert "depends_on" not in alpha
         assert [s["key"] for s in alpha["steps"]] == ["edit-code"]
+        assert alpha["steps"][0]["execution"]["model"] == "anthropic/claude-test"
+        assert alpha["steps"][0]["execution"]["ended"] == "2026-07-01T10:05:00Z"
         assert [s["key"] for s in alpha["final_steps"]] == ["wrap-up"]
         assert alpha["repo_work"]["repo-a"]["worktree"] == "/tmp/worktrees/alpha"
         assert len(alpha["repo_work"]["repo-a"]["prs"]) == 1
@@ -2834,7 +2869,7 @@ task: {
 					}
 				}
 				steps: [
-					#Step & {key: "edit-code", title: "Add \\"on-hold\\": \\"mapped\\"", status: "done", note: "Done already.\\n\\nUpdated later with more detail."},
+					#Step & {key: "edit-code", title: "Add \\"on-hold\\": \\"mapped\\"", status: "done", note: "Done already.\\n\\nUpdated later with more detail.", execution: {model: "anthropic/claude-test", started: "2026-07-01T10:00:00Z", ended: "2026-07-01T10:05:00Z"}},
 					#Step & {key: "verify", title: "Verify", status: "planned", note: ""},
 				]
 				final_steps: [
@@ -2910,6 +2945,450 @@ def test_cmd_project_refuses_nonempty_cue_destination() -> None:
         assert_contains(res.stderr, "already has slices/decisions")
 
 
+def test_persisted_models_document_every_field() -> None:
+    module = load_pi_job_module()
+    model_names = (
+        "ExecutionDocument", "StepDocument", "DecisionDocument", "ArtifactDocument",
+        "PullRequestDocument", "RepositoryWorkDocument", "SliceDocument", "SourceDocument",
+        "ProjectDocument", "CodingExecutionPolicyDocument", "OrchestrationPolicyDocument",
+        "CursorDocument", "OrchestrationDocument", "PlanDocument", "TaskDocument",
+        "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
+        "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
+        "SliceKindDocument", "ProfileDocument",
+    )
+    missing = [
+        f"{model_name}.{field_name}"
+        for model_name in model_names
+        for field_name, field in getattr(module, model_name).model_fields.items()
+        if not field.description
+    ]
+    if missing:
+        raise AssertionError(f"persisted model fields without descriptions: {missing}")
+
+
+def test_yaml_task_store_round_trip_and_atomic_mutations() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "task.yaml"
+        store = module.YamlTaskStore(task_path)
+        store.replace(module.example_task_mapping(title="YAML round trip"))
+        task_path.chmod(0o600)
+        store.init_orchestration(module.Cursor(slice="do-the-change", step="create-plan"))
+        store.add_step(
+            slice_key="do-the-change", key="custom", title="Custom", note="evidence",
+            terminal=True, after=None,
+        )
+        store.set_worktree(slice_key="do-the-change", repo="repo-a", path="/tmp/worktree")
+        store.add_pr(
+            slice_key="do-the-change", repo="repo-a", url="https://example.com/pr/1",
+            status="open", note="awaiting review",
+        )
+        store.write_artifact("test-case-table", status="planned", path="plans/tests.md", note="selected")
+
+        task = store.read()
+        task_slice = task["plan"]["slices"][0]
+        assert task["title"] == "YAML round trip"
+        assert task["orchestration"]["cursor"]["step"] == "create-plan"
+        assert task_slice["final_steps"][0]["key"] == "custom"
+        assert task_slice["repo_work"]["repo-a"]["worktree"] == "/tmp/worktree"
+        assert task_slice["repo_work"]["repo-a"]["prs"][0]["status"] == "open"
+        assert task["orchestration"]["artifacts"]["test-case-table"]["path"] == "plans/tests.md"
+        text = task_path.read_text()
+        assert text.startswith("# Managed by pi-job.")
+        assert task_path.stat().st_mode & 0o777 == 0o600
+        if list(task_path.parent.glob(f".{task_path.name}.tmp-*")):
+            raise AssertionError("atomic YAML mutation left a temporary file behind")
+
+
+def test_yaml_mutations_serialize_concurrent_writers() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "concurrent.yaml"
+        module.YamlTaskStore(task_path).replace(module.example_task_mapping(title="Concurrent"))
+
+        def add_decision(index: int) -> None:
+            module.YamlTaskStore(task_path).add_decision(
+                date="2026-07-22",
+                note=f"decision-{index}",
+                source="concurrency-test",
+            )
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            list(executor.map(add_decision, range(24)))
+
+        notes = {decision["note"] for decision in module.YamlTaskStore(task_path).read()["decisions"]}
+        assert notes == {f"decision-{index}" for index in range(24)}
+
+
+def test_yaml_lifecycle_lock_preserves_first_executor() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "lifecycle.yaml"
+        store = module.YamlTaskStore(task_path)
+        store.replace(module.example_task_mapping(title="Concurrent lifecycle"))
+        store.init_orchestration(module.Cursor(slice="do-the-change", step="create-plan"))
+        barrier = threading.Barrier(2)
+
+        def start(model: str) -> subprocess.CompletedProcess[str]:
+            barrier.wait()
+            return run(
+                str(PI_JOB), "--task", str(task_path), "start", "--model", model,
+                check=False,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(start, ("provider/one", "provider/two")))
+
+        assert sorted(result.returncode for result in results) == [0, 1]
+        rejected = next(result for result in results if result.returncode != 0)
+        assert_contains(rejected.stderr, "execution already belongs to model")
+        execution = store.read()["plan"]["slices"][0]["steps"][0]["execution"]
+        assert execution["model"] in {"provider/one", "provider/two"}
+
+
+def test_yaml_force_advance_cannot_overwrite_concurrent_finish() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "advance-race.yaml"
+        store = module.YamlTaskStore(task_path)
+        store.replace(module.example_task_mapping(title="Advance race"))
+        store.init_orchestration(module.Cursor(slice="do-the-change", step="create-plan"))
+        run(
+            str(PI_JOB), "--task", str(task_path), "start", "--model", "provider/writer"
+        )
+        barrier = threading.Barrier(2)
+
+        def finish() -> subprocess.CompletedProcess[str]:
+            barrier.wait()
+            return run(
+                str(PI_JOB), "--task", str(task_path), "finish",
+                "--slice", "do-the-change", "--step", "create-plan", "--note", "completed",
+                check=False,
+            )
+
+        def force_advance() -> subprocess.CompletedProcess[str]:
+            barrier.wait()
+            return run(
+                str(PI_JOB), "--task", str(task_path), "advance",
+                "--force", "--reason", "forced concurrently",
+                check=False,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            finish_future = executor.submit(finish)
+            advance_future = executor.submit(force_advance)
+            finish_result = finish_future.result()
+            advance_result = advance_future.result()
+
+        assert finish_result.returncode == 0, finish_result.stderr
+        assert advance_result.returncode == 0, advance_result.stderr
+        step = store.read()["plan"]["slices"][0]["steps"][0]
+        assert step["status"] == "done"
+        assert step["note"] == "completed"
+        assert step["execution"]["ended"]
+
+
+def test_yaml_rejects_duplicate_and_unknown_fields() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        duplicate = Path(tmp) / "duplicate.yaml"
+        duplicate.write_text("title: one\ntitle: two\nstatus: planned\n")
+        result = run(str(PI_JOB), "--task", str(duplicate), "validate", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "duplicate key 'title'")
+
+        unknown = Path(tmp) / "unknown.yaml"
+        unknown.write_text("title: one\nstatus: planned\nunknown: value\n")
+        result = run(str(PI_JOB), "--task", str(unknown), "validate", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "Extra inputs are not permitted")
+
+        cross_list_duplicate = Path(tmp) / "cross-list-duplicate.yaml"
+        cross_list_duplicate.write_text(
+            "title: duplicate step\n"
+            "status: planned\n"
+            "plan:\n"
+            "  slices:\n"
+            "    - key: one\n"
+            "      kind: implement\n"
+            "      title: One\n"
+            "      goal: Test duplicates\n"
+            "      status: planned\n"
+            "      note: ''\n"
+            "      steps: [{key: repeated, title: First, status: planned, note: ''}]\n"
+            "      final_steps: [{key: repeated, title: Second, status: planned, note: ''}]\n"
+        )
+        result = run(str(PI_JOB), "--task", str(cross_list_duplicate), "validate", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "repeats keys across steps and final_steps")
+
+
+def test_profile_rejects_required_steps_absent_from_template() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    profile["slice_kinds"]["setup"]["required_steps"] = ["verify"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "requires steps absent from its creation template")
+    else:
+        raise AssertionError("profile accepted a required step absent from step_template")
+
+
+def test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "source.cue"
+        destination = Path(tmp) / "source.yaml"
+        source.write_text(PROJECT_FIXTURE_CUE)
+        original = source.read_text()
+
+        result = run(str(PI_JOB), "--task", str(source), "project", "--to", str(destination))
+        assert_contains(result.stdout, "YAML task file")
+        assert_contains(result.stderr, "CUE task storage is deprecated")
+        assert source.read_text() == original
+        assert destination.exists()
+
+        module = load_pi_job_module()
+        cue_task = module.canonical_task_mapping(module.CueTaskStore(source).read(), source=str(source))
+        yaml_task = module.YamlTaskStore(destination).read()
+        assert cue_task == yaml_task
+
+        destination_before_refusal = destination.read_text()
+        refusal = run(
+            str(PI_JOB), "--task", str(source), "project", "--to", str(destination),
+            check=False,
+        )
+        assert refusal.returncode != 0
+        assert_contains(refusal.stderr, "destination YAML task already exists")
+        assert destination.read_text() == destination_before_refusal
+
+
+def test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "custom.cue"
+        destination = Path(tmp) / "custom.yaml"
+        source.write_text(
+            "package task\n"
+            "#Slice: {\n"
+            "  key: string\n  kind: string\n  title: string\n  goal: string\n"
+            "  status: #Status\n  note: string\n  custom?: string\n"
+            "  steps: [...#Step]\n  final_steps: [...#Step]\n}\n"
+            "task: {\n"
+            "  title: \"Custom CUE\"\n  status: \"planned\"\n"
+            "  plan: {note: \"\", slices: [#Slice & {\n"
+            "    key: \"one\", kind: \"implement\", title: \"One\", goal: \"Goal\",\n"
+            "    status: \"planned\", note: \"\", custom: \"must not disappear\",\n"
+            "    steps: [], final_steps: []\n"
+            "  }]}\n"
+            "}\n"
+        )
+        module = load_pi_job_module()
+        task = module.CueTaskStore(source).read()
+        assert task["plan"]["slices"][0]["custom"] == "must not disappear"
+
+        result = run(
+            str(PI_JOB), "--task", str(source), "project", "--to", str(destination),
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "Extra inputs are not permitted")
+        assert not destination.exists()
+
+
+LIFECYCLE_FIXTURE = """package task
+
+task: {
+	title:  "Execution lifecycle"
+	status: "in_progress"
+	orchestration: {
+		cursor: {slice: "implementation", step: "vulnerability-scan"}
+		policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
+	}
+	plan: {
+		note: ""
+		slices: [
+			#Slice & {
+				key:    "implementation"
+				kind:   "implement"
+				title:  "Implementation"
+				goal:   "Ship safely"
+				status: "in_progress"
+				note:   ""
+				steps: [
+					#Step & {key: "edit-code", title: "Edit", status: "done", note: "", execution: {model: "anthropic/claude-writer", started: "2026-07-01T10:00:00Z", ended: "2026-07-01T10:05:00Z"}},
+					#Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""},
+				]
+				final_steps: []
+			}
+		]
+	}
+}
+"""
+
+
+def test_lifecycle_records_model_and_timestamps() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "lifecycle.cue"
+        task.write_text(LIFECYCLE_FIXTURE)
+
+        started = run(
+            str(PI_JOB), "--task", str(task), "start", "--model", "google/gemini-reviewer"
+        ).stdout
+        assert_contains(started, "started: implementation/vulnerability-scan")
+
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "Ask the user whether to run this step")
+        assert_contains(instruction, "anthropic/claude-writer")
+        assert_contains(instruction, "google/gemini-reviewer")
+
+        finished = run(
+            str(PI_JOB), "--task", str(task), "finish", "--note", "No vulnerabilities found."
+        ).stdout
+        assert_contains(finished, "[done]")
+        text = task.read_text()
+        assert_contains(text, 'model: "google/gemini-reviewer"')
+        assert_contains(text, "started:")
+        assert_contains(text, "ended:")
+        assert_contains(text, 'status: "done"')
+
+
+def test_vulnerability_scan_rejects_writer_model() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "same-model.cue"
+        task.write_text(LIFECYCLE_FIXTURE)
+        result = run(
+            str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-writer",
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "must differ from edit-code model")
+
+
+def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unqualified-author.cue"
+        task.write_text(LIFECYCLE_FIXTURE.replace(
+            'model: "anthropic/claude-writer"', 'model: "claude-writer"'
+        ))
+        result = run(
+            str(PI_JOB), "--task", str(task), "start", "--model", "google/gemini-reviewer",
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "not fully qualified as provider/model")
+
+
+def test_advance_rejects_malformed_scan_timestamps() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "malformed-time.cue"
+        task.write_text(LIFECYCLE_FIXTURE.replace(
+            '#Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""}',
+            '#Step & {key: "vulnerability-scan", title: "Scan", status: "done", note: "No findings", execution: {model: "google/gemini-reviewer", started: "not-a-time", ended: "2026-07-01T10:10:00Z"}}',
+        ))
+        result = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "timestamps must be valid UTC ISO 8601")
+
+
+def test_vulnerability_scan_can_record_user_declined_skip() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "declined.cue"
+        task.write_text(LIFECYCLE_FIXTURE)
+        run(
+            str(PI_JOB), "--task", str(task), "finish", "--skip",
+            "--model", "openai/gpt-orchestrator", "--reason", "Not required for this slice",
+        )
+        text = task.read_text()
+        assert_contains(text, 'status: "skipped"')
+        assert_contains(text, "User declined vulnerability-scan")
+        assert_contains(text, 'model: "openai/gpt-orchestrator"')
+        assert_contains(text, "ended:")
+
+
+def test_slice_lifecycle_records_orchestrator_after_steps_finish() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "slice-lifecycle.cue"
+        task.write_text(LIFECYCLE_FIXTURE)
+        run(
+            str(PI_JOB), "--task", str(task), "finish", "--skip",
+            "--model", "openai/gpt-orchestrator", "--reason", "Not required for this slice",
+        )
+        run(
+            str(PI_JOB), "--task", str(task), "start", "--slice-only",
+            "--model", "openai/gpt-orchestrator",
+        )
+        run(str(PI_JOB), "--task", str(task), "finish", "--slice-only")
+
+        module = load_pi_job_module()
+        exported = module.CueTaskStore(task).read()
+        task_slice = exported["plan"]["slices"][0]
+        assert task_slice["status"] == "done"
+        assert task_slice["execution"]["model"] == "openai/gpt-orchestrator"
+        assert task_slice["execution"]["ended"].endswith("Z")
+
+
+def test_slice_skip_cannot_bypass_policy_governed_step() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "slice-policy-bypass.cue"
+        task.write_text(LIFECYCLE_FIXTURE)
+        result = run(
+            str(PI_JOB), "--task", str(task), "finish", "--slice-only", "--skip",
+            "--model", "openai/gpt-orchestrator", "--reason", "Skip whole slice",
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "vulnerability-scan is policy-governed")
+
+
+def test_execution_issues_warn_for_legacy_completed_work() -> None:
+    module = load_pi_job_module()
+    issues = module.execution_issues({
+        "plan": {
+            "slices": [{
+                "key": "implementation", "status": "in_progress",
+                "steps": [{"key": "edit-code", "status": "done"}], "final_steps": [],
+            }]
+        }
+    })
+    if not any("edit-code" in issue and "no execution metadata" in issue for issue in issues):
+        raise AssertionError(f"expected legacy execution warning, got: {issues}")
+
+
+def test_lifecycle_policy_is_step_key_agnostic() -> None:
+    module = load_pi_job_module()
+    original = module.try_get_step_kind
+    module.try_get_step_kind = lambda key: {
+        "key": key,
+        "requires_user_decision": True,
+        "different_model_from_step": "generate-assets",
+    } if key == "independent-audit" else original(key)
+    try:
+        task_slice = module.TaskSlice.from_mapping({
+            "key": "custom",
+            "steps": [
+                {
+                    "key": "generate-assets",
+                    "execution": {"model": "provider/writer"},
+                },
+                {"key": "independent-audit"},
+            ],
+            "final_steps": [],
+        })
+        audit = task_slice.find_step("independent-audit")
+        assert audit is not None
+        assert isinstance(task_slice, module.TaskSlice)
+        assert isinstance(task_slice.find_step("generate-assets").execution, module.ExecutionRecord)
+        same_model = module.step_policy_issue(
+            task_slice, audit, model="provider/writer", status="in_progress", note=""
+        )
+        assert "independent-audit model must differ from generate-assets model" in same_model
+        declined = module.step_policy_issue(
+            task_slice, audit, model="provider/reviewer", status="skipped", note="ordinary skip"
+        )
+        assert "explicit user-declined reason" in declined
+    finally:
+        module.try_get_step_kind = original
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
@@ -2960,6 +3439,7 @@ def main() -> None:
     test_add_step_after_inserts_in_correct_order()
     test_add_step_final_rolls_back_on_closed_final_steps_schema()
     test_validate_passes_shared_schema_task()
+    test_validate_warns_when_persisted_slice_predates_template_addition()
     test_validate_fails_invalid_step_status()
     test_validate_fails_when_slice_missing_template_steps()
     test_validate_allows_extra_steps_beyond_template()
@@ -2989,6 +3469,24 @@ def main() -> None:
     test_cue_escape_escapes_newlines_quotes_and_tabs()
     test_cmd_project_cue_to_fs_to_cue_round_trip()
     test_cmd_project_refuses_nonempty_cue_destination()
+    test_persisted_models_document_every_field()
+    test_yaml_task_store_round_trip_and_atomic_mutations()
+    test_yaml_mutations_serialize_concurrent_writers()
+    test_yaml_lifecycle_lock_preserves_first_executor()
+    test_yaml_force_advance_cannot_overwrite_concurrent_finish()
+    test_yaml_rejects_duplicate_and_unknown_fields()
+    test_profile_rejects_required_steps_absent_from_template()
+    test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics()
+    test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently()
+    test_lifecycle_records_model_and_timestamps()
+    test_vulnerability_scan_rejects_writer_model()
+    test_vulnerability_scan_rejects_unqualified_author_model()
+    test_advance_rejects_malformed_scan_timestamps()
+    test_vulnerability_scan_can_record_user_declined_skip()
+    test_slice_lifecycle_records_orchestrator_after_steps_finish()
+    test_slice_skip_cannot_bypass_policy_governed_step()
+    test_execution_issues_warn_for_legacy_completed_work()
+    test_lifecycle_policy_is_step_key_agnostic()
     print("pi-job tests passed")
 
 

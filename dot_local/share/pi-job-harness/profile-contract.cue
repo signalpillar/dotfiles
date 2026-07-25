@@ -53,9 +53,11 @@ package harness
 }
 
 #StepKind: {
-	key:   string
-	title: string
-	owner: #ExecutionOwner
+	key:                    string
+	title:                  string
+	owner:                  #ExecutionOwner
+	requires_user_decision?: bool
+	different_model_from_step?: string
 	validators: [...string]
 	skip_rule?: string
 	guidance?:  string
@@ -72,6 +74,9 @@ package harness
 	}
 	// Default step keys for a NEW slice of this kind (add-slice / init templates).
 	step_template: [...string]
+	// Structural minimum for persisted slices. New template additions may be
+	// reported as migration warnings without invalidating existing tasks.
+	required_steps?: [...string]
 }
 
 config_layering: #ConfigLayering
@@ -243,6 +248,20 @@ step_kinds: {
 		validators: ["evidence-or-gap-recorded"]
 	}
 
+	"vulnerability-scan": {
+		title: "Run an independent vulnerability scan"
+		owner: "orchestrator"
+		requires_user_decision: true
+		different_model_from_step: "edit-code"
+		guidance: "Ask the user whether this implement slice requires a vulnerability scan. If declined, record an explicit user-declined skip. If accepted, dispatch a vulnerability-focused reviewer whose fully qualified model ID differs from the model recorded on edit-code, regardless of whether edit-code ran in the orchestrator or a subagent. Record findings and ensure they are resolved or explicitly accepted before sharing."
+		validators: [
+			"user-decision-recorded",
+			"scanner-model-differs-from-code-author-model",
+			"vulnerabilities-resolved-or-risk-accepted",
+		]
+		skip_rule: "only when the user explicitly declines the scan for this implement slice"
+	}
+
 	"share-with-team": {
 		title:    "Share with team: ticket + PR for this slice's repo"
 		owner:    "orchestrator"
@@ -262,8 +281,9 @@ step_kinds: {
 	}
 
 	"update-task-file": {
-		title: "Update this task file"
-		owner: "orchestrator"
+		title:    "Update this task file"
+		owner:    "orchestrator"
+		guidance: "Keep the task record current. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes."
 		validators: ["task-file-current"]
 	}
 
@@ -317,7 +337,8 @@ slice_kinds: {
 		policies: coding_execution: #CodingExecutionPolicy & {
 			exceptions: ["trivial-single-file-edit", "user-explicitly-requests-orchestrator"]
 		}
-		step_template: ["create-plan", "grill-plan", "edit-code", "verify", "e2e-evidence", "share-with-team", "update-task-file", "wait-for-feedback"]
+		required_steps: ["create-plan", "grill-plan", "edit-code", "verify", "e2e-evidence", "share-with-team", "update-task-file", "wait-for-feedback"]
+		step_template: ["create-plan", "grill-plan", "edit-code", "verify", "e2e-evidence", "vulnerability-scan", "share-with-team", "update-task-file", "wait-for-feedback"]
 	}
 
 	closing: {

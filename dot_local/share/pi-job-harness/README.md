@@ -1,28 +1,31 @@
 # pi-job-harness
 
-Portable deterministic job harness for CUE task files.
+Portable deterministic job harness for machine-owned YAML task files.
 
-`pi-job` keeps a task's durable state in exactly one `TaskStore` backend - a CUE file by default; see [Task storage backends](#task-storage-backends) for the directory-backed one.
-It reads the task via that backend, loads package-local `profile-contract.cue` for `step_kinds` and `slice_kinds`, computes the next unfinished slice/step, updates the orchestration cursor `{slice, step}`, and emits deterministic instruction packets for the orchestrating model.
+`pi-job` keeps durable task state in exactly one `TaskStore` backend, with YAML as the default.
+It validates task state and the package-local `profile.yaml` through documented Pydantic models, computes the next unfinished slice or step, updates the orchestration cursor, and emits deterministic instruction packets.
+Legacy CUE files remain readable and writable during migration, but every CUE invocation prints the exact `project --to <task>.yaml` migration command.
 
 ## Contents
 
 ```text
 bin/pi-job              CLI entrypoint
-profile-contract.cue    step_kinds / slice_kinds contract (filename is historical)
-task-schema.cue         shared #Slice / #Step types (unified into every command)
+profile.yaml            validated step kinds, slice kinds, toolbelt, and artifact rules
+task-schema.cue         compatibility schema used only by legacy CUE tasks
 tests/executable_test_pi_job.py   regression tests (may install as tests/test_pi_job.py)
 ```
 
 ## Dependencies
 
-- Python 3.11+
-- `cue` CLI on `PATH`
+- Python 3.12+
+- `uv`, which resolves the script's PEP 723 dependencies
+- `cue` CLI on `PATH` only while reading, writing, or migrating legacy CUE tasks
 
-No third-party Python packages are required.
+The executable declares compatible Pydantic and PyYAML versions in its inline PEP 723 metadata.
+No separate virtual environment or package installation command is required when invoking it through `uv run`.
 
 Recommended: use [`uv`](https://docs.astral.sh/uv/) to install and pin the Python version.
-`pi-job` itself has no Python package deps, but `uv` keeps a working `python3` available across machines without fighting system Python.
+`uv` also keeps a working Python available across machines without fighting system Python.
 
 ```bash
 # install uv: https://docs.astral.sh/uv/getting-started/installation/
@@ -35,13 +38,14 @@ uv python pin 3.12   # optional, in a project directory
 `pi-job` is a small CLI that answers orchestration questions from durable state.
 It does **not** run the agent session and does **not** spawn subagents.
 
-Given a CUE task file and package-local `profile-contract.cue`, it can:
+Given a YAML task file and package-local `profile.yaml`, it can:
 
 - `scaffold` - create a missing task file from the generic example shape
 - `init` - initialize `task.orchestration` and set the cursor; optionally seed the first slice from a slice kind template
 - `add-slice` - append a slice whose steps come from `slice_kinds[K].step_template`
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders)
+- `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status
 - `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
 
 Same task state should yield the same next action and instruction, independent of which model is orchestrating.
@@ -52,10 +56,14 @@ Assumption: a smart orchestrator model keeps calling `pi-job` instead of freelan
 
 1. `pi-job --task <file> status` (and usually `plan`)
 2. `pi-job --task <file> instruction` (current or next)
-3. Do that step in the orchestrator session, or launch a subagent when the packet says so
-4. Record evidence / decisions / blockers in the task file
-5. `pi-job --task <file> advance`
-6. Repeat until `next` is `done`
+3. `pi-job --task <file> start --model <provider/model>`
+4. Do that step in the orchestrator session, or launch a subagent when the packet says so
+5. Record evidence / decisions / blockers, then run `finish [--note ...]`
+6. `pi-job --task <file> advance`
+7. Repeat until `next` is `done`
+
+During every step, capture discovered future work, revisitable issues, technical debt, and unresolved doubts as explicit bounded slices with the appropriate kind and dependencies.
+Do not leave actionable follow-up work only in notes.
 
 `pi-job` only answers "what next?" and "how should this step run?" when asked.
 The orchestrator owns model choice, tool use, and whether to keep consulting the harness.
@@ -66,12 +74,12 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
   human / capture
         |
         v
-  CUE task file  <----------------------------- advance (write cursor)
+  YAML task file <----------------------------- advance (atomic rewrite)
   (concrete work: slices, steps, status, evidence, cursor {slice, step})
         |
-        | cue export
+        | strict Pydantic validation
         v
-     pi-job  ---- loads ----> profile-contract.cue
+     pi-job  ---- loads ----> profile.yaml
         |                     (step_kinds, slice_kinds, toolbelt, artifact_rules)
         |
         +-- status / plan / next
@@ -92,15 +100,15 @@ The contract file stores **reusable live meaning**: step owners, guidance, valid
 Old tasks pick up contract updates without rewriting step bodies because metadata is looked up by step key at runtime.
 
 ```text
-TASK FILE (durable state)                    CONTRACT (profile-contract.cue)
+TASK FILE (durable state)                    CONTRACT (profile.yaml)
 ═════════════════════════                    ═════════════════════════════════
 
 task.plan.slices[]                             slice_kinds: setup | implement | closing
-  key, title, goal, status, note                 | research | spike
+  key, title, goal, status, note, execution      | research | spike
   kind  ───────────────────────────────►         policies, step_template (for add-slice / init)
   depends_on[]  ◄── guard: skip until deps done
   steps[] + final_steps[]                      step_kinds: keyed catalog
-    key, title, status, note                     owner, guidance, validators,
+    key, title, status, note, execution           owner, guidance, validators,
     key ───────────────────────────────►         artifact_gates, skip_rule
   repo_work, decisions, artifacts
 
@@ -121,7 +129,7 @@ Typical slice layout for an end-to-end implementation task:
 
 ```text
 1. task-setup          [kind: setup]     explore → clarify → grill → select-toolbelt → plan-slices
-2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → … → wait-for-feedback
+2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → wait-for-feedback
 3. fix-follow-up       [kind: implement] …
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
 ```
@@ -142,6 +150,7 @@ Add a contract entry when a step key should carry shared enforcement text.
 1. `blocking_incomplete_step()` - `advance` cannot move past an incomplete current step unless `--force --reason`
 2. `dependency_satisfied()` / `is_actionable()` - `next` skips slices whose `depends_on` are not done/skipped
 3. `enforce_owner_policy()` - dies when owner is subagent but slice-kind coding policy forbids it without a recorded exception
+4. `blocking_execution_policy()` - enforces user-decision and distinct-model policies declared by the current step kind
 
 **Validators** are descriptive strings on a `#StepKind`.
 They appear in `instruction` and `plan` for orchestrator self-check.
@@ -149,8 +158,10 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 
 ## Principles
 
-- Task state lives in exactly one `TaskStore` backend (CUE file by default) - no parallel YAML cursor, no agent memory as state.
-- Slice kinds and step kinds are configuration in `profile-contract.cue`, not hardcoded Python.
+- Task state lives in exactly one `TaskStore` backend (YAML by default) - no parallel cursor and no agent memory as state.
+- Slice kinds and step kinds are configuration in `profile.yaml`, not hardcoded Python.
+- YAML task files are machine-owned documents.
+  Prefer `pi-job` commands over manual edits and run `validate` after any emergency edit.
 - The harness is deterministic and fail-closed: missing task → `scaffold`; missing orchestration → `init`; then `plan` / `instruction` / `advance`.
 - `pi-job` emits instruction packets.
   It does not spawn agents.
@@ -159,10 +170,10 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 
 ## How an agent should know about it
 
-1. Global hint: chezmoi [`AGENTS.md`](../../../AGENTS.md) points agents at `pi-job` for CUE-task orchestration.
+1. Global hint: chezmoi [`AGENTS.md`](../../../AGENTS.md) points agents at `pi-job` for durable task orchestration.
 2. On PATH after chezmoi apply: `pi-job` -> `~/.local/bin/pi-job`.
-3. When a user names a task file, or work clearly belongs in a CUE task, run `pi-job --task <file> status` first.
-4. If the file is missing, follow the error to `scaffold`, edit the scaffold, then `init [--kind setup]`.
+3. When a user names a task file, run `pi-job --task <file> status` first.
+4. If the file is missing, follow the error to `scaffold`, use task mutation commands to replace the example state, then run `init [--kind setup]`.
 5. Use `plan` to create session todos, `instruction` before acting, and `advance` only after evidence or a recorded blocker.
 6. Prefer this package README over inventing a parallel workflow.
 
@@ -178,18 +189,19 @@ If `pi-job` is missing, an agent can pull only the harness files from the public
 BASE=https://raw.githubusercontent.com/signalpillar/dotfiles/master/dot_local/share/pi-job-harness
 mkdir -p ~/.local/share/pi-job-harness/bin ~/.local/bin
 curl -fsSL "$BASE/bin/executable_pi-job" -o ~/.local/share/pi-job-harness/bin/pi-job
-curl -fsSL "$BASE/profile-contract.cue" -o ~/.local/share/pi-job-harness/profile-contract.cue
+curl -fsSL "$BASE/profile.yaml" -o ~/.local/share/pi-job-harness/profile.yaml
 curl -fsSL "$BASE/task-schema.cue" -o ~/.local/share/pi-job-harness/task-schema.cue
 curl -fsSL "$BASE/README.md" -o ~/.local/share/pi-job-harness/README.md
 chmod +x ~/.local/share/pi-job-harness/bin/pi-job
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
-  'exec uv run --python 3.12 "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' \
+  'exec uv run --script "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' \
   > ~/.local/bin/pi-job
 chmod +x ~/.local/bin/pi-job
-# requires: uv (with Python 3.12), cue on PATH
+# requires: uv with Python 3.12; cue is needed only for legacy CUE tasks
 ```
 
-If you already have a suitable system `python3`, the wrapper can call the script directly instead of `uv run`.
+Direct system-Python execution requires compatible Pydantic and PyYAML packages to be installed manually.
+The `uv run` wrapper is preferred because it honors the executable's declared dependency versions.
 
 ## Install (chezmoi / local copy)
 
@@ -216,25 +228,29 @@ The current working directory is reported as the repository root in instruction 
 
 ```bash
 # If the task file does not exist yet:
-pi-job --task projects/example/tasks/task.cue scaffold
-pi-job --task projects/example/tasks/task.cue init --kind setup
+pi-job --task projects/example/tasks/task.yaml scaffold
+pi-job --task projects/example/tasks/task.yaml init --kind setup
 
-pi-job --task projects/example/tasks/task.cue status
-pi-job --task projects/example/tasks/task.cue validate
-pi-job --task projects/example/tasks/task.cue plan
-pi-job --task projects/example/tasks/task.cue next
-pi-job --task projects/example/tasks/task.cue instruction --current
-pi-job --task projects/example/tasks/task.cue advance
+pi-job --task projects/example/tasks/task.yaml status
+pi-job --task projects/example/tasks/task.yaml validate
+pi-job --task projects/example/tasks/task.yaml plan
+pi-job --task projects/example/tasks/task.yaml next
+pi-job --task projects/example/tasks/task.yaml instruction --current
+pi-job --task projects/example/tasks/task.yaml start --model openai/gpt-5.6-sol
+pi-job --task projects/example/tasks/task.yaml finish --note "Verification evidence recorded."
+pi-job --task projects/example/tasks/task.yaml advance
 ```
 
-If `--task` points at a missing file, commands fail closed and tell the agent to run `scaffold`, then edit and `init`.
+If `--task` points at a missing file, commands fail closed and tell the agent to run `scaffold`, then `init`.
 A task without `task.orchestration` is not initialized; run `init` before `plan`, `next`, `advance`, or `instruction`.
 
 ### validate
 
-- `pi-job --task <t> validate` is the **canonical** way to check a task file.
-- Always loads the shared `task-schema.cue` alongside the task (same as every other `pi-job` command).
-- Prefer this over bare `cue vet` / `cue export` on the task file alone - those fail with `reference "#Step" not found` after migration, which is expected and not a task bug.
+- `pi-job --task <t> validate` is the canonical way to check a task file.
+- YAML syntax is loaded with duplicate-key detection.
+- Task and profile fields are checked through strict Pydantic models that reject unknown fields.
+- Slice structure and live profile-template requirements are checked after document validation.
+- Legacy CUE validation still exports through `task-schema.cue` before applying the same Pydantic task model.
 
 ### init and add-slice
 
@@ -248,17 +264,66 @@ A task without `task.orchestration` is not initialized; run `init` before `plan`
 - `--force --reason '<why>'` marks the current step skipped before advancing.
 - Use `--slice` and `--step` to jump explicitly, or omit both to advance to computed next.
 
-## Migrating legacy task files
+### Execution lifecycle
+
+`start` and `finish` store provenance directly on the selected slice or step:
+
+```yaml
+execution:
+  model: openai/gpt-5.6-sol
+  started: "2026-07-21T10:00:00Z"
+  ended: "2026-07-21T10:04:30Z"
+```
+
+- Model IDs should be fully qualified as `provider/model` so model-separation checks are meaningful.
+- Timestamps are generated by `pi-job` as UTC ISO 8601 values.
+- With no target flags, lifecycle commands operate on the saved cursor step.
+- `--slice-only` targets the current slice; `--slice K` targets another slice; add `--step K` to target one of its steps.
+- Start the slice with the orchestrator model, then start and finish each step with the model that directly performs it.
+- `finish --skip --model <id> --reason '<why>'` records an atomic skip when no prior `start` exists.
+- Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
+- Slice kinds may declare `required_steps` separately from `step_template`: persisted slices must satisfy the stable structural minimum, while later template additions produce migration warnings instead of invalidating old tasks.
+
+### Independent vulnerability scan
+
+Every new implement slice includes `vulnerability-scan` after acceptance evidence and before sharing.
+
+1. The orchestrator asks the user whether the scan is required for that slice.
+2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`.
+3. The scanner reviews changed/generated code for vulnerabilities and records findings in the step note.
+4. The step finishes only after findings are resolved or the remaining risk is explicitly accepted.
+5. If the user declines, the orchestrator records `finish --skip --model <id> --reason '<user decision>'`.
+
+`start` rejects the code-author model for this step, and `advance` rechecks recorded provenance so externally modified status cannot bypass the model-separation rule.
+The CLI does not recognize `vulnerability-scan` by name; it applies the generic `requires_user_decision` and `different_model_from_step` fields declared on any step kind.
+
+## Migrating CUE storage
+
+Use the existing backend projection command to create a sibling YAML task:
+
+```bash
+pi-job --task projects/example/tasks/task.cue project \
+  --to projects/example/tasks/task.yaml
+```
+
+The command detects both stores from their paths, validates the CUE export, writes YAML atomically, reads it back, and verifies semantic equality through `TaskDocument`.
+It refuses to overwrite an existing YAML destination and never modifies, renames, or deletes the CUE source.
+
+CUE reads and writes remain supported temporarily.
+Every CUE invocation prints a deprecation warning containing the corresponding projection command.
+
+## Migrating legacy CUE schemas
 
 If a task file was created before `task-schema.cue` existed, it may have local copies of type declarations (`#Status`, `#Step`, `#Decision`, `#Artifact`, `#Slice`) at the top level.
-These are now legacy - the shared `task-schema.cue` is unified into every `pi-job` command automatically (both files are passed together to `cue export`), making local copies redundant and a source of confusion during edits.
+These are now legacy - the shared `task-schema.cue` is unified into every legacy CUE load automatically, making local copies redundant and a source of confusion.
 
-`pi-job migrate-task` diagnoses a task file for these legacy declarations and prints safe deletion or refactoring recommendations.
-It never modifies the file - you use your normal editor to apply the changes.
-After editing, run `pi-job validate` to confirm the migrated file still validates.
+`pi-job migrate-task` diagnoses a CUE task for these legacy declarations and prints deletion or refactoring recommendations.
+It does not perform storage migration; use `project --to <task>.yaml` for that.
+It never modifies the file.
+If an emergency manual cleanup is required, run `pi-job validate` immediately afterward.
 
 Note: a bare `cue vet` or `cue export` invoked on the migrated task file *alone* will fail with missing reference errors like `reference "#Step" not found` - this is expected and not breakage.
-Use `pi-job validate` (or pass both the task file and `task-schema.cue` to `cue` explicitly).
+Use `pi-job validate` rather than invoking `cue` directly.
 
 ### Migrating from v1 profile/phase model
 
@@ -280,7 +345,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
 
 The setup slice's `select-toolbelt` step picks aids suited to the task's slice kinds; `plan-slices` produces them.
-The catalog lives in `profile-contract.cue#toolbelt`.
+The catalog lives in `profile.yaml` under `toolbelt`.
 
 ## Planning before code changes: create-plan / grill-plan / grill
 
@@ -292,7 +357,7 @@ The catalog lives in `profile-contract.cue#toolbelt`.
    Do not inline the plan body in the task file.
    Directory beside the task file: `<task-stem>.plans/`.
    File: `<slice-key>.md`.
-   Example: task `projects/foo/tasks/bar.cue` + slice `wire-api` → `projects/foo/tasks/bar.plans/wire-api.md`.
+   Example: task `projects/foo/tasks/bar.yaml` + slice `wire-api` produces `projects/foo/tasks/bar.plans/wire-api.md`.
    The `create-plan` step `note` is only a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (relative to the task file's directory).
 2. `grill-plan` - interrogate that plan file with the grill-me skill (`skills/grill-me/SKILL.md`) before writing code.
    If grilling surfaces a gap, revise the plan file, grill again, and mark `grill-plan` done only once the plan survives.
@@ -301,13 +366,13 @@ The catalog lives in `profile-contract.cue#toolbelt`.
 `grill-plan` is distinct from setup's `grill` (overall scope vs per-slice plan).
 Advance refuses to pass an incomplete step, so later steps stay unreachable until both are done or explicitly skipped.
 A genuinely trivial single-file edit may skip both (`status: skipped`, note with reason) under the slice kind's `coding_execution.exceptions`.
-See `profile-contract.cue#plan_and_grill_guardrail`.
+See `plan_and_grill_guardrail` in `profile.yaml`.
 
 ## Syncing recorded state with reality: sync
 
 - `pi-job --task <t> sync [--status s1,s2]` - print a checklist of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR; `--status` overrides the selection.
 - `pi-job` never spawns agents - `sync` only enumerates and prints instructions.
-  The orchestrator dispatches subagents per listed slice, then records findings via hand-editing or `pi-job add-pr`.
+  The orchestrator dispatches subagents per listed slice, then records findings through commands such as `add-pr`, `start`, `finish`, and `advance`.
 
 ## Repo work: worktrees and PRs
 
@@ -317,21 +382,29 @@ See `profile-contract.cue#plan_and_grill_guardrail`.
 
 ## Task storage backends
 
-`--task` accepts either a `.cue` file or a directory; `open_task_store()` picks the backend from that shape, no separate flag needed.
+`--task` accepts `.yaml`, `.yml`, legacy `.cue`, or an existing directory.
+`open_task_store()` selects the backend from that shape; no separate storage flag is needed.
 
-- **`CueTaskStore`** (default) - the CUE file described throughout this README.
-  All commands work as documented.
+- **`YamlTaskStore`** (default) - a strictly validated, deterministically serialized YAML document.
+  Mutations hold a sibling advisory lock across load, validation, mutation, and atomic replacement.
+  Atomic replacement preserves the task file's existing permission mode.
+- **`CueTaskStore`** (deprecated) - a compatibility backend for existing CUE files.
+  Reads and writes remain available, and each invocation prints migration guidance.
 - **`FsTaskStore`** (experimental) - a directory-backed backend.
   `task.title`/`task.status`/etc become files; `task.plan.slices[]` become subdirectories; `depends_on` becomes a directory of symlinks.
   Ordered collections use gapped numeric-prefix directory names (`0010-`, `0020-`, …) so inserts never require renaming siblings.
 
-Both backends implement the same `TaskStore` protocol - command handlers never touch CUE-file or filesystem-tree mechanics directly.
+All backends implement the same `TaskStore` protocol.
+Task data from every backend passes through the documented Pydantic task contract.
 
-`scaffold`, `init`, and `migrate-task` remain CUE-specific; they have no settled meaning for a directory-backed task yet.
+`scaffold` supports YAML and legacy CUE task paths.
+`migrate-task` remains a CUE-only schema-diagnosis command.
 
 ## Converting between backends: project
 
-- `pi-job --task <source> project --to <dest>` - copies a task's full state from `<source>` into `<dest>` using only `TaskStore` methods, in either direction between `CueTaskStore` and `FsTaskStore`.
+- `pi-job --task <source> project --to <dest>` - copies a task's full state into another backend.
+- A new `.yaml` or `.yml` destination is published with atomic no-clobber semantics and verified against the source's canonical Pydantic representation.
+- Existing YAML destinations are never overwritten.
 - `<dest>` as a `.cue` path is bootstrapped from an empty skeleton if it doesn't exist yet.
   If `<dest>` already has slices or decisions, `project` refuses rather than risk shifting existing entries.
 - `<dest>` as a directory is created if missing.
@@ -346,128 +419,110 @@ Both backends implement the same `TaskStore` protocol - command handlers never t
 | `research` | Investigation without code changes |
 | `spike` | Time-boxed prototype; create-plan/grill-plan apply like implement |
 
-Machine-readable templates and policies: `profile-contract.cue#slice_kinds` and `#step_kinds`.
+Machine-readable templates and policies live under `slice_kinds` and `step_kinds` in `profile.yaml`.
 
 ## Example task file shape
 
 Illustrative only - types and structure, not a real work file:
 
-```cue
-package task
-
-task: {
-	title:  "Example bounded change"
-	status: "in_progress"
-
-	source: {
-		jira:       ""
-		discovered: "2026-01-01"
-		context:    "Short discovery note for why this task exists."
-	}
-
-	project: {
-		key:     "example"
-		name:    "Example Project"
-		route:   "projects/example/workflow.md"
-		context: "Where this work lives in the repo."
-	}
-
-	orchestration: {
-		cursor: {
-			slice: "wire-api"
-			step:  "grill-plan"
-		}
-		policy: {
-			coding_execution: {
-				subagent_required:             true
-				lower_power_model_preferred:   true
-				orchestrator_reviews_subagent: true
-			}
-		}
-		artifacts: {
-			test-case-table: #Artifact & {status: "planned", note: "Selected during setup."}
-		}
-	}
-
-	context: """
-		Free-form background the agent should read before acting.
-		"""
-
-	decisions: [
-		#Decision & {
-			date:   "2026-01-01"
-			note:   "Durable choice worth recording for later review."
-			source: "chat:2026-01-01"
-		},
-	]
-
-	plan: {
-		note: "High-level plan note."
-		slices: [
-			#Slice & {
-				key:    "task-setup"
-				kind:   "setup"
-				title:  "Task setup"
-				goal:   "Explore, clarify, and plan implement slices."
-				status: "done"
-				note:   ""
-				steps: [
-					#Step & {key: "explore-context", title: "Explore context", status: "done", note: ""},
-					#Step & {key: "plan-slices", title: "Plan slices", status: "done", note: ""},
-				]
-				final_steps: []
-			},
-			#Slice & {
-				key:    "wire-api"
-				kind:   "implement"
-				title:  "Wire API endpoint"
-				goal:   "Return expiration in status response."
-				status: "in_progress"
-				note:   ""
-				repos:  ["graphius"]
-				steps: [
-					#Step & {key: "create-plan", title: "Create plan", status: "done", note: "Plan file: task.plans/wire-api.md"},
-					#Step & {key: "grill-plan", title: "Grill the plan file", status: "in_progress", note: ""},
-					#Step & {key: "edit-code", title: "Edit the code", status: "planned", note: ""},
-				]
-				final_steps: [
-					#Step & {key: "verify", title: "Run checks", status: "planned", note: ""},
-					#Step & {key: "share-with-team", title: "Share with team", status: "planned", note: ""},
-				]
-			},
-			#Slice & {
-				key:    "task-closing"
-				kind:   "closing"
-				title:  "Task closing"
-				goal:   "Reconcile docs and test plan."
-				status: "planned"
-				note:   ""
-				depends_on: ["wire-api"]
-				steps: [
-					#Step & {key: "update-docs", title: "Update documentation", status: "planned", note: ""},
-					#Step & {key: "update-task-file", title: "Update this task file", status: "planned", note: ""},
-				]
-				final_steps: []
-			},
-		]
-	}
-}
+```yaml
+# Managed by pi-job. Prefer pi-job commands over manual edits.
+title: Example bounded change
+status: in_progress
+source:
+  jira: ""
+  discovered: "2026-01-01"
+  context: Short discovery note for why this task exists.
+project:
+  key: example
+  name: Example Project
+  route: projects/example/workflow.md
+  context: Where this work lives in the repository.
+context: Free-form background the agent should read before acting.
+orchestration:
+  cursor:
+    slice: wire-api
+    step: grill-plan
+  policy:
+    coding_execution:
+      subagent_required: true
+      lower_power_model_preferred: true
+      orchestrator_reviews_subagent: true
+      exceptions: []
+  artifacts: {}
+decisions: []
+plan:
+  note: High-level plan note.
+  slices:
+    - key: wire-api
+      kind: implement
+      title: Wire API endpoint
+      goal: Return expiration in the status response.
+      status: in_progress
+      note: ""
+      repos: [graphius]
+      depends_on: []
+      repo_work: {}
+      steps:
+        - key: create-plan
+          title: Create plan
+          status: done
+          note: "Plan file: task.plans/wire-api.md"
+        - key: grill-plan
+          title: Grill the plan file
+          status: in_progress
+          note: ""
+      final_steps: []
 ```
+
+### Task field contract
+
+Every field below has a corresponding Pydantic `Field` description in `bin/pi-job`.
+Models use strict types and reject unknown fields.
+
+| Path | Type | Meaning |
+|---|---|---|
+| `title` | string | Human-readable task title. |
+| `status` | status enum | Overall task lifecycle state. |
+| `source` | object | Jira reference, discovery identifier, and discovery context. |
+| `project` | object | Stable project key, name, workflow route, and project context. |
+| `context` | string | Free-form background required before acting. |
+| `orchestration` | object or null | Saved cursor, persisted execution policy, and artifacts. |
+| `decisions[]` | decision | Date, durable rationale, and source for a decision. |
+| `plan.note` | string | High-level plan context. |
+| `plan.slices[]` | slice | Ordered atomic delivery units. |
+| `slice.key` | string | Stable identity used by dependencies and the cursor. |
+| `slice.kind` | string | Key looked up in `profile.yaml.slice_kinds`. |
+| `slice.title` / `goal` | string | Human name and bounded completion outcome. |
+| `slice.status` / `note` | status enum / string | Lifecycle state and recorded evidence. |
+| `slice.execution` | execution or null | Slice-level executor model and UTC timestamps. |
+| `slice.repos[]` | string list | Repositories changed by the slice. |
+| `slice.depends_on[]` | string list | Slice keys that must finish first. |
+| `slice.repo_work` | repository map | Worktree and pull-request state keyed by repository. |
+| `slice.steps[]` | step list | Ordered primary work. |
+| `slice.final_steps[]` | step list | Ordered terminal or cleanup work. |
+| `step.key` / `title` | string | Stable step identity and human name. |
+| `step.status` / `note` | status enum / string | Lifecycle state and evidence. |
+| `step.execution` | execution or null | Executor model, start timestamp, and optional end timestamp. |
+
+The task status enum is `planned`, `in_progress`, `blocked`, `done`, or `skipped`.
+Pull-request status is `open`, `merged`, or `closed`.
+Profile models document configuration layering, artifact rules and gates, toolbelt aids, step kinds, slice policies, and slice kinds in the same way.
 
 What `pi-job` cares about most:
 
-- `task.orchestration` - must exist after `init`; holds cursor, policy, artifacts
-- `task.orchestration.cursor` - saved resume point `{slice, step}` only
-- `task.plan.slices[].kind` - selects slice-kind policies and explains step templates
-- `task.plan.slices[].steps` + `final_steps` - what `next` / `advance` walk
-- `task.decisions` / `task.orchestration.artifacts` - durable notes and artifact gates
+- `orchestration` - must exist after `init`; holds cursor, policy, and artifacts
+- `orchestration.cursor` - saved resume point `{slice, step}` only
+- `plan.slices[].kind` - selects slice-kind policies and explains step templates
+- `plan.slices[].steps` plus `final_steps` - what `next` and `advance` walk
+- `decisions` and `orchestration.artifacts` - durable notes and artifact gates
 
 ## Test
 
 ```bash
 # from this package directory (chezmoi source):
-python3 tests/executable_test_pi_job.py
+uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
 # installed copy may name this tests/test_pi_job.py:
-uv run --python 3.12 python tests/test_pi_job.py
-cue eval profile-contract.cue >/dev/null
+uv run --with pydantic --with pyyaml python tests/test_pi_job.py
+uv run --script bin/executable_pi-job --task /tmp/example.yaml --help
 ```
