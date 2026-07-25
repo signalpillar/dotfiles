@@ -214,7 +214,9 @@ This function should only modify configuration layer settings."
                                       jest-test-mode
                                       ob-restclient
                                       ob-graphql
-                                      pbcopy)
+                                      pbcopy
+                                      ;; https://github.com/borkdude/cljbang.el
+                                      (cljbang :location (recipe :fetcher github :repo "borkdude/cljbang.el")))
 
    ;; A list of packages that cannot be updated.
    dotspacemacs-frozen-packages '()
@@ -1064,6 +1066,17 @@ before packages are loaded."
           fancy-compilation-quiet-prelude nil)
     (with-eval-after-load 'compile
       (fancy-compilation-mode)))
+
+  ;; Cljbang: Clojure-like language compiled to elisp (https://github.com/borkdude/cljbang.el)
+  (use-package cljbang
+    :commands (cljbang-load-file cljbang-require)
+    :init
+    (spacemacs/declare-prefix "oc" "cljbang")
+    (spacemacs/set-leader-keys
+      "oc l" #'cljbang-load-file
+      "oc r" #'cljbang-require)
+    :config
+    (require 'cljbang-mode))
 
                                         ; (use-package spacious-padding
   ;;   :config
