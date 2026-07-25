@@ -725,6 +725,14 @@ This function is called immediately after `dotspacemacs/init', before layer
 configuration.
 It is mostly for variables that should be set before packages are loaded.
 If you are unsure, try setting them in `dotspacemacs/user-config' first."
+  ;; macOS bsdtar embeds AppleDouble `._*' entries for any file carrying an
+  ;; xattr (git clones get `com.apple.provenance'). quelpa's git-recipe
+  ;; packages ship such files, and Emacs's `package-tar-file-info' blindly
+  ;; trusts the first tar entry as the package's top-level directory, so an
+  ;; AppleDouble entry there breaks package installation with
+  ;; "(wrong-type-argument arrayp nil)". Must be set before quelpa builds
+  ;; any package, hence here rather than `user-config'.
+  (setenv "COPYFILE_DISABLE" "1")
   (setq-default
    line-spacing 7
 
