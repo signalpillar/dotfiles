@@ -34,8 +34,8 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
   through the replication skill.'
 orchestration:
   cursor:
-    slice: support-foundation
-    step: share-with-team
+    slice: replication-skill
+    step: create-plan
   policy:
     coding_execution:
       subagent_required: true
@@ -170,11 +170,13 @@ plan:
     title: Build support foundation
     goal: Add the external resource schema, scoped rules, lazy resource loading, drawer UI, empty paper
       graph, M1 tracer content, validation, and browser coverage.
-    status: in_progress
-    note: ''
+    status: done
+    note: Foundation shipped directly to origin/master at ed6bc40 with schema, M1 tracer, runtime UI,
+      validators, link audit, and 13 passing browser tests.
     execution:
       model: openai/gpt-5.6-sol
       started: '2026-07-27T10:10:39.045137Z'
+      ended: '2026-07-27T11:35:20.766690Z'
     repos:
     - dotfiles
     depends_on:
@@ -251,19 +253,32 @@ plan:
         ended: '2026-07-27T11:33:27.573086Z'
     - key: share-with-team
       title: 'Share with team: ticket + PR for this slice''s repo'
-      status: in_progress
-      note: ''
+      status: skipped
+      note: User explicitly chose direct delivery to master for this private hobby project instead of
+        a ticket and PR. Commit ed6bc40 was pushed to origin/master.
       execution:
         model: openai/gpt-5.6-sol
         started: '2026-07-27T11:34:07.199377Z'
+        ended: '2026-07-27T11:34:50.271997Z'
     - key: update-task-file
       title: Update this task file
-      status: planned
-      note: ''
+      status: done
+      note: 'Task record reflects foundation implementation and evidence. Remaining work is already captured
+        in bounded slices: replication-skill, four subject batches, library-integration, and task-closing.
+        No additional foundation follow-up is untracked.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:35:07.412727Z'
+        ended: '2026-07-27T11:35:07.658807Z'
     - key: wait-for-feedback
       title: 'Wait for team feedback: loop on PR review until merged'
-      status: planned
-      note: ''
+      status: skipped
+      note: No PR feedback window exists because the user explicitly selected direct master delivery for
+        this private project; origin/master contains ed6bc40.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:35:20.272089Z'
+        ended: '2026-07-27T11:35:20.272089Z'
     final_steps: []
   - key: replication-skill
     kind: implement
