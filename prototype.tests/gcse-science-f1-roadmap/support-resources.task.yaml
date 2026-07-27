@@ -35,7 +35,7 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
 orchestration:
   cursor:
     slice: physics-resources
-    step: create-plan
+    step: research-topic-evidence
   policy:
     coding_execution:
       subagent_required: true
@@ -512,8 +512,11 @@ plan:
     title: Publish physics resources
     goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
       Wikipedia links for all 35 physics topics.
-    status: planned
+    status: in_progress
     note: ''
+    execution:
+      model: openai/gpt-5.6-sol
+      started: '2026-07-27T13:16:28.121543Z'
     repos:
     - dotfiles
     depends_on:
@@ -522,12 +525,26 @@ plan:
     steps:
     - key: create-plan
       title: Create plan
-      status: planned
-      note: ''
+      status: done
+      note: 'Plan file: support-resources.task.plans/physics-resources.md'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T13:16:28.394182Z'
+        ended: '2026-07-27T13:34:45.566282Z'
     - key: grill-plan
       title: Grill the plan file
-      status: planned
-      note: ''
+      status: done
+      note: Grilled exact P1-P35 prerequisites and scope, neutral versus factual contexts, compatible
+        units, model qualifications, moving-coil microphone accuracy, hazardous examples, batch sizing,
+        evidence attribution and retention, session-loss recovery, temporary-library batch validation,
+        catalog ordering, concurrent conflict detection, interrupted publication recovery, staged inventory
+        review, clean-checkout setup, audit capture, and generated-artifact cleanup. Revised the plan
+        through two independent review loops; both final reviewers reported no remaining blockers or high-severity
+        issues.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T13:34:45.840885Z'
+        ended: '2026-07-27T13:50:15.263831Z'
     - key: research-topic-evidence
       title: Research physics topic evidence
       status: planned
