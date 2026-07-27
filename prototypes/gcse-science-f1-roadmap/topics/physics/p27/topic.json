@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P27",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Stars",
+      "url": "https://science.nasa.gov/universe/stars/",
+      "publisher": "NASA Science",
+      "kind": "reference",
+      "note": "Free official overview of star formation, fusion, lifetimes and stellar remnants."
+    },
+    {
+      "label": "Stellar evolution",
+      "url": "https://www.schoolsobservatory.org/learn/space/stars/evolution",
+      "publisher": "The Schools' Observatory",
+      "kind": "lesson",
+      "note": "Free school-focused lesson showing how a star's initial mass changes its life cycle."
+    }
+  ],
+  "wikipedia": {
+    "label": "Stellar evolution",
+    "url": "https://en.wikipedia.org/wiki/Stellar_evolution"
+  }
+}

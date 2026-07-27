@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P14",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Heat, Specific Heat, and Heat Transfer",
+      "url": "https://openstax.org/books/physics/pages/11-2-heat-specific-heat-and-heat-transfer",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Use the specific-heat equation, compare thermal conductors, and distinguish conduction, convection, and radiation."
+    },
+    {
+      "label": "Phase Change and Latent Heat",
+      "url": "https://openstax.org/books/physics/pages/11-3-phase-change-and-latent-heat",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Explain energy transfer during changes of state and practise calculations using mass and specific latent heat."
+    }
+  ],
+  "wikipedia": {
+    "label": "Heat transfer",
+    "url": "https://en.wikipedia.org/wiki/Heat_transfer"
+  }
+}

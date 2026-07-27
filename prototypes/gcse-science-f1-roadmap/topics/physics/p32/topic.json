@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P32",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "6.4 Drag Force and Terminal Speed",
+      "url": "https://openstax.org/books/university-physics-volume-1/pages/6-4-drag-force-and-terminal-speed",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn how drag changes with speed, how that changes resultant force and acceleration, and why balanced forces produce terminal speed."
+    },
+    {
+      "label": "Drag Equation",
+      "url": "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-equation/",
+      "publisher": "NASA Glenn Research Center",
+      "kind": "reference",
+      "note": "Explore the variables that affect fluid drag, including speed, fluid density, area, shape, and drag coefficient."
+    }
+  ],
+  "wikipedia": {
+    "label": "Terminal velocity",
+    "url": "https://en.wikipedia.org/wiki/Terminal_velocity"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P26",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Solar System facts",
+      "url": "https://science.nasa.gov/solar-system/solar-system-facts/",
+      "publisher": "NASA Science",
+      "kind": "reference",
+      "note": "Free official overview of the Sun, planets, moons and other Solar System objects."
+    },
+    {
+      "label": "Types of orbits",
+      "url": "https://www.esa.int/Enabling_Support/Space_Transportation/Types_of_orbits",
+      "publisher": "European Space Agency",
+      "kind": "reference",
+      "note": "Free official explanation of gravity, satellite motion, orbit types and their uses."
+    }
+  ],
+  "wikipedia": {
+    "label": "Orbit",
+    "url": "https://en.wikipedia.org/wiki/Orbit"
+  }
+}

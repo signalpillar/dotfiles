@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P28",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "The age of the universe",
+      "url": "https://openstax.org/books/astronomy-2e/pages/29-1-the-age-of-the-universe",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Free textbook section connecting galaxy recession measurements with an expanding universe."
+    },
+    {
+      "label": "Cosmic Microwave Background radiation",
+      "url": "https://www.esa.int/Science_Exploration/Space_Science/Cosmic_Microwave_Background_CMB_radiation",
+      "publisher": "European Space Agency",
+      "kind": "reference",
+      "note": "Free official explanation of relic microwave radiation and its relationship to the Big Bang model."
+    }
+  ],
+  "wikipedia": {
+    "label": "Expansion of the universe",
+    "url": "https://en.wikipedia.org/wiki/Expansion_of_the_universe"
+  }
+}

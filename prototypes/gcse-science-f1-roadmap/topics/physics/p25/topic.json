@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P25",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Renewable and sustainable energy",
+      "url": "https://energyeducation.ca/encyclopedia/Renewable_and_sustainable_energy",
+      "publisher": "Energy Education, University of Calgary",
+      "kind": "reference",
+      "note": "Compare renewable and non-renewable resources and distinguish renewability from long-term sustainability."
+    },
+    {
+      "label": "How electricity is delivered to consumers",
+      "url": "https://www.eia.gov/energyexplained/electricity/delivery-to-consumers.php",
+      "publisher": "U.S. Energy Information Administration",
+      "kind": "lesson",
+      "note": "Follow electricity through the grid and see why transformers raise voltage for efficient transmission and lower it for consumers."
+    }
+  ],
+  "wikipedia": {
+    "label": "Electric power transmission",
+    "url": "https://en.wikipedia.org/wiki/Electric_power_transmission"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P5",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "8.1 Linear Momentum, Force, and Impulse",
+      "url": "https://openstax.org/books/physics/pages/8-1-linear-momentum-force-and-impulse",
+      "publisher": "OpenStax, Rice University",
+      "kind": "lesson",
+      "note": "Learn momentum and impulse equations, preserve direction, and use worked examples to relate collision time to force."
+    },
+    {
+      "label": "Collision Lab",
+      "url": "https://phet.colorado.edu/en/simulations/collision-lab",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Explore collision momentum before and after an interaction and compare signed object momenta with total system momentum."
+    }
+  ],
+  "wikipedia": {
+    "label": "Momentum",
+    "url": "https://en.wikipedia.org/wiki/Momentum"
+  }
+}

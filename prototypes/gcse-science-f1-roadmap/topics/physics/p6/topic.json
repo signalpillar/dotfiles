@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P6",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "9.1 Work, Power, and the Work-Energy Theorem",
+      "url": "https://openstax.org/books/physics/pages/9-1-work-power-and-the-work-energy-theorem",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn how work transfers energy, how power measures the rate of transfer, and how power can be related to force and velocity."
+    },
+    {
+      "label": "Power",
+      "url": "https://www.physicsclassroom.com/tutorial/work-and-energy/forms-of-energy/power",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Compare work and power and practise reasoning with energy transferred per unit time and watts."
+    }
+  ],
+  "wikipedia": {
+    "label": "Power (physics)",
+    "url": "https://en.wikipedia.org/wiki/Power_(physics)"
+  }
+}

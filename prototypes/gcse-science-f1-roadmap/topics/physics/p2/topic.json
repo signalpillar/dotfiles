@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P2",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Speed and Velocity",
+      "url": "https://www.physicsclassroom.com/tutorial/1d-kinematics/language-of-kinematics/speed-and-velocity",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Review average speed as distance divided by time and distinguish average speed, instantaneous speed and velocity."
+    },
+    {
+      "label": "Graph That Motion",
+      "url": "https://www.physicsclassroom.com/interactive/1d-kinematics/graph-that-motion",
+      "publisher": "The Physics Classroom",
+      "kind": "interactive",
+      "note": "Match motion descriptions to position-time graphs and practise reading motion from graph shape and gradient."
+    }
+  ],
+  "wikipedia": {
+    "label": "Speed",
+    "url": "https://en.wikipedia.org/wiki/Speed"
+  }
+}

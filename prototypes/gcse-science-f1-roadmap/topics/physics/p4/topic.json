@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P4",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Newton's First Law",
+      "url": "https://www.physicsclassroom.com/tutorial/newtons-laws/newtons-first-law/newtons-first-law",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Learn how balanced forces relate to rest or constant velocity and why continuing motion does not require a resultant force."
+    },
+    {
+      "label": "Newton's Second Law",
+      "url": "https://www.physicsclassroom.com/tutorial/newtons-laws/newtons-second-law/newtons-second-law",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Relate resultant force, mass and acceleration and practise reasoning with force and acceleration in the same direction."
+    },
+    {
+      "label": "Newton's Third Law",
+      "url": "https://www.physicsclassroom.com/tutorial/newtons-laws/newtons-third-law/newtons-third-law",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Identify equal and opposite interaction forces on different objects and distinguish them from balanced forces on one object."
+    }
+  ],
+  "wikipedia": {
+    "label": "Newton's laws of motion",
+    "url": "https://en.wikipedia.org/wiki/Newton%27s_laws_of_motion"
+  }
+}

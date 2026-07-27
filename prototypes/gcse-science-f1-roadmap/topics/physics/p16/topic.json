@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P16",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "States of Matter: Basics",
+      "url": "https://phet.colorado.edu/en/simulations/states-of-matter-basics",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Explore a particle representation of matter in different states; use the model to compare particle arrangement and motion without treating the drawn particles as literal scale objects."
+    },
+    {
+      "label": "10.3 Phase Transitions",
+      "url": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions",
+      "publisher": "OpenStax, Rice University",
+      "kind": "lesson",
+      "note": "Read the sections on vaporization, condensation, melting, freezing, sublimation, and deposition to connect changes of state with particle motion; later thermochemistry detail is beyond this topic."
+    }
+  ],
+  "wikipedia": {
+    "label": "State of matter",
+    "url": "https://en.wikipedia.org/wiki/State_of_matter"
+  }
+}

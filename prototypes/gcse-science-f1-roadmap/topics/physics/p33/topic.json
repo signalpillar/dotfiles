@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P33",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "20.2 Motors, Generators, and Transformers",
+      "url": "https://openstax.org/books/physics/pages/20-2-motors-generators-and-transformers",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn generator and transformer operation, then apply turns-ratio and ideal-power relationships."
+    },
+    {
+      "label": "How do microphones work?",
+      "url": "https://www.explainthatstuff.com/microphones.html",
+      "publisher": "Explain that Stuff",
+      "kind": "lesson",
+      "note": "See how a dynamic microphone turns sound-driven coil motion into an induced electrical signal."
+    }
+  ],
+  "wikipedia": {
+    "label": "Transformer",
+    "url": "https://en.wikipedia.org/wiki/Transformer"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P15",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Radiation Basics",
+      "url": "https://www.epa.gov/radiation/radiation-basics",
+      "publisher": "US EPA",
+      "kind": "reference",
+      "note": "Free official overview of ionising radiation, sources, exposure and health effects."
+    },
+    {
+      "label": "Radiation and health",
+      "url": "https://www.who.int/news-room/questions-and-answers/item/radiation-and-health",
+      "publisher": "World Health Organization",
+      "kind": "reference",
+      "note": "Free official questions and answers on radiation exposure, medical uses, dose and health hazards."
+    }
+  ],
+  "wikipedia": {
+    "label": "Ionizing radiation",
+    "url": "https://en.wikipedia.org/wiki/Ionizing_radiation"
+  }
+}

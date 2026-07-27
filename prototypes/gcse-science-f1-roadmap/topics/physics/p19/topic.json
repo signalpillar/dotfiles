@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P19",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Hooke's Law",
+      "url": "https://phet.colorado.edu/en/simulations/hookes-law",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Explore the relationships among spring force, extension, stiffness, and potential energy within the simulation's spring model."
+    },
+    {
+      "label": "7.4 Conservative Forces and Potential Energy",
+      "url": "https://openstax.org/books/college-physics-2e/pages/7-4-conservative-forces-and-potential-energy",
+      "publisher": "OpenStax, Rice University",
+      "kind": "lesson",
+      "note": "Use the spring section to connect force and extension with the area under a force-extension graph and the formula for elastic potential energy; the wider conservation discussion is beyond this topic."
+    }
+  ],
+  "wikipedia": {
+    "label": "Hooke's law",
+    "url": "https://en.wikipedia.org/wiki/Hooke%27s_law"
+  }
+}

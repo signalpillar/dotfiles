@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P29",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Fission and Fusion: What is the Difference?",
+      "url": "https://www.energy.gov/ne/articles/fission-and-fusion-what-difference",
+      "publisher": "US Department of Energy",
+      "kind": "reference",
+      "note": "Free official comparison of fission, fusion, neutron chain reactions and the extreme conditions needed for fusion."
+    },
+    {
+      "label": "Transmutation and Nuclear Energy",
+      "url": "https://openstax.org/books/chemistry-2e/pages/21-4-transmutation-and-nuclear-energy",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Free textbook section with diagrams and explanations of fission chains, controlled reactors and fusion conditions."
+    }
+  ],
+  "wikipedia": {
+    "label": "Nuclear fission",
+    "url": "https://en.wikipedia.org/wiki/Nuclear_fission"
+  }
+}

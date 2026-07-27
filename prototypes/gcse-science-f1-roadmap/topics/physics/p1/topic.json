@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P1",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Types of Forces",
+      "url": "https://www.physicsclassroom.com/tutorial/newtons-laws/forces-and-its-representation/types-of-forces",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Review contact and non-contact forces and distinguish common forces such as weight, normal reaction, friction, tension and drag."
+    },
+    {
+      "label": "Drawing Free-Body Diagrams",
+      "url": "https://www.physicsclassroom.com/tutorial/newtons-laws/forces-and-its-representation/drawing-free-body-diagrams",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Learn how to isolate one object and draw labelled force arrows with the correct direction and relative size."
+    }
+  ],
+  "wikipedia": {
+    "label": "Free body diagram",
+    "url": "https://en.wikipedia.org/wiki/Free_body_diagram"
+  }
+}

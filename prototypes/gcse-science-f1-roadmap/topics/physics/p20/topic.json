@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P20",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Balloons and Static Electricity",
+      "url": "https://phet.colorado.edu/en/simulations/balloons-and-static-electricity",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Explore static charge and electric forces in a rubbed-balloon model, then distinguish the modelled charge interaction from proof that every attraction involves opposite net charges."
+    },
+    {
+      "label": "18.5 Electric Field Lines: Multiple Charges",
+      "url": "https://openstax.org/books/college-physics-2e/pages/18-5-electric-field-lines-multiple-charges",
+      "publisher": "OpenStax, Rice University",
+      "kind": "lesson",
+      "note": "Use the field-line diagrams to learn the conventional direction away from positive charge and toward negative charge; field lines are a representation, not physical threads."
+    }
+  ],
+  "wikipedia": {
+    "label": "Electric field",
+    "url": "https://en.wikipedia.org/wiki/Electric_field"
+  }
+}

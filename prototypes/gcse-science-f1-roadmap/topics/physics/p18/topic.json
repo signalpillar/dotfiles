@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P18",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Gas Properties",
+      "url": "https://phet.colorado.edu/en/simulations/gas-properties",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Explore a kinetic-molecular model of gas properties and investigate how pressure, volume, and temperature are related; keep the amount of gas fixed when comparing states."
+    },
+    {
+      "label": "Gas Laws",
+      "url": "https://chemed.chem.purdue.edu/genchem/topicreview/bp/ch4/gaslaws3.html",
+      "publisher": "Purdue University Department of Chemistry",
+      "kind": "practice",
+      "note": "Use the Boyle, Amontons, and Charles sections and their practice questions to relate pressure, volume, and kelvin temperature while checking which variables and the gas amount are held fixed."
+    }
+  ],
+  "wikipedia": {
+    "label": "Kinetic theory of gases",
+    "url": "https://en.wikipedia.org/wiki/Kinetic_theory_of_gases"
+  }
+}

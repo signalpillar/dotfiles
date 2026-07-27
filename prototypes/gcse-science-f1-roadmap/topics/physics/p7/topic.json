@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P7",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "9.2 Mechanical Energy and Conservation of Energy",
+      "url": "https://openstax.org/books/physics/pages/9-2-mechanical-energy-and-conservation-of-energy",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Study energy transformations and apply conservation of energy to physical systems."
+    },
+    {
+      "label": "Efficiency",
+      "url": "https://energyeducation.ca/encyclopedia/Efficiency",
+      "publisher": "Energy Education, University of Calgary",
+      "kind": "reference",
+      "note": "Review useful output, total input, percentage efficiency, and why efficiency cannot exceed 100 percent."
+    }
+  ],
+  "wikipedia": {
+    "label": "Conservation of energy",
+    "url": "https://en.wikipedia.org/wiki/Conservation_of_energy"
+  }
+}

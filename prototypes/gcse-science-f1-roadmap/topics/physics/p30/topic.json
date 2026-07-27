@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P30",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Nuclear Medicine",
+      "url": "https://www.nibib.nih.gov/science-education/science-topics/nuclear-medicine",
+      "publisher": "NIH/NIBIB",
+      "kind": "reference",
+      "note": "Free official overview of diagnostic tracers, imaging, treatment, benefits and radiation risks."
+    },
+    {
+      "label": "Radioactive Decay",
+      "url": "https://www.epa.gov/radiation/radioactive-decay",
+      "publisher": "US EPA",
+      "kind": "reference",
+      "note": "Free official explanation of radioactive decay, activity and half-life."
+    }
+  ],
+  "wikipedia": {
+    "label": "Nuclear medicine",
+    "url": "https://en.wikipedia.org/wiki/Nuclear_medicine"
+  }
+}

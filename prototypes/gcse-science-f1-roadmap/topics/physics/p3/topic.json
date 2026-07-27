@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P3",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "2.4 Velocity vs. Time Graphs",
+      "url": "https://openstax.org/books/physics/pages/2-4-velocity-vs-time-graphs",
+      "publisher": "OpenStax, Rice University",
+      "kind": "lesson",
+      "note": "Use gradient to find acceleration and signed area to find displacement, with worked examples and practice questions."
+    },
+    {
+      "label": "Kinematic Equations",
+      "url": "https://www.physicsclassroom.com/tutorial/1d-kinematics/kinematic-equations",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "Choose and apply constant-acceleration equations, including the relationship between velocity squared, acceleration and displacement."
+    }
+  ],
+  "wikipedia": {
+    "label": "Acceleration",
+    "url": "https://en.wikipedia.org/wiki/Acceleration"
+  }
+}

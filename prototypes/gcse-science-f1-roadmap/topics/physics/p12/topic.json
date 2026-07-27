@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P12",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "20.1 Magnetic Fields, Field Lines, and Force",
+      "url": "https://openstax.org/books/physics/pages/20-1-magnetic-fields-field-lines-and-force",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Review magnetic fields, field lines and forces on moving charges and current-carrying wires."
+    },
+    {
+      "label": "20.2 Motors, Generators, and Transformers",
+      "url": "https://openstax.org/books/physics/pages/20-2-motors-generators-and-transformers",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Compare how motors use magnetic forces and generators use electromagnetic induction."
+    }
+  ],
+  "wikipedia": {
+    "label": "Electromagnetic induction",
+    "url": "https://en.wikipedia.org/wiki/Electromagnetic_induction"
+  }
+}

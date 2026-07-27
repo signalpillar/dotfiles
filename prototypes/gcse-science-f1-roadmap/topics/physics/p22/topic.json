@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P22",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "The Electromagnetic Spectrum",
+      "url": "https://openstax.org/books/physics/pages/15-1-the-electromagnetic-spectrum",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Order the electromagnetic spectrum and compare wave properties, applications, and hazards."
+    },
+    {
+      "label": "The Electromagnetic Spectrum",
+      "url": "https://science.nasa.gov/ems/",
+      "publisher": "NASA Science",
+      "kind": "reference",
+      "note": "Explore each region of the spectrum through NASA diagrams, videos, and real scientific applications."
+    }
+  ],
+  "wikipedia": {
+    "label": "Electromagnetic spectrum",
+    "url": "https://en.wikipedia.org/wiki/Electromagnetic_spectrum"
+  }
+}

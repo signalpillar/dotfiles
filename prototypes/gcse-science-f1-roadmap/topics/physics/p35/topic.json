@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P35",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Biology, Chemistry and Physics: GCSE subject content",
+      "url": "https://assets.publishing.service.gov.uk/media/5cd2b951ed915d50c208b4d5/GCSE_single_science_updated_May_2019.pdf",
+      "publisher": "Department for Education",
+      "kind": "official-specification",
+      "note": "Read the Working scientifically section for experiment planning, instrument choice, uncertainty, method evaluation, repeatability, reproducibility, and the requirement to follow supervised safety procedures."
+    },
+    {
+      "label": "1.3 The Language of Physics: Physical Quantities and Units",
+      "url": "https://openstax.org/books/physics/pages/1-3-the-language-of-physics-physical-quantities-and-units",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Use the measurement sections to relate instrument choice and repeated readings to precision, uncertainty, systematic error, and the limits of a measuring tool."
+    }
+  ],
+  "wikipedia": {
+    "label": "Dependent and independent variables",
+    "url": "https://en.wikipedia.org/wiki/Dependent_and_independent_variables"
+  }
+}

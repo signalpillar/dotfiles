@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P10",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "19.1 Ohm's law",
+      "url": "https://openstax.org/books/physics/pages/19-1-ohms-law",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Review current, potential difference, resistance, Ohm's law calculations and current-voltage graphs."
+    },
+    {
+      "label": "Circuit Construction Kit: DC",
+      "url": "https://phet.colorado.edu/en/simulations/circuit-construction-kit-dc",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Build circuits and measure current and potential difference while changing components and resistance."
+    }
+  ],
+  "wikipedia": {
+    "label": "Current-voltage characteristic",
+    "url": "https://en.wikipedia.org/wiki/Current%E2%80%93voltage_characteristic"
+  }
+}

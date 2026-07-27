@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P11",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Circuit Construction Kit: DC - Virtual Lab",
+      "url": "https://phet.colorado.edu/en/simulations/circuit-construction-kit-dc-virtual-lab",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Build and measure series and parallel circuits to compare current, potential difference and resistance."
+    },
+    {
+      "label": "19.4 Electric Power",
+      "url": "https://openstax.org/books/physics/pages/19-4-electric-power",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn and apply electrical power equations using current, potential difference and resistance."
+    }
+  ],
+  "wikipedia": {
+    "label": "Series and parallel circuits",
+    "url": "https://en.wikipedia.org/wiki/Series_and_parallel_circuits"
+  }
+}

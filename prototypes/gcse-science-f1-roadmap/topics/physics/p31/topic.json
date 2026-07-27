@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P31",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "The Highway Code - General rules, techniques and advice for all drivers and riders (103 to 158)",
+      "url": "https://www.gov.uk/guidance/the-highway-code/general-rules-techniques-and-advice-for-all-drivers-and-riders-103-to-158",
+      "publisher": "GOV.UK",
+      "kind": "reference",
+      "note": "Use rule 126 to distinguish thinking, braking, and overall stopping distance and review the driver, vehicle, road, weather, and speed factors involved."
+    },
+    {
+      "label": "Stopping distances",
+      "url": "https://www.brake.org.uk/get-involved/take-action/mybrake/knowledge-centre/speed/stopping-distances",
+      "publisher": "Brake",
+      "kind": "reference",
+      "note": "Review how thinking distance and braking distance combine and how speed, reaction time, conditions, and vehicle factors affect stopping."
+    }
+  ],
+  "wikipedia": {
+    "label": "Braking distance",
+    "url": "https://en.wikipedia.org/wiki/Braking_distance"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P23",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Reflection",
+      "url": "https://openstax.org/books/physics/pages/16-1-reflection",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn the law of reflection, measure both angles from the normal, and interpret light-ray diagrams."
+    },
+    {
+      "label": "Refraction",
+      "url": "https://openstax.org/books/physics/pages/16-2-refraction",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Relate changes in light speed to refraction and construct boundary diagrams using angles from the normal."
+    }
+  ],
+  "wikipedia": {
+    "label": "Refraction",
+    "url": "https://en.wikipedia.org/wiki/Refraction"
+  }
+}

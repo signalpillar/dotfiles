@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P21",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Plugs and fuses",
+      "url": "https://www.electricalsafetyfirst.org.uk/safety-advice/home-and-people/house-maintenance/plugs-and-fuses/",
+      "publisher": "Electrical Safety First",
+      "kind": "reference",
+      "note": "Review UK plug wiring, wire colours and how the correct fuse protects an appliance cable."
+    },
+    {
+      "label": "19.4 Electric Power",
+      "url": "https://openstax.org/books/physics/pages/19-4-electric-power",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Review electrical power, energy use and calculations involving current and potential difference."
+    }
+  ],
+  "wikipedia": {
+    "label": "Mains electricity",
+    "url": "https://en.wikipedia.org/wiki/Mains_electricity"
+  }
+}

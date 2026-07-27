@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P24",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Lenses",
+      "url": "https://openstax.org/books/physics/pages/16-3-lenses",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Construct converging-lens ray diagrams and distinguish real, projectable images from virtual images."
+    },
+    {
+      "label": "Refraction and Total Internal Reflection",
+      "url": "https://openstax.org/books/physics/pages/16-2-refraction",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Review the two conditions for total internal reflection and see how optical fibres guide light."
+    },
+    {
+      "label": "The Electromagnetic Spectrum: Colour Vision",
+      "url": "https://openstax.org/books/physics/pages/15-1-the-electromagnetic-spectrum",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Use the colour-vision section to see how filters transmit selected wavelengths and absorb others."
+    }
+  ],
+  "wikipedia": {
+    "label": "Lens",
+    "url": "https://en.wikipedia.org/wiki/Lens"
+  }
+}

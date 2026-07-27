@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P8",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "10.6 Torque",
+      "url": "https://openstax.org/books/university-physics-volume-1/pages/10-6-torque",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn how force and perpendicular distance determine a turning effect and how balanced torques give rotational equilibrium."
+    },
+    {
+      "label": "9.6 Center of Mass",
+      "url": "https://openstax.org/books/university-physics-volume-1/pages/9-6-center-of-mass",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Build an understanding of centre of mass and how the distribution of mass determines its position."
+    }
+  ],
+  "wikipedia": {
+    "label": "Torque",
+    "url": "https://en.wikipedia.org/wiki/Torque"
+  }
+}

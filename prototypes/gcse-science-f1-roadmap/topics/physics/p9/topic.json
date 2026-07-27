@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P9",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "14.1 Fluids, Density, and Pressure",
+      "url": "https://openstax.org/books/university-physics-volume-1/pages/14-1-fluids-density-and-pressure",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn the mass-volume definition of density, the force-area definition of pressure, their SI units, and how pressure behaves in fluids."
+    },
+    {
+      "label": "Pressure",
+      "url": "https://energyeducation.ca/encyclopedia/Pressure",
+      "publisher": "Energy Education, University of Calgary",
+      "kind": "reference",
+      "note": "Review pressure as force per unit area and connect the relationship to pascals and everyday pressure examples."
+    }
+  ],
+  "wikipedia": {
+    "label": "Pressure",
+    "url": "https://en.wikipedia.org/wiki/Pressure"
+  }
+}

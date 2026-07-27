@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P13",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Types of Waves",
+      "url": "https://openstax.org/books/physics/pages/13-1-types-of-waves",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Distinguish transverse and longitudinal waves and connect sound to longitudinal pressure disturbances."
+    },
+    {
+      "label": "Wave Properties: Speed, Amplitude, Frequency, and Period",
+      "url": "https://openstax.org/books/physics/pages/13-2-wave-properties-speed-amplitude-frequency-and-period",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Learn the wave quantities, use the wave-speed equation, and practise calculations with frequency and wavelength."
+    }
+  ],
+  "wikipedia": {
+    "label": "Wave",
+    "url": "https://en.wikipedia.org/wiki/Wave"
+  }
+}

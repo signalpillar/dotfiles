@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P34",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Heat Transfer by Radiation",
+      "url": "https://openstax.org/books/physics/pages/11-2-heat-specific-heat-and-heat-transfer",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "Use the radiation section to compare how surfaces absorb and emit infrared radiation."
+    },
+    {
+      "label": "How Does Emissivity Affect Thermal Imaging?",
+      "url": "https://www.flir.com/discover/professional-tools/how-does-emissivity-affect-thermal-imaging/",
+      "publisher": "Flir",
+      "kind": "reference",
+      "note": "See why equal-temperature surfaces can look different to a thermal camera and why reflective finishes can mislead readings."
+    }
+  ],
+  "wikipedia": {
+    "label": "Emissivity",
+    "url": "https://en.wikipedia.org/wiki/Emissivity"
+  }
+}

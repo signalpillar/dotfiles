@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "P17",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Density",
+      "url": "https://phet.colorado.edu/en/simulations/density",
+      "publisher": "PhET Interactive Simulations, University of Colorado Boulder",
+      "kind": "interactive",
+      "note": "Explore how mass and volume determine density and compare blocks with different combinations of those quantities."
+    },
+    {
+      "label": "1.4 Measurements",
+      "url": "https://openstax.org/books/chemistry-2e/pages/1-4-measurements",
+      "publisher": "OpenStax, Rice University",
+      "kind": "lesson",
+      "note": "Use the density section for mass divided by volume, units, a regular-solid calculation, and a worked water-displacement example using final minus initial volume."
+    }
+  ],
+  "wikipedia": {
+    "label": "Density",
+    "url": "https://en.wikipedia.org/wiki/Density"
+  }
+}
