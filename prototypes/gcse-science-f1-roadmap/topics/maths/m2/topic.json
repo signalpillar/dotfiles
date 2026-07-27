@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M2",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "The Language of Physics: Physical Quantities and Units",
+      "url": "https://openstax.org/books/physics/pages/1-3-the-language-of-physics-physical-quantities-and-units",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "A free lesson covering SI prefixes, conversion factors, unit cancellation, and consistent units."
+    },
+    {
+      "label": "How to Safely Convert Between Units",
+      "url": "https://www.mathsisfun.com/measure/unit-conversion-method.html",
+      "publisher": "Math Is Fun",
+      "kind": "lesson",
+      "note": "A worked method for converting units, including kilometres per hour to metres per second."
+    }
+  ],
+  "wikipedia": {
+    "label": "Metric prefix",
+    "url": "https://en.wikipedia.org/wiki/Metric_prefix"
+  }
+}

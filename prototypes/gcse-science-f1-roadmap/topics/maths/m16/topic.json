@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M16",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Graphs and charts",
+      "url": "https://www.bbc.co.uk/bitesize/articles/zhmbvwx",
+      "publisher": "BBC Bitesize",
+      "kind": "lesson",
+      "note": "A free lesson on choosing displays and using suitable scales, axis labels, units, and variables."
+    },
+    {
+      "label": "Drawing graphs",
+      "url": "https://www.open.edu/openlearn/mod/oucontent/view.php?id=136559&section=_unit1.4",
+      "publisher": "OpenLearn",
+      "kind": "lesson",
+      "note": "An open introductory lesson on axes, scales, units, and plotting experimental data."
+    }
+  ],
+  "wikipedia": {
+    "label": "Dependent and independent variables",
+    "url": "https://en.wikipedia.org/wiki/Dependent_and_independent_variables"
+  }
+}

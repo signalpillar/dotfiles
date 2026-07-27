@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M15",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Scatter Graphs",
+      "url": "https://www.mathsgenie.co.uk/scatter-graphs.html",
+      "publisher": "Maths Genie",
+      "kind": "lesson",
+      "note": "GCSE lessons, worked examples, and practice on plotting and interpreting scatter graphs."
+    },
+    {
+      "label": "Data, Sampling, and Variation in Data and Sampling",
+      "url": "https://openstax.org/books/introductory-statistics-2e/pages/1-2-data-sampling-and-variation-in-data-and-sampling",
+      "publisher": "OpenStax",
+      "kind": "reference",
+      "note": "An open textbook section on representative samples, sampling bias, correlation, causality, and confounding."
+    }
+  ],
+  "wikipedia": {
+    "label": "Scatter plot",
+    "url": "https://en.wikipedia.org/wiki/Scatter_plot"
+  }
+}

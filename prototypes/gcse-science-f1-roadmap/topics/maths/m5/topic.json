@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M5",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Percentage change",
+      "url": "https://www.bbc.co.uk/bitesize/topics/zqcwv4j/articles/zxghrmn",
+      "publisher": "BBC Bitesize",
+      "kind": "lesson",
+      "note": "A free lesson with worked examples, exam-style questions, reverse percentages, and a quiz."
+    },
+    {
+      "label": "Percents",
+      "url": "https://www.mathsisfun.com/percentage.html",
+      "publisher": "Math Is Fun",
+      "kind": "interactive",
+      "note": "An illustrated introduction with an interactive percentage tool and worked percentage calculations."
+    }
+  ],
+  "wikipedia": {
+    "label": "Percentage",
+    "url": "https://en.wikipedia.org/wiki/Percentage"
+  }
+}

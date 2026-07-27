@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M7",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Velocity vs. Time Graphs",
+      "url": "https://openstax.org/books/physics/pages/2-4-velocity-vs-time-graphs",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "An open textbook lesson with worked examples that interpret and calculate areas under velocity-time graphs."
+    },
+    {
+      "label": "Velocity Time Graphs Questions",
+      "url": "https://mathsgenie.co.uk/gcse/maths/edexcel/grade-8-9-8-7-velocity-time-graphs/questions",
+      "publisher": "Maths Genie",
+      "kind": "practice",
+      "note": "A free set of GCSE-style velocity-time graph questions with worked solutions and mark schemes."
+    }
+  ],
+  "wikipedia": {
+    "label": "Integral",
+    "url": "https://en.wikipedia.org/wiki/Integral"
+  }
+}

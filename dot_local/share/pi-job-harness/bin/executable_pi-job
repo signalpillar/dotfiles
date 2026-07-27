@@ -361,7 +361,7 @@ class ProfileDocument(StrictDocument):
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
     sync_pipeline_instructions: str = Field(default="", description="Pipeline instructions for the sync command, shown per slice.")
-    instruction_packets: dict[str, str] = Field(default_factory=dict, description="Reusable instruction text blocks. Supported keys: todo_tracking, future_work, orchestrator, subagent_orchestrator, plan_todo. Each value supports {cursor} interpolation.")
+    instruction_packets: dict[str, str] = Field(default_factory=dict, description="Reusable instruction text blocks. Supported keys: todo_tracking, future_work, orchestrator, subagent_orchestrator, plan_todo, missing_task_hint. Each value supports {cursor} or <TASK_FILE> interpolation.")
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
     slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
@@ -465,6 +465,8 @@ def load_yaml_mapping(path: Path, *, label: str) -> dict[str, Any]:
     """Load one YAML mapping with duplicate-key and syntax diagnostics."""
 
     if not path.exists():
+        if label == "task file":
+            die(missing_task_hint(path))
         die(f"{label} not found: {path}")
     try:
         value = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
@@ -543,6 +545,11 @@ def atomic_create_text(path: Path, content: str) -> None:
 
 
 def missing_task_hint(task_file: Path) -> str:
+    profile = load_profile_contract()
+    packets = profile.get("instruction_packets", {})
+    hint_text = packets.get("missing_task_hint", "")
+    if hint_text:
+        return hint_text
     return (
         f"task file not found: {task_file}\n"
         f"create one from the example shape with:\n"
@@ -988,48 +995,13 @@ class CueTaskStore:
         write_and_validate(self.path, original_text, "".join(lines))
 
     def set_project(self, fields: Mapping[str, str]) -> None:
-        original_text = self.path.read_text()
-        lines = original_text.splitlines(keepends=True)
-        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
-        top_end = plan_idx if plan_idx != -1 else len(lines)
-        project_span = find_struct_field_span(lines, "project", 0, top_end)
-        if project_span is None:
-            die("could not find task.project block")
-        p_open, p_close, p_empty = project_span
-        if p_empty:
-            die("task.project is an empty inline block; migrate to YAML or use a canonical scaffold")
-        for field in ("key", "name", "route", "context"):
-            if field in fields:
-                lines = replace_scalar_field(lines, field, fields[field], p_open, p_close)
-        write_and_format(self.path, "".join(lines))
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def set_context(self, context: str) -> None:
-        original_text = self.path.read_text()
-        lines = original_text.splitlines(keepends=True)
-        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
-        top_end = plan_idx if plan_idx != -1 else len(lines)
-        ctx_open, ctx_close, _ = context_field_span(lines, 0, top_end)
-        indent = line_indent(lines[ctx_open])
-        lines = lines[:ctx_open] + render_context_block(context, indent) + lines[ctx_close + 1:]
-        write_and_validate(self.path, original_text, "".join(lines))
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def remove_slice(self, *, key: str) -> None:
-        original_text = self.path.read_text()
-        original_text = expand_inline_plan_block(original_text)
-        lines = original_text.splitlines(keepends=True)
-        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
-        if plan_idx == -1:
-            die("could not find task.plan block")
-        plan_close = find_block_close(lines, plan_idx)
-        span = find_key_struct_span(lines, key, plan_idx, plan_close)
-        if span is None:
-            die(f"slice not found: {key!r}")
-        open_idx, close_idx = span
-        if open_idx == close_idx and "slices" in lines[open_idx]:
-            die("slice is on a single-line array; migrate to YAML or expand the slices array first")
-        body_lines = list(lines)
-        del body_lines[open_idx:close_idx + 1]
-        write_and_validate(self.path, original_text, "".join(body_lines))
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def set_plan_note(self, note: str) -> None:
         text = self.path.read_text()

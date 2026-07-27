@@ -166,6 +166,14 @@ instruction_packets:
     - Create one todo per slice (or per step when helpful).
     - Mark the current/next slice/step in_progress; mark completed items done as evidence lands.
     - Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.
+  missing_task_hint: |-
+    task file not found: <TASK_FILE>
+    create one from the example shape with:
+      pi-job --task <TASK_FILE> scaffold
+    or write a bootstrap document and create+initialize in one transaction:
+      pi-job --task <TASK_FILE> bootstrap --from <bootstrap.yaml>
+    after scaffold, initialize orchestration:
+      pi-job --task <TASK_FILE> init [--kind setup|implement|...]
 step_kinds:
   explore-context:
     key: explore-context

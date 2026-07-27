@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M6",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Equation of a Straight Line",
+      "url": "https://www.mathsisfun.com/equation_of_line.html",
+      "publisher": "Math Is Fun",
+      "kind": "lesson",
+      "note": "An illustrated lesson on y = mx + c, gradient, intercepts, and finding a line from a graph."
+    },
+    {
+      "label": "Position vs. Time Graphs",
+      "url": "https://openstax.org/books/physics/pages/2-3-position-vs-time-graphs",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "An open textbook section with worked examples on gradient, intercepts, units, and tangent gradients in context."
+    }
+  ],
+  "wikipedia": {
+    "label": "Linear equation",
+    "url": "https://en.wikipedia.org/wiki/Linear_equation"
+  }
+}

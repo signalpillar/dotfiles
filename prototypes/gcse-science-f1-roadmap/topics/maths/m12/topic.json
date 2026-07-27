@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M12",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Probability",
+      "url": "https://www.mathsgenie.co.uk/probability.html",
+      "publisher": "Maths Genie",
+      "kind": "lesson",
+      "note": "GCSE lessons and practice on probability scales, outcomes, and calculating probabilities."
+    },
+    {
+      "label": "Probability Terminology",
+      "url": "https://openstax.org/books/introductory-statistics-2e/pages/3-1-terminology",
+      "publisher": "OpenStax",
+      "kind": "reference",
+      "note": "An open textbook section covering sample spaces, single events, combined events, and conditional probability."
+    }
+  ],
+  "wikipedia": {
+    "label": "Probability",
+    "url": "https://en.wikipedia.org/wiki/Probability"
+  }
+}

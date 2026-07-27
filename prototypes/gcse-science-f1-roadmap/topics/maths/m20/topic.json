@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M20",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Measurement Uncertainty, Accuracy, and Precision",
+      "url": "https://openstax.org/books/chemistry-2e/pages/1-5-measurement-uncertainty-accuracy-and-precision",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "An open textbook lesson distinguishing uncertainty, accuracy, precision, and repeated measurements."
+    },
+    {
+      "label": "What are the issues for characterization?",
+      "url": "https://www.itl.nist.gov/div898/handbook/mpc/section1/mpc11.htm",
+      "publisher": "National Institute of Standards and Technology",
+      "kind": "reference",
+      "note": "A free measurement handbook page relating bias, short-term precision, long-term variability, and uncertainty."
+    }
+  ],
+  "wikipedia": {
+    "label": "Measurement uncertainty",
+    "url": "https://en.wikipedia.org/wiki/Measurement_uncertainty"
+  }
+}

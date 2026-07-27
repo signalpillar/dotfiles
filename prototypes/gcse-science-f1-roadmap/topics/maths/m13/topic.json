@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M13",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Rounding numbers (significant figures)",
+      "url": "https://www.bbc.co.uk/bitesize/articles/zy6q7yc",
+      "publisher": "BBC Bitesize",
+      "kind": "practice",
+      "note": "A free guide with worked rounding examples, small-number guidance, and an interactive quiz."
+    },
+    {
+      "label": "The Language of Physics: Physical Quantities and Units",
+      "url": "https://openstax.org/books/physics/pages/1-3-the-language-of-physics-physical-quantities-and-units",
+      "publisher": "OpenStax",
+      "kind": "reference",
+      "note": "A free textbook section connecting significant figures to measurement precision and calculation results."
+    }
+  ],
+  "wikipedia": {
+    "label": "Significant figures",
+    "url": "https://en.wikipedia.org/wiki/Significant_figures"
+  }
+}
