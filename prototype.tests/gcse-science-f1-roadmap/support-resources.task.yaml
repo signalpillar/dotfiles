@@ -35,7 +35,7 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
 orchestration:
   cursor:
     slice: replication-skill
-    step: create-plan
+    step: edit-code
   policy:
     coding_execution:
       subagent_required: true
@@ -91,6 +91,10 @@ decisions:
 - date: '2026-07-27'
   note: Load the topic catalog and paper graph independently so a missing or invalid paper graph affects
     only the paper section and never suppresses valid topic summaries, prompts, or links.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Scaffold topic and paper drafts with an explicit draft true marker that strict publication validation
+    rejects until an agent completes evidence review and deliberately removes it.
   source: chat:2026-07-27
 plan:
   note: Build and prove the resource architecture with one tracer topic, codify it as a skill, enrich
@@ -285,8 +289,11 @@ plan:
     title: Create replication skill
     goal: Create the reusable GCSE roadmap resource skill, schema reference, topic scaffolder, and paper
       scaffolder from the proven tracer workflow.
-    status: planned
+    status: in_progress
     note: ''
+    execution:
+      model: openai/gpt-5.6-sol
+      started: '2026-07-27T11:36:02.036510Z'
     repos:
     - dotfiles
     depends_on:
@@ -295,16 +302,31 @@ plan:
     steps:
     - key: create-plan
       title: Create plan
-      status: planned
-      note: ''
+      status: done
+      note: 'Plan file: support-resources.task.plans/replication-skill.md'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:36:02.295906Z'
+        ended: '2026-07-27T11:41:35.584155Z'
     - key: grill-plan
       title: Grill the plan file
-      status: planned
-      note: ''
+      status: done
+      note: Challenged accidental draft publication, overwrite behavior, applied-skill path independence,
+        validator authority, batch ergonomics, existing-topic edits, and paper evidence boundaries. Revised
+        the plan to require explicit draft true markers in topic and paper outputs; strict publication
+        validation rejects those markers until deliberate review removes them. The plan otherwise retains
+        explicit paths, atomic writes, no overwrite mode, and project-validator integration.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:41:36.089513Z'
+        ended: '2026-07-27T11:41:36.344488Z'
     - key: edit-code
       title: Edit code
-      status: planned
+      status: in_progress
       note: ''
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:41:43.358603Z'
     - key: verify
       title: Verify
       status: planned
