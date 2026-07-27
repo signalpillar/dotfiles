@@ -136,6 +136,14 @@ plan_and_grill_guardrail: |-
   exist) - grill-plan is the per-slice equivalent.
   Exception: a genuinely trivial single-file edit may skip both steps (status:
   skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+sync_pipeline_instructions: |-
+  For each slice below, run the pipeline:
+    1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality
+    2. verify - gh pr view <url> + optional git merge-base --is-ancestor <sha> main
+    3. add-pr --status merged|closed if the PR state changed
+    4. finish --note '<append-style evidence>' to record what was found
+    5. advance to move past the verified step
+    6. Jira ticket status update if applicable
 step_kinds:
   explore-context:
     key: explore-context

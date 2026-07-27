@@ -360,6 +360,7 @@ class ProfileDocument(StrictDocument):
     toolbelt: dict[str, ToolbeltAidDocument] = Field(description="Planning aids keyed by stable identifier.")
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
+    sync_pipeline_instructions: str = Field(default="", description="Pipeline instructions for the sync command, shown per slice.")
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
     slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
@@ -4069,6 +4070,8 @@ def build_sync_instruction(
     task_file: Path, task: dict[str, Any], status_filter: set[str] | None
 ) -> str:
     candidates = sync_candidate_slices(task, status_filter)
+    profile = load_profile_contract()
+    pipeline_text = profile.get("sync_pipeline_instructions", "")
 
     lines = [
         "PI-JOB SYNC PIPELINE",
@@ -4082,17 +4085,16 @@ def build_sync_instruction(
         lines.append("Nothing matched the sync criteria (in_progress/blocked slices, or slices with an open PR).")
         return "\n".join(lines)
 
-    lines += [
-        "For each slice below, run the pipeline:",
-        "  1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality",
-        "  2. verify - gh pr view <url> + optional git merge-base --is-ancestor <sha> main",
-        "  3. add-pr --status merged|closed if the PR state changed",
-        "  4. finish --note '<append-style evidence>' to record what was found",
-        "  5. advance to move past the verified step",
-        "  6. Jira ticket status update if applicable",
-        "Prefer pi-job commands; direct task-file editing is unsupported; validate any emergency edit immediately.",
-        "",
-    ]
+    if pipeline_text:
+        lines += [pipeline_text, ""]
+    else:
+        lines += [
+            "For each slice below: dispatch a subagent to check its actual state against what's",
+            "recorded (PR merged/closed? described changes actually present?). Prefer pi-job",
+            "commands such as `add-pr`, `start`, `finish`, and `advance` when recording findings.",
+            "Direct task-file editing is unsupported; validate any emergency edit immediately.",
+            "",
+        ]
     for i, task_slice in enumerate(candidates, start=1):
         lines.append(f"{i}. {task_slice.key} ({task_slice.status})")
         repo_work = task_slice.repo_work or {}
