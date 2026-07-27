@@ -9,6 +9,8 @@
     <script type="module" src="https://jelly-ui.com/package.js"></script>
     <!-- Token set: Open Props. Every spacing, radius, shadow and easing below comes from it. -->
     <link rel="stylesheet" href="https://unpkg.com/open-props">
+    <!-- Markdown renderer: pinned and constrained by source and DOM allowlists below. -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
 
     <style>
       /* Layout only. Colours, fonts and every tunable number are injected from the
@@ -242,6 +244,20 @@
       .foot { max-inline-size: 46rem; }
       .foot a { color: inherit; }
 
+      .support { display: grid; gap: var(--size-3); border-block-start: var(--border-size-1) solid var(--line); padding-block-start: var(--size-3); }
+      .support h3 { margin: 0; font-size: var(--font-size-1); }
+      .support-section { display: grid; gap: var(--size-2); min-inline-size: 0; }
+      .support-status { margin: 0; color: var(--text-muted); font-size: var(--font-size-0); line-height: var(--font-lineheight-3); }
+      .support-markdown { font-size: var(--font-size-0); line-height: var(--font-lineheight-3); overflow-wrap: anywhere; }
+      .support-markdown > :first-child { margin-block-start: 0; }
+      .support-markdown > :last-child { margin-block-end: 0; }
+      .support-markdown pre { overflow-x: auto; padding: var(--size-2); border-radius: var(--radius-2); background: var(--muted-bg); }
+      .support-markdown code { overflow-wrap: anywhere; }
+      .support-links { display: grid; gap: var(--size-2); }
+      .support-link { display: grid; gap: var(--size-1); padding: var(--size-2); border: var(--border-size-1) solid var(--line); border-radius: var(--radius-2); color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+      .support-link strong { color: var(--accent); }
+      .support-actions { display: flex; gap: var(--size-2); align-items: center; flex-wrap: wrap; }
+
       .empty { padding: var(--size-8) var(--size-3); text-align: center; color: var(--text-muted); font-size: var(--font-size-0); }
 
       /* plain-element fallbacks, used only when the component library is unavailable */
@@ -282,8 +298,17 @@
     "tabSize": "small",
     "storage": { "progress": "gcse-science-f1-roadmap-v1", "mode": "gcse-science-f1-roadmap-mode", "schemaVersion": 1 },
     "media": { "wide": "(min-width: 60rem)", "dark": "(prefers-color-scheme: dark)" },
-    "timing": { "libraryTimeoutMs": 6000, "resizeDebounceMs": 150, "revokeObjectUrlMs": 1000 },
+    "timing": { "libraryTimeoutMs": 6000, "resizeDebounceMs": 150, "revokeObjectUrlMs": 1000, "copyResultResetMs": 2500 },
     "rules": { "unlockWeight": 0.67, "notesMaxLength": 4000, "masteredStatus": "race", "newStatus": "new", "maxStatusPoints": 25 },
+    "support": {
+      "schemaVersion": 1,
+      "catalogUrl": "gcse-science-f1-roadmap/catalog.json",
+      "papersUrl": "gcse-science-f1-roadmap/papers.json",
+      "maxMarkdownBytes": 100000,
+      "minLinks": 2,
+      "wikipediaHost": "en.wikipedia.org",
+      "linkKinds": ["official-specification", "lesson", "video", "interactive", "practice", "reference"]
+    },
     "track": {
       "nodeWidth": 184, "nodeHeight": 66, "columnGap": 104, "rowGap": 10,
       "padInline": 108, "padBlock": 62, "laneGap": 34, "laneLabelInset": 12, "fitInset": 4,
@@ -377,6 +402,28 @@
       "notesLabel": "Notes",
       "notesPlaceholder": "Past paper questions to redo, formulas that keep slipping, videos that helped...",
       "lastUpdated": "Last updated {when}",
+      "httpRequiredTitle": "Open this roadmap through HTTP",
+      "httpRequiredBody": "Support resources are stored in adjacent files, so direct file opening is not supported.",
+      "httpRequiredCommand": "From the repository root, run: python3 -m http.server 8000",
+      "httpRequiredUrl": "Then open: http://localhost:8000/prototypes/gcse-science-f1-roadmap.html",
+      "supportTitle": "Topic support",
+      "supportLoading": "Loading topic support...",
+      "supportUnavailable": "Support is not available for this topic yet.",
+      "supportInvalid": "This topic's support files are invalid and were not shown.",
+      "summaryTitle": "Revision summary",
+      "promptTitle": "Interactive tutor prompt",
+      "linksTitle": "Supporting resources",
+      "wikipediaTitle": "Wikipedia",
+      "papersTitle": "Past-paper questions",
+      "papersLoading": "Loading past-paper links...",
+      "papersEmpty": "No past-paper questions have been mapped to this topic yet.",
+      "papersUnavailable": "Past-paper links are unavailable. Other topic support is unaffected.",
+      "markedUnavailable": "The Markdown renderer is unavailable, so this preview was not shown safely.",
+      "copyPrompt": "Copy tutor prompt",
+      "copySuccess": "Prompt copied.",
+      "copyFailure": "The prompt could not be copied. Check browser clipboard permission.",
+      "resourcePublisher": "{publisher} - {kind}",
+      "paperLink": "{board} {series}, {component}: questions {questions}",
       "factLabels": {
         "spec": "What the spec asks for",
         "f1": "Where it shows up in F1",
@@ -1881,6 +1928,24 @@
       const APP = M.app;
       const COPY = APP.copy;
 
+      function renderProtocolError() {
+        const shell = document.getElementById("shell");
+        shell.replaceChildren();
+        const title = document.createElement("h1");
+        title.textContent = COPY.httpRequiredTitle;
+        shell.append(title);
+        for (const text of [COPY.httpRequiredBody, COPY.httpRequiredCommand, COPY.httpRequiredUrl]) {
+          const paragraph = document.createElement("p");
+          paragraph.textContent = text;
+          shell.append(paragraph);
+        }
+      }
+
+      if (location.protocol !== "http:" && location.protocol !== "https:") renderProtocolError();
+      else await boot();
+
+      async function boot() {
+
       const NODES = M.nodes;
       const BY_ID = new Map(NODES.map((n) => [n.id, n]));
       const STATUS = new Map(M.statuses.map((s) => [s.id, s]));
@@ -1999,6 +2064,11 @@
       let activeSubjects = new Set(Object.keys(M.subjects));
       let zoom = 1;
       let pendingImport = null;
+      let selectionToken = 0;
+      let catalogPromise = null;
+      let paperPromise = null;
+      const topicResourceCache = new Map();
+      const supportState = { topicId: null, topic: "idle", papers: "idle" };
 
       function loadProgress() {
         try {
@@ -2063,7 +2133,8 @@
           const direct = directReadiness(node);
           return { ...direct, readyToStart: isUnlocked(node), unmet: unmetPrerequisites(id).map((item) => item.id) };
         },
-        actionableIds: () => actionableNodes().map((node) => node.id)
+        actionableIds: () => actionableNodes().map((node) => node.id),
+        supportState: () => ({ ...supportState })
       });
 
       function isVisible(node) {
@@ -2275,6 +2346,7 @@
         refs.detailBody = make("div", { class: "detail-body" });
         refs.drawer = make(jellyOk ? "jelly-drawer" : "div", { label: COPY.notesLabel, side: wideQuery.matches ? "end" : "bottom" }, [refs.detailBody]);
         refs.drawer.addEventListener("close", () => {
+          selectionToken += 1;
           if (selectedId !== null) {
             selectedId = null;
             renderView();
@@ -2757,6 +2829,7 @@
       /* ---------------- detail drawer ---------------- */
 
       function select(id) {
+        selectionToken += 1;
         selectedId = id;
         renderDetail();
         if (jellyOk) refs.drawer.open = true;
@@ -2765,6 +2838,7 @@
       }
 
       function closeDetail() {
+        selectionToken += 1;
         selectedId = null;
         if (jellyOk) refs.drawer.open = false;
         else refs.drawer.removeAttribute("open");
@@ -2773,6 +2847,273 @@
 
       function fact(label, text, isF1) {
         return make("div", { class: "fact" + (isF1 ? " is-f1" : "") }, [make("h3", { text: label }), make("p", { text })]);
+      }
+
+      class ResourceValidationError extends Error {}
+
+      function requireObject(value, label) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new ResourceValidationError(label + " must be an object");
+        return value;
+      }
+
+      function requireKeys(value, keys, label) {
+        requireObject(value, label);
+        if (Object.keys(value).sort().join("|") !== [...keys].sort().join("|")) throw new ResourceValidationError(label + " has unexpected fields");
+      }
+
+      function requireText(value, label) {
+        if (typeof value !== "string" || !value.trim()) throw new ResourceValidationError(label + " must be non-empty text");
+      }
+
+      function requireHttps(value, label) {
+        requireText(value, label);
+        let parsed;
+        try { parsed = new URL(value); } catch { throw new ResourceValidationError(label + " must be an absolute URL"); }
+        if (parsed.protocol !== "https:") throw new ResourceValidationError(label + " must use HTTPS");
+      }
+
+      function resolveResourcePath(relative, baseUrl, rootUrl) {
+        requireText(relative, "Resource path");
+        if (relative.includes("\\") || relative.startsWith("/") || relative.includes("?") || relative.includes("#") || relative.split("/").some((part) => !part || part === "." || part === "..")) {
+          throw new ResourceValidationError("Unsafe resource path");
+        }
+        const resolved = new URL(relative, baseUrl);
+        if (!resolved.href.startsWith(rootUrl.href)) throw new ResourceValidationError("Resource path leaves its root");
+        return resolved;
+      }
+
+      async function fetchJson(url, label) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(label + " request failed");
+        try { return await response.json(); } catch { throw new ResourceValidationError(label + " is not valid JSON"); }
+      }
+
+      async function fetchText(url, label) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(label + " request failed");
+        return response.text();
+      }
+
+      function validateCatalog(catalog) {
+        requireKeys(catalog, ["schemaVersion", "topics"], "Catalog");
+        if (catalog.schemaVersion !== APP.support.schemaVersion) throw new ResourceValidationError("Unsupported catalog schema");
+        requireObject(catalog.topics, "Catalog topics");
+        for (const [id, value] of Object.entries(catalog.topics)) {
+          const node = BY_ID.get(id);
+          if (!node) throw new ResourceValidationError("Catalog contains an unknown topic");
+          requireText(value, "Catalog topic path");
+          if (value !== "topics/" + node.subject + "/" + id.toLowerCase() + "/topic.json") throw new ResourceValidationError("Catalog topic path does not match its curriculum topic");
+        }
+        return catalog;
+      }
+
+      function validateTopicRecord(topic, expectedId) {
+        requireKeys(topic, ["schemaVersion", "topicId", "summary", "explainPrompt", "links", "wikipedia"], "Topic record");
+        if (topic.schemaVersion !== APP.support.schemaVersion || topic.topicId !== expectedId) throw new ResourceValidationError("Topic record does not match the catalog");
+        requireText(topic.summary, "Summary path");
+        requireText(topic.explainPrompt, "Prompt path");
+        if (!Array.isArray(topic.links) || topic.links.length < APP.support.minLinks) throw new ResourceValidationError("Topic does not have enough supporting links");
+        const urls = new Set();
+        for (const link of topic.links) {
+          requireKeys(link, ["label", "url", "publisher", "kind", "note"], "Supporting link");
+          for (const field of ["label", "publisher", "kind", "note"]) requireText(link[field], "Supporting link " + field);
+          if (!APP.support.linkKinds.includes(link.kind)) throw new ResourceValidationError("Unsupported supporting link kind");
+          requireHttps(link.url, "Supporting link URL");
+          if (urls.has(link.url)) throw new ResourceValidationError("Duplicate supporting link URL");
+          urls.add(link.url);
+        }
+        requireKeys(topic.wikipedia, ["label", "url"], "Wikipedia link");
+        requireText(topic.wikipedia.label, "Wikipedia label");
+        requireHttps(topic.wikipedia.url, "Wikipedia URL");
+        if (new URL(topic.wikipedia.url).hostname !== APP.support.wikipediaHost) throw new ResourceValidationError("Unexpected Wikipedia host");
+        if (urls.has(topic.wikipedia.url)) throw new ResourceValidationError("Wikipedia must be separate from supporting links");
+        return topic;
+      }
+
+      function validatePaperGraph(graph) {
+        requireKeys(graph, ["schemaVersion", "nodes", "edges"], "Paper graph");
+        if (graph.schemaVersion !== APP.support.schemaVersion || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) throw new ResourceValidationError("Invalid paper graph");
+        const nodes = new Map();
+        graph.nodes.forEach((paper) => {
+          requireKeys(paper, ["id", "type", "board", "qualification", "series", "component", "tier", "urls"], "Paper");
+          if (paper.type !== "past-paper" || typeof paper.id !== "string" || !paper.id.startsWith("paper:")) throw new ResourceValidationError("Invalid paper node");
+          for (const field of ["board", "qualification", "series", "component", "tier"]) requireText(paper[field], "Paper " + field);
+          requireKeys(paper.urls, ["questionPaper", "markScheme"], "Paper URLs");
+          requireHttps(paper.urls.questionPaper, "Question paper URL");
+          requireHttps(paper.urls.markScheme, "Mark scheme URL");
+          if (nodes.has(paper.id)) throw new ResourceValidationError("Duplicate paper node");
+          nodes.set(paper.id, paper);
+        });
+        const edgeKeys = new Set();
+        graph.edges.forEach((edge) => {
+          requireKeys(edge, edge.pages === undefined ? ["from", "to", "questions", "note"] : ["from", "to", "questions", "pages", "note"], "Paper edge");
+          if (!nodes.has(edge.from) || typeof edge.to !== "string" || !edge.to.startsWith("topic:") || !BY_ID.has(edge.to.slice(6))) throw new ResourceValidationError("Invalid paper edge");
+          if (!Array.isArray(edge.questions) || !edge.questions.length || edge.questions.some((question) => typeof question !== "string" || !question.trim()) || new Set(edge.questions).size !== edge.questions.length) throw new ResourceValidationError("Paper edge has invalid questions");
+          if (edge.pages !== undefined && (!Array.isArray(edge.pages) || !edge.pages.length || edge.pages.some((page) => !Number.isInteger(page) || page < 1))) throw new ResourceValidationError("Paper edge has invalid pages");
+          requireText(edge.note, "Paper edge note");
+          const edgeKey = edge.from + "\0" + edge.to;
+          if (edgeKeys.has(edgeKey)) throw new ResourceValidationError("Duplicate paper-to-topic edge");
+          edgeKeys.add(edgeKey);
+        });
+        return { ...graph, byId: nodes };
+      }
+
+      function validateMarkdownSource(source) {
+        requireText(source, "Markdown");
+        if (new TextEncoder().encode(source).byteLength > APP.support.maxMarkdownBytes || /<\/?[A-Za-z][^>]*>/.test(source) || /^\s*>/m.test(source) || /^\s*\|.*\|\s*$/m.test(source) || /!\[[^\]]*\]\(/.test(source) || /^\s*- \[[ xX]\]/m.test(source) || /^#{4,}\s/m.test(source) || /^\s*(?:-{3,}|_{3,}|\*{3,})\s*$/m.test(source) || /~~/.test(source)) {
+          throw new ResourceValidationError("Unsupported Markdown source");
+        }
+        for (const match of source.matchAll(/\[[^\]]+\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) requireHttps(match[1], "Markdown link");
+        return source;
+      }
+
+      function loadSupportCatalog() {
+        if (!catalogPromise) {
+          const url = new URL(APP.support.catalogUrl, location.href);
+          catalogPromise = fetchJson(url, "Catalog").then((catalog) => ({ catalog: validateCatalog(catalog), url, root: new URL("./", url) }));
+        }
+        return catalogPromise;
+      }
+
+      function loadPaperGraph() {
+        if (!paperPromise) {
+          const url = new URL(APP.support.papersUrl, location.href);
+          paperPromise = fetchJson(url, "Paper graph").then(validatePaperGraph);
+        }
+        return paperPromise;
+      }
+
+      async function loadTopicResources(topicId) {
+        if (topicResourceCache.has(topicId)) return topicResourceCache.get(topicId);
+        const { catalog, url, root } = await loadSupportCatalog();
+        const recordPath = catalog.topics[topicId];
+        if (!recordPath) throw new Error("Topic support is not published");
+        const recordUrl = resolveResourcePath(recordPath, url, root);
+        const topic = validateTopicRecord(await fetchJson(recordUrl, "Topic record"), topicId);
+        const topicRoot = new URL("./", recordUrl);
+        const summaryUrl = resolveResourcePath(topic.summary, recordUrl, topicRoot);
+        const promptUrl = resolveResourcePath(topic.explainPrompt, recordUrl, topicRoot);
+        const [summarySource, promptSource] = await Promise.all([fetchText(summaryUrl, "Summary"), fetchText(promptUrl, "Prompt")]);
+        const resources = { topic, summarySource: validateMarkdownSource(summarySource), promptSource: validateMarkdownSource(promptSource) };
+        topicResourceCache.set(topicId, resources);
+        return resources;
+      }
+
+      function markdownTokensSafe(tokens) {
+        for (const token of tokens) {
+          if (token.type === "html") return false;
+          if (token.href && new URL(token.href, location.href).protocol !== "https:") return false;
+          if (token.tokens && !markdownTokensSafe(token.tokens)) return false;
+          if (token.items && !markdownTokensSafe(token.items)) return false;
+        }
+        return true;
+      }
+
+      function renderMarkdown(source) {
+        validateMarkdownSource(source);
+        if (!window.marked) throw new Error("Marked unavailable");
+        const tokens = window.marked.lexer(source, { gfm: true, breaks: false });
+        if (!markdownTokensSafe(tokens)) throw new ResourceValidationError("Unsafe Markdown tokens");
+        const template = document.createElement("template");
+        template.innerHTML = window.marked.parse(source, { gfm: true, breaks: false });
+        const allowedTags = new Set(["A", "P", "H1", "H2", "H3", "EM", "STRONG", "UL", "OL", "LI", "CODE", "PRE", "BR"]);
+        for (const element of template.content.querySelectorAll("*")) {
+          if (!allowedTags.has(element.tagName)) throw new ResourceValidationError("Unsupported rendered Markdown element");
+          const allowedAttributes = element.tagName === "A" ? new Set(["href"]) : element.tagName === "CODE" ? new Set(["class"]) : new Set();
+          for (const attribute of [...element.attributes]) if (!allowedAttributes.has(attribute.name)) throw new ResourceValidationError("Unsupported rendered Markdown attribute");
+          if (element.tagName === "CODE" && element.hasAttribute("class") && !/^language-[a-z0-9_-]+$/i.test(element.className)) throw new ResourceValidationError("Unsafe rendered code class");
+          if (element.tagName === "A") {
+            const parsed = new URL(element.getAttribute("href"), location.href);
+            if (parsed.protocol !== "https:") throw new ResourceValidationError("Unsafe rendered Markdown link");
+            element.href = parsed.href;
+            element.target = "_blank";
+            element.rel = "noopener noreferrer";
+          }
+        }
+        return template.content;
+      }
+
+      async function copyExplainPrompt(source, resultNode) {
+        try {
+          await navigator.clipboard.writeText(source);
+          resultNode.textContent = COPY.copySuccess;
+        } catch {
+          resultNode.textContent = COPY.copyFailure;
+        }
+        window.setTimeout(() => { resultNode.textContent = ""; }, APP.timing.copyResultResetMs);
+      }
+
+      function externalLink(link) {
+        return make("a", { class: "support-link", href: link.url, target: "_blank", rel: "noopener noreferrer" }, [
+          make("strong", { text: link.label }),
+          link.publisher ? make("span", { class: "support-status", text: fill(COPY.resourcePublisher, { publisher: link.publisher, kind: link.kind }) }) : null,
+          link.note ? make("span", { class: "support-status", text: link.note }) : null
+        ]);
+      }
+
+      function markdownPreview(source) {
+        const preview = make("div", { class: "support-markdown" });
+        try { preview.append(renderMarkdown(source)); }
+        catch (error) { preview.replaceChildren(make("p", { class: "support-status", text: window.marked ? COPY.supportInvalid : COPY.markedUnavailable })); }
+        return preview;
+      }
+
+      function renderSupportResources(node) {
+        const token = ++selectionToken;
+        const topicId = node.id;
+        supportState.topicId = topicId;
+        supportState.topic = "loading";
+        supportState.papers = "loading";
+        const topicSection = make("section", { class: "support-section", "data-support-topic": topicId }, [
+          make("h3", { text: COPY.supportTitle }),
+          make("p", { class: "support-status", text: COPY.supportLoading })
+        ]);
+        const paperSection = make("section", { class: "support-section", "data-support-papers": topicId }, [
+          make("h3", { text: COPY.papersTitle }),
+          make("p", { class: "support-status", text: COPY.papersLoading })
+        ]);
+        refs.detailBody.append(make("div", { class: "support" }, [topicSection, paperSection]));
+
+        loadTopicResources(topicId).then(({ topic, summarySource, promptSource }) => {
+          if (selectedId !== topicId || selectionToken !== token) return;
+          supportState.topic = "ready";
+          const result = make("span", { class: "support-status", "aria-live": "polite" });
+          topicSection.replaceChildren(
+            make("h3", { text: COPY.summaryTitle }),
+            markdownPreview(summarySource),
+            make("h3", { text: COPY.promptTitle }),
+            markdownPreview(promptSource),
+            make("div", { class: "support-actions" }, [button(COPY.copyPrompt, { variant: "azure", onClick: () => copyExplainPrompt(promptSource, result) }), result]),
+            make("h3", { text: COPY.linksTitle }),
+            make("div", { class: "support-links" }, topic.links.map(externalLink)),
+            make("h3", { text: COPY.wikipediaTitle }),
+            externalLink(topic.wikipedia)
+          );
+        }).catch((error) => {
+          if (selectedId !== topicId || selectionToken !== token) return;
+          supportState.topic = error instanceof ResourceValidationError ? "invalid" : "unavailable";
+          topicSection.replaceChildren(make("h3", { text: COPY.supportTitle }), make("p", { class: "support-status", text: error instanceof ResourceValidationError ? COPY.supportInvalid : COPY.supportUnavailable }));
+        });
+
+        loadPaperGraph().then((graph) => {
+          if (selectedId !== topicId || selectionToken !== token) return;
+          const edges = graph.edges.filter((edge) => edge.to === "topic:" + topicId);
+          supportState.papers = edges.length ? "ready" : "empty";
+          paperSection.replaceChildren(make("h3", { text: COPY.papersTitle }));
+          if (!edges.length) paperSection.append(make("p", { class: "support-status", text: COPY.papersEmpty }));
+          else paperSection.append(make("div", { class: "support-links" }, edges.map((edge) => {
+            const paper = graph.byId.get(edge.from);
+            return externalLink({
+              label: fill(COPY.paperLink, { board: paper.board, series: paper.series, component: paper.component, questions: edge.questions.join(", ") }),
+              url: paper.urls.questionPaper,
+              note: edge.note
+            });
+          })));
+        }).catch(() => {
+          if (selectedId !== topicId || selectionToken !== token) return;
+          supportState.papers = "unavailable";
+          paperSection.replaceChildren(make("h3", { text: COPY.papersTitle }), make("p", { class: "support-status", text: COPY.papersUnavailable }));
+        });
       }
 
       function renderDetail() {
@@ -2820,6 +3161,8 @@
         refs.detailBody.append(directPrerequisiteList(node), prerequisiteSequence(node));
         const unlocks = UNLOCKS.get(node.id);
         if (unlocks.length) refs.detailBody.append(linkFact(COPY.unlocksLabel, unlocks));
+
+        renderSupportResources(node);
 
         refs.detailBody.append(
           make("div", { class: "caption", text: COPY.notesPrompt }),
@@ -3015,6 +3358,7 @@
           refs.drawer.setAttribute("side", wideQuery.matches ? "end" : "bottom");
         }, APP.timing.resizeDebounceMs);
       });
+      }
     </script>
   </body>
 </html>

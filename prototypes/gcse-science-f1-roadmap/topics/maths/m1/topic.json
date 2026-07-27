@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M1",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Standard form",
+      "url": "https://www.mathsgenie.co.uk/standard-form.html",
+      "publisher": "Maths Genie",
+      "kind": "lesson",
+      "note": "A GCSE lesson with worked examples and practice questions."
+    },
+    {
+      "label": "Standard form video and worksheets",
+      "url": "https://corbettmaths.com/contents/",
+      "publisher": "Corbettmaths",
+      "kind": "practice",
+      "note": "The free topic index links to standard-form videos, practice questions, and textbook exercises."
+    }
+  ],
+  "wikipedia": {
+    "label": "Scientific notation",
+    "url": "https://en.wikipedia.org/wiki/Scientific_notation"
+  }
+}

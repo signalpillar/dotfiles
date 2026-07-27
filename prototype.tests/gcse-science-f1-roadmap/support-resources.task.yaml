@@ -1,0 +1,600 @@
+# Managed by pi-job. Prefer pi-job commands over manual edits.
+# Validate emergency edits with: pi-job --task <this-file> validate
+title: Add GCSE roadmap support resources
+status: in_progress
+source:
+  jira: ''
+  discovered: '2026-07-27'
+  context: The GCSE roadmap needs durable support material for every curriculum topic and a repeatable
+    enrichment workflow.
+project:
+  key: gcse-science-f1-roadmap
+  name: GCSE Science F1 Roadmap
+  route: prototypes/gcse-science-f1-roadmap.html
+  context: A private GCSE triple-science revision tracker published as a static GitHub Pages prototype
+    in this dotfiles repository.
+context: 'Add declarative support resources for all 121 curriculum topics without changing the prerequisite
+  DAG''s meaning.
+
+  Each topic needs a short Markdown summary, a copy-paste interactive tutor prompt, checked supporting
+  links, and one Wikipedia link.
+
+  Past papers use a separate typed support graph so one paper can support many topics without affecting
+  readiness or track layout.
+
+  Keep the existing HTML URL and add external assets under prototypes/gcse-science-f1-roadmap/.
+
+  Preserve the existing manifest-driven application rules, CDN-blocked fallback, progress persistence,
+  import/export, and mobile behavior.
+
+  The expanded multi-file prototype requires HTTP; direct file opening is no longer supported and must
+  fail with clear manifest-driven guidance.
+
+  Initial paper delivery is schema-only; paper inspection and question-level mapping will be added incrementally
+  through the replication skill.'
+orchestration:
+  cursor:
+    slice: support-foundation
+    step: share-with-team
+  policy:
+    coding_execution:
+      subagent_required: true
+      lower_power_model_preferred: true
+      orchestrator_reviews_subagent: true
+      exceptions: []
+  artifacts:
+    data-shape-sketch:
+      status: done
+      path: prototype.tests/gcse-science-f1-roadmap/support-resources.plans/resource-data-shape.md
+      note: Recorded topic catalog, per-topic files, paper support graph, and runtime invariants.
+    test-case-table:
+      status: done
+      path: prototype.tests/gcse-science-f1-roadmap/support-resources.plans/test-case-table.md
+      note: Recorded staged v0, subject-batch v1, and complete-library v2 acceptance coverage.
+decisions:
+- date: '2026-07-27'
+  note: Keep prototypes/gcse-science-f1-roadmap.html at its current URL and load declarative support assets
+    from a same-named directory.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Model past papers as shared nodes in a separate support graph; paper links never affect curriculum
+    prerequisites, readiness, progress, or track layout.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Complete summaries, tutor prompts, supporting links, and Wikipedia coverage first; ship a valid
+    empty paper catalog and defer paper mapping.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Make each model prompt an interactive tutoring session that checks prior knowledge, explains in
+    chunks, uses honest F1 and DIY examples, checks retrieval, and ends with exam-style practice.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Require at least two credible, free, directly accessible supporting links per topic, separate
+    from the required Wikipedia link; do not include account or payment gates.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Store each topic in its own directory with topic.json, summary.md, and explain-prompt.md, and
+    render the support material in the existing topic drawer.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Treat HTTP as required for the multi-file prototype rather than duplicating resources into an
+    embedded file-protocol fallback.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Render topic summaries with the existing Marked library and validate a constrained Markdown subset
+    rather than writing a custom Markdown parser.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: When paper ingestion begins, map paper nodes to exact question numbers with optional page references
+    and a concise relevance note.
+  source: chat:2026-07-27
+- date: '2026-07-27'
+  note: Load the topic catalog and paper graph independently so a missing or invalid paper graph affects
+    only the paper section and never suppresses valid topic summaries, prompts, or links.
+  source: chat:2026-07-27
+plan:
+  note: Build and prove the resource architecture with one tracer topic, codify it as a skill, enrich
+    each subject in bounded batches, then enforce complete coverage and close the task.
+  slices:
+  - key: setup-slice
+    kind: setup
+    title: Task setup
+    goal: Initial setup slice seeded by pi-job init
+    status: done
+    note: 'Setup complete: repository context explored, scope clarified and grilled, data-shape and test-case
+      artifacts completed, and eight implementation/closing slices validated.'
+    execution:
+      model: openai/gpt-5.6-sol
+      started: '2026-07-27T09:54:29.197797Z'
+      ended: '2026-07-27T10:10:17.756756Z'
+    repos: []
+    depends_on: []
+    repo_work: {}
+    steps:
+    - key: explore-context
+      title: Explore context
+      status: done
+      note: 'Explored dotfiles repository rules, prototype manifest and drawer architecture, reusable
+        Playwright harness, existing skill conventions, and pi-job contract. Repository: signalpillar/dotfiles;
+        work remains in the current repository.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T09:54:29.437947Z'
+        ended: '2026-07-27T09:54:29.676800Z'
+    - key: clarify-scope
+      title: Clarify scope
+      status: done
+      note: 'User resolved all blocking choices: preserve the existing HTML URL; add external assets;
+        model papers in a separate support graph; defer paper mappings after schema support; use interactive
+        tutor prompts; store the durable task under prototype.tests so it is outside the published prototype
+        path.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T09:54:44.560819Z'
+        ended: '2026-07-27T09:54:44.798464Z'
+    - key: grill
+      title: Grill overall scope
+      status: done
+      note: Grilled publication path, access policy, link minimum, paper-edge precision, file layout,
+        Markdown rendering, and UI placement. Scope changed to require HTTP for the whole multi-file prototype,
+        require two free/open links per topic, use three files per topic, use Marked rather than a custom
+        parser, render in the existing drawer, and map future papers at question level.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T09:54:58.386461Z'
+        ended: '2026-07-27T10:08:35.285628Z'
+    - key: select-toolbelt
+      title: Select planning aids from the toolbelt
+      status: done
+      note: Selected data-shape-sketch for the declarative topic and paper support graph contracts and
+        test-case-table for staged schema, browser, failure, and completion coverage. Other aids do not
+        materially improve this static data-loading task.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T10:09:03.018689Z'
+        ended: '2026-07-27T10:09:03.745360Z'
+    - key: plan-slices
+      title: Plan slices
+      status: done
+      note: 'Planned eight bounded slices after setup: one architecture tracer, one replication skill,
+        four subject resource batches, complete-library integration, and closing. All code and content
+        changes are scoped to signalpillar/dotfiles with explicit dependencies. Planning artifacts: support-resources.plans/resource-data-shape.md
+        and support-resources.plans/test-case-table.md.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T10:09:13.675430Z'
+        ended: '2026-07-27T10:10:02.137278Z'
+    final_steps: []
+  - key: support-foundation
+    kind: implement
+    title: Build support foundation
+    goal: Add the external resource schema, scoped rules, lazy resource loading, drawer UI, empty paper
+      graph, M1 tracer content, validation, and browser coverage.
+    status: in_progress
+    note: ''
+    execution:
+      model: openai/gpt-5.6-sol
+      started: '2026-07-27T10:10:39.045137Z'
+    repos:
+    - dotfiles
+    depends_on:
+    - setup-slice
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: done
+      note: 'Plan file: support-resources.task.plans/support-foundation.md'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T10:10:39.292320Z'
+        ended: '2026-07-27T11:14:31.345252Z'
+    - key: grill-plan
+      title: Grill the plan file
+      status: done
+      note: Challenged HTTP boot timing, Marked safety and absence behavior, clipboard fallback, stale
+        drawer responses, v0 partial coverage, and independent failure domains. Revised the plan so catalog/topic
+        resources and the paper graph use separate cached promises; paper failure now affects only the
+        paper section. The plan retains source and DOM allowlists around Marked, exact prompt copying,
+        and explicit HTTP-only behavior.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:14:51.584239Z'
+        ended: '2026-07-27T11:14:51.832824Z'
+    - key: edit-code
+      title: Edit code
+      status: done
+      note: 'Implemented external resource catalog and empty paper graph, M1 topic metadata/summary/prompt,
+        scoped resource rules, pinned Marked rendering, HTTP-only boot guidance, lazy cached drawer loading
+        with stale-response guards, independent paper failures, exact prompt copy, runtime validation,
+        Node validators and link audit, and expanded Playwright coverage. Orchestrator review tightened
+        exact catalog subject/ID paths, duplicate paper-topic edges, manifest-driven runtime thresholds,
+        Markdown subset alignment, and lock-file hygiene. Evidence: npm test passed 9 Node and 13 Playwright
+        tests; all three M1 links returned 200; git diff --check passed.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:15:07.288974Z'
+        ended: '2026-07-27T11:31:44.210863Z'
+    - key: verify
+      title: Verify
+      status: done
+      note: 'Verification passed after orchestrator review: manifest validator preserved 121 nodes and
+        189 prerequisite edges; resource validator reported 1 topic, 0 papers, 0 paper edges; 9 Node tests
+        passed; 13 Playwright tests passed across normal, degraded, HTTP-only, stale-response, malformed-resource,
+        independent paper failure, Marked-blocked, persistence, and viewport paths; all three M1 links
+        returned HTTP 200 without detected gates; git diff --check passed.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:31:57.294259Z'
+        ended: '2026-07-27T11:32:39.569615Z'
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: done
+      note: 'Acceptance evidence from real Chrome: M1 summary rendered through locally routed Marked;
+        exact prompt copied to clipboard; declared resources and Wikipedia links matched; empty-paper
+        state displayed; delayed M1 response could not overwrite C1; paper failure preserved topic resources;
+        malformed and missing files preserved progress controls; blocked Marked hid previews safely; file
+        protocol showed HTTP guidance without booting; normal and CDN-blocked paths had zero page overflow
+        at 320, 390, 768, and 1360 px.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:32:49.382766Z'
+        ended: '2026-07-27T11:32:49.629319Z'
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: skipped
+      note: 'User declined vulnerability-scan: User explicitly declined the independent vulnerability
+        scan for the support-foundation slice on 2026-07-27.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:33:27.573086Z'
+        ended: '2026-07-27T11:33:27.573086Z'
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: in_progress
+      note: ''
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:34:07.199377Z'
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: replication-skill
+    kind: implement
+    title: Create replication skill
+    goal: Create the reusable GCSE roadmap resource skill, schema reference, topic scaffolder, and paper
+      scaffolder from the proven tracer workflow.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - support-foundation
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: planned
+      note: ''
+    - key: grill-plan
+      title: Grill the plan file
+      status: planned
+      note: ''
+    - key: edit-code
+      title: Edit code
+      status: planned
+      note: ''
+    - key: verify
+      title: Verify
+      status: planned
+      note: ''
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: planned
+      note: ''
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: planned
+      note: ''
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: maths-resources
+    kind: implement
+    title: Publish maths resources
+    goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
+      Wikipedia links for all 20 maths topics.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - replication-skill
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: planned
+      note: ''
+    - key: grill-plan
+      title: Grill the plan file
+      status: planned
+      note: ''
+    - key: edit-code
+      title: Edit code
+      status: planned
+      note: ''
+    - key: verify
+      title: Verify
+      status: planned
+      note: ''
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: planned
+      note: ''
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: planned
+      note: ''
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: physics-resources
+    kind: implement
+    title: Publish physics resources
+    goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
+      Wikipedia links for all 35 physics topics.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - replication-skill
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: planned
+      note: ''
+    - key: grill-plan
+      title: Grill the plan file
+      status: planned
+      note: ''
+    - key: edit-code
+      title: Edit code
+      status: planned
+      note: ''
+    - key: verify
+      title: Verify
+      status: planned
+      note: ''
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: planned
+      note: ''
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: planned
+      note: ''
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: chemistry-resources
+    kind: implement
+    title: Publish chemistry resources
+    goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
+      Wikipedia links for all 33 chemistry topics.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - replication-skill
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: planned
+      note: ''
+    - key: grill-plan
+      title: Grill the plan file
+      status: planned
+      note: ''
+    - key: edit-code
+      title: Edit code
+      status: planned
+      note: ''
+    - key: verify
+      title: Verify
+      status: planned
+      note: ''
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: planned
+      note: ''
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: planned
+      note: ''
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: biology-resources
+    kind: implement
+    title: Publish biology resources
+    goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
+      Wikipedia links for all 33 biology topics.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - replication-skill
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: planned
+      note: ''
+    - key: grill-plan
+      title: Grill the plan file
+      status: planned
+      note: ''
+    - key: edit-code
+      title: Edit code
+      status: planned
+      note: ''
+    - key: verify
+      title: Verify
+      status: planned
+      note: ''
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: planned
+      note: ''
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: planned
+      note: ''
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: library-integration
+    kind: implement
+    title: Verify complete resource library
+    goal: Enforce complete 121-topic coverage, audit external links, validate the support graph, and verify
+      normal, degraded, resource-failure, persistence, and responsive browser paths.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - maths-resources
+    - physics-resources
+    - chemistry-resources
+    - biology-resources
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: planned
+      note: ''
+    - key: grill-plan
+      title: Grill the plan file
+      status: planned
+      note: ''
+    - key: edit-code
+      title: Edit code
+      status: planned
+      note: ''
+    - key: verify
+      title: Verify
+      status: planned
+      note: ''
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: planned
+      note: ''
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: planned
+      note: ''
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: planned
+      note: ''
+    final_steps: []
+  - key: task-closing
+    kind: closing
+    title: Close support resource task
+    goal: Reconcile tests and documentation, capture remaining follow-up work, and leave the durable task
+      state complete.
+    status: planned
+    note: ''
+    repos:
+    - dotfiles
+    depends_on:
+    - library-integration
+    repo_work: {}
+    steps:
+    - key: update-test-plan
+      title: Update the test plan
+      status: planned
+      note: ''
+    - key: update-docs
+      title: Update documentation
+      status: planned
+      note: ''
+    - key: capture-metrics
+      title: Capture metrics to watch
+      status: planned
+      note: ''
+    - key: update-task-file
+      title: Update this task file
+      status: planned
+      note: ''
+    final_steps: []
