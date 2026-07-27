@@ -85,6 +85,8 @@ Read them before writing the first line, not after debugging.
 
 ### Testing a prototype
 
+- Reusable tests for individual prototypes live under `prototype.tests/<prototype-name>/tests`.
+  Check that directory before creating scratch tests or assuming no harness exists.
 - Drive the real page in Chromium with Playwright before calling it done.
   Check for page errors, failed requests, and `document.documentElement.scrollWidth - clientWidth` at 320, 390, 768 and 1360 px.
 - The sandbox proxy blocks Chromium from reaching CDNs.

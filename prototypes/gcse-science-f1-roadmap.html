@@ -70,7 +70,7 @@
       }
 
       /* track map */
-      .viewport { position: relative; overflow: auto; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-4); background: var(--muted-bg); max-height: min(68vh, 40rem); }
+      .viewport { position: relative; overflow: auto; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-4); background: var(--muted-bg); }
       .zoom-wrap { position: relative; }
       .canvas { position: absolute; inset: 0 auto auto 0; transform-origin: 0 0; }
       .canvas svg { position: absolute; inset: 0 auto auto 0; pointer-events: none; }
@@ -100,8 +100,10 @@
       .node .n-title { font-size: var(--font-size-0); font-weight: var(--font-weight-6); line-height: var(--font-lineheight-1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       .node .n-meta { display: flex; align-items: center; gap: var(--size-1); font-size: var(--font-size-00); color: var(--text-muted); letter-spacing: var(--font-letterspacing-2); text-transform: uppercase; }
       .dot { inline-size: var(--size-2); block-size: var(--size-2); border-radius: var(--radius-round); background: var(--s); flex: none; }
-      .node.locked { border-style: dashed; opacity: 0.62; }
-      .node.dim { opacity: 0.15; }
+      .node.locked { border-style: dashed; opacity: 0.72; }
+      .node.dim, .node.unrelated { opacity: 0.12; }
+      .node.upstream { box-shadow: 0 0 0 var(--chain-outline-width) var(--upstream), var(--shadow-2); }
+      .node.downstream { box-shadow: 0 0 0 var(--chain-outline-width) var(--downstream), var(--shadow-2); }
       .node.selected { box-shadow: 0 0 0 3px var(--accent), var(--shadow-3); }
       .node .tint { position: absolute; inset: 0; background: var(--s); opacity: 0.1; pointer-events: none; }
 
@@ -128,6 +130,11 @@
       .lcard .l-top { display: flex; align-items: center; gap: var(--size-2); font-size: var(--font-size-00); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); color: var(--text-muted); }
       .lcard .l-title { font-family: var(--font-display); font-size: var(--font-size-1); font-weight: var(--font-weight-7); line-height: var(--font-lineheight-1); }
       .lcard .l-f1 { font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-3); }
+      .readiness { display: flex; gap: var(--size-2); align-items: center; flex-wrap: wrap; font-size: var(--font-size-0); color: var(--text-muted); }
+      .readiness strong { color: var(--text); }
+      .frontier { display: grid; gap: var(--size-3); margin-block-end: var(--size-6); padding: var(--size-4); }
+      .frontier h2, .frontier p { margin: 0; }
+      .frontier-list { display: flex; flex-wrap: wrap; gap: var(--size-2); }
       .lcard.locked { opacity: 0.65; border-style: dashed; }
       .lcard.selected { box-shadow: 0 0 0 3px var(--accent); }
 
@@ -223,6 +230,13 @@
       .fact.is-f1 { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
       .fact.is-f1 h3 { color: var(--accent); }
       .links { display: flex; flex-wrap: wrap; gap: var(--size-1); }
+      .prereq-list, .learning-sequence { display: grid; gap: var(--size-2); margin: 0; padding: 0; list-style: none; }
+      .prereq-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--size-2); align-items: center; border-block-end: var(--border-size-1) solid var(--line); padding-block-end: var(--size-2); }
+      .prereq-item:last-child { border-block-end: 0; padding-block-end: 0; }
+      .prereq-item button { text-align: start; }
+      .learning-sequence { counter-reset: sequence; }
+      .learning-sequence li { counter-increment: sequence; display: grid; grid-template-columns: var(--size-5) minmax(0, 1fr); gap: var(--size-2); align-items: center; }
+      .learning-sequence li::before { content: counter(sequence); display: grid; place-items: center; inline-size: var(--size-5); block-size: var(--size-5); border-radius: var(--radius-round); background: var(--muted-bg); color: var(--text-muted); font-weight: var(--font-weight-7); }
       .caption { font-size: var(--font-size-00); letter-spacing: var(--font-letterspacing-4); text-transform: uppercase; color: var(--text-muted); font-weight: var(--font-weight-7); }
       .stamp, .foot { font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-3); }
       .foot { max-inline-size: 46rem; }
@@ -269,11 +283,11 @@
     "storage": { "progress": "gcse-science-f1-roadmap-v1", "mode": "gcse-science-f1-roadmap-mode", "schemaVersion": 1 },
     "media": { "wide": "(min-width: 60rem)", "dark": "(prefers-color-scheme: dark)" },
     "timing": { "libraryTimeoutMs": 6000, "resizeDebounceMs": 150, "revokeObjectUrlMs": 1000 },
-    "rules": { "unlockWeight": 0.67, "notesMaxLength": 4000, "masteredStatus": "race", "maxStatusPoints": 25 },
+    "rules": { "unlockWeight": 0.67, "notesMaxLength": 4000, "masteredStatus": "race", "newStatus": "new", "maxStatusPoints": 25 },
     "track": {
-      "nodeWidth": 170, "nodeHeight": 60, "columnGap": 76, "rowGap": 12,
-      "padInline": 100, "padBlock": 56, "laneGap": 28, "laneLabelInset": 12,
-      "edge": { "curve": 0.55, "minCurve": 38, "widthIdle": 1.4, "widthActive": 2.6, "opacityIdle": 0.35, "opacityActive": 0.95, "opacityHidden": 0.07 }
+      "nodeWidth": 184, "nodeHeight": 66, "columnGap": 104, "rowGap": 10,
+      "padInline": 108, "padBlock": 62, "laneGap": 34, "laneLabelInset": 12, "fitInset": 4,
+      "edge": { "curve": 0.52, "minCurve": 42, "sameStageOffset": 28, "widthIdle": 1.2, "widthActive": 3, "nodeOutlineWidth": "2px", "opacityIdle": 0.24, "opacityActive": 0.98, "opacityHidden": 0.04, "upstreamColor": "#7c3aed", "downstreamColor": "#0891b2" }
     },
     "zoom": { "min": 0.3, "max": 1.4, "fitMax": 1.2, "step": 0.1 },
     "modes": [
@@ -342,9 +356,21 @@
       "statusPrompt": "Where are you on this?",
       "statusButton": "{label} - {note}",
       "lockedBadge": "Prerequisites not ready",
+      "readyBadge": "Ready to start",
+      "blockedBadge": "Blocked",
+      "readinessSummary": "{ready} of {total} direct prerequisites met",
+      "noPrerequisites": "No prerequisites - ready to start.",
+      "directPrerequisitesLabel": "Direct prerequisites",
+      "prerequisiteMet": "Met",
+      "prerequisiteBlocking": "Still blocking",
+      "prerequisiteState": "{status} - {state}",
+      "doFirstLabel": "Do these first",
+      "doFirstClear": "Nothing is blocking this topic. Its full prerequisite chain is ready.",
+      "frontierTitle": "Ready next",
+      "frontierIntro": "Not started yet, with every prerequisite met. These are legitimate topics to begin today.",
+      "frontierEmpty": "Nothing new is ready yet. Open a blocked topic to see its learning sequence.",
       "stageBadge": "Stage {id}: {name}",
       "stageNumber": "Stage {id}",
-      "requiresLabel": "Needs first",
       "unlocksLabel": "Opens up",
       "scienceLabel": "Science behind it",
       "notesPrompt": "Your notes",
@@ -419,7 +445,7 @@
     {
       "id": "M1", "subject": "maths", "stage": 1, "driver": "piastri",
       "title": "Standard form and very big or small numbers",
-      "spec": "Write numbers in the form a x 10^n, compare orders of magnitude, and calculate with them.",
+      "spec": "Write numbers in the form a x 10^n where 1 <= a < 10, compare orders of magnitude, and calculate with them.",
       "requires": [],
       "f1": "An engine spins at 15000 rpm, telemetry samples every 1.6 x 10^-3 s, and a piston is machined to 1 x 10^-5 m. None of that fits on a calculator screen without standard form.",
       "diy": "The difference between a 3.5 mm and a 0.35 mm drill bit is one power of ten, and getting it wrong ruins the job.",
@@ -457,7 +483,7 @@
       "title": "Percentages and percentage change",
       "spec": "Calculate percentages, percentage increase and decrease, and reverse percentages.",
       "requires": ["M1"],
-      "f1": "A 2 percent downforce gain from a new front wing is worth roughly a tenth of a second per lap. Efficiency figures are all percentages too.",
+      "f1": "Engineers compare an aerodynamic update by its percentage change in downforce and drag. The lap-time effect depends on the circuit and the balance of the whole car.",
       "diy": "Order 15 percent extra tiles for cuts and breakages, and work out the real price after 20 percent off.",
       "check": "A lap time drops from 92.4 s to 91.5 s. What is the percentage decrease?"
     },
@@ -511,7 +537,7 @@
       "title": "Surface area to volume ratio",
       "spec": "Calculate surface area and volume and use the ratio to explain rates of heat or mass transfer.",
       "requires": ["M3"],
-      "f1": "Brake discs are drilled with hundreds of holes and radiators are packed with fins for exactly one reason: more surface area per unit volume means faster cooling.",
+      "f1": "Radiators use dense fins to increase the surface area transferring heat to the air. Brake-disc holes can also affect mass, airflow and gas escape, so their design has more than one purpose.",
       "diy": "A heatsink on an amplifier is thin fins rather than a solid block, for the same reason a thin chip cooks faster than a thick one.",
       "check": "Compare the surface area to volume ratio of a 2 cm cube and a 4 cm cube. Which loses heat faster?"
     },
@@ -530,7 +556,7 @@
       "title": "Forces, scalars and vectors",
       "spec": "Distinguish scalar and vector quantities, identify contact and non contact forces, and draw free body diagrams.",
       "requires": ["M2"],
-      "f1": "Four forces act on a car on a straight: thrust forwards, drag backwards, weight and downforce pressing down, and the track pushing up.",
+      "f1": "On a straight, tyre force acts forwards and drag backwards. Weight, aerodynamic downforce and the track's normal reaction act vertically, so a free-body diagram must keep all five distinct.",
       "diy": "Pushing a stuck bolt and pulling it are different vectors even if the size of the force is identical.",
       "check": "Draw a free body diagram of an F1 car at constant speed on a straight and name every force."
     },
@@ -584,7 +610,7 @@
       "title": "Energy stores, conservation and efficiency",
       "spec": "Describe energy stores and transfers, apply conservation of energy, and calculate efficiency.",
       "requires": ["M5"],
-      "f1": "Braking turns kinetic energy into thermal energy in the discs, which is pure waste. The MGU-K catches part of it and moves it into the battery instead.",
+      "f1": "Friction braking transfers kinetic energy into thermal energy that the car must dissipate. Regenerative braking transfers part of the kinetic energy into the battery instead.",
       "diy": "An LED bulb transfers most of its energy to light and a halogen mostly to heat. Same job, very different efficiency.",
       "check": "A system takes in 120 kJ and usefully transfers 78 kJ. Calculate the efficiency as a percentage."
     },
@@ -593,7 +619,7 @@
       "title": "Moments, levers and centre of mass",
       "spec": "Use moment = force x perpendicular distance, apply the principle of moments, and explain stability using centre of mass.",
       "requires": ["P1", "M4"],
-      "f1": "An F1 car is deliberately as low as regulations allow. A low centre of mass means less weight transfer in a corner, so the tyres stay evenly loaded.",
+      "f1": "Teams package heavy parts low because a lower centre of mass can reduce load transfer for a given track width and acceleration. Suspension geometry and roll stiffness also affect how tyre loads change.",
       "diy": "A long spanner undoes a tight bolt because the moment grows with distance. A wheelbarrow is a lever that lets you shift a load you could never lift.",
       "check": "A force of 250 N acts 0.4 m from a pivot. Calculate the moment, then find the force needed at 0.8 m for the same effect."
     },
@@ -607,7 +633,7 @@
       "check": "A car weighs 7500 N and each of four contact patches is 0.03 m^2. Find the average pressure on the track."
     },
     {
-      "id": "P10", "subject": "physics", "stage": 3, "driver": "russell",
+      "id": "P10", "subject": "physics", "stage": 2, "driver": "russell",
       "title": "Current, potential difference and resistance",
       "spec": "Use I = Q / t and V = IR, describe the I against V characteristics of components, and use circuit symbols.",
       "requires": ["M3"],
@@ -634,7 +660,7 @@
       "check": "Explain how the same device can act as both a motor and a generator, naming the effect used in each case."
     },
     {
-      "id": "P13", "subject": "physics", "stage": 3, "driver": "norris",
+      "id": "P13", "subject": "physics", "stage": 2, "driver": "norris",
       "title": "Waves and sound",
       "spec": "Use v = f x wavelength, distinguish transverse and longitudinal waves, and describe reflection and absorption.",
       "requires": ["P2"],
@@ -652,13 +678,13 @@
       "check": "Find the energy needed to raise 2.5 kg of water by 40 degrees C, given c = 4200 J/kg/degree C."
     },
     {
-      "id": "P15", "subject": "physics", "stage": 4, "driver": "russell",
-      "title": "Radioactivity and materials testing",
+      "id": "P15", "subject": "physics", "stage": 3, "driver": "russell",
+      "title": "Ionising radiation and penetration",
       "spec": "Describe alpha, beta and gamma radiation, half life, and uses and hazards of ionising radiation.",
       "requires": ["C1"],
-      "f1": "Carbon fibre parts are X-ray and CT scanned after a crash. A crack invisible from the outside shows up clearly because the radiation passes through the material differently.",
+      "f1": "Carbon fibre parts can be X-ray or CT scanned after damage. X-rays are electromagnetic radiation rather than alpha, beta or gamma emissions, but attenuation through matter uses the same penetration idea.",
       "diy": "The smoke alarm in the hallway and a dental X-ray at the dentist both rely on the same understanding of radiation.",
-      "check": "Rank alpha, beta and gamma by penetrating power and say which is most useful for scanning a thick composite part."
+      "check": "Rank alpha, beta and gamma by penetrating power, then explain why an external gamma source needs thick shielding."
     },
 
     {
@@ -668,14 +694,14 @@
       "requires": [],
       "f1": "Aluminium is light and tungsten is dense because of what is inside their atoms. Ballast is tungsten precisely because you can put a lot of mass in a very small block.",
       "diy": "Reading a metal spec sheet only makes sense once you know why one metal behaves differently from another.",
-      "check": "Give the electron arrangement of aluminium and explain why it sits in group 3."
+      "check": "Give the electron arrangement of aluminium and explain why UK GCSE specifications place it in Group 3, also called Group 13 in IUPAC numbering."
     },
     {
       "id": "C2", "subject": "chemistry", "stage": 2, "driver": "sainz",
       "title": "Bonding: ionic, covalent and metallic",
       "spec": "Describe ionic, covalent and metallic bonding and link each to the properties it produces.",
       "requires": ["C1"],
-      "f1": "Metallic bonding lets layers of atoms slide, so an aluminium upright bends before it snaps. Covalent chains in a carbon fibre give stiffness instead.",
+      "f1": "Metallic bonding helps explain why aluminium alloys can be shaped and conduct heat. Carbon fibres contain strongly bonded graphitic carbon structures, while fibre direction and the polymer matrix determine the composite's stiffness.",
       "diy": "Glue, solder and a weld hold things together in three different ways, and choosing wrong is how a repair fails.",
       "check": "Explain, using bonding, why metals conduct electricity and are malleable."
     },
@@ -693,7 +719,7 @@
       "title": "Moles and conservation of mass",
       "spec": "Use relative formula mass, the mole, and balanced equations to calculate reacting masses.",
       "requires": ["C1", "M4"],
-      "f1": "Fuel flow is capped by mass, not volume, and it is measured on the car. Every kilogram burned leaves as exhaust products of exactly the same total mass.",
+      "f1": "Fuel flow is measured by mass. Conservation of mass applies to the fuel plus oxygen entering the engine and all products leaving it, so exhaust mass is greater than fuel mass alone.",
       "diy": "Two part epoxy needs exact quantities. Too much hardener does not set faster, it sets weaker.",
       "check": "Balance the combustion of octane and explain why the total mass does not change."
     },
@@ -761,7 +787,7 @@
       "check": "Explain using particle diagrams why an alloy is harder than the pure metal, and name two ways to stop rusting."
     },
     {
-      "id": "C12", "subject": "chemistry", "stage": 4, "driver": "sainz",
+      "id": "C12", "subject": "chemistry", "stage": 3, "driver": "sainz",
       "title": "Chemical analysis and chromatography",
       "spec": "Distinguish pure substances from mixtures, use Rf values, and describe tests for common gases and ions.",
       "requires": ["C9"],
@@ -793,7 +819,7 @@
       "title": "Enzymes",
       "spec": "Describe enzymes as biological catalysts, the lock and key model, and the effect of temperature and pH.",
       "requires": ["B1"],
-      "f1": "Enzymes control the reactions that release energy in a driver's muscles. If core temperature climbs too far in a hot cockpit they start to denature and performance falls off.",
+      "f1": "Enzymes control the reactions that release energy in a driver's muscles. Heat strain reduces concentration and physical performance well before body proteins would denature.",
       "diy": "Biological washing powder uses enzymes, which is why it works at 40 degrees and not at boiling.",
       "check": "Sketch a graph of enzyme activity against temperature and explain the shape either side of the optimum."
     },
@@ -802,7 +828,7 @@
       "title": "Respiration, aerobic and anaerobic",
       "spec": "Compare aerobic and anaerobic respiration, write the equations, and describe the role of respiration in the body.",
       "requires": ["B2", "C9"],
-      "f1": "A driver burns well over a thousand kilocalories in a race. When the neck muscles cannot get oxygen fast enough they respire anaerobically and lactic acid builds up.",
+      "f1": "Sustained steering and neck loads demand aerobic respiration. During intense effort, muscle cells also respire anaerobically and produce lactate, releasing less energy per glucose molecule.",
       "diy": "Carrying bricks up a ladder leaves you breathing hard afterwards. That is the oxygen debt being repaid.",
       "check": "Write the equations for aerobic and anaerobic respiration in muscle and compare the energy released."
     },
@@ -838,12 +864,12 @@
       "title": "Nervous system and reaction time",
       "spec": "Describe the structure of the nervous system, the reflex arc, and factors affecting reaction time.",
       "requires": ["B1"],
-      "f1": "At the start the lights go out and a good reaction is around 0.2 s. Anything under 0.1 s is judged a jump start, because that is faster than a human nervous system can respond.",
+      "f1": "At the start, the driver must detect the lights going out and convert a nerve signal into pedal and hand movement. FIA start infringements are judged from movement before the signal, not a universal 0.1-second reaction cutoff.",
       "diy": "Snatching your hand back from a hot soldering iron happens before you consciously decide to. That is a reflex arc.",
       "check": "Name the parts of a reflex arc in order and explain why a reflex is faster than a conscious response."
     },
     {
-      "id": "B8", "subject": "biology", "stage": 4, "driver": "antonelli",
+      "id": "B8", "subject": "biology", "stage": 3, "driver": "antonelli",
       "title": "Hormones and adrenaline",
       "spec": "Describe the endocrine system, compare nervous and hormonal control, and explain the role of adrenaline.",
       "requires": ["B7", "B4"],
@@ -866,7 +892,7 @@
       "spec": "Describe the effect of exercise on the body, explain oxygen debt, and describe how the body recovers.",
       "requires": ["B3"],
       "f1": "Drivers train their necks specifically, because holding a helmet against 5g in a fast corner loads muscles that nothing else in daily life touches.",
-      "diy": "Aching arms the day after sanding a floor is the same muscle response on a smaller scale.",
+      "diy": "After carrying blocks upstairs, breathing and heart rate stay raised while oxygen supports lactate removal and restores normal conditions.",
       "check": "Explain what oxygen debt is and describe what happens in the body while it is repaid."
     },
     {
@@ -893,8 +919,620 @@
       "spec": "Describe risk factors for non communicable disease and the effects of exercise and diet on health.",
       "requires": ["B10", "B9"],
       "f1": "Driver fitness programmes are built around cardiovascular endurance, neck and core strength, and recovery between back to back race weekends.",
-      "diy": "Lifting with your legs rather than your back is the cheapest injury prevention there is.",
+      "diy": "Regular activity, not smoking and a balanced diet reduce long-term cardiovascular risk during years of workshop projects.",
       "check": "Give three lifestyle risk factors for cardiovascular disease and explain how exercise reduces each."
+    },
+    {
+      "id": "M13", "subject": "maths", "stage": 1, "driver": "piastri",
+      "title": "Significant figures and sensible precision",
+      "spec": "Round results to an appropriate number of significant figures and avoid claiming more precision than the measurements support.",
+      "requires": [],
+      "f1": "A lap time may be recorded to a thousandth of a second, while tyre temperature or wind speed is less precise. Engineers report each result only as precisely as its sensors justify.",
+      "diy": "A tape measure marked in millimetres cannot support a cut quoted to the nearest micrometre.",
+      "check": "A measured speed is calculated as 27.638419 m/s from data recorded to three significant figures. State the speed to a sensible precision."
+    },
+    {
+      "id": "M14", "subject": "maths", "stage": 1, "driver": "verstappen",
+      "title": "Substitution and solving equations",
+      "spec": "Substitute values with units into formulae and solve simple one-step and two-step equations.",
+      "requires": ["M2"],
+      "f1": "A simulator model becomes useful only when measured mass, speed and force are substituted with matching units.",
+      "diy": "Putting room dimensions into an area formula is substitution; finding the missing width from a known area is solving an equation.",
+      "check": "Use E = 0.5mv^2 to calculate the kinetic energy of a 2.0 kg object moving at 3.0 m/s."
+    },
+    {
+      "id": "M15", "subject": "maths", "stage": 2, "driver": "norris",
+      "title": "Sampling, scatter graphs and correlation",
+      "spec": "Choose representative samples, plot scatter graphs, describe correlation and distinguish correlation from causation.",
+      "requires": ["M10"],
+      "f1": "A tyre engineer compares many laps of surface temperature and degradation. A correlation can suggest a link, but traffic, fuel load and driving style may be confounding variables.",
+      "diy": "Testing one damp patch does not describe a whole wall; readings from a planned grid make a representative sample.",
+      "check": "A scatter graph shows higher tyre temperature alongside faster wear. Explain why this does not by itself prove that temperature caused the wear."
+    },
+    {
+      "id": "M16", "subject": "maths", "stage": 1, "driver": "piastri",
+      "title": "Tables, axes and data displays",
+      "spec": "Construct tables and graphs with headings, units, sensible scales and correctly identified independent and dependent variables.",
+      "requires": ["M13"],
+      "f1": "Telemetry channels are graphs with labelled axes and units. An unlabeled trace cannot tell an engineer whether it shows speed, pressure or temperature.",
+      "diy": "Recording drill speed against hole diameter in a table makes a repeatable setup guide instead of a guess.",
+      "check": "For an experiment changing spring load and measuring extension, name each variable and give suitable graph axes with units."
+    },
+    {
+      "id": "M17", "subject": "maths", "stage": 2, "driver": "leclerc",
+      "title": "Areas, volumes and circles",
+      "spec": "Calculate areas and volumes of common shapes, including circles, cylinders and cuboids.",
+      "requires": ["M14"],
+      "f1": "Piston area, cylinder volume and brake-disc area all turn measured lengths into engineering quantities.",
+      "diy": "Paint coverage needs wall area, concrete needs volume and a circular cutout needs pi r squared.",
+      "check": "Calculate the cross-sectional area of a circular piston with radius 40 mm, giving the answer in square metres."
+    },
+    {
+      "id": "M18", "subject": "maths", "stage": 2, "driver": "norris",
+      "title": "Rates and compound units",
+      "spec": "Calculate and compare rates using compound units such as m/s, kg/m^3, N/m^2 and mol/dm^3.",
+      "requires": ["M2", "M14"],
+      "f1": "Fuel flow, speed, heat transfer and tyre-pressure change are rates, each with a numerator, denominator and unit that describes what changes.",
+      "diy": "Paint coverage in square metres per litre and drill speed in revolutions per minute are compound units used as practical rates.",
+      "check": "A pump moves 18 litres in 45 seconds. Calculate its flow rate in litres per second."
+    },
+    {
+      "id": "M19", "subject": "maths", "stage": 3, "driver": "verstappen",
+      "title": "Direct and inverse relationships",
+      "spec": "Recognise, graph and calculate with direct, inverse and inverse-square relationships.",
+      "requires": ["M4", "M6"],
+      "f1": "At a fixed speed aerodynamic force is proportional to air density, while many field and radiation intensities fall with the square of distance.",
+      "diy": "For a fixed job, doubling the number of equally productive workers can halve the time, an inverse relationship under ideal conditions.",
+      "check": "Radiation intensity is 80 units at 1 m and follows an inverse-square law. What is the intensity at 2 m?"
+    },
+    {
+      "id": "M20", "subject": "maths", "stage": 2, "driver": "russell",
+      "title": "Experimental uncertainty and repeatability",
+      "spec": "Use ranges and half-ranges as uncertainty estimates, compare repeatability and reproducibility, and identify random and systematic error.",
+      "requires": ["M10", "M13"],
+      "f1": "Teams repeat correlation runs because sensor noise causes random scatter, while a miscalibrated pressure sensor creates a systematic offset on every lap.",
+      "diy": "A tape with a worn end gives the same wrong answer repeatedly, while shaky marking produces measurements scattered around the true value.",
+      "check": "Three extension readings are 24, 26 and 25 mm. Give the mean and half-range uncertainty, then name the error type caused by a zeroed-wrong ruler."
+    },
+    {
+      "id": "P16", "subject": "physics", "stage": 1, "driver": "hamilton",
+      "title": "Particle model and changes of state",
+      "spec": "Use the particle model to describe solids, liquids and gases, changes of state and conservation of mass.",
+      "requires": [],
+      "f1": "Coolant changes density as it heats, while water in wet tyres can change state. Particle spacing and motion explain both without particles themselves expanding.",
+      "diy": "Wax melts and sets without becoming a new substance, while solvent evaporates from paint as particles escape the liquid.",
+      "check": "Describe how particle arrangement and motion change when a solid melts, and explain why mass is conserved."
+    },
+    {
+      "id": "P17", "subject": "physics", "stage": 1, "driver": "sainz",
+      "title": "Measuring density",
+      "spec": "Use density = mass / volume and determine density for regular solids, irregular solids and liquids.",
+      "requires": ["M2", "P16"],
+      "f1": "A tungsten ballast block is far smaller than an aluminium block of the same mass because tungsten has much greater density.",
+      "diy": "Water displacement measures the volume of an irregular metal fitting that cannot be measured with a ruler.",
+      "check": "A component has mass 540 g and displaces 200 cm^3 of water. Calculate its density in g/cm^3."
+    },
+    {
+      "id": "P18", "subject": "physics", "stage": 2, "driver": "verstappen",
+      "title": "Gas pressure and temperature",
+      "spec": "Explain gas pressure using particle collisions and relate pressure, volume and absolute temperature for a fixed mass of gas.",
+      "requires": ["P16", "M4"],
+      "f1": "Tyre pressure rises as the gas warms because faster particles collide harder and more often with the tyre walls; tyre volume also changes slightly under load.",
+      "diy": "A sealed aerosol can must not be heated because its gas pressure rises with absolute temperature.",
+      "check": "A fixed mass of gas is compressed to half its volume at constant temperature. State what happens to its pressure and explain why."
+    },
+    {
+      "id": "P19", "subject": "physics", "stage": 2, "driver": "leclerc",
+      "title": "Springs, Hooke's law and elastic energy",
+      "spec": "Use F = kx, identify the limit of proportionality and calculate elastic potential energy.",
+      "requires": ["P1", "M14"],
+      "f1": "Suspension springs resist wheel movement. Their force-extension curve is linear only while they remain within the proportional region.",
+      "diy": "A spring balance works because extension is proportional to load until the spring is permanently stretched.",
+      "check": "A spring with stiffness 32000 N/m compresses by 0.025 m. Calculate the force and the elastic energy stored."
+    },
+    {
+      "id": "P20", "subject": "physics", "stage": 2, "driver": "russell",
+      "title": "Static electricity and electric fields",
+      "spec": "Explain charging by electron transfer, attraction and repulsion, sparks and electric-field direction.",
+      "requires": ["C1"],
+      "f1": "Airflow and dry conditions can build static charge on equipment. Fuel-handling systems use bonding and earthing so a spark cannot ignite vapour.",
+      "diy": "A rubbed plastic sheet attracts dust because transferred electrons leave it charged and create an electric field.",
+      "check": "Explain how rubbing an insulator can charge it negatively and why earthing removes the charge."
+    },
+    {
+      "id": "P21", "subject": "physics", "stage": 2, "driver": "russell",
+      "title": "Mains electricity and safety",
+      "spec": "Describe alternating mains supply, live, neutral and earth wires, fuses, circuit breakers and electrical power.",
+      "requires": ["P10"],
+      "f1": "Garage equipment is supplied from protected mains circuits, while the car's high-voltage system follows separate isolation procedures marked for marshals and mechanics.",
+      "diy": "A metal-cased drill needs an earth path or double insulation so a fault does not make the case live.",
+      "check": "State the purpose of the live, neutral and earth wires and explain how a fuse protects a cable."
+    },
+    {
+      "id": "P22", "subject": "physics", "stage": 2, "driver": "norris",
+      "title": "The electromagnetic spectrum",
+      "spec": "Order electromagnetic waves, compare their common speed in a vacuum, and describe uses and hazards across the spectrum.",
+      "requires": ["P13"],
+      "f1": "Team radio uses radio waves, thermal cameras detect infrared, visible cameras inspect the car and X-rays can examine hidden composite damage.",
+      "diy": "Wi-Fi, a TV remote, visible work lights and a medical X-ray use different parts of one spectrum.",
+      "check": "Place radio, microwave, infrared, visible, ultraviolet, X-ray and gamma radiation in order of increasing frequency."
+    },
+    {
+      "id": "P23", "subject": "physics", "stage": 2, "driver": "leclerc",
+      "title": "Reflection and refraction of light",
+      "spec": "Draw ray diagrams for reflection and refraction, measure angles from the normal and explain changes of speed at a boundary.",
+      "requires": ["P13"],
+      "f1": "Helmet visors and camera covers use transparent layers whose shape and refractive index must avoid distorting braking-point markers.",
+      "diy": "A tile seen through water appears displaced because light changes speed and direction at the boundary.",
+      "check": "A ray meets a mirror at 35 degrees to the normal. Give the reflection angle and sketch the incident, normal and reflected rays."
+    },
+    {
+      "id": "P24", "subject": "physics", "stage": 3, "driver": "leclerc",
+      "title": "Lenses, colour and total internal reflection",
+      "spec": "Use converging-lens ray diagrams, explain real and virtual images, colour filters and total internal reflection.",
+      "requires": ["P23"],
+      "f1": "On-board cameras use converging lenses, and fibre-optic links carry signals by total internal reflection in test and broadcast equipment.",
+      "diy": "A magnifying glass forms a virtual enlarged image close up and can focus sunlight to a real bright spot farther away.",
+      "check": "Draw principal rays for an object beyond twice the focal length of a converging lens and describe the image."
+    },
+    {
+      "id": "P25", "subject": "physics", "stage": 4, "driver": "hamilton",
+      "title": "Energy resources and the National Grid",
+      "spec": "Compare renewable and non-renewable energy resources and explain how transformers reduce transmission losses.",
+      "requires": ["P7", "P11"],
+      "f1": "Race facilities need reliable electricity for garages, timing and broadcasting. Organisers can compare grid supply, temporary generation and renewable sources by reliability and emissions.",
+      "diy": "Choosing rooftop solar plus grid backup involves the same trade between intermittency, cost and environmental effect.",
+      "check": "Explain why transmitting a fixed power at high voltage reduces energy loss in power cables."
+    },
+    {
+      "id": "P26", "subject": "physics", "stage": 2, "driver": "leclerc",
+      "title": "Orbits and the Solar System",
+      "spec": "Describe the Solar System, distinguish planets, moons and satellites, and explain circular orbits using gravity.",
+      "requires": ["P1", "M4"],
+      "f1": "Timing, mapping and team logistics depend on artificial satellites kept in orbit by gravity acting as the centripetal force.",
+      "diy": "A satellite-navigation receiver on a road trip calculates position from signals sent by orbiting clocks.",
+      "check": "Explain why a satellite in a circular orbit is accelerating even when its speed is constant."
+    },
+    {
+      "id": "P27", "subject": "physics", "stage": 3, "driver": "alonso",
+      "title": "Stars and stellar life cycles",
+      "spec": "Explain how stars form, produce energy by fusion and evolve according to their initial mass.",
+      "requires": ["P26", "P6"],
+      "f1": "The carbon, aluminium and iron in a racing car were formed through stellar processes before the Solar System existed.",
+      "diy": "Every steel tool contains iron whose atoms ultimately came from earlier generations of stars.",
+      "check": "Describe the life cycle of a star with a mass similar to the Sun from nebula to its final state."
+    },
+    {
+      "id": "P28", "subject": "physics", "stage": 4, "driver": "alonso",
+      "title": "Red-shift and the Big Bang",
+      "spec": "Describe red-shift as evidence for an expanding universe and relate cosmic microwave background radiation to the Big Bang model.",
+      "requires": ["P22", "P27"],
+      "f1": "Spectrometers used in laboratories and materials analysis rely on the same measurement of wavelength that astronomers use to detect shifted spectral lines.",
+      "diy": "A workshop spectroscope separates lamp light into wavelengths; astronomers compare similar line patterns from distant galaxies.",
+      "check": "Explain how red-shift measurements support the conclusion that distant galaxies are receding."
+    },
+    {
+      "id": "P29", "subject": "physics", "stage": 4, "driver": "hamilton",
+      "title": "Nuclear fission and fusion",
+      "spec": "Compare nuclear fission and fusion, describe chain reactions and explain why fusion requires extreme temperature and pressure.",
+      "requires": ["P30"],
+      "f1": "Fission contributes to some national electricity grids that power factories and race facilities; fusion is the process powering the Sun, not an F1 power unit.",
+      "diy": "A home electricity bill does not identify each generator, but part of grid electricity may come from controlled fission reactors.",
+      "check": "State two differences between fission and fusion and explain the role of neutrons in a fission chain reaction."
+    },
+    {
+      "id": "P30", "subject": "physics", "stage": 3, "driver": "russell",
+      "title": "Half-life, contamination and nuclear medicine",
+      "spec": "Use half-life data, distinguish irradiation from contamination, and evaluate medical uses of radioactive sources.",
+      "requires": ["P15", "M19"],
+      "f1": "Motorsport medical centres use the same diagnostic medicine as other hospitals, where short-lived tracers balance useful detection against radiation dose.",
+      "diy": "A smoke alarm contains a sealed source: the casing prevents contamination while the emitted radiation ionises air inside the detector.",
+      "check": "A sample starts at 800 counts per minute and has a half-life of 6 hours. What count rate remains after 18 hours, ignoring background?"
+    },
+    {
+      "id": "P31", "subject": "physics", "stage": 3, "driver": "norris",
+      "title": "Stopping distance and braking",
+      "spec": "Distinguish thinking and braking distance and explain how speed, reaction time, road conditions and braking force affect stopping distance.",
+      "requires": ["P3", "P7"],
+      "f1": "Braking markers account for speed, tyre grip, brake temperature, fuel load and surface conditions; higher speed brings much more kinetic energy to dissipate.",
+      "diy": "A loaded van on a wet road needs more distance to stop than an empty one on dry tarmac.",
+      "check": "Explain why doubling speed more than doubles total stopping distance even if reaction time is unchanged."
+    },
+    {
+      "id": "P32", "subject": "physics", "stage": 3, "driver": "verstappen",
+      "title": "Drag and terminal velocity",
+      "spec": "Explain drag in fluids, changing acceleration and terminal velocity using resultant forces.",
+      "requires": ["P4", "P9"],
+      "f1": "Aerodynamic drag rises strongly with speed. On a long straight, acceleration falls as drag grows toward the available driving force.",
+      "diy": "A sheet of paper falls more slowly flat than crumpled because its drag is larger relative to its weight.",
+      "check": "Describe the changes in weight, drag, resultant force and acceleration as a falling object reaches terminal velocity."
+    },
+    {
+      "id": "P33", "subject": "physics", "stage": 4, "driver": "russell",
+      "title": "Transformers and electromagnetic induction",
+      "spec": "Explain induction, use transformer turns and power relationships, and describe generators and microphones.",
+      "requires": ["P12", "P11"],
+      "f1": "Generators recover or produce electrical energy through changing magnetic flux, while transformer principles underpin efficient power distribution around a circuit facility.",
+      "diy": "A mains adapter uses a transformer and electronics to provide a safer low voltage for a tool or charger.",
+      "check": "A transformer has 1200 primary turns and 100 secondary turns with 240 V on the primary. Calculate the secondary voltage."
+    },
+    {
+      "id": "P34", "subject": "physics", "stage": 3, "driver": "sainz",
+      "title": "Infrared radiation and thermal surfaces",
+      "spec": "Compare infrared emission and absorption by different surfaces and interpret thermal-radiation practical data.",
+      "requires": ["P14", "P22"],
+      "f1": "Thermal cameras reveal tyre and brake temperatures, while surface finish affects how components emit and absorb infrared radiation.",
+      "diy": "A dull black radiator surface emits infrared more effectively than a shiny metal surface at the same temperature.",
+      "check": "Four identical hot cans have different surface finishes. Predict which cools fastest and state the variables that must be controlled."
+    },
+    {
+      "id": "P35", "subject": "physics", "stage": 1, "driver": "leclerc",
+      "title": "Planning physics practicals",
+      "spec": "Identify variables, choose suitable instruments, repeat measurements, assess uncertainty and evaluate a physical method.",
+      "requires": ["M13", "M16"],
+      "f1": "A correlation test changes one setup item, measures several repeated laps and controls fuel, tyres and conditions as far as possible.",
+      "diy": "Testing insulation fairly means equal containers, equal starting temperatures, fixed times and repeated readings.",
+      "check": "Plan how to compare two insulating materials, naming the independent, dependent and three control variables."
+    },
+    {
+      "id": "C14", "subject": "chemistry", "stage": 1, "driver": "sainz",
+      "title": "Particles, mixtures and separation",
+      "spec": "Distinguish elements, compounds and mixtures and explain filtration, crystallisation, distillation and chromatography.",
+      "requires": ["P16"],
+      "f1": "Fuel, coolant and lubricants are mixtures whose composition matters. Distillation and chromatography separate components by physical properties.",
+      "diy": "Filtering paint removes solid debris, while distilling a liquid would separate substances with different boiling points.",
+      "check": "Choose a method to obtain pure water from salt solution and explain each stage."
+    },
+    {
+      "id": "C15", "subject": "chemistry", "stage": 2, "driver": "verstappen",
+      "title": "Periodic groups and trends",
+      "spec": "Explain trends in Groups 1, 7 and 0 using electron structure and predict properties from periodic position.",
+      "requires": ["C1"],
+      "f1": "Argon, a Group 0 gas, provides an inert atmosphere in some welding processes used to make precise metal components.",
+      "diy": "A TIG welder uses inert shielding gas so hot metal does not react with oxygen and nitrogen in the air.",
+      "check": "Explain why Group 1 metals become more reactive down the group and Group 7 elements become less reactive."
+    },
+    {
+      "id": "C16", "subject": "chemistry", "stage": 2, "driver": "sainz",
+      "title": "Acids, bases and making salts",
+      "spec": "Use the pH scale, describe neutralisation and prepare named salts from acids, bases, carbonates and metals.",
+      "requires": ["C1", "C14"],
+      "f1": "Coolant and cleaning fluids are monitored for pH because acidic or alkaline contamination can attack metals, seals and coatings.",
+      "diy": "Limescale remover is acidic and reacts with carbonate deposits, so gloves and material compatibility matter.",
+      "check": "Write a balanced symbol equation for hydrochloric acid reacting with magnesium oxide and name the salt formed."
+    },
+    {
+      "id": "C17", "subject": "chemistry", "stage": 3, "driver": "piastri",
+      "title": "Titration and solution concentration",
+      "spec": "Carry out an acid-alkali titration and calculate concentration in g/dm^3 and mol/dm^3.",
+      "requires": ["C16", "C27", "M20"],
+      "f1": "Laboratory quality control measures fluid composition precisely; titration is a standard way to determine an unknown concentration rather than judge it by colour alone.",
+      "diy": "A pool-water test estimates chemical concentration, while a titration gives a quantitative result from a measured reacting volume.",
+      "check": "25.0 cm^3 of alkali is neutralised by 20.0 cm^3 of 0.100 mol/dm^3 acid in a 1:1 reaction. Calculate the alkali concentration."
+    },
+    {
+      "id": "C18", "subject": "chemistry", "stage": 2, "driver": "sainz",
+      "title": "Reactivity, extraction and redox",
+      "spec": "Use the reactivity series to predict displacement, extraction and oxidation-reduction reactions.",
+      "requires": ["C2", "C15"],
+      "f1": "Aluminium extraction needs electrolysis because aluminium is more reactive than carbon, while less reactive metals can be recovered by chemical reduction.",
+      "diy": "A more reactive zinc coating protects steel by oxidising first, even if the coating is scratched.",
+      "check": "Explain why iron can be extracted using carbon but aluminium cannot, using the reactivity series."
+    },
+    {
+      "id": "C19", "subject": "chemistry", "stage": 4, "driver": "verstappen",
+      "title": "Reversible reactions and equilibrium",
+      "spec": "Describe dynamic equilibrium and predict the effects of concentration, pressure and temperature changes.",
+      "requires": ["C5", "C6", "C27"],
+      "f1": "Industrial chemical suppliers choose temperature, pressure and catalysts by balancing equilibrium yield, reaction rate, energy use and cost.",
+      "diy": "A sealed fizzy drink reaches an equilibrium between dissolved and gaseous carbon dioxide; opening it lowers pressure and shifts the balance.",
+      "check": "For an exothermic gas reaction making fewer product molecules, predict how higher pressure and higher temperature affect equilibrium yield."
+    },
+    {
+      "id": "C20", "subject": "chemistry", "stage": 3, "driver": "piastri",
+      "title": "Alkenes, cracking and addition reactions",
+      "spec": "Describe cracking, test for alkenes and write addition reactions that form polymers or other products.",
+      "requires": ["C9", "C2"],
+      "f1": "Cracking turns larger hydrocarbon molecules into useful smaller fuels and reactive alkenes used as chemical feedstocks for polymers.",
+      "diy": "Many plastic storage boxes and cable insulators begin as alkene monomers joined into long chains.",
+      "check": "State the products of cracking a long-chain alkane and describe the bromine-water test for an alkene."
+    },
+    {
+      "id": "C21", "subject": "chemistry", "stage": 4, "driver": "hamilton",
+      "title": "Alcohols, carboxylic acids and esters",
+      "spec": "Describe reactions and uses of alcohols and carboxylic acids, fermentation, oxidation and ester formation.",
+      "requires": ["C20", "C16"],
+      "f1": "Ethanol and ester chemistry appears in solvents, cleaners and material manufacture around engineering facilities, even when those chemicals are not racing fuels.",
+      "diy": "Alcohol solvents clean some residues, while esters contribute characteristic smells in paints and adhesives.",
+      "check": "Name the products when ethanol is oxidised and when ethanol reacts with ethanoic acid."
+    },
+    {
+      "id": "C22", "subject": "chemistry", "stage": 3, "driver": "russell",
+      "title": "Identifying ions and gases",
+      "spec": "Use flame tests, precipitate tests and tests for carbonate, halide, sulfate and common gases to identify substances.",
+      "requires": ["C12", "C16"],
+      "f1": "Laboratories identify contamination in fluids by calibrated instrumental methods, built on the same idea that substances produce characteristic signals.",
+      "diy": "A water-hardness kit detects dissolved ions through a controlled colour change rather than taste or appearance.",
+      "check": "Describe tests and positive results for chloride ions, sulfate ions and carbon dioxide gas."
+    },
+    {
+      "id": "C23", "subject": "chemistry", "stage": 2, "driver": "sainz",
+      "title": "Potable water and wastewater treatment",
+      "spec": "Explain how potable water is produced from fresh or salt water and outline sewage and wastewater treatment.",
+      "requires": ["C14", "C16"],
+      "f1": "Temporary race facilities need safe drinking water and managed wastewater for thousands of people, a logistics problem governed by the same treatment stages as any town.",
+      "diy": "A filter can remove particles from collected rainwater, but making it safe to drink also requires treatment for dissolved substances and microbes.",
+      "check": "Compare the steps used to make potable water from freshwater and seawater, including one disadvantage of desalination."
+    },
+    {
+      "id": "C24", "subject": "chemistry", "stage": 2, "driver": "hamilton",
+      "title": "Life-cycle assessment and recycling",
+      "spec": "Evaluate environmental impacts across raw materials, manufacture, use and disposal, including reuse and recycling.",
+      "requires": ["C2", "M5"],
+      "f1": "A lighter component may cut energy use in service but require energy-intensive manufacture, so teams and suppliers need a whole-life comparison rather than one headline figure.",
+      "diy": "A durable repair can have a lower life-cycle impact than repeatedly replacing a cheap part, even if it uses more material initially.",
+      "check": "Give four stages of a life-cycle assessment and explain why different assessments can reach different conclusions."
+    },
+    {
+      "id": "C25", "subject": "chemistry", "stage": 4, "driver": "verstappen",
+      "title": "The Haber process and fertilisers",
+      "spec": "Explain Haber-process conditions as a compromise and describe production and uses of NPK fertilisers.",
+      "requires": ["C19", "C16"],
+      "f1": "Race catering and global food supply depend on agriculture supported by ammonia fertilisers, while their manufacture uses substantial energy.",
+      "diy": "Garden fertiliser labels list nitrogen, phosphorus and potassium because plants need each element for different growth functions.",
+      "check": "Explain why the Haber process uses high pressure, a moderate temperature and an iron catalyst."
+    },
+    {
+      "id": "C26", "subject": "chemistry", "stage": 3, "driver": "piastri",
+      "title": "Yield, atom economy and limiting reactants",
+      "spec": "Calculate percentage yield and atom economy and identify the limiting reactant in a chemical process.",
+      "requires": ["C4", "M5"],
+      "f1": "Materials suppliers want high yield and atom economy because unwanted products cost raw material, separation energy and disposal effort.",
+      "diy": "If a resin kit contains too little hardener for the available resin, the hardener limits how much correctly cured material can form.",
+      "check": "A process has a theoretical yield of 80 g and produces 62 g. Calculate percentage yield and give one reason it is below 100 percent."
+    },
+    {
+      "id": "C27", "subject": "chemistry", "stage": 3, "driver": "piastri",
+      "title": "Concentration and gas volumes",
+      "spec": "Calculate solution concentrations and reacting gas volumes, including molar gas volume at room conditions where required.",
+      "requires": ["C4", "M18"],
+      "f1": "Combustion and emissions calculations compare amounts of gaseous reactants and products, while laboratory solutions are prepared to known concentration.",
+      "diy": "Diluting a concentrated cleaner safely uses volume and concentration ratios rather than an unmeasured splash.",
+      "check": "Calculate the volume occupied by 0.50 mol of gas at room temperature and pressure using 24 dm^3 per mole."
+    },
+    {
+      "id": "C28", "subject": "chemistry", "stage": 3, "driver": "sainz",
+      "title": "Transition metals",
+      "spec": "Compare transition metals with Group 1 metals and describe variable ions, coloured compounds and catalytic uses.",
+      "requires": ["C15", "C2"],
+      "f1": "Iron, titanium and nickel alloys use transition-metal chemistry to provide useful strength, heat resistance and corrosion behaviour.",
+      "diy": "Iron compounds in rust and copper compounds in wood treatments show the coloured chemistry common to transition metals.",
+      "check": "Give three typical properties of transition metals that differ from Group 1 metals."
+    },
+    {
+      "id": "C29", "subject": "chemistry", "stage": 4, "driver": "alonso",
+      "title": "Nanoparticles and surface effects",
+      "spec": "Describe nanoparticle scale, high surface-area-to-volume ratio, applications and uncertainties about risks.",
+      "requires": ["C3", "M11"],
+      "f1": "Nanostructured additives and coatings can alter friction, wear or surface behaviour, but claims need evidence about performance and exposure risk.",
+      "diy": "Some paints and sunscreens use nanoparticles for optical or surface properties that larger particles do not provide.",
+      "check": "Explain why a nanoparticle can be more reactive than the same mass of larger particles and state one reason risks need evaluation."
+    },
+    {
+      "id": "C30", "subject": "chemistry", "stage": 2, "driver": "hamilton",
+      "title": "Earth's atmosphere and climate evidence",
+      "spec": "Describe atmospheric development, greenhouse gases, climate evidence, uncertainty and major air pollutants.",
+      "requires": ["C1", "M15"],
+      "f1": "Motorsport emissions include greenhouse gases from fuel and logistics plus local pollutants from combustion and transport; each needs different measurement and control.",
+      "diy": "A correctly vented heater reduces carbon monoxide risk, while insulation reduces the carbon dioxide associated with energy use.",
+      "check": "Explain how Earth's early atmosphere changed as oceans and photosynthetic organisms developed."
+    },
+    {
+      "id": "C31", "subject": "chemistry", "stage": 1, "driver": "norris",
+      "title": "Separation and chromatography practical",
+      "spec": "Plan and carry out filtration, crystallisation, distillation and paper chromatography, including Rf measurement.",
+      "requires": ["C14", "M16"],
+      "f1": "Fuel analysis produces a chemical fingerprint by separating a mixture, while controlled samples and calibrated distances make comparisons meaningful.",
+      "diy": "Separating pigment from ink on paper shows that one visible colour can contain several dissolved substances.",
+      "check": "Plan a paper chromatography test, naming the baseline, solvent level, control sample and calculation used."
+    },
+    {
+      "id": "C32", "subject": "chemistry", "stage": 2, "driver": "sainz",
+      "title": "Preparing a pure dry salt",
+      "spec": "Prepare a soluble salt from an acid and an insoluble reactant using measured heating, filtration, evaporation and crystallisation.",
+      "requires": ["C16", "C31"],
+      "f1": "Laboratory preparation follows a controlled sequence so a material sample is pure enough for reliable testing rather than contaminated by excess reactant.",
+      "diy": "Growing clean crystals requires removing insoluble material before concentrating and cooling the solution.",
+      "check": "Describe how to make pure dry copper sulfate crystals from dilute sulfuric acid and copper oxide."
+    },
+    {
+      "id": "C33", "subject": "chemistry", "stage": 3, "driver": "russell",
+      "title": "Measuring rates and temperature changes",
+      "spec": "Measure reaction rate by gas, mass or colour change and measure energy changes with suitable controls and repeated observations.",
+      "requires": ["C5", "C6", "M20"],
+      "f1": "Fuel and materials tests use time-resolved measurements and thermal sensors, with repeat runs needed to separate a real effect from measurement scatter.",
+      "diy": "Comparing two curing products fairly means equal masses, equal starting temperatures and the same insulated container.",
+      "check": "Plan a method to compare reaction rate at two concentrations and state how rate will be calculated from the data."
+    },
+    {
+      "id": "B14", "subject": "biology", "stage": 1, "driver": "antonelli",
+      "title": "Microscopy and cell measurement",
+      "spec": "Use light and electron microscopes, calculate magnification and scale, and produce labelled biological drawings.",
+      "requires": ["B1", "M2"],
+      "f1": "Materials and medical laboratories use microscopy to inspect tiny structures, while biological microscopy reveals the cells that make up driver tissues.",
+      "diy": "A magnifier reveals a rough saw edge, but a microscope resolves structures too small for the eye and needs a scale to show true size.",
+      "check": "An image is 36 mm wide and the cell is 60 micrometres wide. Calculate the magnification."
+    },
+    {
+      "id": "B15", "subject": "biology", "stage": 1, "driver": "antonelli",
+      "title": "Diffusion, osmosis and active transport",
+      "spec": "Compare diffusion, osmosis and active transport and explain factors affecting movement across membranes.",
+      "requires": ["B1"],
+      "f1": "Oxygen diffuses from alveoli into blood, while cells use active transport to maintain ion concentrations needed for nerve and muscle function.",
+      "diy": "Salt draws water from vegetable cells by osmosis, while a smell spreading through a workshop is diffusion through air.",
+      "check": "Explain why plant tissue loses mass in concentrated sugar solution and state the partially permeable membrane's role."
+    },
+    {
+      "id": "B16", "subject": "biology", "stage": 2, "driver": "antonelli",
+      "title": "Cell division, growth and stem cells",
+      "spec": "Describe the cell cycle and mitosis, explain differentiation and evaluate uses and risks of stem cells.",
+      "requires": ["B1", "B17"],
+      "f1": "A driver's skin and blood cells are continually replaced by mitosis, while tissue repair depends on cells dividing and differentiating correctly.",
+      "diy": "A cut finger heals because cells divide to replace damaged tissue, not because existing cells simply stretch across the gap.",
+      "check": "State the purpose of mitosis and explain why the daughter cells have the same chromosome number as the parent cell."
+    },
+    {
+      "id": "B17", "subject": "biology", "stage": 2, "driver": "alonso",
+      "title": "DNA, genes and the genome",
+      "spec": "Describe DNA structure, genes, chromosomes and genomes and explain how base sequence can determine protein structure.",
+      "requires": ["B1", "C2"],
+      "f1": "Genetic variation affects traits such as height and some disease risks, but driver performance also depends heavily on training, environment and experience.",
+      "diy": "A set of plans is an analogy for stored information, but cells read chemical base sequences and build proteins rather than timber parts.",
+      "check": "Put DNA, gene, chromosome, nucleus and cell in a correct containment sequence and state what a gene codes for."
+    },
+    {
+      "id": "B18", "subject": "biology", "stage": 3, "driver": "alonso",
+      "title": "Meiosis and genetic inheritance",
+      "spec": "Explain meiosis, sexual reproduction, genetic crosses, sex determination and inherited disorders.",
+      "requires": ["B17", "M12"],
+      "f1": "Inherited alleles contribute to biological variation between drivers, while training and environment shape the resulting phenotype.",
+      "diy": "A Punnett square predicts probabilities for offspring; it does not guarantee the result for any one child.",
+      "check": "Two heterozygous parents have alleles Ff. Draw a genetic cross and give the probability of an ff child."
+    },
+    {
+      "id": "B19", "subject": "biology", "stage": 3, "driver": "alonso",
+      "title": "Variation and natural selection",
+      "spec": "Distinguish genetic and environmental variation and explain natural selection, evolution and antibiotic resistance.",
+      "requires": ["B17", "B26"],
+      "f1": "Motorsport selects engineered designs deliberately, unlike biological natural selection, but both involve variation and differential success across repeated generations or iterations.",
+      "diy": "Repeatedly keeping seeds from the strongest plants is artificial selection, while pesticide resistance can evolve by natural selection.",
+      "check": "Explain how a bacterial population can become resistant to an antibiotic through natural selection."
+    },
+    {
+      "id": "B20", "subject": "biology", "stage": 4, "driver": "hamilton",
+      "title": "Selective breeding, genetic engineering and cloning",
+      "spec": "Compare selective breeding, genetic engineering and cloning and evaluate benefits, risks and ethical issues.",
+      "requires": ["B18", "B19"],
+      "f1": "Medical treatments used across sport can be produced by genetically modified microorganisms, including human proteins made at industrial scale.",
+      "diy": "Choosing cuttings from one plant makes clones, while breeding plants for a trait reshuffles alleles over generations.",
+      "check": "Compare selective breeding with genetic engineering, giving one benefit and one risk of each."
+    },
+    {
+      "id": "B21", "subject": "biology", "stage": 2, "driver": "sainz",
+      "title": "Ecosystems, competition and sampling",
+      "spec": "Describe communities, abiotic and biotic factors, competition, adaptations and representative ecological sampling.",
+      "requires": ["B1", "M15"],
+      "f1": "Circuit construction and race events need habitat surveys because noise, light, drainage and land use can affect local populations.",
+      "diy": "Before changing a garden, quadrat samples can compare plant abundance in sunny and shaded areas.",
+      "check": "Describe how to use random quadrats to estimate the abundance of one plant species across a field."
+    },
+    {
+      "id": "B22", "subject": "biology", "stage": 3, "driver": "antonelli",
+      "title": "Food chains, biomass and material cycles",
+      "spec": "Construct food chains, explain biomass loss between trophic levels and describe carbon and water cycles and decomposition.",
+      "requires": ["B21", "B3", "B24"],
+      "f1": "Race catering sits inside food-production systems where energy is lost between trophic levels and nutrients and carbon cycle through ecosystems.",
+      "diy": "A compost heap uses decomposers; warmth, moisture and oxygen affect how quickly they recycle material.",
+      "check": "Explain three reasons why only a small percentage of producer biomass becomes primary-consumer biomass."
+    },
+    {
+      "id": "B23", "subject": "biology", "stage": 3, "driver": "hamilton",
+      "title": "Biodiversity and human impacts",
+      "spec": "Explain effects of pollution, land use, deforestation and climate change and evaluate ways to protect biodiversity.",
+      "requires": ["B21", "C30"],
+      "f1": "New circuits and temporary events can fragment habitats, create waste and use water, so environmental plans include surveys, mitigation and restoration.",
+      "diy": "Replacing a paved area with permeable planting can improve drainage and provide habitat rather than simply moving rainwater elsewhere.",
+      "check": "Explain two ways deforestation reduces biodiversity and one method that can conserve species."
+    },
+    {
+      "id": "B24", "subject": "biology", "stage": 2, "driver": "antonelli",
+      "title": "Photosynthesis and limiting factors",
+      "spec": "Write the photosynthesis equation and explain how light, carbon dioxide, temperature and chlorophyll limit its rate.",
+      "requires": ["B1", "B2", "C1"],
+      "f1": "Biomass used as a sustainable-fuel feedstock begins with photosynthesis capturing carbon dioxide into organic molecules.",
+      "diy": "Moving a plant from a dark corner can increase growth only until another factor, such as mineral supply or temperature, becomes limiting.",
+      "check": "Sketch rate of photosynthesis against light intensity and explain why the graph levels off."
+    },
+    {
+      "id": "B25", "subject": "biology", "stage": 3, "driver": "antonelli",
+      "title": "Plant transport and transpiration",
+      "spec": "Describe xylem, phloem, transpiration and translocation and explain environmental effects on water loss.",
+      "requires": ["B15", "B24"],
+      "f1": "Landscaping around facilities must survive heat and wind; both can increase transpiration and therefore irrigation demand.",
+      "diy": "A cut flower wilts when water loss exceeds uptake through its xylem, especially in warm moving air.",
+      "check": "Compare xylem and phloem by substance moved, direction of transport and whether energy is required."
+    },
+    {
+      "id": "B26", "subject": "biology", "stage": 2, "driver": "antonelli",
+      "title": "Pathogens and communicable disease",
+      "spec": "Compare viral, bacterial, fungal and protist pathogens, named diseases and routes that reduce transmission.",
+      "requires": ["B1"],
+      "f1": "Teams travelling internationally manage infectious-disease risk through hygiene, ventilation, vaccination and isolation policies to protect staff availability.",
+      "diy": "Cleaning a shared respirator and covering cuts reduce different routes by which pathogens can enter or spread.",
+      "check": "Name one disease caused by each pathogen type and give one transmission route for each."
+    },
+    {
+      "id": "B27", "subject": "biology", "stage": 3, "driver": "alonso",
+      "title": "Immunity, vaccination and antibiotics",
+      "spec": "Describe physical defences and immune responses, explain vaccination and evaluate antibiotic use and resistance.",
+      "requires": ["B26", "B17"],
+      "f1": "Vaccination reduces the chance that infection disrupts a driver's or travelling mechanic's health, while antibiotics cannot treat viral infections.",
+      "diy": "Skin is a physical barrier, so gloves protect against injury as well as keeping pathogens away from cuts.",
+      "check": "Explain how vaccination produces a faster secondary immune response and why antibiotics do not cure influenza."
+    },
+    {
+      "id": "B28", "subject": "biology", "stage": 4, "driver": "hamilton",
+      "title": "Drug development and monoclonal antibodies",
+      "spec": "Describe discovery, preclinical and clinical testing of drugs and explain uses and limitations of monoclonal antibodies.",
+      "requires": ["B27", "M15"],
+      "f1": "Medicines used by athletes still pass phased safety and efficacy testing; sporting regulations then separately decide whether a treatment is permitted in competition.",
+      "diy": "A product claim needs controlled testing against a comparison, not one person's good result after using it.",
+      "check": "Put preclinical testing, healthy-volunteer trials and patient trials in order and state what each stage tests."
+    },
+    {
+      "id": "B29", "subject": "biology", "stage": 3, "driver": "piastri",
+      "title": "Culturing microorganisms safely",
+      "spec": "Use aseptic technique, incubate cultures safely and measure zones of inhibition when testing antimicrobials.",
+      "requires": ["B26", "B14", "M17"],
+      "f1": "Medical and hygiene laboratories culture microorganisms under controlled conditions to test contamination and antimicrobial effectiveness.",
+      "diy": "Kitchen hygiene avoids transferring microbes between raw food, hands and surfaces, the everyday version of aseptic control.",
+      "check": "Explain four aseptic steps in an inhibition-zone practical and calculate the area of a clear zone with radius 8 mm."
+    },
+    {
+      "id": "B30", "subject": "biology", "stage": 3, "driver": "antonelli",
+      "title": "Blood glucose and reproductive hormones",
+      "spec": "Explain insulin and glucagon control, diabetes, the menstrual cycle, contraception and fertility treatments.",
+      "requires": ["B8", "B11"],
+      "f1": "Stable blood glucose supports concentration and muscle function during long sessions; hormonal control keeps it within a workable range between meals.",
+      "diy": "Food timing during a long job affects blood glucose, but healthy homeostasis prevents every meal from causing an uncontrolled rise.",
+      "check": "Explain how insulin and glucagon act when blood glucose rises and falls."
+    },
+    {
+      "id": "B31", "subject": "biology", "stage": 3, "driver": "sainz",
+      "title": "Plant hormones and responses",
+      "spec": "Explain tropisms and roles and uses of auxins, gibberellins and ethene in plant growth and agriculture.",
+      "requires": ["B24", "B25"],
+      "f1": "Plants used for circuit landscaping respond to light and gravity through hormone-controlled growth rather than moving their whole bodies.",
+      "diy": "Seedlings bend toward a workshop window because auxin distribution changes growth on the shaded side.",
+      "check": "Explain how auxin causes a shoot to bend toward unilateral light and give one commercial use of a plant hormone."
+    },
+    {
+      "id": "B32", "subject": "biology", "stage": 2, "driver": "russell",
+      "title": "Biology fieldwork and practical design",
+      "spec": "Use quadrats and transects, control variables, repeat measurements and evaluate biological practical methods.",
+      "requires": ["B21", "M16", "M20"],
+      "f1": "An environmental survey around a circuit uses mapped transects and repeatable sampling so planning decisions rest on representative evidence.",
+      "diy": "A belt transect across a garden can show how plant distribution changes from a wall's shade into open ground.",
+      "check": "Plan a belt-transect investigation of distance from a path and plant abundance, including repeats and one limitation."
+    },
+    {
+      "id": "B33", "subject": "biology", "stage": 4, "driver": "norris",
+      "title": "Classification, extinction and speciation",
+      "spec": "Use modern classification and evolutionary trees and explain extinction and speciation through isolation and selection.",
+      "requires": ["B19", "B21"],
+      "f1": "Engineering classification groups parts by shared features, but biological classification additionally reflects evolutionary relationships inferred from genes and structure.",
+      "diy": "A branching tool catalogue is only an analogy; an evolutionary tree represents common ancestry rather than where an item is stored.",
+      "check": "Explain how geographic isolation can lead one population to form two species."
     }
   ],
 
@@ -1050,7 +1688,7 @@
         "paragraphs": [
           "Formula 1 is the top level of single seater motor racing, run by the FIA, the international governing body for motorsport. The word \"formula\" means a set of rules, and every car on the grid is built to that same formula.",
           "The thing that makes F1 different from most racing is that each team designs and builds its own car. In many series everyone runs identical machinery and only the driver varies. In F1 you are watching an engineering competition and a driving competition at the same time, which is exactly why it works so well as a way into science.",
-          "A season is a set of races called Grands Prix, held on circuits around the world between roughly March and December. Two championships are decided every year: the Drivers' championship, won by the individual with the most points, and the Constructors' championship, where a team adds both of its cars' points together. The Constructors' title is the one that decides how much prize money each team receives, so it matters more to the factory than most fans realise.",
+          "A season is a set of races called Grands Prix, held on circuits around the world between roughly March and December. Two championships are decided every year: the Drivers' championship, won by the individual with the most points, and the Constructors' championship, where a team adds both of its cars' points together. Constructors' position affects part of a team's commercial payments, alongside other agreements, so it matters directly to the factory.",
           "2026 opened a new rule set. The cars are lighter and smaller, the power units split their output roughly half and half between a petrol engine and an electric motor, the fuel is fully sustainable, and moveable wings replaced the old DRS overtaking system."
         ]
       },
@@ -1115,7 +1753,7 @@
           },
           {
             "title": "To finish first, first you have to finish",
-            "body": "A retirement scores nothing, no matter how fast the car was. Reliability, corrosion protection, fatigue life of components and a sensible strategy under uncertainty are worth more over a season than a tenth of a second per lap. A cost cap limits how much each team can spend, which forces those trade offs to be real.",
+            "body": "A mechanical retirement usually destroys a points result, even though a retired car can sometimes remain classified. Reliability, corrosion protection, fatigue life of components and a sensible strategy under uncertainty are worth more over a season than a tenth of a second per lap. A cost cap limits how much each team can spend, which forces those trade offs to be real.",
             "science": ["M12", "C11", "M10"]
           }
         ]
@@ -1143,10 +1781,10 @@
           { "term": "Undercut and overcut", "body": "Two ways of passing in the pits. Undercut: stop earlier than your rival and use fresh tyres to gain time before they stop. Overcut: stay out longer while they warm up their new tyres, and gain the time then.", "science": ["M12", "M10"] },
           { "term": "Parc ferme", "body": "French for \"closed park\". From the start of qualifying the car setup is frozen; change anything significant and you start from the pit lane.", "science": [] },
           { "term": "Pole position", "body": "First place on the starting grid, earned by the fastest lap in qualifying.", "science": ["M10"] },
-          { "term": "Q1, Q2, Q3", "body": "The three parts of qualifying. Q1 lasts 18 minutes and eliminates the slowest five cars; Q2 lasts 15 minutes and eliminates five more; Q3 lasts 12 minutes and the remaining ten fight for pole.", "science": ["M10"] },
+          { "term": "Q1, Q2, Q3", "body": "The three parts of qualifying. With 22 cars, Q1 lasts 18 minutes and eliminates the slowest six; Q2 lasts 15 minutes and eliminates six more; Q3 lasts 12 minutes and the remaining ten fight for pole.", "science": ["M10"] },
           { "term": "Purple, green and yellow sectors", "body": "Timing screen colours. Each lap is split into three sectors. Purple means the fastest time anyone has set, green means your own personal best, yellow means slower than your own best. This app borrows exactly that scale for topic progress.", "science": ["M10", "M6"] },
           { "term": "Delta", "body": "The time difference against a reference lap, shown live on the steering wheel. A negative delta means you are gaining.", "science": ["M10", "M6"] },
-          { "term": "Safety car and virtual safety car", "body": "Ways of neutralising a race after an incident. A real car leads the field slowly; a virtual safety car instead forces everyone to drive to a delta time. Both bunch the field up and can rescue or ruin a strategy.", "science": ["M12", "P2"] },
+          { "term": "Safety car and virtual safety car", "body": "Ways of neutralising a race after an incident. A real car leads the field slowly and bunches it up; a virtual safety car instead forces everyone to drive to a delta time and broadly preserves the gaps. Both can rescue or ruin a strategy.", "science": ["M12", "P2"] },
           { "term": "Blue flag", "body": "Shown to a driver about to be lapped, telling them to let the leaders through.", "science": [] },
           { "term": "Track limits", "body": "The white lines at the edge of the circuit. Put all four wheels beyond them and the lap time is deleted, or a penalty follows if it keeps happening.", "science": [] },
           { "term": "Brake bias", "body": "How braking force is split between the front and rear axles, adjustable by the driver from the steering wheel mid lap as fuel burns off and the balance changes.", "science": ["M4", "P8"] },
@@ -1154,7 +1792,7 @@
           { "term": "Telemetry", "body": "The live stream of sensor data from the car to the garage: hundreds of channels covering speed, throttle, brake pressure, temperatures and energy flow, all read as graphs.", "science": ["M6", "M7", "M10"] },
           { "term": "Halo", "body": "The titanium loop above the cockpit. It has to withstand around 12 tonnes of static load and has saved several lives since it was introduced in 2018.", "science": ["P5", "C11"] },
           { "term": "Cost cap", "body": "A limit on how much a team may spend in a year, introduced in 2021 to stop the richest teams simply outspending everyone. It forces engineering trade offs instead of unlimited development.", "science": [] },
-          { "term": "DNF", "body": "Did not finish. A retirement through mechanical failure, damage or a crash. No points, regardless of how well the weekend was going.", "science": ["C11"] }
+          { "term": "DNF", "body": "Did not finish. A retirement through mechanical failure, damage or a crash. A retired car can still be classified if it completed enough distance, so DNF does not automatically mean no points.", "science": ["C11"] }
         ]
       },
       {
@@ -1164,7 +1802,7 @@
         "items": [
           { "when": "Friday", "what": "Free Practice 1 and 2", "body": "Two sessions of an hour each. Teams check that the car works, try setup changes, and run long stints to learn how the tyres behave." },
           { "when": "Saturday am", "what": "Free Practice 3", "body": "A final hour to confirm the setup before it is frozen." },
-          { "when": "Saturday pm", "what": "Qualifying", "body": "Q1 of 18 minutes drops the slowest five to positions 16 to 20. Q2 of 15 minutes drops five more to positions 11 to 15. Q3 of 12 minutes decides the top ten and pole position." },
+          { "when": "Saturday pm", "what": "Qualifying", "body": "With 22 cars, Q1 of 18 minutes drops the slowest six to positions 17 to 22. Q2 of 15 minutes drops six more to positions 11 to 16. Q3 of 12 minutes decides the top ten and pole position." },
           { "when": "Sunday", "what": "The Grand Prix", "body": "A formation lap, then the start. Five red lights come on one at a time and the race begins when they all go out. The race runs to the shortest distance over 305 km, with a two hour limit. In a dry race each driver must use at least two different tyre compounds, which is why everyone has to pit." }
         ]
       },
@@ -1252,6 +1890,47 @@
       const UNLOCKS = new Map(NODES.map((n) => [n.id, []]));
       NODES.forEach((n) => n.requires.forEach((r) => UNLOCKS.has(r) && UNLOCKS.get(r).push(n.id)));
 
+      const nodeOrder = (a, b) =>
+        a.stage - b.stage ||
+        M.laneOrder.indexOf(a.subject) - M.laneOrder.indexOf(b.subject) ||
+        a.id.localeCompare(b.id, undefined, { numeric: true });
+
+      function topologicalOrder() {
+        const indegree = new Map(NODES.map((node) => [node.id, node.requires.length]));
+        const ready = NODES.filter((node) => indegree.get(node.id) === 0).sort(nodeOrder);
+        const ordered = [];
+        while (ready.length) {
+          const node = ready.shift();
+          ordered.push(node);
+          UNLOCKS.get(node.id).forEach((id) => {
+            indegree.set(id, indegree.get(id) - 1);
+            if (indegree.get(id) === 0) {
+              ready.push(BY_ID.get(id));
+              ready.sort(nodeOrder);
+            }
+          });
+        }
+        return ordered;
+      }
+
+      const TOPOLOGICAL_NODES = topologicalOrder();
+      const TOPOLOGICAL_RANK = new Map(TOPOLOGICAL_NODES.map((node, index) => [node.id, index]));
+
+      function relatedIds(id, direction) {
+        const found = new Set();
+        const pending = [...direction(BY_ID.get(id))];
+        while (pending.length) {
+          const next = pending.pop();
+          if (found.has(next)) continue;
+          found.add(next);
+          pending.push(...direction(BY_ID.get(next)));
+        }
+        return found;
+      }
+
+      const ancestorsOf = (id) => relatedIds(id, (node) => node.requires);
+      const descendantsOf = (id) => relatedIds(id, (node) => UNLOCKS.get(node.id));
+
       const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : "{" + k + "}"));
       const wideQuery = window.matchMedia(APP.media.wide);
       const darkQuery = window.matchMedia(APP.media.dark);
@@ -1282,7 +1961,7 @@
 
       function buildThemeStyles() {
         const rules = [
-          ":root{--font-display:" + APP.style.fonts.display + ";--font-text:" + APP.style.fonts.text + ";--accent:" + APP.accent + ";}"
+          ":root{--font-display:" + APP.style.fonts.display + ";--font-text:" + APP.style.fonts.text + ";--accent:" + APP.accent + ";--chain-outline-width:" + APP.track.edge.nodeOutlineWidth + ";}"
         ];
         for (const [mode, tokens] of Object.entries(APP.style.palette)) {
           const decls = Object.entries(tokens).map(([k, v]) => "--" + k + ":" + v).join(";");
@@ -1365,10 +2044,27 @@
         return { entries, skipped };
       }
 
-      const statusOf = (id) => (progress[id] && progress[id].status) || STATUS_IDS[0];
+      const statusOf = (id) => (progress[id] && progress[id].status) || APP.rules.newStatus;
       const statusFor = (id) => STATUS.get(statusOf(id));
-      const isUnlocked = (node) => node.requires.every((r) => statusFor(r).weight >= APP.rules.unlockWeight);
+      const isMet = (id) => statusFor(id).weight >= APP.rules.unlockWeight;
+      const unmetPrerequisites = (id) => TOPOLOGICAL_NODES.filter((node) => ancestorsOf(id).has(node.id) && !isMet(node.id));
+      const isUnlocked = (node) => unmetPrerequisites(node.id).length === 0;
       const isMastered = (id) => statusOf(id) === APP.rules.masteredStatus;
+      const directReadiness = (node) => ({ ready: node.requires.filter(isMet).length, total: node.requires.length });
+      const actionableNodes = () => TOPOLOGICAL_NODES.filter((node) => statusOf(node.id) === APP.rules.newStatus && isUnlocked(node));
+
+      const idsInTopologicalOrder = (ids) => TOPOLOGICAL_NODES.filter((node) => ids.has(node.id)).map((node) => node.id);
+      window.__ROADMAP_TEST__ = Object.freeze({
+        topologicalIds: () => TOPOLOGICAL_NODES.map((node) => node.id),
+        ancestors: (id) => idsInTopologicalOrder(ancestorsOf(id)),
+        descendants: (id) => idsInTopologicalOrder(descendantsOf(id)),
+        readiness: (id) => {
+          const node = BY_ID.get(id);
+          const direct = directReadiness(node);
+          return { ...direct, readyToStart: isUnlocked(node), unmet: unmetPrerequisites(id).map((item) => item.id) };
+        },
+        actionableIds: () => actionableNodes().map((node) => node.id)
+      });
 
       function isVisible(node) {
         if (!activeSubjects.has(node.subject)) return false;
@@ -1387,7 +2083,7 @@
 
       function setNotes(id, notes) {
         const current = progress[id] || {};
-        progress[id] = { status: current.status || STATUS_IDS[0], notes, updatedAt: new Date().toISOString() };
+        progress[id] = { status: current.status || APP.rules.newStatus, notes: notes.slice(0, APP.rules.notesMaxLength), updatedAt: new Date().toISOString() };
         saveProgress();
       }
 
@@ -1687,7 +2383,7 @@
         M.laneOrder.forEach((subjectKey) => {
           const cells = stages.map((stageId) =>
             NODES.filter((n) => n.subject === subjectKey && n.stage === stageId).sort((a, b) =>
-              a.id.localeCompare(b.id, undefined, { numeric: true })
+              TOPOLOGICAL_RANK.get(a.id) - TOPOLOGICAL_RANK.get(b.id)
             )
           );
           const rows = Math.max(1, ...cells.map((c) => c.length));
@@ -1744,6 +2440,8 @@
       function renderTrack() {
         const t = APP.track;
         const e = t.edge;
+        const upstream = selectedId ? ancestorsOf(selectedId) : new Set();
+        const downstream = selectedId ? descendantsOf(selectedId) : new Set();
         Object.assign(refs.canvas.style, { inlineSize: layout.width + "px", blockSize: layout.height + "px" });
         refs.edges.setAttribute("width", layout.width);
         refs.edges.setAttribute("height", layout.height);
@@ -1756,18 +2454,25 @@
             const from = layout.positions.get(reqId);
             const source = BY_ID.get(reqId);
             if (!from || !to || !source) return;
-            const x1 = from.x + t.nodeWidth;
+            const sameStage = from.x === to.x;
+            const x1 = sameStage ? from.x : from.x + t.nodeWidth;
             const y1 = from.y + t.nodeHeight / 2;
             const x2 = to.x;
             const y2 = to.y + t.nodeHeight / 2;
             const dx = Math.max(e.minCurve, (x2 - x1) * e.curve);
-            const active = selectedId === node.id || selectedId === reqId;
+            const upstreamEdge = selectedId && upstream.has(reqId) && (node.id === selectedId || upstream.has(node.id));
+            const downstreamEdge = selectedId && downstream.has(node.id) && (reqId === selectedId || downstream.has(reqId));
+            const active = upstreamEdge || downstreamEdge;
             const visible = isVisible(node) && isVisible(source);
+            const path = sameStage
+              ? "M " + x1 + " " + y1 + " C " + (x1 - e.sameStageOffset) + " " + y1 + ", " + (x2 - e.sameStageOffset) + " " + y2 + ", " + x2 + " " + y2
+              : "M " + x1 + " " + y1 + " C " + (x1 + dx) + " " + y1 + ", " + (x2 - dx) + " " + y2 + ", " + x2 + " " + y2;
+            const stroke = upstreamEdge ? e.upstreamColor : downstreamEdge ? e.downstreamColor : M.subjects[source.subject].color;
             paths.push(
-              '<path d="M ' + x1 + " " + y1 + " C " + (x1 + dx) + " " + y1 + ", " + (x2 - dx) + " " + y2 + ", " + x2 + " " + y2 +
-                '" fill="none" stroke-linecap="round" stroke="' + M.subjects[source.subject].color +
+              '<path d="' + path +
+                '" fill="none" stroke-linecap="round" stroke="' + stroke +
                 '" stroke-width="' + (active ? e.widthActive : e.widthIdle) +
-                '" opacity="' + (active ? e.opacityActive : visible ? e.opacityIdle : e.opacityHidden) + '" />'
+                '" opacity="' + (active ? e.opacityActive : selectedId ? e.opacityHidden : visible ? e.opacityIdle : e.opacityHidden) + '" />'
             );
           });
         });
@@ -1777,17 +2482,26 @@
         NODES.forEach((node) => {
           const pos = layout.positions.get(node.id);
           const status = statusFor(node.id);
-          const locked = !isUnlocked(node) && status.id === STATUS_IDS[0];
+          const locked = !isUnlocked(node);
+          const graphClass = !selectedId || node.id === selectedId
+            ? ""
+            : upstream.has(node.id)
+              ? " upstream"
+              : downstream.has(node.id)
+                ? " downstream"
+                : " unrelated";
 
           const btn = make("button", {
-            class: "node" + (locked ? " locked" : "") + (isVisible(node) ? "" : " dim") + (selectedId === node.id ? " selected" : ""),
-            vars: { c: M.subjects[node.subject].color, s: status.color },
+            class: "node" + (locked ? " locked" : "") + (isVisible(node) ? "" : " dim") + graphClass + (selectedId === node.id ? " selected" : ""),
+            "data-node-id": node.id,
+            "data-readiness": locked ? "blocked" : "ready",
+            vars: { c: M.subjects[node.subject].color, s: status.color, upstream: e.upstreamColor, downstream: e.downstreamColor },
             style: { insetInlineStart: pos.x + "px", insetBlockStart: pos.y + "px", inlineSize: t.nodeWidth + "px", blockSize: t.nodeHeight + "px" },
             on: { click: () => select(node.id) }
           }, [
-            status.id === STATUS_IDS[0] ? null : make("span", { class: "tint" }),
+            status.id === APP.rules.newStatus ? null : make("span", { class: "tint" }),
             make("span", { class: "n-title", text: node.title }),
-            make("span", { class: "n-meta" }, [make("i", { class: "dot" }), document.createTextNode(node.id + " · " + status.label)])
+            make("span", { class: "n-meta" }, [make("i", { class: "dot" }), document.createTextNode(node.id + " · " + (locked ? COPY.blockedBadge : COPY.readyBadge))])
           ]);
           refs.canvas.append(btn);
         });
@@ -1807,7 +2521,7 @@
       }
 
       function fitZoom() {
-        const available = refs.viewport.clientWidth - 4;
+        const available = refs.viewport.clientWidth - APP.track.fitInset;
         if (available <= 0) return;
         zoom = Math.min(APP.zoom.fitMax, Math.max(APP.zoom.min, available / layout.width));
         applyZoom();
@@ -1815,10 +2529,32 @@
 
       /* ---------------- roadmap ---------------- */
 
+      function readinessRow(node) {
+        const readiness = directReadiness(node);
+        const ready = isUnlocked(node);
+        return make("span", { class: "readiness" }, [
+          make("strong", { text: ready ? COPY.readyBadge : COPY.blockedBadge }),
+          make("span", {
+            text: readiness.total
+              ? fill(COPY.readinessSummary, readiness)
+              : COPY.noPrerequisites
+          })
+        ]);
+      }
+
       function renderList() {
         const box = refs.panels.list;
         box.replaceChildren();
         let shown = 0;
+
+        const frontier = actionableNodes().filter(isVisible);
+        box.append(make("section", { class: "surface frontier", "data-frontier": "" }, [
+          make("h2", { text: COPY.frontierTitle }),
+          make("p", { class: "foot", text: COPY.frontierIntro }),
+          frontier.length
+            ? make("div", { class: "frontier-list" }, frontier.map((node) => topicChip(node.id, node.id + " " + node.title)))
+            : make("p", { class: "foot", text: COPY.frontierEmpty })
+        ]));
 
         M.stages.forEach((stage) => {
           const nodes = NODES.filter((n) => n.stage === stage.id && isVisible(n));
@@ -1828,17 +2564,15 @@
           const cards = make("div", { class: "cards" });
           nodes
             .slice()
-            .sort(
-              (a, b) =>
-                M.laneOrder.indexOf(a.subject) - M.laneOrder.indexOf(b.subject) ||
-                a.id.localeCompare(b.id, undefined, { numeric: true })
-            )
+            .sort((a, b) => TOPOLOGICAL_RANK.get(a.id) - TOPOLOGICAL_RANK.get(b.id))
             .forEach((node) => {
               const status = statusFor(node.id);
-              const locked = !isUnlocked(node) && status.id === STATUS_IDS[0];
+              const locked = !isUnlocked(node);
               cards.append(
                 make("button", {
                   class: "lcard" + (locked ? " locked" : "") + (selectedId === node.id ? " selected" : ""),
+                  "data-node-id": node.id,
+                  "data-readiness": locked ? "blocked" : "ready",
                   vars: { c: M.subjects[node.subject].color },
                   on: { click: () => select(node.id) }
                 }, [
@@ -1847,6 +2581,7 @@
                     make("span", { class: "push" }, [badge(status.label, { fill: status.color, label: status.labelColor, size: "small" })])
                   ]),
                   make("span", { class: "l-title", text: node.title }),
+                  readinessRow(node),
                   make("span", { class: "l-f1", text: node.f1 })
                 ])
               );
@@ -2058,8 +2793,9 @@
             badge(subject.name, { fill: subject.color, label: subject.labelColor, size: "small" }),
             badge(node.id, { variant: "platinum", size: "small", outline: true }),
             badge(fill(COPY.stageBadge, { id: stage.id, name: stage.name }), { variant: "platinum", size: "small", outline: true }),
-            isUnlocked(node) ? null : badge(COPY.lockedBadge, { fill: APP.accent, size: "small" })
+            badge(isUnlocked(node) ? COPY.readyBadge : COPY.blockedBadge, { fill: isUnlocked(node) ? STATUS.get(APP.rules.masteredStatus).color : APP.accent, size: "small" })
           ].filter(Boolean)),
+          readinessRow(node),
           make("div", { class: "caption", text: COPY.statusPrompt }),
           make("div", { class: "status-row" }, STATUS_IDS.map((sid) => {
             const s = STATUS.get(sid);
@@ -2081,7 +2817,7 @@
           ].filter(Boolean))
         );
 
-        if (node.requires.length) refs.detailBody.append(linkFact(COPY.requiresLabel, node.requires));
+        refs.detailBody.append(directPrerequisiteList(node), prerequisiteSequence(node));
         const unlocks = UNLOCKS.get(node.id);
         if (unlocks.length) refs.detailBody.append(linkFact(COPY.unlocksLabel, unlocks));
 
@@ -2106,6 +2842,31 @@
         return make("div", { class: "fact" }, [
           make("h3", { text: title }),
           make("div", { class: "links" }, ids.map((id) => (BY_ID.has(id) ? topicChip(id, BY_ID.get(id).title) : null)).filter(Boolean))
+        ]);
+      }
+
+      function directPrerequisiteList(node) {
+        if (!node.requires.length) return fact(COPY.directPrerequisitesLabel, COPY.noPrerequisites);
+        const ids = node.requires.slice().sort((a, b) => Number(isMet(a)) - Number(isMet(b)) || TOPOLOGICAL_RANK.get(a) - TOPOLOGICAL_RANK.get(b));
+        return make("div", { class: "fact" }, [
+          make("h3", { text: COPY.directPrerequisitesLabel }),
+          make("ul", { class: "prereq-list" }, ids.map((id) => {
+            const met = isMet(id);
+            return make("li", { class: "prereq-item", "data-prerequisite-id": id }, [
+              topicChip(id, BY_ID.get(id).title),
+              make("strong", { text: fill(COPY.prerequisiteState, { status: statusFor(id).label, state: met ? COPY.prerequisiteMet : COPY.prerequisiteBlocking }) })
+            ]);
+          }))
+        ]);
+      }
+
+      function prerequisiteSequence(node) {
+        const unmet = unmetPrerequisites(node.id);
+        return make("div", { class: "fact", "data-learning-sequence": node.id }, [
+          make("h3", { text: COPY.doFirstLabel }),
+          unmet.length
+            ? make("ol", { class: "learning-sequence" }, unmet.map((item) => make("li", {}, [topicChip(item.id, item.id + " " + item.title)])))
+            : make("p", { text: COPY.doFirstClear })
         ]);
       }
 

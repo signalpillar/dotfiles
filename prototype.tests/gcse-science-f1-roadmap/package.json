@@ -1,0 +1,12 @@
+{
+  "name": "gcse-science-f1-roadmap-tests",
+  "private": true,
+  "scripts": {
+    "fixtures": "tests/fetch-fixtures.sh",
+    "validate": "node tests/validate-manifest.mjs ../../prototypes/gcse-science-f1-roadmap.html",
+    "test": "npm run validate && playwright test tests/roadmap.spec.js --workers=1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  }
+}
