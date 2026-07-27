@@ -144,6 +144,28 @@ sync_pipeline_instructions: |-
     4. finish --note '<append-style evidence>' to record what was found
     5. advance to move past the verified step
     6. Jira ticket status update if applicable
+instruction_packets:
+  todo_tracking: |-
+    - Keep session todos aligned with `pi-job plan` for this task.
+    - Set the todo for cursor {cursor} to in_progress before executing.
+    - Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.
+  future_work: |-
+    - Create a new task slice for future work, an issue worth revisiting, technical debt, or an unresolved doubt discovered while executing.
+    - Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.
+  orchestrator: |-
+    - Execute this step in the main orchestration session.
+    - Do not skip required artifacts or validators from the task contract.
+    - Run pi-job advance only after the step evidence is recorded or a blocker is written down.
+  subagent_orchestrator: |-
+    - Choose an appropriate lower-cost model using judgement.
+    - Run this step in a subagent.
+    - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
+    - Review the subagent result before running pi-job advance.
+  plan_todo: |-
+    - Use the session todo capability to track this task plan.
+    - Create one todo per slice (or per step when helpful).
+    - Mark the current/next slice/step in_progress; mark completed items done as evidence lands.
+    - Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.
 step_kinds:
   explore-context:
     key: explore-context

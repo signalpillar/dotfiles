@@ -361,6 +361,7 @@ class ProfileDocument(StrictDocument):
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
     sync_pipeline_instructions: str = Field(default="", description="Pipeline instructions for the sync command, shown per slice.")
+    instruction_packets: dict[str, str] = Field(default_factory=dict, description="Reusable instruction text blocks. Supported keys: todo_tracking, future_work, orchestrator, subagent_orchestrator, plan_todo. Each value supports {cursor} interpolation.")
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
     slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
@@ -3710,6 +3711,10 @@ def enforce_owner_policy(
 def build_plan(task_file: Path, task: dict[str, Any]) -> str:
     cursor = current_cursor(task)
     nxt = next_cursor(task)
+    profile = load_profile_contract()
+    packets = profile.get("instruction_packets", {})
+    plan_todo_text = packets.get("plan_todo", "")
+
     lines = [
         "PI-JOB TASK PLAN",
         "",
@@ -3744,13 +3749,20 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
             step_kinds = contract_step_kinds()
             owner = step_kinds.get(step_key, {}).get("owner", "?")
             lines.append(f"    - {step_key} [{owner}/{step_st}] {step.title}{step_marker}")
+    lines += ["", "Orchestrator todo instruction:"]
+    if plan_todo_text:
+        for line in plan_todo_text.strip().split("\n"):
+            stripped = line.strip()
+            if stripped:
+                lines.append(stripped)
+    else:
+        lines += [
+            "- Use the session todo capability to track this task plan.",
+            "- Create one todo per slice (or per step when helpful).",
+            "- Mark the current/next slice/step in_progress; mark completed items done as evidence lands.",
+            "- Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.",
+        ]
     lines += [
-        "",
-        "Orchestrator todo instruction:",
-        "- Use the session todo capability to track this task plan.",
-        "- Create one todo per slice (or per step when helpful).",
-        "- Mark the current/next slice/step in_progress; mark completed items done as evidence lands.",
-        "- Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.",
         "",
         "Note: next/advance walk task.plan.slices in array order; closing work is just another slice.",
     ]
@@ -3879,26 +3891,51 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
                 "- Choose a different fully qualified model ID for this step.",
             ]
         lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
-    todo_lines = [
-        "",
-        "Todo tracking:",
-        "- Keep session todos aligned with `pi-job plan` for this task.",
-        f"- Set the todo for cursor {cursor.label()} to in_progress before executing.",
-        "- Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.",
-        "",
-        "Future-work capture:",
-        "- Create a new task slice for future work, an issue worth revisiting, technical debt, or an unresolved doubt discovered while executing.",
-        "- Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.",
-    ]
+    profile = load_profile_contract()
+    packets = profile.get("instruction_packets", {})
+
+    todo_lines = ["", "Todo tracking:"]
+    todo_text = packets.get("todo_tracking", "")
+    if todo_text:
+        for line in todo_text.strip().split("\n"):
+            stripped = line.strip()
+            if stripped:
+                todo_lines.append(stripped.format(cursor=cursor.label()))
+    else:
+        todo_lines += [
+            "- Keep session todos aligned with `pi-job plan` for this task.",
+            f"- Set the todo for cursor {cursor.label()} to in_progress before executing.",
+            "- Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.",
+        ]
+    todo_lines += ["", "Future-work capture:"]
+    future_text = packets.get("future_work", "")
+    if future_text:
+        for line in future_text.strip().split("\n"):
+            stripped = line.strip()
+            if stripped:
+                todo_lines.append(stripped)
+    else:
+        todo_lines += [
+            "- Create a new task slice for future work, an issue worth revisiting, technical debt, or an unresolved doubt discovered while executing.",
+            "- Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.",
+        ]
+
     if owner == "subagent":
-        lines += [
-            "",
-            "Orchestrator instruction:",
-            "- Choose an appropriate lower-cost model using judgement.",
-            "- Run this step in a subagent.",
-            "- Give the subagent the prompt below exactly, plus any runtime tool context it needs.",
-            "- Review the subagent result before running pi-job advance.",
-            *todo_lines,
+        subagent_text = packets.get("subagent_orchestrator", "")
+        subagent_lines = ["", "Orchestrator instruction:"]
+        if subagent_text:
+            for line in subagent_text.strip().split("\n"):
+                stripped = line.strip()
+                if stripped:
+                    subagent_lines.append(stripped)
+        else:
+            subagent_lines += [
+                "- Choose an appropriate lower-cost model using judgement.",
+                "- Run this step in a subagent.",
+                "- Give the subagent the prompt below exactly, plus any runtime tool context it needs.",
+                "- Review the subagent result before running pi-job advance.",
+            ]
+        lines += subagent_lines + todo_lines + [
             "",
             "Subagent prompt:",
             f"Read the task file first: {task_file}",
@@ -3908,14 +3945,20 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             "Do not advance the task record unless this cursor step explicitly asks for task-record updates.",
         ]
     else:
-        lines += [
-            "",
-            "Orchestrator instruction:",
-            "- Execute this step in the main orchestration session.",
-            "- Do not skip required artifacts or validators from the task contract.",
-            "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
-            *todo_lines,
-        ]
+        orch_text = packets.get("orchestrator", "")
+        orch_lines = ["", "Orchestrator instruction:"]
+        if orch_text:
+            for line in orch_text.strip().split("\n"):
+                stripped = line.strip()
+                if stripped:
+                    orch_lines.append(stripped)
+        else:
+            orch_lines += [
+                "- Execute this step in the main orchestration session.",
+                "- Do not skip required artifacts or validators from the task contract.",
+                "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
+            ]
+        lines += orch_lines + todo_lines
     if step and step.key in ("select-toolbelt", "plan-slices"):
         lines += toolbelt_block(task, task_slice_kinds(task))
     return "\n".join(lines)
