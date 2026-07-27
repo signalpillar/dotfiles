@@ -1,0 +1,2259 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>GCSE Triple Science: F1 Roadmap</title>
+
+    <!-- Component library: Jelly UI, dependency-free web components, one tag, no build step. -->
+    <script type="module" src="https://jelly-ui.com/package.js"></script>
+    <!-- Token set: Open Props. Every spacing, radius, shadow and easing below comes from it. -->
+    <link rel="stylesheet" href="https://unpkg.com/open-props">
+
+    <style>
+      /* Layout only. Colours, fonts and every tunable number are injected from the
+         manifest at boot (see buildThemeStyles); everything else is an Open Props token. */
+
+      * { box-sizing: border-box; }
+      /* Jelly paints each component's soft body on a canvas that deliberately
+         overhangs its box so the membrane can bulge. Clip that at the page edge:
+         `clip` rather than `hidden` so no scroll container is created and the
+         drawer and dialog still position themselves against the viewport. */
+      html, body { min-block-size: 100%; overflow-x: clip; }
+      body { margin: 0; font-family: var(--font-text); background: var(--page-bg); color: var(--page-fg); }
+      button, input, textarea { font: inherit; color: inherit; }
+      button { cursor: pointer; }
+
+      .shell {
+        inline-size: min(78rem, 100%);
+        margin-inline: auto;
+        padding: max(var(--size-3), env(safe-area-inset-top)) var(--size-3) var(--size-8);
+        display: grid;
+        /* minmax(0,...) stops an intrinsically wide child (the tab bar, the track
+           canvas) from widening the whole column and scrolling the page sideways. */
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--size-3);
+        color: var(--text);
+        font-family: var(--font-text);
+      }
+      .shell > *, .shell jelly-tab-panel { min-inline-size: 0; }
+      /* Keep the tab bar inside the column instead of letting five tabs set the
+         page width; the component compresses the pill track to fit. */
+      jelly-tabs::part(tabs) { max-inline-size: 100%; }
+
+      h1, h2, h3, .display { font-family: var(--font-display); letter-spacing: var(--font-letterspacing-0); }
+
+      .row { display: flex; gap: var(--size-2); flex-wrap: wrap; align-items: center; }
+      .row[hidden] { display: none; }
+      .row .grow { flex: 1 1 12rem; min-width: 9rem; }
+      .push { margin-inline-start: auto; }
+
+      /* masthead */
+      .kicker { font-size: var(--font-size-0); font-weight: var(--font-weight-8); letter-spacing: var(--font-letterspacing-4); text-transform: uppercase; color: var(--accent); }
+      .masthead h1 { margin: 0; font-size: var(--font-size-4); }
+
+      /* dashboard */
+      .dash { display: grid; gap: var(--size-3); }
+      .score { font-family: var(--font-display); font-size: var(--font-size-6); font-weight: var(--font-weight-8); line-height: var(--font-lineheight-0); letter-spacing: var(--font-letterspacing-0); }
+      .score small { font-size: var(--font-size-0); font-weight: var(--font-weight-6); color: var(--text-muted); letter-spacing: normal; }
+      .subject-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--size-3); }
+      .subject-row { display: grid; gap: var(--size-1); }
+      .subject-row .lbl { display: flex; justify-content: space-between; gap: var(--size-2); font-size: var(--font-size-0); }
+      .subject-row .lbl span { color: var(--text-muted); }
+
+      /* shared surface */
+      .surface {
+        border: var(--border-size-1) solid var(--line);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+        box-shadow: var(--shadow-2);
+      }
+
+      /* track map */
+      .viewport { position: relative; overflow: auto; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-4); background: var(--muted-bg); max-height: min(68vh, 40rem); }
+      .zoom-wrap { position: relative; }
+      .canvas { position: absolute; inset: 0 auto auto 0; transform-origin: 0 0; }
+      .canvas svg { position: absolute; inset: 0 auto auto 0; pointer-events: none; }
+      .lane-label { position: absolute; font-family: var(--font-display); font-size: var(--font-size-0); font-weight: var(--font-weight-8); letter-spacing: var(--font-letterspacing-3); text-transform: uppercase; color: var(--c); }
+      .lane-band { position: absolute; inset-inline-start: 0; border-top: var(--border-size-1) dashed var(--line-strong); opacity: 0.55; }
+      .stage-label { position: absolute; font-size: var(--font-size-0); font-weight: var(--font-weight-7); letter-spacing: var(--font-letterspacing-3); text-transform: uppercase; color: var(--text-muted); }
+      .stage-label b { display: block; font-family: var(--font-display); color: var(--text); letter-spacing: normal; text-transform: none; }
+
+      .node {
+        position: absolute;
+        text-align: start;
+        border: var(--border-size-1) solid var(--line);
+        border-inline-start: var(--border-size-4) solid var(--c);
+        border-radius: var(--radius-2);
+        background: var(--surface);
+        color: var(--text);
+        padding: var(--size-1) var(--size-2);
+        display: grid;
+        gap: var(--size-1);
+        align-content: start;
+        overflow: hidden;
+        box-shadow: var(--shadow-1);
+        transition: transform 0.14s var(--ease-3), box-shadow 0.14s var(--ease-3), opacity 0.16s var(--ease-3);
+      }
+      .node:hover { transform: translateY(-2px) scale(1.015); box-shadow: var(--shadow-3); }
+      .node:active { transform: scale(0.98); }
+      .node .n-title { font-size: var(--font-size-0); font-weight: var(--font-weight-6); line-height: var(--font-lineheight-1); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .node .n-meta { display: flex; align-items: center; gap: var(--size-1); font-size: var(--font-size-00); color: var(--text-muted); letter-spacing: var(--font-letterspacing-2); text-transform: uppercase; }
+      .dot { inline-size: var(--size-2); block-size: var(--size-2); border-radius: var(--radius-round); background: var(--s); flex: none; }
+      .node.locked { border-style: dashed; opacity: 0.62; }
+      .node.dim { opacity: 0.15; }
+      .node.selected { box-shadow: 0 0 0 3px var(--accent), var(--shadow-3); }
+      .node .tint { position: absolute; inset: 0; background: var(--s); opacity: 0.1; pointer-events: none; }
+
+      /* roadmap */
+      .stage-block { display: grid; gap: var(--size-3); margin-block-end: var(--size-6); }
+      .stage-head { display: flex; align-items: baseline; gap: var(--size-2); flex-wrap: wrap; }
+      .stage-head h2 { margin: 0; font-size: var(--font-size-2); }
+      .stage-head .num { font-size: var(--font-size-0); font-weight: var(--font-weight-8); letter-spacing: var(--font-letterspacing-4); color: var(--accent); text-transform: uppercase; }
+      .stage-head p { margin: 0; color: var(--text-muted); font-size: var(--font-size-0); flex: 1 1 12rem; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: var(--size-3); }
+      .lcard {
+        text-align: start; inline-size: 100%;
+        border: var(--border-size-1) solid var(--line);
+        border-inline-start: var(--border-size-4) solid var(--c);
+        border-radius: var(--radius-3);
+        background: var(--surface); color: var(--text);
+        padding: var(--size-3);
+        display: grid; gap: var(--size-2);
+        box-shadow: var(--shadow-1);
+        transition: transform 0.14s var(--ease-3), box-shadow 0.14s var(--ease-3);
+      }
+      .lcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-3); }
+      .lcard:active { transform: scale(0.985); }
+      .lcard .l-top { display: flex; align-items: center; gap: var(--size-2); font-size: var(--font-size-00); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); color: var(--text-muted); }
+      .lcard .l-title { font-family: var(--font-display); font-size: var(--font-size-1); font-weight: var(--font-weight-7); line-height: var(--font-lineheight-1); }
+      .lcard .l-f1 { font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-3); }
+      .lcard.locked { opacity: 0.65; border-style: dashed; }
+      .lcard.selected { box-shadow: 0 0 0 3px var(--accent); }
+
+      /* garage */
+      .garage { display: grid; gap: var(--size-3); }
+      .dcard {
+        border: var(--border-size-1) solid var(--line);
+        border-inline-start: var(--border-size-5) solid var(--c);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+        padding: var(--size-3);
+        display: grid; gap: var(--size-2);
+        box-shadow: var(--shadow-1);
+      }
+      .dhead { display: flex; align-items: center; gap: var(--size-3); flex-wrap: wrap; }
+      .pos { font-family: var(--font-display); font-size: var(--font-size-3); font-weight: var(--font-weight-8); color: var(--c); min-inline-size: var(--size-6); }
+      .dname { font-family: var(--font-display); font-weight: var(--font-weight-7); font-size: var(--font-size-1); }
+      .dteam { font-size: var(--font-size-00); color: var(--text-muted); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); }
+      .dfocus { font-size: var(--font-size-0); color: var(--text-muted); }
+      .dnodes { display: flex; flex-wrap: wrap; gap: var(--size-1); }
+
+      .tagbtn {
+        border: var(--border-size-1) solid var(--line-strong);
+        background: var(--muted-bg); color: var(--text-muted);
+        border-radius: var(--radius-round);
+        padding: var(--size-1) var(--size-2);
+        font-size: var(--font-size-0);
+        display: inline-flex; align-items: center; gap: var(--size-1);
+        transition: transform 0.12s var(--ease-3), color 0.12s var(--ease-3);
+      }
+      .tagbtn:hover { color: var(--text); transform: translateY(-1px); }
+      .tagbtn:active { transform: scale(0.95); }
+      .tagbtn i { inline-size: var(--size-1); block-size: var(--size-1); border-radius: var(--radius-round); background: var(--s); flex: none; }
+
+      /* explainer */
+      .explainer { display: grid; gap: var(--size-7); max-inline-size: 52rem; }
+      .lede { margin: 0; font-size: var(--font-size-1); line-height: var(--font-lineheight-3); color: var(--text-muted); }
+      .ex-section { display: grid; gap: var(--size-3); }
+      .ex-section h2 { margin: 0; font-size: var(--font-size-3); }
+      .ex-section h2 .rule { display: block; inline-size: var(--size-6); block-size: 4px; border-radius: var(--radius-round); background: var(--accent); margin-block-end: var(--size-2); }
+      .ex-section p { margin: 0; line-height: var(--font-lineheight-3); font-size: var(--font-size-1); }
+      .ex-section .sub { color: var(--text-muted); font-size: var(--font-size-0); margin: 0; line-height: var(--font-lineheight-3); }
+
+      .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: var(--size-2); }
+      .stat { border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); background: var(--surface); padding: var(--size-3); display: grid; gap: var(--size-1); }
+      .stat b { font-family: var(--font-display); font-size: var(--font-size-3); font-weight: var(--font-weight-8); }
+      .stat span { font-size: var(--font-size-0); font-weight: var(--font-weight-7); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); color: var(--accent); }
+      .stat em { font-style: normal; font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-2); }
+
+      .item-grid { display: grid; gap: var(--size-2); }
+      .item, .gterm { border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); background: var(--surface); padding: var(--size-3); display: grid; gap: var(--size-2); }
+      .item h3, .gterm h3 { margin: 0; font-size: var(--font-size-1); }
+      .item p, .gterm p { margin: 0; font-size: var(--font-size-0); line-height: var(--font-lineheight-3); color: var(--text-muted); }
+      .sci { display: flex; flex-wrap: wrap; gap: var(--size-1); align-items: center; }
+      .glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--size-2); }
+
+      .ratio-bar { display: flex; overflow: hidden; border-radius: var(--radius-round); block-size: var(--size-6); box-shadow: var(--shadow-1); }
+      .ratio-bar span { display: grid; place-items: center; font-family: var(--font-display); font-weight: var(--font-weight-8); font-size: var(--font-size-0); flex-basis: 0; }
+      .ratio-cards { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+      .ratio-card { border-inline-start: var(--border-size-4) solid var(--c); gap: var(--size-1); }
+      .ratio-share { font-family: var(--font-display); font-size: var(--font-size-4); font-weight: var(--font-weight-8); color: var(--c); line-height: var(--font-lineheight-0); }
+
+      .steps { display: grid; gap: var(--size-2); }
+      .step { display: grid; grid-template-columns: 6rem 1fr; gap: var(--size-3); border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); background: var(--surface); padding: var(--size-3); }
+      .step .when { font-family: var(--font-display); font-weight: var(--font-weight-8); font-size: var(--font-size-0); color: var(--accent); }
+      .step .what { font-weight: var(--font-weight-7); font-size: var(--font-size-0); margin-block-end: var(--size-1); }
+      .step p { margin: 0; font-size: var(--font-size-0); line-height: var(--font-lineheight-3); color: var(--text-muted); }
+      @media (max-width: 30rem) { .step { grid-template-columns: 1fr; gap: var(--size-1); } }
+
+      .table-wrap { overflow-x: auto; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); }
+      table { border-collapse: collapse; inline-size: 100%; font-size: var(--font-size-0); min-inline-size: 20rem; }
+      th, td { padding: var(--size-2) var(--size-3); text-align: start; border-block-end: var(--border-size-1) solid var(--line); }
+      th { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); color: var(--text-muted); }
+      tr:last-child td { border-block-end: 0; }
+      td:first-child { font-weight: var(--font-weight-7); }
+
+      .linklist { display: grid; gap: var(--size-2); }
+      .linkrow { display: grid; gap: var(--size-1); border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); background: var(--surface); padding: var(--size-3); text-decoration: none; color: inherit; transition: transform 0.14s var(--ease-3), box-shadow 0.14s var(--ease-3); }
+      .linkrow:hover { transform: translateY(-2px); box-shadow: var(--shadow-3); }
+      .linkrow .lname { font-family: var(--font-display); font-weight: var(--font-weight-7); font-size: var(--font-size-1); }
+      .linkrow .lname::after { content: " \2197"; color: var(--accent); }
+      .linkrow .lnote { font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-3); }
+      .linkrow .lhost { font-size: var(--font-size-00); color: var(--text-muted); }
+
+      /* detail drawer */
+      .detail-body { display: grid; gap: var(--size-3); align-content: start; }
+      .detail-body h2 { margin: 0; font-size: var(--font-size-3); line-height: var(--font-lineheight-1); }
+      .status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--size-2); }
+      .facts { display: grid; gap: var(--size-2); }
+      .fact { border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); background: var(--muted-bg); padding: var(--size-3); display: grid; gap: var(--size-1); }
+      .fact h3 { margin: 0; font-family: var(--font-text); font-size: var(--font-size-00); letter-spacing: var(--font-letterspacing-4); text-transform: uppercase; color: var(--text-muted); font-weight: var(--font-weight-7); }
+      .fact p { margin: 0; font-size: var(--font-size-0); line-height: var(--font-lineheight-3); }
+      .fact.is-f1 { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+      .fact.is-f1 h3 { color: var(--accent); }
+      .links { display: flex; flex-wrap: wrap; gap: var(--size-1); }
+      .caption { font-size: var(--font-size-00); letter-spacing: var(--font-letterspacing-4); text-transform: uppercase; color: var(--text-muted); font-weight: var(--font-weight-7); }
+      .stamp, .foot { font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-3); }
+      .foot { max-inline-size: 46rem; }
+      .foot a { color: inherit; }
+
+      .empty { padding: var(--size-8) var(--size-3); text-align: center; color: var(--text-muted); font-size: var(--font-size-0); }
+
+      /* plain-element fallbacks, used only when the component library is unavailable */
+      textarea.plain, input.plain { inline-size: 100%; border: var(--border-size-1) solid var(--line-strong); background: var(--muted-bg); color: var(--text); border-radius: var(--radius-2); padding: var(--size-2) var(--size-3); font-size: var(--font-size-0); }
+      textarea.plain { min-block-size: 5rem; resize: vertical; line-height: var(--font-lineheight-3); }
+      .btn-plain { border: var(--border-size-1) solid var(--line-strong); background: var(--muted-bg); color: var(--text); border-radius: var(--radius-round); padding: var(--size-2) var(--size-3); font-size: var(--font-size-0); font-weight: var(--font-weight-6); }
+      .sr { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+      /* Graceful degradation when the CDN is unreachable: unknown custom elements
+         still render their light-DOM children, so keep them legible and usable. */
+      jelly-tabs:not(:defined) jelly-tab-panel:not([active]) { display: none; }
+      jelly-card:not(:defined) { display: block; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-4); background: var(--surface); padding: var(--size-5); }
+      jelly-button:not(:defined), jelly-chip:not(:defined), jelly-badge:not(:defined) { display: inline-block; border: var(--border-size-1) solid var(--line-strong); border-radius: var(--radius-round); padding: var(--size-1) var(--size-3); font-size: var(--font-size-0); font-weight: var(--font-weight-6); cursor: pointer; }
+      jelly-drawer:not(:defined), jelly-dialog:not(:defined) { display: block; position: fixed; z-index: var(--layer-4); inset: auto 0 0 0; max-block-size: 85vh; overflow: auto; background: var(--surface); border-block-start: var(--border-size-1) solid var(--line); border-radius: var(--radius-4) var(--radius-4) 0 0; padding: var(--size-3); }
+      jelly-drawer:not(:defined):not([open]), jelly-dialog:not(:defined):not([open]) { display: none; }
+      jelly-progress:not(:defined) { display: block; block-size: 10px; border-radius: var(--radius-round); background: var(--line-strong); overflow: hidden; }
+    </style>
+  </head>
+
+  <body>
+    <!--
+      The single manifest. Every constant, colour, threshold, label, link and piece
+      of domain knowledge lives here as plain JSON; the script below is logic only
+      and reads all of it from this block. Change what the app knows or how it is
+      tuned by editing JSON, never JavaScript.
+    -->
+    <script type="application/json" id="manifest">
+{
+  "manifestVersion": 3,
+
+  "app": {
+    "id": "gcse-science-f1-roadmap",
+    "kicker": "Triple science",
+    "title": "Race to the GCSEs",
+    "accent": "#e8002d",
+    "defaultTab": "track",
+    "defaultMode": "light",
+    "tabSize": "small",
+    "storage": { "progress": "gcse-science-f1-roadmap-v1", "mode": "gcse-science-f1-roadmap-mode", "schemaVersion": 1 },
+    "media": { "wide": "(min-width: 60rem)", "dark": "(prefers-color-scheme: dark)" },
+    "timing": { "libraryTimeoutMs": 6000, "resizeDebounceMs": 150, "revokeObjectUrlMs": 1000 },
+    "rules": { "unlockWeight": 0.67, "notesMaxLength": 4000, "masteredStatus": "race", "maxStatusPoints": 25 },
+    "track": {
+      "nodeWidth": 170, "nodeHeight": 60, "columnGap": 76, "rowGap": 12,
+      "padInline": 100, "padBlock": 56, "laneGap": 28, "laneLabelInset": 12,
+      "edge": { "curve": 0.55, "minCurve": 38, "widthIdle": 1.4, "widthActive": 2.6, "opacityIdle": 0.35, "opacityActive": 0.95, "opacityHidden": 0.07 }
+    },
+    "zoom": { "min": 0.3, "max": 1.4, "fitMax": 1.2, "step": 0.1 },
+    "modes": [
+      { "id": "auto",  "label": "Auto" },
+      { "id": "light", "label": "Light" },
+      { "id": "dark",  "label": "Dark" }
+    ],
+    "tabs": [
+      { "id": "track",     "label": "Track map" },
+      { "id": "list",      "label": "Roadmap" },
+      { "id": "garage",    "label": "Garage" },
+      { "id": "study",     "label": "How to study", "page": "study" },
+      { "id": "explainer", "label": "F1 explained", "page": "explainer" }
+    ],
+    "export": { "filePrefix": "gcse-science-f1-progress", "mimeType": "application/json" },
+
+    "style": {
+      "fonts": {
+        "display": "ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif",
+        "text": "system-ui, -apple-system, 'Segoe UI', sans-serif"
+      },
+      "palette": {
+        "light": {
+          "bg": "oklch(1 0 0)",
+          "surface": "oklch(1 0 0)",
+          "muted-bg": "oklch(0.9906 0.0017 247.84)",
+          "text": "oklch(0.2609 0.0238 267.11)",
+          "text-muted": "oklch(0.503 0.0269 266.68)",
+          "line": "oklch(0.9439 0.004 286.32)",
+          "line-strong": "oklch(0.8884 0 0)",
+          "shadow-color": "220 3% 15%",
+          "shadow-strength": "1%"
+        },
+        "dark": {
+          "bg": "oklch(0.2198 0.006 236.84)",
+          "surface": "oklch(0.2514 0.0163 264.22)",
+          "muted-bg": "oklch(0.288 0.018 262.21)",
+          "text": "oklch(0.9645 0.0054 274.97)",
+          "text-muted": "oklch(0.7595 0.0259 265.54)",
+          "line": "oklch(0.3674 0.0201 266.01)",
+          "line-strong": "oklch(0.4707 0.0189 266.12)",
+          "shadow-color": "220 40% 2%",
+          "shadow-strength": "25%"
+        }
+      }
+    },
+
+    "copy": {
+      "scoreCaption": "of the track complete",
+      "pointsBadge": "{points} / {max} pts",
+      "masteredBadge": "{count} purple",
+      "topicsBadge": "{count} topics",
+      "subjectMastered": "{count}/{total} purple",
+      "searchLabel": "Search topics",
+      "searchPlaceholder": "Search topics, F1 links, DIY...",
+      "zoomIn": "+",
+      "zoomOut": "-",
+      "zoomFit": "Fit",
+      "trackHint": "Tap any node for its card",
+      "exportButton": "Export progress",
+      "importButton": "Import progress",
+      "resetButton": "Reset",
+      "closeButton": "Close",
+      "emptyResults": "Nothing matches those filters. Clear the search or switch a subject back on.",
+      "garageIntro": "Every topic is assigned to a driver. Master their topics and they climb the standings: 6 points for a yellow sector, 15 for green, 25 for purple.",
+      "statusPrompt": "Where are you on this?",
+      "statusButton": "{label} - {note}",
+      "lockedBadge": "Prerequisites not ready",
+      "stageBadge": "Stage {id}: {name}",
+      "stageNumber": "Stage {id}",
+      "requiresLabel": "Needs first",
+      "unlocksLabel": "Opens up",
+      "scienceLabel": "Science behind it",
+      "notesPrompt": "Your notes",
+      "notesLabel": "Notes",
+      "notesPlaceholder": "Past paper questions to redo, formulas that keep slipping, videos that helped...",
+      "lastUpdated": "Last updated {when}",
+      "factLabels": {
+        "spec": "What the spec asks for",
+        "f1": "Where it shows up in F1",
+        "diy": "Same idea in the workshop",
+        "check": "Check yourself",
+        "driver": "Race engineer"
+      },
+      "driverFact": "{name} ({team}). {focus}.",
+      "importTitle": "Import progress",
+      "importCancel": "Cancel",
+      "importMerge": "Merge",
+      "importReplace": "Replace all",
+      "importBadJson": "That file is not valid JSON, so nothing was changed.",
+      "importNothingUsable": "No usable topic progress was found in that file, so nothing was changed.",
+      "importSummary": "Found progress for {count} topics. Merge keeps whichever version was updated most recently. Replace throws away what is on this device.",
+      "importSummarySkipped": "Found progress for {count} topics, plus {skipped} entries that do not match this roadmap and will be ignored. Merge keeps whichever version was updated most recently. Replace throws away what is on this device.",
+      "resetConfirm": "Clear all progress and notes on this device? Export a backup first if you want to keep it.",
+      "footer": [
+        { "text": "Progress lives in this browser's local storage only, so it stays on this device. Export writes a JSON file you can keep as a backup or move to another device; Import reads it back. Built with " },
+        { "text": "Jelly UI", "href": "https://jelly-ui.com/" },
+        { "text": " and " },
+        { "text": "Open Props", "href": "https://open-props.style/" },
+        { "text": ". Back to " },
+        { "text": "all prototypes", "href": "index.html" },
+        { "text": "." }
+      ]
+    }
+  },
+
+  "statuses": [
+    { "id": "new",      "label": "Not run", "note": "no laps yet",  "weight": 0,    "points": 0,  "color": "#8a93a6", "labelColor": "#ffffff" },
+    { "id": "practice", "label": "Yellow",  "note": "seen it once", "weight": 0.34, "points": 6,  "color": "#f2c744", "labelColor": "#1a1f2e" },
+    { "id": "quali",    "label": "Green",   "note": "can do it",    "weight": 0.67, "points": 15, "color": "#00b45f", "labelColor": "#ffffff" },
+    { "id": "race",     "label": "Purple",  "note": "exam ready",   "weight": 1,    "points": 25, "color": "#a855f7", "labelColor": "#ffffff" }
+  ],
+  "statusHelp": "Borrowed straight from an F1 timing screen: yellow means slower, green means a personal best, purple means fastest of anyone.",
+
+  "subjects": {
+    "maths":     { "name": "Maths",     "color": "#f97316", "labelColor": "#ffffff" },
+    "physics":   { "name": "Physics",   "color": "#0ea5e9", "labelColor": "#ffffff" },
+    "chemistry": { "name": "Chemistry", "color": "#d946a6", "labelColor": "#ffffff" },
+    "biology":   { "name": "Biology",   "color": "#10a37f", "labelColor": "#ffffff" }
+  },
+  "laneOrder": ["maths", "physics", "chemistry", "biology"],
+
+  "stages": [
+    { "id": 1, "name": "Pre-season testing", "blurb": "Foundations that every other topic leans on." },
+    { "id": 2, "name": "Free practice",      "blurb": "Core tools plus the first real syllabus topics." },
+    { "id": 3, "name": "Qualifying",         "blurb": "The bulk of the triple science content." },
+    { "id": 4, "name": "Race day",           "blurb": "Higher tier topics that combine several others." }
+  ],
+
+  "drivers": [
+    { "id": "leclerc",    "name": "Charles Leclerc",  "team": "Ferrari",      "color": "#e8002d", "focus": "Cornering physics and mechanical grip" },
+    { "id": "hamilton",   "name": "Lewis Hamilton",   "team": "Ferrari",      "color": "#ff6b74", "focus": "Energy management over a race distance" },
+    { "id": "norris",     "name": "Lando Norris",     "team": "McLaren",      "color": "#ff8000", "focus": "Braking points and telemetry traces" },
+    { "id": "verstappen", "name": "Max Verstappen",   "team": "Red Bull",     "color": "#3671c6", "focus": "Car setup and aerodynamic balance" },
+    { "id": "piastri",    "name": "Oscar Piastri",    "team": "McLaren",      "color": "#ffb066", "focus": "Consistency and clean numbers" },
+    { "id": "russell",    "name": "George Russell",   "team": "Mercedes",     "color": "#00a19c", "focus": "Hybrid systems and electronics" },
+    { "id": "alonso",     "name": "Fernando Alonso",  "team": "Aston Martin", "color": "#229971", "focus": "Fitness and racing longevity" },
+    { "id": "sainz",      "name": "Carlos Sainz",     "team": "Williams",     "color": "#1868db", "focus": "Materials, fuel and tyre life" },
+    { "id": "antonelli",  "name": "Kimi Antonelli",   "team": "Mercedes",     "color": "#6cd3c7", "focus": "The human body under load" }
+  ],
+
+  "nodes": [
+    {
+      "id": "M1", "subject": "maths", "stage": 1, "driver": "piastri",
+      "title": "Standard form and very big or small numbers",
+      "spec": "Write numbers in the form a x 10^n, compare orders of magnitude, and calculate with them.",
+      "requires": [],
+      "f1": "An engine spins at 15000 rpm, telemetry samples every 1.6 x 10^-3 s, and a piston is machined to 1 x 10^-5 m. None of that fits on a calculator screen without standard form.",
+      "diy": "The difference between a 3.5 mm and a 0.35 mm drill bit is one power of ten, and getting it wrong ruins the job.",
+      "check": "Write 0.00016 s and 15000 rpm in standard form, then say which is bigger: 3 x 10^-4 or 8 x 10^-5."
+    },
+    {
+      "id": "M2", "subject": "maths", "stage": 1, "driver": "piastri",
+      "title": "Units, prefixes and conversions",
+      "spec": "Convert between SI units and prefixes (kilo, centi, milli, micro) and use consistent units in a calculation.",
+      "requires": [],
+      "f1": "A car does 320 km/h, but every physics equation wants m/s. Divide by 3.6 first and you get 89 m/s, which is what you actually put into the maths.",
+      "diy": "Tape measures are in mm, plans are in metres, and paint tins are in litres per square metre. One conversion slip and you buy the wrong amount.",
+      "check": "Convert 320 km/h into m/s and 250 kW into watts."
+    },
+    {
+      "id": "M3", "subject": "maths", "stage": 2, "driver": "verstappen",
+      "title": "Rearranging formulae",
+      "spec": "Change the subject of an equation, including formulae with fractions and squares.",
+      "requires": ["M1", "M2"],
+      "f1": "Engineers know the force the tyres can produce and the mass of the car, so they rearrange F = ma into a = F / m to find how hard it can brake.",
+      "diy": "Area = length x width becomes width = area / length when you know how much decking you have and one wall dimension.",
+      "check": "Make a the subject of F = ma, then make v the subject of Ek = 0.5 m v^2."
+    },
+    {
+      "id": "M4", "subject": "maths", "stage": 2, "driver": "verstappen",
+      "title": "Ratio and proportion",
+      "spec": "Use ratios, direct and inverse proportion, and scale factors.",
+      "requires": ["M1"],
+      "f1": "Gear ratios, the air to fuel ratio in the cylinder, and a 60:40 front to rear brake bias are all the same maths in different clothes.",
+      "diy": "Two part filler mixed 5:1 by weight sets properly. Guess the ratio and it either stays soft or goes off in the tub.",
+      "check": "A brake bias of 58:42 is set on a car that can brake with 20000 N total. How much of that acts on the front axle?"
+    },
+    {
+      "id": "M5", "subject": "maths", "stage": 2, "driver": "piastri",
+      "title": "Percentages and percentage change",
+      "spec": "Calculate percentages, percentage increase and decrease, and reverse percentages.",
+      "requires": ["M1"],
+      "f1": "A 2 percent downforce gain from a new front wing is worth roughly a tenth of a second per lap. Efficiency figures are all percentages too.",
+      "diy": "Order 15 percent extra tiles for cuts and breakages, and work out the real price after 20 percent off.",
+      "check": "A lap time drops from 92.4 s to 91.5 s. What is the percentage decrease?"
+    },
+    {
+      "id": "M6", "subject": "maths", "stage": 3, "driver": "norris",
+      "title": "Straight line graphs, gradient and intercept",
+      "spec": "Plot and interpret y = mx + c, find a gradient including from a tangent, and interpret the intercept.",
+      "requires": ["M3"],
+      "f1": "On a distance against time trace the gradient is the speed. On a force against extension graph for a suspension spring the gradient is the spring constant.",
+      "diy": "Plot cost against number of boards and the gradient is the price per board, the intercept is the delivery charge.",
+      "check": "A distance time graph rises from 0 m to 450 m in 5 s. What is the gradient and what does it mean?"
+    },
+    {
+      "id": "M7", "subject": "maths", "stage": 3, "driver": "norris",
+      "title": "Area under a graph",
+      "spec": "Estimate the area under a curve by counting squares or splitting into triangles and rectangles, and say what it represents.",
+      "requires": ["M6"],
+      "f1": "The area under a velocity time trace down the Monza straight is the distance travelled. Engineers read that off the telemetry every session.",
+      "diy": "Work out the area of an odd shaped wall by splitting it into rectangles and triangles before buying paint.",
+      "check": "A car accelerates uniformly from 0 to 80 m/s in 4 s. Use the area under the graph to find the distance covered."
+    },
+    {
+      "id": "M8", "subject": "maths", "stage": 3, "driver": "leclerc",
+      "title": "Pythagoras and trigonometry",
+      "spec": "Use Pythagoras and sine, cosine and tangent in right angled triangles.",
+      "requires": ["M6"],
+      "f1": "A wing set at an angle produces a force along the wing. Trigonometry splits that into the downforce pressing the car down and the drag holding it back.",
+      "diy": "The 3, 4, 5 triangle trick gives you a perfectly square corner without a set square, and trigonometry gives you a roof pitch.",
+      "check": "A wing force of 5000 N acts at 20 degrees to the vertical. Find the vertical (downforce) component."
+    },
+    {
+      "id": "M9", "subject": "maths", "stage": 4, "driver": "leclerc",
+      "title": "Vectors and resolving forces",
+      "spec": "Add vectors using scale drawings, resolve a vector into perpendicular components, and find a resultant.",
+      "requires": ["M8", "P1"],
+      "f1": "Mid corner the tyre is doing two jobs at once, braking backwards and turning sideways. The traction circle is a vector diagram, and the total cannot exceed the grip available.",
+      "diy": "A ladder leaning on a wall has weight straight down but the wall pushes horizontally. The resultant decides whether it slips.",
+      "check": "A tyre produces 12000 N of grip. If 9000 N is used for braking, how much is left for cornering?"
+    },
+    {
+      "id": "M10", "subject": "maths", "stage": 2, "driver": "norris",
+      "title": "Mean, range and uncertainty",
+      "spec": "Calculate mean and range, identify anomalies, and express uncertainty in a measurement.",
+      "requires": ["M1"],
+      "f1": "A single lap time proves nothing. Teams run long stints, take the mean, and throw out the lap where traffic got in the way.",
+      "diy": "Measure three times, take the mean, and only then cut. The range tells you how much you can trust the tape.",
+      "check": "Laps of 91.8, 91.6, 94.9 and 91.7 s were recorded. Which is anomalous, and what is the mean of the rest?"
+    },
+    {
+      "id": "M11", "subject": "maths", "stage": 4, "driver": "verstappen",
+      "title": "Surface area to volume ratio",
+      "spec": "Calculate surface area and volume and use the ratio to explain rates of heat or mass transfer.",
+      "requires": ["M3"],
+      "f1": "Brake discs are drilled with hundreds of holes and radiators are packed with fins for exactly one reason: more surface area per unit volume means faster cooling.",
+      "diy": "A heatsink on an amplifier is thin fins rather than a solid block, for the same reason a thin chip cooks faster than a thick one.",
+      "check": "Compare the surface area to volume ratio of a 2 cm cube and a 4 cm cube. Which loses heat faster?"
+    },
+    {
+      "id": "M12", "subject": "maths", "stage": 3, "driver": "piastri",
+      "title": "Probability",
+      "spec": "Calculate probabilities of single and combined events and use them to make decisions.",
+      "requires": ["M5"],
+      "f1": "Strategy calls are probability sums. If a safety car is 40 percent likely in the next ten laps, pitting early may be worth the track position risk.",
+      "diy": "Before drilling into a wall you are estimating the chance of hitting a pipe or a cable, which is why you use a detector.",
+      "check": "If rain has a probability of 0.3 and a safety car 0.4, and they are independent, what is the probability of both?"
+    },
+
+    {
+      "id": "P1", "subject": "physics", "stage": 2, "driver": "leclerc",
+      "title": "Forces, scalars and vectors",
+      "spec": "Distinguish scalar and vector quantities, identify contact and non contact forces, and draw free body diagrams.",
+      "requires": ["M2"],
+      "f1": "Four forces act on a car on a straight: thrust forwards, drag backwards, weight and downforce pressing down, and the track pushing up.",
+      "diy": "Pushing a stuck bolt and pulling it are different vectors even if the size of the force is identical.",
+      "check": "Draw a free body diagram of an F1 car at constant speed on a straight and name every force."
+    },
+    {
+      "id": "P2", "subject": "physics", "stage": 2, "driver": "verstappen",
+      "title": "Speed, distance and time",
+      "spec": "Use speed = distance / time, understand average versus instantaneous speed, and interpret distance time graphs.",
+      "requires": ["M2", "M3"],
+      "f1": "Monza averages around 250 km/h and Monaco around 160 km/h, and yet a lap of each takes a similar time because the lengths differ.",
+      "diy": "Working out whether a trip to the merchants and back fits into the gap before the glue goes off.",
+      "check": "A 5.8 km lap is completed in 82 s. What is the average speed in m/s and in km/h?"
+    },
+    {
+      "id": "P3", "subject": "physics", "stage": 3, "driver": "norris",
+      "title": "Acceleration and velocity time graphs",
+      "spec": "Use a = (v - u) / t, interpret gradients and areas on a velocity time graph, and use v^2 = u^2 + 2as.",
+      "requires": ["P2", "M6", "M7"],
+      "f1": "An F1 car reaches 100 km/h in around 2.6 s, but the braking is the real story: it can shed speed at roughly 5g, five times harder than it accelerates.",
+      "diy": "A cordless drill spinning up to full speed and coasting back down is the same graph in miniature.",
+      "check": "A car slows from 80 m/s to 30 m/s in 2.0 s. Find the deceleration and compare it to g = 9.8 m/s^2."
+    },
+    {
+      "id": "P4", "subject": "physics", "stage": 3, "driver": "leclerc",
+      "title": "Newton's three laws",
+      "spec": "State and apply Newton's laws, including F = ma and action and reaction pairs.",
+      "requires": ["P1", "P3"],
+      "f1": "A car only turns because the tyres push sideways on the track and the track pushes back. No sideways force means no change in direction, which is the first law in action on an icy corner.",
+      "diy": "Fire a nail gun and it kicks back into your hand. That is the third law, and it is why you brace properly.",
+      "check": "A 768 kg car experiences a resultant force of 16000 N under braking. Find the acceleration."
+    },
+    {
+      "id": "P5", "subject": "physics", "stage": 4, "driver": "norris",
+      "title": "Momentum and impulse",
+      "spec": "Use p = mv, apply conservation of momentum, and relate force to rate of change of momentum.",
+      "requires": ["P4"],
+      "f1": "A crash structure is designed to crush slowly. The change in momentum is fixed by the speed, so stretching the time out is the only way to bring the force on the driver down.",
+      "diy": "A rubber mallet hurts the workpiece less than a steel hammer because the contact time is longer for the same momentum change.",
+      "check": "Explain, using force = change in momentum / time, why a longer crumple zone reduces driver injury."
+    },
+    {
+      "id": "P6", "subject": "physics", "stage": 3, "driver": "hamilton",
+      "title": "Work, energy and power",
+      "spec": "Use W = Fd, P = E / t and P = Fv, and understand the joule and the watt.",
+      "requires": ["P4", "M3"],
+      "f1": "A 2026 power unit produces around 1000 hp, roughly 750 kW, split about evenly between the engine and the electric motor. Power is the rate of doing work, which is why the same energy delivered faster gives a bigger number.",
+      "diy": "Lifting a 25 kg bag of sand 3 m up a ladder is about 750 J of work whether it takes you 5 s or 50 s. Only the power changes.",
+      "check": "A car does 2.4 MJ of work in 80 s. What is the average power output in kW?"
+    },
+    {
+      "id": "P7", "subject": "physics", "stage": 2, "driver": "hamilton",
+      "title": "Energy stores, conservation and efficiency",
+      "spec": "Describe energy stores and transfers, apply conservation of energy, and calculate efficiency.",
+      "requires": ["M5"],
+      "f1": "Braking turns kinetic energy into thermal energy in the discs, which is pure waste. The MGU-K catches part of it and moves it into the battery instead.",
+      "diy": "An LED bulb transfers most of its energy to light and a halogen mostly to heat. Same job, very different efficiency.",
+      "check": "A system takes in 120 kJ and usefully transfers 78 kJ. Calculate the efficiency as a percentage."
+    },
+    {
+      "id": "P8", "subject": "physics", "stage": 3, "driver": "leclerc",
+      "title": "Moments, levers and centre of mass",
+      "spec": "Use moment = force x perpendicular distance, apply the principle of moments, and explain stability using centre of mass.",
+      "requires": ["P1", "M4"],
+      "f1": "An F1 car is deliberately as low as regulations allow. A low centre of mass means less weight transfer in a corner, so the tyres stay evenly loaded.",
+      "diy": "A long spanner undoes a tight bolt because the moment grows with distance. A wheelbarrow is a lever that lets you shift a load you could never lift.",
+      "check": "A force of 250 N acts 0.4 m from a pivot. Calculate the moment, then find the force needed at 0.8 m for the same effect."
+    },
+    {
+      "id": "P9", "subject": "physics", "stage": 3, "driver": "leclerc",
+      "title": "Pressure, density and fluids",
+      "spec": "Use p = F / A and density = mass / volume, and describe pressure in fluids and the atmosphere.",
+      "requires": ["P1", "M3"],
+      "f1": "Tyre pressures are set to a tenth of a psi because they change the contact patch shape. In Mexico City the thin air at 2200 m cuts both downforce and cooling.",
+      "diy": "A bike pump, the water pressure at the bottom of a tank, and why a drawing pin goes in easily are all the same equation.",
+      "check": "A car weighs 7500 N and each of four contact patches is 0.03 m^2. Find the average pressure on the track."
+    },
+    {
+      "id": "P10", "subject": "physics", "stage": 3, "driver": "russell",
+      "title": "Current, potential difference and resistance",
+      "spec": "Use I = Q / t and V = IR, describe the I against V characteristics of components, and use circuit symbols.",
+      "requires": ["M3"],
+      "f1": "The hybrid system runs at high voltage, which is why marshals check a light on the car showing whether a damaged chassis is safe to touch.",
+      "diy": "Wiring a light circuit safely means knowing what the current will be before you choose the cable.",
+      "check": "A component draws 4.0 A at 12 V. Calculate its resistance."
+    },
+    {
+      "id": "P11", "subject": "physics", "stage": 4, "driver": "russell",
+      "title": "Series and parallel circuits, electrical power",
+      "spec": "Compare current, potential difference and resistance in series and parallel, and use P = VI and P = I^2 R.",
+      "requires": ["P10"],
+      "f1": "Battery cells are wired in series to build voltage and in parallel to build capacity. The pack layout is a direct trade between the two.",
+      "diy": "One dead bulb in a cheap series light string kills the whole run. Wire it in parallel and the rest stay lit.",
+      "check": "Two 6 ohm resistors are connected in parallel across 12 V. Find the total resistance and the total current."
+    },
+    {
+      "id": "P12", "subject": "physics", "stage": 4, "driver": "russell",
+      "title": "Magnetism, the motor effect and generators",
+      "spec": "Describe magnetic fields, use Fleming's left hand rule and F = BIl, and explain electromagnetic induction.",
+      "requires": ["P10"],
+      "f1": "The MGU-K is one machine doing both jobs. Under braking it is a generator charging the battery, and on the exit it is a 350 kW motor adding power.",
+      "diy": "A cordless drill motor and a wind up torch are the same physics run in opposite directions.",
+      "check": "Explain how the same device can act as both a motor and a generator, naming the effect used in each case."
+    },
+    {
+      "id": "P13", "subject": "physics", "stage": 3, "driver": "norris",
+      "title": "Waves and sound",
+      "spec": "Use v = f x wavelength, distinguish transverse and longitudinal waves, and describe reflection and absorption.",
+      "requires": ["P2"],
+      "f1": "Engineers can hear a gearshift and a lock up in the engine note. Team radio is a radio wave, and ultrasonic sensors measure ride height in the wind tunnel.",
+      "diy": "A stud finder and an ultrasonic tape measure both work by sending a pulse out and timing the echo back.",
+      "check": "A wave has a frequency of 400 Hz and a wavelength of 0.85 m. Calculate its speed."
+    },
+    {
+      "id": "P14", "subject": "physics", "stage": 3, "driver": "hamilton",
+      "title": "Thermal physics and specific heat capacity",
+      "spec": "Use E = mc x change in temperature, describe specific latent heat, and explain conduction, convection and radiation.",
+      "requires": ["P7"],
+      "f1": "Carbon brake discs work near 1000 degrees C and are useless when cold. Tyres have a working window too, which is why the out lap matters so much.",
+      "diy": "A metal door handle feels colder than a wooden one at the same temperature because metal conducts heat away from your hand faster.",
+      "check": "Find the energy needed to raise 2.5 kg of water by 40 degrees C, given c = 4200 J/kg/degree C."
+    },
+    {
+      "id": "P15", "subject": "physics", "stage": 4, "driver": "russell",
+      "title": "Radioactivity and materials testing",
+      "spec": "Describe alpha, beta and gamma radiation, half life, and uses and hazards of ionising radiation.",
+      "requires": ["C1"],
+      "f1": "Carbon fibre parts are X-ray and CT scanned after a crash. A crack invisible from the outside shows up clearly because the radiation passes through the material differently.",
+      "diy": "The smoke alarm in the hallway and a dental X-ray at the dentist both rely on the same understanding of radiation.",
+      "check": "Rank alpha, beta and gamma by penetrating power and say which is most useful for scanning a thick composite part."
+    },
+
+    {
+      "id": "C1", "subject": "chemistry", "stage": 1, "driver": "sainz",
+      "title": "Atomic structure and the periodic table",
+      "spec": "Describe the structure of the atom, isotopes, electron arrangement, and trends in groups and periods.",
+      "requires": [],
+      "f1": "Aluminium is light and tungsten is dense because of what is inside their atoms. Ballast is tungsten precisely because you can put a lot of mass in a very small block.",
+      "diy": "Reading a metal spec sheet only makes sense once you know why one metal behaves differently from another.",
+      "check": "Give the electron arrangement of aluminium and explain why it sits in group 3."
+    },
+    {
+      "id": "C2", "subject": "chemistry", "stage": 2, "driver": "sainz",
+      "title": "Bonding: ionic, covalent and metallic",
+      "spec": "Describe ionic, covalent and metallic bonding and link each to the properties it produces.",
+      "requires": ["C1"],
+      "f1": "Metallic bonding lets layers of atoms slide, so an aluminium upright bends before it snaps. Covalent chains in a carbon fibre give stiffness instead.",
+      "diy": "Glue, solder and a weld hold things together in three different ways, and choosing wrong is how a repair fails.",
+      "check": "Explain, using bonding, why metals conduct electricity and are malleable."
+    },
+    {
+      "id": "C3", "subject": "chemistry", "stage": 3, "driver": "verstappen",
+      "title": "Structure and properties of materials",
+      "spec": "Relate giant covalent, simple molecular, metallic and nanoparticle structures to melting point, strength and conductivity.",
+      "requires": ["C2"],
+      "f1": "The chassis is carbon fibre because it is stiff and light. Suspension pickups are titanium because they stay strong when hot and heavily loaded.",
+      "diy": "MDF, plywood and hardwood look interchangeable until you load them, and then structure decides everything.",
+      "check": "Explain why diamond is hard and graphite is slippery even though both are pure carbon."
+    },
+    {
+      "id": "C4", "subject": "chemistry", "stage": 3, "driver": "piastri",
+      "title": "Moles and conservation of mass",
+      "spec": "Use relative formula mass, the mole, and balanced equations to calculate reacting masses.",
+      "requires": ["C1", "M4"],
+      "f1": "Fuel flow is capped by mass, not volume, and it is measured on the car. Every kilogram burned leaves as exhaust products of exactly the same total mass.",
+      "diy": "Two part epoxy needs exact quantities. Too much hardener does not set faster, it sets weaker.",
+      "check": "Balance the combustion of octane and explain why the total mass does not change."
+    },
+    {
+      "id": "C5", "subject": "chemistry", "stage": 3, "driver": "piastri",
+      "title": "Rates of reaction and collision theory",
+      "spec": "Explain rate in terms of collision frequency and activation energy, and describe the effect of catalysts.",
+      "requires": ["C2"],
+      "f1": "Fuel has to burn in a few thousandths of a second inside the cylinder. Compressing the mixture raises the collision rate, and the catalytic converter speeds up the clean up afterwards.",
+      "diy": "Paint dries faster in a warm room because the particles have more energy and meet more often.",
+      "check": "Name four factors that change the rate of a reaction and explain each using collision theory."
+    },
+    {
+      "id": "C6", "subject": "chemistry", "stage": 3, "driver": "hamilton",
+      "title": "Energy changes, exothermic and endothermic",
+      "spec": "Classify reactions as exothermic or endothermic, draw reaction profiles, and calculate energy change from bond energies.",
+      "requires": ["C5"],
+      "f1": "Combustion is strongly exothermic, which is why so much of the car is cooling system rather than engine.",
+      "diy": "A tub of curing epoxy warms up in your hand. That is an exothermic reaction you can feel.",
+      "check": "Draw a reaction profile for an exothermic reaction and label the activation energy and overall energy change."
+    },
+    {
+      "id": "C7", "subject": "chemistry", "stage": 4, "driver": "russell",
+      "title": "Electrolysis",
+      "spec": "Describe electrolysis of molten and aqueous compounds, predict products, and write half equations.",
+      "requires": ["C2"],
+      "f1": "Aluminium parts are anodised, an electrolysis process that grows a hard oxide layer. It is also how aluminium is extracted in the first place.",
+      "diy": "Electroplating a bike part, or using electrolysis to lift rust off an old tool, is the same process at home.",
+      "check": "Predict the products of electrolysing molten lead bromide and write both half equations."
+    },
+    {
+      "id": "C8", "subject": "chemistry", "stage": 4, "driver": "russell",
+      "title": "Cells, batteries and fuel cells",
+      "spec": "Describe simple cells, rechargeable cells and hydrogen fuel cells, and compare them.",
+      "requires": ["C7", "P10"],
+      "f1": "The energy store on an F1 car has a mandated maximum mass, so the whole design problem is energy density: the most joules per kilogram.",
+      "diy": "Rechargeable cells in a torch cost more up front and win over a year, which is the same trade at a smaller scale.",
+      "check": "Compare a rechargeable lithium cell and a hydrogen fuel cell on energy density, refuelling time and waste products."
+    },
+    {
+      "id": "C9", "subject": "chemistry", "stage": 3, "driver": "sainz",
+      "title": "Hydrocarbons, combustion and fuels",
+      "spec": "Describe alkanes and the products of complete and incomplete combustion, plus fractional distillation and cracking.",
+      "requires": ["C4"],
+      "f1": "From 2026 every car runs a fully sustainable fuel, made from non food biomass or from carbon captured out of the air rather than pumped out of the ground.",
+      "diy": "A petrol strimmer that smokes badly is running rich, which is incomplete combustion you can see.",
+      "check": "Write word equations for complete and incomplete combustion of a hydrocarbon and say why the second is dangerous."
+    },
+    {
+      "id": "C10", "subject": "chemistry", "stage": 4, "driver": "verstappen",
+      "title": "Polymers and composites",
+      "spec": "Describe addition and condensation polymers and explain how a composite combines two materials.",
+      "requires": ["C3"],
+      "f1": "Carbon fibre is a composite: stiff fibres carry the load and an epoxy polymer holds them in shape. Neither part would work alone.",
+      "diy": "A fibreglass repair kit is exactly the same idea, glass mat plus resin, and it fails if you skimp on either.",
+      "check": "Explain why a composite can be stronger and lighter than either of the materials it is made from."
+    },
+    {
+      "id": "C11", "subject": "chemistry", "stage": 4, "driver": "sainz",
+      "title": "Alloys and corrosion",
+      "spec": "Explain why alloys are harder than pure metals, and describe rusting and methods of corrosion prevention.",
+      "requires": ["C3"],
+      "f1": "Titanium and steel alloys are picked for parts that get hot and heavily loaded. Coatings keep brake and suspension hardware from corroding between races.",
+      "diy": "Galvanised screws outside and plain steel inside, because zinc protects the steel underneath by sacrificing itself.",
+      "check": "Explain using particle diagrams why an alloy is harder than the pure metal, and name two ways to stop rusting."
+    },
+    {
+      "id": "C12", "subject": "chemistry", "stage": 4, "driver": "sainz",
+      "title": "Chemical analysis and chromatography",
+      "spec": "Distinguish pure substances from mixtures, use Rf values, and describe tests for common gases and ions.",
+      "requires": ["C9"],
+      "f1": "Before a race weekend each team submits a fuel sample. Scrutineers run chromatography on fuel taken from the car and compare the fingerprint with the declared blend.",
+      "diy": "Water hardness strips and soil test kits work on the same idea: a known reaction giving a readable result.",
+      "check": "Calculate an Rf value given a spot that moved 4.2 cm while the solvent moved 7.0 cm."
+    },
+    {
+      "id": "C13", "subject": "chemistry", "stage": 4, "driver": "hamilton",
+      "title": "Atmosphere, carbon footprint and sustainability",
+      "spec": "Describe the greenhouse effect, sources of atmospheric pollutants, and ways to reduce a carbon footprint.",
+      "requires": ["C9"],
+      "f1": "Most of a race team's footprint is freight and travel rather than the cars themselves, which is why the sport's net zero plans focus on logistics and sustainable fuel.",
+      "diy": "Loft insulation cuts heat loss, which cuts fuel burned, which cuts carbon dioxide. The chain is the whole argument.",
+      "check": "Name three greenhouse gases and explain why reducing freight matters more than reducing on track fuel use for a race team."
+    },
+
+    {
+      "id": "B1", "subject": "biology", "stage": 1, "driver": "antonelli",
+      "title": "Cells and organelles",
+      "spec": "Describe animal, plant and bacterial cells, name the organelles, and explain their functions.",
+      "requires": [],
+      "f1": "A trained driver's muscle cells are packed with mitochondria. That is the driver's own power unit, and it is why fitness work changes performance at the cell level.",
+      "diy": "Yeast in bread dough is a living cell doing respiration, which is why the dough rises in a warm kitchen.",
+      "check": "Name four organelles found in a muscle cell and give the function of each."
+    },
+    {
+      "id": "B2", "subject": "biology", "stage": 2, "driver": "antonelli",
+      "title": "Enzymes",
+      "spec": "Describe enzymes as biological catalysts, the lock and key model, and the effect of temperature and pH.",
+      "requires": ["B1"],
+      "f1": "Enzymes control the reactions that release energy in a driver's muscles. If core temperature climbs too far in a hot cockpit they start to denature and performance falls off.",
+      "diy": "Biological washing powder uses enzymes, which is why it works at 40 degrees and not at boiling.",
+      "check": "Sketch a graph of enzyme activity against temperature and explain the shape either side of the optimum."
+    },
+    {
+      "id": "B3", "subject": "biology", "stage": 3, "driver": "alonso",
+      "title": "Respiration, aerobic and anaerobic",
+      "spec": "Compare aerobic and anaerobic respiration, write the equations, and describe the role of respiration in the body.",
+      "requires": ["B2", "C9"],
+      "f1": "A driver burns well over a thousand kilocalories in a race. When the neck muscles cannot get oxygen fast enough they respire anaerobically and lactic acid builds up.",
+      "diy": "Carrying bricks up a ladder leaves you breathing hard afterwards. That is the oxygen debt being repaid.",
+      "check": "Write the equations for aerobic and anaerobic respiration in muscle and compare the energy released."
+    },
+    {
+      "id": "B4", "subject": "biology", "stage": 2, "driver": "antonelli",
+      "title": "The heart and circulation",
+      "spec": "Describe the structure of the heart and blood vessels, the double circulatory system, and components of blood.",
+      "requires": ["B1"],
+      "f1": "A driver's heart rate sits around 160 to 180 beats per minute for close to two hours, which is comparable to a distance runner.",
+      "diy": "You can feel the same system working when your pulse climbs after carrying a load up a ladder.",
+      "check": "Trace a red blood cell from the right atrium back to the aorta, naming every chamber and vessel."
+    },
+    {
+      "id": "B5", "subject": "biology", "stage": 3, "driver": "antonelli",
+      "title": "Gas exchange and breathing",
+      "spec": "Describe the lungs and alveoli, explain gas exchange by diffusion, and relate surface area to exchange rate.",
+      "requires": ["B4"],
+      "f1": "Under 5g braking the chest is loaded heavily, so drivers train breathing technique to keep oxygen delivery steady through the heaviest corners.",
+      "diy": "A dust mask and good ventilation exist because the alveoli have a huge surface area and will absorb whatever is in the air.",
+      "check": "Give three adaptations of alveoli for efficient gas exchange and link each to the rate of diffusion."
+    },
+    {
+      "id": "B6", "subject": "biology", "stage": 4, "driver": "alonso",
+      "title": "Homeostasis and thermoregulation",
+      "spec": "Explain homeostasis and negative feedback, and describe how body temperature is controlled.",
+      "requires": ["B2", "P14"],
+      "f1": "A cockpit can reach 50 degrees C and a driver can lose two to three kilograms of sweat in a race. Thermoregulation is the body's negative feedback loop fighting to hold 37 degrees.",
+      "diy": "Working in a hot loft in summer, you sweat and your skin flushes. That is exactly the same control system.",
+      "check": "Describe the negative feedback loop that returns body temperature to normal after it rises."
+    },
+    {
+      "id": "B7", "subject": "biology", "stage": 3, "driver": "antonelli",
+      "title": "Nervous system and reaction time",
+      "spec": "Describe the structure of the nervous system, the reflex arc, and factors affecting reaction time.",
+      "requires": ["B1"],
+      "f1": "At the start the lights go out and a good reaction is around 0.2 s. Anything under 0.1 s is judged a jump start, because that is faster than a human nervous system can respond.",
+      "diy": "Snatching your hand back from a hot soldering iron happens before you consciously decide to. That is a reflex arc.",
+      "check": "Name the parts of a reflex arc in order and explain why a reflex is faster than a conscious response."
+    },
+    {
+      "id": "B8", "subject": "biology", "stage": 4, "driver": "antonelli",
+      "title": "Hormones and adrenaline",
+      "spec": "Describe the endocrine system, compare nervous and hormonal control, and explain the role of adrenaline.",
+      "requires": ["B7", "B4"],
+      "f1": "On the grid adrenaline raises heart rate and releases glucose, preparing the body for the start. It is slower to act than a nerve impulse but lasts much longer.",
+      "diy": "The shaky feeling after nearly dropping something heavy is adrenaline still in your bloodstream minutes later.",
+      "check": "Give two differences between nervous and hormonal control and describe three effects of adrenaline."
+    },
+    {
+      "id": "B9", "subject": "biology", "stage": 4, "driver": "alonso",
+      "title": "Kidneys and water balance",
+      "spec": "Describe the role of the kidneys in osmoregulation and excretion, including selective reabsorption and ADH.",
+      "requires": ["B6"],
+      "f1": "Drivers carry a drink bottle for a reason. Losing a few percent of body water measurably slows reaction time and concentration long before it feels serious.",
+      "diy": "Not drinking enough on a long job in the sun leaves you making careless mistakes by mid afternoon.",
+      "check": "Explain how ADH changes what the kidney does when someone is dehydrated."
+    },
+    {
+      "id": "B10", "subject": "biology", "stage": 4, "driver": "alonso",
+      "title": "Muscles, exercise and oxygen debt",
+      "spec": "Describe the effect of exercise on the body, explain oxygen debt, and describe how the body recovers.",
+      "requires": ["B3"],
+      "f1": "Drivers train their necks specifically, because holding a helmet against 5g in a fast corner loads muscles that nothing else in daily life touches.",
+      "diy": "Aching arms the day after sanding a floor is the same muscle response on a smaller scale.",
+      "check": "Explain what oxygen debt is and describe what happens in the body while it is repaid."
+    },
+    {
+      "id": "B11", "subject": "biology", "stage": 2, "driver": "alonso",
+      "title": "Digestion and nutrition",
+      "spec": "Describe the digestive system, the enzymes involved, and food tests for starch, sugar, protein and fat.",
+      "requires": ["B2"],
+      "f1": "Race day nutrition is planned to the gram, with carbohydrate loading beforehand so glycogen stores last the full distance.",
+      "diy": "Eating properly before a long build day is the difference between finishing and giving up at four o'clock.",
+      "check": "Name the enzyme that digests starch, where it is produced, and the product it forms."
+    },
+    {
+      "id": "B12", "subject": "biology", "stage": 3, "driver": "antonelli",
+      "title": "The eye and vision",
+      "spec": "Describe the structure of the eye, accommodation, and correction of long and short sight.",
+      "requires": ["B7"],
+      "f1": "At 300 km/h a driver is looking far ahead at the braking point, not at the nose of the car. The eye is constantly accommodating between distant and near reference points.",
+      "diy": "Safety goggles and a good work light exist because fine work pushes the eye to its limits.",
+      "check": "Describe how the eye focuses on a near object, naming the ciliary muscles, suspensory ligaments and lens."
+    },
+    {
+      "id": "B13", "subject": "biology", "stage": 4, "driver": "hamilton",
+      "title": "Health, fitness and non communicable disease",
+      "spec": "Describe risk factors for non communicable disease and the effects of exercise and diet on health.",
+      "requires": ["B10", "B9"],
+      "f1": "Driver fitness programmes are built around cardiovascular endurance, neck and core strength, and recovery between back to back race weekends.",
+      "diy": "Lifting with your legs rather than your back is the cheapest injury prevention there is.",
+      "check": "Give three lifestyle risk factors for cardiovascular disease and explain how exercise reduces each."
+    }
+  ],
+
+  "pages": {
+    "study": {
+    "lede": "How to spend the time, not what to learn. The roadmap tabs cover the content; this tab is about the habits that make the content stick and keep you standing at the end of it.",
+    "sections": [
+      {
+        "type": "ratio",
+        "title": "The 50-30-20 daily rule",
+        "intro": "Split every day three ways and protect all three shares. A driver who only ever drove flat out would be slower over a season, not faster.",
+        "items": [
+          {
+            "share": 50,
+            "label": "High-focus tasks",
+            "color": "#a855f7",
+            "body": "Core revision, past papers, and the exams themselves. This is the half that has to be genuinely undistracted: phone in another room, one topic at a time."
+          },
+          {
+            "share": 30,
+            "label": "Mandatory self-care",
+            "color": "#00b45f",
+            "body": "8 to 9 hours of sleep, three regular meals, and 30 minutes of physical movement. Mandatory is the operative word. Cutting into this share is borrowing from tomorrow's focus at a terrible interest rate."
+          },
+          {
+            "share": 20,
+            "label": "Social and joy",
+            "color": "#f2c744",
+            "body": "Connecting with friends, non-exam hobbies, and mental decompression. This is not the reward for finishing; it is part of the plan, and it is what stops week six looking like week one only worse."
+          }
+        ],
+        "note": "The shares are of your waking, discretionary time, not of the 24 hours. The point is the ordering: self-care and joy are scheduled first and defended, and revision expands into what is left."
+      },
+      {
+        "type": "principles",
+        "title": "What actually works",
+        "intro": "These are the study methods with real evidence behind them. Most of them feel harder than re-reading, which is exactly why they work.",
+        "items": [
+          {
+            "title": "Retrieval practice: close the book first",
+            "body": "Re-reading notes feels productive and barely moves anything into long-term memory. Pulling an answer out of your head does. Cover the page, write down everything you can remember, then check what you missed. The struggle is the mechanism, not a sign it is going badly.",
+            "science": []
+          },
+          {
+            "title": "Spacing: revisit before you forget",
+            "body": "The same three hours split across three weeks beats three hours in one evening, by a wide margin. Come back to a topic after a day, then a week, then a fortnight. Each return is harder than a re-read and worth far more.",
+            "science": []
+          },
+          {
+            "title": "Interleaving: mix the topics up",
+            "body": "Doing twenty questions on moments in a row teaches you to apply moments. Mixing moments, energy and pressure questions teaches you to work out which one the question is asking for, which is the actual exam skill.",
+            "science": []
+          },
+          {
+            "title": "Past papers under real conditions",
+            "body": "Timed, no notes, no phone, then marked honestly against the mark scheme. This is the qualifying lap: it tells you where you actually are rather than where it feels like you are. Anything else is free practice.",
+            "science": ["M10"]
+          },
+          {
+            "title": "Mark the mark scheme, not just the answer",
+            "body": "Read why a mark was awarded. Examiners pay for specific words and specific steps. Two answers that are both scientifically correct can score four marks and one mark, and the difference is learnable.",
+            "science": []
+          },
+          {
+            "title": "Teach it back",
+            "body": "Explain a topic out loud to someone who does not know it, without notes. The exact moment you stumble is the exact gap in your understanding. A parent, a sibling or an empty room all work equally well.",
+            "science": []
+          },
+          {
+            "title": "Sleep is part of revision",
+            "body": "Memory consolidation happens during sleep, so a late night spent cramming can leave you knowing less than an early night would have. This is biology, not motivation advice.",
+            "science": ["B7", "B13"]
+          },
+          {
+            "title": "Move every day",
+            "body": "Thirty minutes of anything that raises your heart rate improves concentration and mood measurably, and the effect shows up the same day. It is the cheapest performance gain available.",
+            "science": ["B10", "B4", "B13"]
+          },
+          {
+            "title": "Hydrate and eat properly",
+            "body": "A few percent dehydration measurably slows reaction time and decision making. Drivers plan this to the gram for exactly that reason, and an exam hall is closer to a cockpit than it looks.",
+            "science": ["B9", "B11"]
+          }
+        ]
+      },
+      {
+        "type": "steps",
+        "title": "A revision session that works",
+        "intro": "Roughly an hour. Repeat, do not extend.",
+        "items": [
+          { "when": "0-5 min", "what": "Pick one topic and set the target", "body": "One card from the roadmap, not a subject. Write down what you intend to be able to do by the end, then put the phone in another room." },
+          { "when": "5-15 min", "what": "Brain dump from memory", "body": "Everything you already know about the topic, on blank paper, book closed. This is uncomfortable and it is the most valuable ten minutes of the hour." },
+          { "when": "15-30 min", "what": "Fill the gaps", "body": "Now open the notes or the video, and only look at what your brain dump missed. Add it in a different colour so you can see what was weak." },
+          { "when": "30-50 min", "what": "Questions, timed", "body": "Exam questions on that topic, under time, no notes. Then mark them against the mark scheme and note which marks you lost and why." },
+          { "when": "50-60 min", "what": "Set the status and the return date", "body": "Move the topic to yellow, green or purple in the roadmap, write one line in the notes box about what to fix, and plan when you will come back to it." }
+        ]
+      },
+      {
+        "type": "glossary",
+        "title": "Command words examiners actually use",
+        "intro": "Half of lost marks are answers to a different question. These words tell you exactly what shape the answer needs.",
+        "items": [
+          { "term": "State / Give / Name", "body": "One or two words, or a short sentence. No reasoning wanted and no marks for adding any. Do not write a paragraph.", "science": [] },
+          { "term": "Describe", "body": "Say what happens, in order, with no need to say why. Trends on a graph, steps in a process, observations in a reaction.", "science": [] },
+          { "term": "Explain", "body": "Say why it happens. Every 'because' is usually a mark. If your answer contains no causal link, it is a description and it will not score.", "science": [] },
+          { "term": "Compare", "body": "Both things, in the same sentence, with a linking word. \"A is faster than B\" scores; two separate paragraphs often do not.", "science": [] },
+          { "term": "Calculate", "body": "Show the equation, substitute the numbers, then give the answer with a unit. Method marks survive an arithmetic slip; a bare wrong number scores zero.", "science": ["M2", "M3"] },
+          { "term": "Determine / Show that", "body": "The answer is given to you. All the marks are in the working, so write every step out even when it feels obvious.", "science": ["M3"] },
+          { "term": "Evaluate / Justify", "body": "Both sides, then a conclusion that actually picks one. A balanced answer with no verdict loses the final mark.", "science": [] },
+          { "term": "Suggest", "body": "An unfamiliar context on purpose. They are testing whether you can apply something you do know, so name the principle and then apply it.", "science": [] },
+          { "term": "Plan / Design", "body": "Independent variable, dependent variable, control variables, repeats, and how you would make it safe. Work through that list every time.", "science": ["M10"] },
+          { "term": "The mark count", "body": "The number in brackets is the number of distinct points wanted. Four marks means four separate things, not one thing said four ways.", "science": [] }
+        ]
+      },
+      {
+        "type": "principles",
+        "title": "Traps worth avoiding",
+        "intro": "Common ways a lot of effort turns into very little progress.",
+        "items": [
+          { "title": "Rewriting notes neatly", "body": "It takes hours, it feels like work, and it is copying rather than remembering. If you are going to write, write from memory.", "science": [] },
+          { "title": "Highlighting", "body": "Colouring a textbook tells you a sentence looked important once. It does not make it retrievable later. Turn it into a question instead.", "science": [] },
+          { "title": "Revising what you are already good at", "body": "It feels great and changes nothing. The roadmap exists partly to make the weak topics visible so they are harder to avoid.", "science": [] },
+          { "title": "Marathon sessions", "body": "Four unbroken hours produces roughly one hour of useful work and a bad evening. Shorter sessions on more days beat it comfortably.", "science": [] },
+          { "title": "Studying with the phone on the desk", "body": "Its presence alone measurably reduces available attention, even face down and silent. Another room, not another tab.", "science": [] },
+          { "title": "Only doing the questions, never the marking", "body": "An unmarked past paper teaches you almost nothing. The marking is where the learning is.", "science": [] }
+        ]
+      },
+      {
+        "type": "links",
+        "title": "Useful revision resources",
+        "intro": "Check which exam board you are on first, because past papers and specifications differ. Opens in a new tab.",
+        "items": [
+          { "label": "AQA GCSE Combined Science and Triple Science", "url": "https://www.aqa.org.uk/subjects/science", "note": "Specifications, past papers and mark schemes straight from the board." },
+          { "label": "Pearson Edexcel GCSE Science", "url": "https://qualifications.pearson.com/en/subjects/science.html", "note": "The same for Edexcel: specification, papers, examiner reports." },
+          { "label": "OCR GCSE Gateway and Twenty First Century Science", "url": "https://www.ocr.org.uk/qualifications/gcse/", "note": "OCR specifications and assessment materials." },
+          { "label": "BBC Bitesize GCSE", "url": "https://www.bbc.co.uk/bitesize/levels/z98jmp3", "note": "Short, board-specific topic pages with quizzes. Good for a first pass on a new topic." },
+          { "label": "Physics and Maths Tutor", "url": "https://www.physicsandmathstutor.com/", "note": "Past papers sorted by topic, which is the single most useful revision format there is." },
+          { "label": "Save My Exams", "url": "https://www.savemyexams.com/gcse/", "note": "Revision notes and topic questions with worked solutions." },
+          { "label": "Seneca Learning", "url": "https://senecalearning.com/", "note": "Free spaced-repetition courses that follow the specifications." },
+          { "label": "Anki", "url": "https://apps.ankiweb.net/", "note": "Free flashcard software that schedules the spacing for you. Worth the setup cost for equations and definitions." },
+          { "label": "Cognitive science for students, Learning Scientists", "url": "https://www.learningscientists.org/downloadable-materials", "note": "Free one-page posters explaining retrieval practice, spacing and interleaving. The evidence behind this whole tab." }
+        ]
+      }
+    ]
+    },
+
+    "explainer": {
+    "lede": "Everything here is background for the roadmap. You do not need it to revise, but it makes the F1 side of every topic card make sense. Facts are current for the 2026 season, which opened a completely new set of regulations.",
+    "sections": [
+      {
+        "type": "prose",
+        "title": "What Formula 1 actually is",
+        "paragraphs": [
+          "Formula 1 is the top level of single seater motor racing, run by the FIA, the international governing body for motorsport. The word \"formula\" means a set of rules, and every car on the grid is built to that same formula.",
+          "The thing that makes F1 different from most racing is that each team designs and builds its own car. In many series everyone runs identical machinery and only the driver varies. In F1 you are watching an engineering competition and a driving competition at the same time, which is exactly why it works so well as a way into science.",
+          "A season is a set of races called Grands Prix, held on circuits around the world between roughly March and December. Two championships are decided every year: the Drivers' championship, won by the individual with the most points, and the Constructors' championship, where a team adds both of its cars' points together. The Constructors' title is the one that decides how much prize money each team receives, so it matters more to the factory than most fans realise.",
+          "2026 opened a new rule set. The cars are lighter and smaller, the power units split their output roughly half and half between a petrol engine and an electric motor, the fuel is fully sustainable, and moveable wings replaced the old DRS overtaking system."
+        ]
+      },
+      {
+        "type": "stats",
+        "title": "The 2026 season in numbers",
+        "items": [
+          { "value": "11", "label": "teams", "note": "22 cars, after Cadillac joined as the eleventh team and Audi took over Sauber." },
+          { "value": "~24", "label": "Grands Prix", "note": "Spread across five continents from roughly March to December." },
+          { "value": "6", "label": "sprint races", "note": "Shanghai, Miami, Montreal, Silverstone, Zandvoort and Singapore." },
+          { "value": "768 kg", "label": "minimum weight", "note": "Car plus driver, without fuel. About 30 kg lighter than the previous cars." },
+          { "value": "~750 kW", "label": "combined power", "note": "Roughly 1000 hp, split about 400 kW from the engine and 350 kW from the electric motor." },
+          { "value": "50/50", "label": "engine to electric", "note": "The headline change for 2026: half the power now comes from electricity." },
+          { "value": "25", "label": "points for a win", "note": "Then 18, 15, 12, 10, 8, 6, 4, 2 and 1 down to tenth place." },
+          { "value": "~5 g", "label": "peak braking", "note": "Five times the acceleration due to gravity, which is why drivers train their necks." }
+        ]
+      },
+      {
+        "type": "principles",
+        "title": "The principles that decide who wins",
+        "intro": "Nine ideas explain most of what happens on a race weekend. Each one is a GCSE topic wearing racing overalls, so the chips underneath open the matching card in the roadmap.",
+        "items": [
+          {
+            "title": "Downforce: wings mounted upside down",
+            "body": "An aeroplane wing is shaped so air moving over it produces lift. Turn the same shape over and it produces the opposite: a force pushing the car down onto the track. More force pressing the tyres into the road means more grip, which means higher cornering speed. A modern F1 car generates more downforce than its own weight, so in theory it could drive along a ceiling.",
+            "science": ["P1", "M8", "P9"]
+          },
+          {
+            "title": "Drag: the bill you pay for downforce",
+            "body": "Anything that pushes air out of the way also slows the car down. Downforce and drag come as a package, so every setup decision is a trade. Monza has long straights and teams run skinny wings; Monaco is all corners and they run everything they have. The 2026 cars cut drag by more than half and downforce by around 30 percent to make that trade easier to manage.",
+            "science": ["P7", "P6", "M5"]
+          },
+          {
+            "title": "The grip budget",
+            "body": "A tyre can only produce a certain total force. That budget is shared between braking, turning and accelerating, so if a driver uses all of it braking there is nothing left to turn with, and the car goes straight on. Engineers draw this as a circle: the length of the arrow can point in any direction, but it can never leave the circle. Learning to trade braking for cornering as you release the brake is most of what makes a driver fast.",
+            "science": ["M9", "P4"]
+          },
+          {
+            "title": "Mass and inertia",
+            "body": "Force equals mass times acceleration, so for the same force a lighter car accelerates harder, brakes later and changes direction faster. That is why the minimum weight of 768 kg is policed to the gram, why ballast is made of dense tungsten so it can be placed exactly where the engineers want it, and why teams argue about a driver's body mass.",
+            "science": ["P4", "P5", "M11"]
+          },
+          {
+            "title": "Energy management",
+            "body": "Since 2026 roughly half the power is electric. The MGU-K recovers energy under braking and puts it back on the straights, but the amount recoverable each lap is limited, so drivers and engineers plan where to deploy it. Spend it in the wrong place and you arrive at the next straight with an empty battery while the car behind arrives with a full one.",
+            "science": ["P6", "P7", "P12", "C8"]
+          },
+          {
+            "title": "The tyre temperature window",
+            "body": "A tyre only grips properly inside a range of temperatures. Too cold and the rubber is hard and slides; too hot and it degrades and falls apart. Getting a set of tyres into that window on an out lap, and keeping them there for a whole stint, is a bigger part of race pace than raw engine power.",
+            "science": ["P14", "C5", "C3"]
+          },
+          {
+            "title": "Balance",
+            "body": "Where the aerodynamic force acts, and where the mass sits, decide how the car behaves. Too much force at the front and the rear steps out (oversteer); too much at the back and the front will not turn (understeer). Teams adjust ride height, wing angles, springs and anti roll bars to move that balance, and the centre of mass is kept as low as the rules allow so less weight transfers in a corner.",
+            "science": ["P8", "M4"]
+          },
+          {
+            "title": "The driver is a component",
+            "body": "Cockpit temperatures reach 50 degrees C, heart rate sits at 160 to 180 bpm for two hours, and cornering loads push the head sideways at several times its own weight. Drivers lose two to three kilograms of sweat during a race, and dehydration measurably slows decision making. Everything a driver trains is a biology topic.",
+            "science": ["B3", "B6", "B7", "B10"]
+          },
+          {
+            "title": "To finish first, first you have to finish",
+            "body": "A retirement scores nothing, no matter how fast the car was. Reliability, corrosion protection, fatigue life of components and a sensible strategy under uncertainty are worth more over a season than a tenth of a second per lap. A cost cap limits how much each team can spend, which forces those trade offs to be real.",
+            "science": ["M12", "C11", "M10"]
+          }
+        ]
+      },
+      {
+        "type": "glossary",
+        "title": "Concepts you should know",
+        "intro": "The vocabulary that commentators use without explaining. Chips link back to the science topic behind the word.",
+        "items": [
+          { "term": "Grand Prix", "body": "One race event of the championship, held over a weekend. Usually the shortest distance over 305 km, with a two hour time limit. Monaco is the exception at around 260 km.", "science": ["P2"] },
+          { "term": "Constructor", "body": "A team, in its role as the designer and builder of the car. Constructors' championship points come from both of a team's cars added together.", "science": [] },
+          { "term": "Power unit", "body": "The whole propulsion system, not just the engine: a 1.6 litre turbocharged V6 petrol engine, an electric motor generator, a battery, and the control electronics.", "science": ["P6", "C9"] },
+          { "term": "ICE", "body": "Internal combustion engine, the petrol half of the power unit. Around 400 kW in 2026.", "science": ["C9", "C6"] },
+          { "term": "MGU-K", "body": "Motor generator unit, kinetic. Under braking it acts as a generator and charges the battery; on acceleration it acts as a motor and adds up to 350 kW.", "science": ["P12", "P7"] },
+          { "term": "Energy store", "body": "The battery pack. Its mass and the energy it may deploy per lap are both limited by the rules, so energy density is the design problem.", "science": ["C8", "P11"] },
+          { "term": "Sustainable fuel", "body": "From 2026 all cars run a fully sustainable fuel, made from non food biomass, municipal waste, or carbon captured from the air rather than pumped out of the ground.", "science": ["C9", "C13"] },
+          { "term": "Active aero: X mode and Z mode", "body": "The 2026 cars have moveable front and rear wings. X mode flattens them for low drag on a straight; Z mode steepens them for downforce in the corners. The switch is governed automatically rather than left to the driver.", "science": ["P1", "M8"] },
+          { "term": "Manual Override Mode", "body": "The 2026 replacement for DRS. A car close behind another gets extra electrical deployment to help it attack, rather than an open flap.", "science": ["P6", "P12"] },
+          { "term": "Ground effect", "body": "Downforce generated by the shaped floor of the car rather than the wings. Air accelerating through the narrow gap under the car drops in pressure and sucks the car towards the track.", "science": ["P9"] },
+          { "term": "Dirty air", "body": "The turbulent, low energy air left behind a car. It reduces the downforce of the car following, which is why closing the last half second is much harder than the first.", "science": ["P9", "P1"] },
+          { "term": "Slipstream or tow", "body": "The opposite effect on a straight: sitting in the hole punched through the air by the car ahead means less drag and more speed.", "science": ["P7", "P9"] },
+          { "term": "Compound", "body": "The rubber recipe of a tyre. Softer compounds grip more and wear out faster. A dry race offers soft, medium and hard; wet weather brings intermediates and full wets.", "science": ["C3", "C10"] },
+          { "term": "Degradation, or \"deg\"", "body": "The gradual loss of tyre performance during a stint, from wear and from overheating. High deg forces more pit stops and changes the whole strategy.", "science": ["C5", "P14"] },
+          { "term": "Stint", "body": "The run of laps between two pit stops, on one set of tyres.", "science": ["M10"] },
+          { "term": "Undercut and overcut", "body": "Two ways of passing in the pits. Undercut: stop earlier than your rival and use fresh tyres to gain time before they stop. Overcut: stay out longer while they warm up their new tyres, and gain the time then.", "science": ["M12", "M10"] },
+          { "term": "Parc ferme", "body": "French for \"closed park\". From the start of qualifying the car setup is frozen; change anything significant and you start from the pit lane.", "science": [] },
+          { "term": "Pole position", "body": "First place on the starting grid, earned by the fastest lap in qualifying.", "science": ["M10"] },
+          { "term": "Q1, Q2, Q3", "body": "The three parts of qualifying. Q1 lasts 18 minutes and eliminates the slowest five cars; Q2 lasts 15 minutes and eliminates five more; Q3 lasts 12 minutes and the remaining ten fight for pole.", "science": ["M10"] },
+          { "term": "Purple, green and yellow sectors", "body": "Timing screen colours. Each lap is split into three sectors. Purple means the fastest time anyone has set, green means your own personal best, yellow means slower than your own best. This app borrows exactly that scale for topic progress.", "science": ["M10", "M6"] },
+          { "term": "Delta", "body": "The time difference against a reference lap, shown live on the steering wheel. A negative delta means you are gaining.", "science": ["M10", "M6"] },
+          { "term": "Safety car and virtual safety car", "body": "Ways of neutralising a race after an incident. A real car leads the field slowly; a virtual safety car instead forces everyone to drive to a delta time. Both bunch the field up and can rescue or ruin a strategy.", "science": ["M12", "P2"] },
+          { "term": "Blue flag", "body": "Shown to a driver about to be lapped, telling them to let the leaders through.", "science": [] },
+          { "term": "Track limits", "body": "The white lines at the edge of the circuit. Put all four wheels beyond them and the lap time is deleted, or a penalty follows if it keeps happening.", "science": [] },
+          { "term": "Brake bias", "body": "How braking force is split between the front and rear axles, adjustable by the driver from the steering wheel mid lap as fuel burns off and the balance changes.", "science": ["M4", "P8"] },
+          { "term": "Ride height and rake", "body": "How high the car sits and how much it is angled nose down. Both change how the floor works, so they are among the most sensitive setup choices.", "science": ["P9", "P8"] },
+          { "term": "Telemetry", "body": "The live stream of sensor data from the car to the garage: hundreds of channels covering speed, throttle, brake pressure, temperatures and energy flow, all read as graphs.", "science": ["M6", "M7", "M10"] },
+          { "term": "Halo", "body": "The titanium loop above the cockpit. It has to withstand around 12 tonnes of static load and has saved several lives since it was introduced in 2018.", "science": ["P5", "C11"] },
+          { "term": "Cost cap", "body": "A limit on how much a team may spend in a year, introduced in 2021 to stop the richest teams simply outspending everyone. It forces engineering trade offs instead of unlimited development.", "science": [] },
+          { "term": "DNF", "body": "Did not finish. A retirement through mechanical failure, damage or a crash. No points, regardless of how well the weekend was going.", "science": ["C11"] }
+        ]
+      },
+      {
+        "type": "steps",
+        "title": "How a normal race weekend runs",
+        "intro": "Most of the calendar uses this three day format.",
+        "items": [
+          { "when": "Friday", "what": "Free Practice 1 and 2", "body": "Two sessions of an hour each. Teams check that the car works, try setup changes, and run long stints to learn how the tyres behave." },
+          { "when": "Saturday am", "what": "Free Practice 3", "body": "A final hour to confirm the setup before it is frozen." },
+          { "when": "Saturday pm", "what": "Qualifying", "body": "Q1 of 18 minutes drops the slowest five to positions 16 to 20. Q2 of 15 minutes drops five more to positions 11 to 15. Q3 of 12 minutes decides the top ten and pole position." },
+          { "when": "Sunday", "what": "The Grand Prix", "body": "A formation lap, then the start. Five red lights come on one at a time and the race begins when they all go out. The race runs to the shortest distance over 305 km, with a two hour limit. In a dry race each driver must use at least two different tyre compounds, which is why everyone has to pit." }
+        ]
+      },
+      {
+        "type": "steps",
+        "title": "How a sprint weekend runs",
+        "intro": "Six weekends in 2026 use the sprint format instead: Shanghai, Miami, Montreal, Silverstone, Zandvoort and Singapore.",
+        "items": [
+          { "when": "Friday am", "what": "Sprint Practice", "body": "A single practice hour. Teams get one shot at understanding the car before it counts." },
+          { "when": "Friday pm", "what": "Sprint Qualifying", "body": "A shortened qualifying session that sets the grid for Saturday's sprint." },
+          { "when": "Saturday am", "what": "The Sprint", "body": "A 100 km race, about a third of a Grand Prix and roughly 30 minutes long. No mandatory pit stops. Points go to the top eight: 8, 7, 6, 5, 4, 3, 2, 1." },
+          { "when": "Saturday pm", "what": "Grand Prix Qualifying", "body": "The normal Q1, Q2, Q3 format, setting Sunday's grid. The sprint result does not affect it." },
+          { "when": "Sunday", "what": "The Grand Prix", "body": "Exactly as on a normal weekend, with full points." }
+        ]
+      },
+      {
+        "type": "table",
+        "title": "How points are scored",
+        "intro": "Points go to the driver and, added together across a team's two cars, to the constructor. The bonus point for fastest lap was scrapped from 2025.",
+        "columns": ["Finish", "Grand Prix", "Sprint"],
+        "rows": [
+          ["1st", "25", "8"],
+          ["2nd", "18", "7"],
+          ["3rd", "15", "6"],
+          ["4th", "12", "5"],
+          ["5th", "10", "4"],
+          ["6th", "8", "3"],
+          ["7th", "6", "2"],
+          ["8th", "4", "1"],
+          ["9th", "2", "-"],
+          ["10th", "1", "-"]
+        ],
+        "note": "Finish outside the top ten in a Grand Prix, or outside the top eight in a sprint, and you score nothing. Whoever has the most points after the final race is world champion."
+      },
+      {
+        "type": "prose",
+        "title": "The 2026 grid",
+        "paragraphs": [
+          "Eleven teams, twenty two drivers: McLaren (Norris, Piastri), Ferrari (Hamilton, Leclerc), Red Bull (Verstappen, Hadjar), Mercedes (Russell, Antonelli), Aston Martin (Alonso, Stroll), Williams (Albon, Sainz), Audi (Hulkenberg, Bortoleto), Alpine (Gasly, Colapinto), Haas (Ocon, Bearman), Racing Bulls (Lawson, Lindblad) and Cadillac (Perez, Bottas).",
+          "The nine drivers used as mentors in the Garage tab are all on this grid. Which topics belong to which driver is an arbitrary choice made to give each of them a specialism, not a claim about what any of them actually knows."
+        ]
+      },
+      {
+        "type": "links",
+        "title": "Where to go next",
+        "intro": "Opens in a new tab.",
+        "items": [
+          { "label": "Formula1.com", "url": "https://www.formula1.com/", "note": "The official site: calendar, standings, results and race reports." },
+          { "label": "The beginner's guide to the 2026 regulations", "url": "https://www.formula1.com/en/latest/article/the-beginners-guide-to-the-2026-regulations.6j0tS0hrHG2T01tpmK6XYz", "note": "Official plain English explanation of the current rule set. Start here." },
+          { "label": "FIA regulations", "url": "https://www.fia.com/regulation/category/110", "note": "The actual sporting, technical and financial rulebooks as PDFs. Dry, but it is the primary source." },
+          { "label": "FIA 2026 F1 season", "url": "https://www.fia.com/events/fia-formula-one-world-championship/season-2026/formula-one", "note": "Official entry lists, event pages and stewards' decisions." },
+          { "label": "Chain Bear on YouTube", "url": "https://www.youtube.com/@ChainBear", "note": "The clearest explanations anywhere of how the rules and the aerodynamics actually work. Ideal if you like knowing why." },
+          { "label": "Formula 1 on YouTube", "url": "https://www.youtube.com/@Formula1", "note": "Official highlights, onboards and technical explainers." },
+          { "label": "Racecar Engineering", "url": "https://www.racecar-engineering.com/", "note": "Proper engineering journalism about how race cars are designed. Where the physics gets real." },
+          { "label": "The Race", "url": "https://www.the-race.com/formula-1/", "note": "Analysis rather than news: why a strategy worked, why a car is quick." },
+          { "label": "Autosport", "url": "https://www.autosport.com/f1/", "note": "Daily news coverage across the whole sport." },
+          { "label": "BBC Sport Formula 1", "url": "https://www.bbc.co.uk/sport/formula1", "note": "UK coverage, results and the calendar, free to read." },
+          { "label": "2026 season on Wikipedia", "url": "https://en.wikipedia.org/wiki/2026_Formula_One_World_Championship", "note": "The fastest way to check a fact: entries, results tables and rule changes with references." },
+          { "label": "STEM Racing", "url": "https://www.stemracing.com/", "note": "The schools competition formerly called F1 in Schools. Teams design, test and race a miniature car, which turns most of this roadmap into a practical project." }
+        ]
+      }
+    ]
+    }
+  }
+}
+    </script>
+
+    <jelly-theme mode="auto" id="theme">
+      <div class="shell" id="shell"></div>
+    </jelly-theme>
+
+    <script type="module">
+      /* Logic only. Every constant, colour, label and fact comes from the manifest. */
+
+      const M = JSON.parse(document.getElementById("manifest").textContent);
+      const APP = M.app;
+      const COPY = APP.copy;
+
+      const NODES = M.nodes;
+      const BY_ID = new Map(NODES.map((n) => [n.id, n]));
+      const STATUS = new Map(M.statuses.map((s) => [s.id, s]));
+      const STATUS_IDS = M.statuses.map((s) => s.id);
+      const MAX_POINTS = NODES.length * APP.rules.maxStatusPoints;
+
+      const UNLOCKS = new Map(NODES.map((n) => [n.id, []]));
+      NODES.forEach((n) => n.requires.forEach((r) => UNLOCKS.has(r) && UNLOCKS.get(r).push(n.id)));
+
+      const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : "{" + k + "}"));
+      const wideQuery = window.matchMedia(APP.media.wide);
+      const darkQuery = window.matchMedia(APP.media.dark);
+
+      function make(tag, props = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props)) {
+          if (value === undefined || value === null || value === false) continue;
+          if (key === "class") node.className = value;
+          else if (key === "text") node.textContent = value;
+          else if (key === "style") Object.assign(node.style, value);
+          else if (key === "vars") for (const [v, val] of Object.entries(value)) node.style.setProperty("--" + v, val);
+          else if (key === "on") for (const [evt, handler] of Object.entries(value)) node.addEventListener(evt, handler);
+          else node.setAttribute(key, value === true ? "" : String(value));
+        }
+        children.filter(Boolean).forEach((child) => node.append(child));
+        return node;
+      }
+
+      /* The component library loads from a CDN. Wait for it, but never hang: if it
+         cannot be fetched the page falls back to plain elements. */
+      const jellyOk = await Promise.race([
+        customElements.whenDefined("jelly-button").then(() => true),
+        new Promise((resolve) => setTimeout(() => resolve(false), APP.timing.libraryTimeoutMs))
+      ]);
+
+      /* ---------------- theme, injected from the manifest ---------------- */
+
+      function buildThemeStyles() {
+        const rules = [
+          ":root{--font-display:" + APP.style.fonts.display + ";--font-text:" + APP.style.fonts.text + ";--accent:" + APP.accent + ";}"
+        ];
+        for (const [mode, tokens] of Object.entries(APP.style.palette)) {
+          const decls = Object.entries(tokens).map(([k, v]) => "--" + k + ":" + v).join(";");
+          rules.push('.shell[data-mode="' + mode + '"]{' + decls + ";--page-bg:" + tokens.bg + ";--page-fg:" + tokens.text + ";}");
+          rules.push('body[data-mode="' + mode + '"]{--page-bg:' + tokens.bg + ";--page-fg:" + tokens.text +
+            ";--shadow-color:" + tokens["shadow-color"] + ";--shadow-strength:" + tokens["shadow-strength"] + ";}");
+        }
+        document.head.append(make("style", { text: rules.join("\n") }));
+      }
+
+      const theme = document.getElementById("theme");
+      const shell = document.getElementById("shell");
+      let modePref = localStorage.getItem(APP.storage.mode) || APP.defaultMode;
+
+      function resolvedMode() {
+        if (modePref !== "auto") return modePref;
+        if (theme && theme.resolvedMode) return theme.resolvedMode;
+        return darkQuery.matches ? "dark" : "light";
+      }
+
+      function applyMode() {
+        theme.setAttribute("mode", modePref);
+        const mode = resolvedMode();
+        shell.dataset.mode = mode;
+        document.body.dataset.mode = mode;
+        localStorage.setItem(APP.storage.mode, modePref);
+      }
+
+      /* ---------------- state ---------------- */
+
+      let progress = loadProgress();
+      let view = APP.defaultTab;
+      let selectedId = null;
+      let query = "";
+      let activeSubjects = new Set(Object.keys(M.subjects));
+      let zoom = 1;
+      let pendingImport = null;
+
+      function loadProgress() {
+        try {
+          const raw = localStorage.getItem(APP.storage.progress);
+          if (!raw) return {};
+          const parsed = JSON.parse(raw);
+          return sanitise(parsed && parsed.progress ? parsed.progress : parsed).entries;
+        } catch (err) {
+          console.warn("Could not read saved progress", err);
+          return {};
+        }
+      }
+
+      function saveProgress() {
+        try {
+          localStorage.setItem(
+            APP.storage.progress,
+            JSON.stringify({ version: APP.storage.schemaVersion, app: APP.id, updatedAt: new Date().toISOString(), progress })
+          );
+        } catch (err) {
+          console.warn("Could not save progress", err);
+        }
+      }
+
+      /* Accepts anything and keeps only entries with a known node id and status. */
+      function sanitise(input) {
+        const entries = {};
+        let skipped = 0;
+        if (input && typeof input === "object") {
+          for (const id of Object.keys(input)) {
+            const value = input[id];
+            if (!BY_ID.has(id) || !value || typeof value !== "object" || !STATUS.has(value.status)) {
+              skipped += 1;
+              continue;
+            }
+            entries[id] = {
+              status: value.status,
+              notes: typeof value.notes === "string" ? value.notes.slice(0, APP.rules.notesMaxLength) : "",
+              updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString()
+            };
+          }
+        }
+        return { entries, skipped };
+      }
+
+      const statusOf = (id) => (progress[id] && progress[id].status) || STATUS_IDS[0];
+      const statusFor = (id) => STATUS.get(statusOf(id));
+      const isUnlocked = (node) => node.requires.every((r) => statusFor(r).weight >= APP.rules.unlockWeight);
+      const isMastered = (id) => statusOf(id) === APP.rules.masteredStatus;
+
+      function isVisible(node) {
+        if (!activeSubjects.has(node.subject)) return false;
+        if (!query) return true;
+        return [node.id, node.title, node.spec, node.f1, node.diy, node.check].join(" ").toLowerCase().includes(query);
+      }
+
+      function setStatus(id, status) {
+        const current = progress[id] || {};
+        progress[id] = { status, notes: current.notes || "", updatedAt: new Date().toISOString() };
+        saveProgress();
+        renderStats();
+        renderView();
+        renderDetail();
+      }
+
+      function setNotes(id, notes) {
+        const current = progress[id] || {};
+        progress[id] = { status: current.status || STATUS_IDS[0], notes, updatedAt: new Date().toISOString() };
+        saveProgress();
+      }
+
+      /* ---------------- component wrappers ---------------- */
+
+      function badge(text, opts = {}) {
+        const node = make(jellyOk ? "jelly-badge" : "span", { text, size: opts.size || "medium" });
+        if (opts.fill) {
+          node.style.setProperty("--jelly-fill", opts.fill);
+          node.style.setProperty("--jelly-label", opts.label || "#fff");
+          if (!jellyOk) Object.assign(node.style, { background: opts.fill, color: opts.label || "#fff", borderColor: opts.fill });
+        } else if (opts.variant && jellyOk) {
+          node.setAttribute("variant", opts.variant);
+          if (opts.outline) node.setAttribute("outline", "");
+        }
+        return node;
+      }
+
+      function button(text, opts = {}) {
+        const node = make(jellyOk ? "jelly-button" : "button", {
+          text,
+          size: opts.size || "small",
+          shape: jellyOk ? "square" : undefined,
+          block: opts.block && jellyOk,
+          class: jellyOk ? undefined : "btn-plain",
+          on: opts.onClick ? { click: opts.onClick } : undefined
+        });
+        if (opts.fill) {
+          node.style.setProperty("--jelly-fill", opts.fill);
+          node.style.setProperty("--jelly-label", opts.label || "#fff");
+          if (!jellyOk) Object.assign(node.style, { background: opts.fill, color: opts.label || "#fff" });
+        } else if (opts.variant && jellyOk) {
+          node.setAttribute("variant", opts.variant);
+        }
+        return node;
+      }
+
+      function progressBar(value, color, label) {
+        if (jellyOk) {
+          return make("jelly-progress", { value: Math.round(value), size: "small", label, vars: { "jelly-accent": color } });
+        }
+        const track = make("div", { style: { blockSize: "10px", borderRadius: "1e5px", background: "var(--line-strong)", overflow: "hidden" } });
+        track.append(make("i", { style: { display: "block", blockSize: "100%", background: color, inlineSize: value + "%" } }));
+        return track;
+      }
+
+      function textField(kind, opts = {}) {
+        const tag = jellyOk ? (kind === "textarea" ? "jelly-textarea" : "jelly-input") : kind;
+        const node = make(tag, {
+          label: opts.label,
+          placeholder: opts.placeholder,
+          rows: opts.rows,
+          class: jellyOk ? undefined : "plain",
+          "no-autofill": jellyOk,
+          on: opts.onInput ? { input: (e) => opts.onInput(e.target.value) } : undefined
+        });
+        if (jellyOk) {
+          if (opts.value) node.setAttribute("value", opts.value);
+        } else {
+          node.value = opts.value || "";
+          if (kind === "input") node.type = "search";
+        }
+        return node;
+      }
+
+      function card(children) {
+        const node = make(jellyOk ? "jelly-card" : "div", { class: jellyOk ? undefined : "surface" });
+        children.filter(Boolean).forEach((child) => node.append(child));
+        return node;
+      }
+
+      /* ---------------- page chrome, built from the manifest ---------------- */
+
+      const refs = {};
+
+      function buildChrome() {
+        shell.replaceChildren();
+
+        refs.modeSwitch = make("div", { class: "row" });
+        shell.append(
+          make("header", { class: "row masthead" }, [
+            make("div", {}, [make("span", { class: "kicker", text: APP.kicker }), make("h1", { text: APP.title })]),
+            make("div", { class: "push" }, [refs.modeSwitch])
+          ])
+        );
+
+        refs.pct = make("span", { text: "0" });
+        refs.headlineBadges = make("div", { class: "row push" });
+        refs.overallBar = make("div");
+        refs.subjectGrid = make("div", { class: "subject-grid" });
+
+        shell.append(
+          card([
+            make("div", { class: "dash" }, [
+              make("div", { class: "row" }, [
+                make("div", { class: "score" }, [refs.pct, document.createTextNode("%"), make("br"), make("small", { text: COPY.scoreCaption })]),
+                refs.headlineBadges
+              ]),
+              refs.overallBar,
+              refs.subjectGrid
+            ])
+          ])
+        );
+
+        refs.searchSlot = make("div", { class: "grow" });
+        refs.subjectChips = make("div", { class: "row" });
+        refs.controls = make("div", { class: "row" }, [refs.searchSlot, refs.subjectChips]);
+        shell.append(refs.controls);
+
+        refs.panels = {};
+        refs.tabPanels = {};
+        const tabs = make(jellyOk ? "jelly-tabs" : "div", { id: "tabs", size: APP.tabSize });
+        APP.tabs.forEach((tab) => {
+          const content = make("div", { style: { marginBlockStart: "var(--size-3)" } });
+          refs.panels[tab.id] = content;
+          const panel = make(jellyOk ? "jelly-tab-panel" : "section", {
+            label: tab.label,
+            value: tab.id,
+            active: tab.id === APP.defaultTab
+          }, [tab.id === "track" ? buildTrackPanel(content) : content]);
+          refs.tabPanels[tab.id] = panel;
+          tabs.append(panel);
+        });
+        tabs.addEventListener("change", (e) => setView(e.target.value || APP.defaultTab));
+
+        /* Without the library there is no tab bar, so supply a plain one and
+           switch the panels by hand. Otherwise only the first tab is reachable. */
+        if (!jellyOk) {
+          refs.fallbackTabs = make("div", { class: "row" }, APP.tabs.map((tab) =>
+            button(tab.label, { onClick: () => setView(tab.id) })
+          ));
+          shell.append(refs.fallbackTabs);
+        }
+        shell.append(tabs);
+
+        shell.append(
+          make("div", { class: "row" }, [
+            button(COPY.exportButton, { variant: "mint", onClick: exportProgress }),
+            button(COPY.importButton, { variant: "azure", onClick: () => refs.importFile.click() }),
+            button(COPY.resetButton, { variant: "platinum", onClick: resetProgress }),
+            (refs.importFile = make("input", {
+              type: "file",
+              accept: APP.export.mimeType + ",.json",
+              class: "sr",
+              on: {
+                change: (e) => {
+                  const file = e.target.files && e.target.files[0];
+                  if (file) handleImportFile(file);
+                  e.target.value = "";
+                }
+              }
+            }))
+          ])
+        );
+
+        const foot = make("p", { class: "foot" });
+        COPY.footer.forEach((part) => {
+          foot.append(part.href ? make("a", { href: part.href, text: part.text, target: part.href.startsWith("http") ? "_blank" : undefined, rel: "noopener" }) : document.createTextNode(part.text));
+        });
+        shell.append(foot);
+
+        buildOverlays();
+      }
+
+      function buildTrackPanel(content) {
+        const t = APP.track;
+        refs.zoomLabel = make("span", { text: "100%" });
+        refs.canvas = make("div", { class: "canvas" });
+        refs.edges = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        refs.edges.setAttribute("aria-hidden", "true");
+        refs.canvas.append(refs.edges);
+        refs.zoomWrap = make("div", { class: "zoom-wrap" }, [refs.canvas]);
+        refs.viewport = make("div", { class: "viewport" }, [refs.zoomWrap]);
+
+        content.append(
+          make("div", { class: "row" }, [
+            button(COPY.zoomOut, { variant: "platinum", onClick: () => nudgeZoom(-APP.zoom.step) }),
+            button(COPY.zoomIn, { variant: "platinum", onClick: () => nudgeZoom(APP.zoom.step) }),
+            button(COPY.zoomFit, { variant: "platinum", onClick: fitZoom }),
+            refs.zoomLabel,
+            make("span", { class: "push foot", text: COPY.trackHint })
+          ]),
+          refs.viewport
+        );
+        return content;
+      }
+
+      function buildOverlays() {
+        refs.detailBody = make("div", { class: "detail-body" });
+        refs.drawer = make(jellyOk ? "jelly-drawer" : "div", { label: COPY.notesLabel, side: wideQuery.matches ? "end" : "bottom" }, [refs.detailBody]);
+        refs.drawer.addEventListener("close", () => {
+          if (selectedId !== null) {
+            selectedId = null;
+            renderView();
+          }
+        });
+
+        refs.importSummary = make("p", { style: { margin: "0", fontSize: "var(--font-size-0)", lineHeight: "var(--font-lineheight-3)" } });
+        refs.importSheet = make(jellyOk ? "jelly-dialog" : "div", { label: COPY.importTitle }, [
+          make("div", { style: { display: "grid", gap: "var(--size-3)", maxInlineSize: "26rem" } }, [
+            make("h2", { text: COPY.importTitle, style: { margin: "0", fontSize: "var(--font-size-2)" } }),
+            refs.importSummary,
+            make("div", { class: "row", style: { justifyContent: "flex-end" } }, [
+              button(COPY.importCancel, { variant: "platinum", onClick: () => { pendingImport = null; toggleImportSheet(false); } }),
+              button(COPY.importMerge, { variant: "azure", onClick: () => applyImport("merge") }),
+              button(COPY.importReplace, { variant: "rose", onClick: () => applyImport("replace") })
+            ])
+          ])
+        ]);
+
+        theme.append(refs.drawer, refs.importSheet);
+      }
+
+      function renderModeSwitch() {
+        refs.modeSwitch.replaceChildren(
+          ...APP.modes.map((mode) =>
+            button(mode.label, {
+              variant: modePref === mode.id ? "azure" : "platinum",
+              onClick: () => {
+                modePref = mode.id;
+                applyMode();
+                renderModeSwitch();
+                renderView();
+              }
+            })
+          )
+        );
+      }
+
+      function renderSubjectChips() {
+        refs.subjectChips.replaceChildren(
+          ...Object.entries(M.subjects).map(([key, subject]) => {
+            const on = activeSubjects.has(key);
+            const chip = make(jellyOk ? "jelly-chip" : "button", {
+              text: subject.name,
+              size: "small",
+              selectable: jellyOk,
+              selected: jellyOk && on,
+              class: jellyOk ? undefined : "btn-plain",
+              vars: { "jelly-fill": subject.color, "jelly-label": subject.labelColor }
+            });
+            if (!jellyOk) Object.assign(chip.style, { background: on ? subject.color : "transparent", color: on ? subject.labelColor : "inherit" });
+            chip.addEventListener(jellyOk ? "change" : "click", () => {
+              activeSubjects.has(key) ? activeSubjects.delete(key) : activeSubjects.add(key);
+              if (activeSubjects.size === 0) activeSubjects = new Set(Object.keys(M.subjects));
+              renderSubjectChips();
+              renderView();
+            });
+            return chip;
+          })
+        );
+      }
+
+      /* ---------------- dashboard ---------------- */
+
+      function renderStats() {
+        const total = NODES.reduce((sum, n) => sum + statusFor(n.id).weight, 0);
+        const pct = Math.round((total / NODES.length) * 100);
+        refs.pct.textContent = String(pct);
+        refs.overallBar.replaceChildren(progressBar(pct, APP.accent, APP.title));
+
+        const points = NODES.reduce((sum, n) => sum + statusFor(n.id).points, 0);
+        const mastered = NODES.filter((n) => isMastered(n.id)).length;
+        refs.headlineBadges.replaceChildren(
+          badge(fill(COPY.pointsBadge, { points, max: MAX_POINTS }), { fill: APP.accent, size: "large" }),
+          badge(fill(COPY.masteredBadge, { count: mastered }), { fill: STATUS.get(APP.rules.masteredStatus).color, size: "large" }),
+          badge(fill(COPY.topicsBadge, { count: NODES.length }), { variant: "platinum", size: "large", outline: true })
+        );
+
+        refs.subjectGrid.replaceChildren(
+          ...Object.entries(M.subjects).map(([key, subject]) => {
+            const nodes = NODES.filter((n) => n.subject === key);
+            const done = nodes.reduce((sum, n) => sum + statusFor(n.id).weight, 0);
+            const count = nodes.filter((n) => isMastered(n.id)).length;
+            return make("div", { class: "subject-row" }, [
+              make("div", { class: "lbl" }, [
+                make("b", { text: subject.name }),
+                make("span", { text: fill(COPY.subjectMastered, { count, total: nodes.length }) })
+              ]),
+              progressBar(Math.round((done / nodes.length) * 100), subject.color, subject.name)
+            ]);
+          })
+        );
+      }
+
+      /* ---------------- track map ---------------- */
+
+      let layout = null;
+
+      function computeLayout() {
+        const t = APP.track;
+        const stages = M.stages.map((s) => s.id);
+        const positions = new Map();
+        const lanes = [];
+        let y = t.padBlock;
+
+        M.laneOrder.forEach((subjectKey) => {
+          const cells = stages.map((stageId) =>
+            NODES.filter((n) => n.subject === subjectKey && n.stage === stageId).sort((a, b) =>
+              a.id.localeCompare(b.id, undefined, { numeric: true })
+            )
+          );
+          const rows = Math.max(1, ...cells.map((c) => c.length));
+          const height = rows * t.nodeHeight + (rows - 1) * t.rowGap;
+
+          cells.forEach((cell, stageIdx) => {
+            cell.forEach((node, rowIdx) => {
+              positions.set(node.id, {
+                x: t.padInline + stageIdx * (t.nodeWidth + t.columnGap),
+                y: y + rowIdx * (t.nodeHeight + t.rowGap)
+              });
+            });
+          });
+
+          lanes.push({ subject: subjectKey, top: y, height });
+          y += height + t.laneGap;
+        });
+
+        layout = {
+          positions,
+          lanes,
+          width: t.padInline * 2 + stages.length * t.nodeWidth + (stages.length - 1) * t.columnGap,
+          height: y + t.rowGap
+        };
+      }
+
+      function buildTrackChrome() {
+        const t = APP.track;
+        refs.canvas.querySelectorAll(".lane-label, .stage-label, .lane-band").forEach((n) => n.remove());
+
+        M.stages.forEach((stage, i) => {
+          refs.canvas.append(
+            make("div", {
+              class: "stage-label",
+              text: fill(COPY.stageNumber, { id: stage.id }),
+              style: { insetInlineStart: t.padInline + i * (t.nodeWidth + t.columnGap) + "px", insetBlockStart: "14px", inlineSize: t.nodeWidth + "px" }
+            }, [make("b", { text: stage.name })])
+          );
+        });
+
+        layout.lanes.forEach((lane) => {
+          refs.canvas.append(
+            make("div", { class: "lane-band", style: { insetBlockStart: lane.top - t.laneGap / 2 + "px", inlineSize: layout.width + "px" } }),
+            make("div", {
+              class: "lane-label",
+              text: M.subjects[lane.subject].name,
+              vars: { c: M.subjects[lane.subject].color },
+              style: { insetInlineStart: t.laneLabelInset + "px", insetBlockStart: lane.top + "px", inlineSize: t.padInline - t.laneLabelInset * 2 + "px" }
+            })
+          );
+        });
+      }
+
+      function renderTrack() {
+        const t = APP.track;
+        const e = t.edge;
+        Object.assign(refs.canvas.style, { inlineSize: layout.width + "px", blockSize: layout.height + "px" });
+        refs.edges.setAttribute("width", layout.width);
+        refs.edges.setAttribute("height", layout.height);
+        refs.edges.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
+
+        const paths = [];
+        NODES.forEach((node) => {
+          const to = layout.positions.get(node.id);
+          node.requires.forEach((reqId) => {
+            const from = layout.positions.get(reqId);
+            const source = BY_ID.get(reqId);
+            if (!from || !to || !source) return;
+            const x1 = from.x + t.nodeWidth;
+            const y1 = from.y + t.nodeHeight / 2;
+            const x2 = to.x;
+            const y2 = to.y + t.nodeHeight / 2;
+            const dx = Math.max(e.minCurve, (x2 - x1) * e.curve);
+            const active = selectedId === node.id || selectedId === reqId;
+            const visible = isVisible(node) && isVisible(source);
+            paths.push(
+              '<path d="M ' + x1 + " " + y1 + " C " + (x1 + dx) + " " + y1 + ", " + (x2 - dx) + " " + y2 + ", " + x2 + " " + y2 +
+                '" fill="none" stroke-linecap="round" stroke="' + M.subjects[source.subject].color +
+                '" stroke-width="' + (active ? e.widthActive : e.widthIdle) +
+                '" opacity="' + (active ? e.opacityActive : visible ? e.opacityIdle : e.opacityHidden) + '" />'
+            );
+          });
+        });
+        refs.edges.innerHTML = paths.join("");
+
+        refs.canvas.querySelectorAll(".node").forEach((n) => n.remove());
+        NODES.forEach((node) => {
+          const pos = layout.positions.get(node.id);
+          const status = statusFor(node.id);
+          const locked = !isUnlocked(node) && status.id === STATUS_IDS[0];
+
+          const btn = make("button", {
+            class: "node" + (locked ? " locked" : "") + (isVisible(node) ? "" : " dim") + (selectedId === node.id ? " selected" : ""),
+            vars: { c: M.subjects[node.subject].color, s: status.color },
+            style: { insetInlineStart: pos.x + "px", insetBlockStart: pos.y + "px", inlineSize: t.nodeWidth + "px", blockSize: t.nodeHeight + "px" },
+            on: { click: () => select(node.id) }
+          }, [
+            status.id === STATUS_IDS[0] ? null : make("span", { class: "tint" }),
+            make("span", { class: "n-title", text: node.title }),
+            make("span", { class: "n-meta" }, [make("i", { class: "dot" }), document.createTextNode(node.id + " · " + status.label)])
+          ]);
+          refs.canvas.append(btn);
+        });
+
+        applyZoom();
+      }
+
+      function applyZoom() {
+        refs.canvas.style.transform = "scale(" + zoom + ")";
+        Object.assign(refs.zoomWrap.style, { inlineSize: layout.width * zoom + "px", blockSize: layout.height * zoom + "px" });
+        refs.zoomLabel.textContent = Math.round(zoom * 100) + "%";
+      }
+
+      function nudgeZoom(delta) {
+        zoom = Math.min(APP.zoom.max, Math.max(APP.zoom.min, zoom + delta));
+        applyZoom();
+      }
+
+      function fitZoom() {
+        const available = refs.viewport.clientWidth - 4;
+        if (available <= 0) return;
+        zoom = Math.min(APP.zoom.fitMax, Math.max(APP.zoom.min, available / layout.width));
+        applyZoom();
+      }
+
+      /* ---------------- roadmap ---------------- */
+
+      function renderList() {
+        const box = refs.panels.list;
+        box.replaceChildren();
+        let shown = 0;
+
+        M.stages.forEach((stage) => {
+          const nodes = NODES.filter((n) => n.stage === stage.id && isVisible(n));
+          if (!nodes.length) return;
+          shown += nodes.length;
+
+          const cards = make("div", { class: "cards" });
+          nodes
+            .slice()
+            .sort(
+              (a, b) =>
+                M.laneOrder.indexOf(a.subject) - M.laneOrder.indexOf(b.subject) ||
+                a.id.localeCompare(b.id, undefined, { numeric: true })
+            )
+            .forEach((node) => {
+              const status = statusFor(node.id);
+              const locked = !isUnlocked(node) && status.id === STATUS_IDS[0];
+              cards.append(
+                make("button", {
+                  class: "lcard" + (locked ? " locked" : "") + (selectedId === node.id ? " selected" : ""),
+                  vars: { c: M.subjects[node.subject].color },
+                  on: { click: () => select(node.id) }
+                }, [
+                  make("span", { class: "l-top" }, [
+                    document.createTextNode(M.subjects[node.subject].name + " · " + node.id),
+                    make("span", { class: "push" }, [badge(status.label, { fill: status.color, label: status.labelColor, size: "small" })])
+                  ]),
+                  make("span", { class: "l-title", text: node.title }),
+                  make("span", { class: "l-f1", text: node.f1 })
+                ])
+              );
+            });
+
+          box.append(
+            make("div", { class: "stage-block" }, [
+              make("div", { class: "stage-head" }, [
+                make("span", { class: "num", text: fill(COPY.stageNumber, { id: stage.id }) }),
+                make("h2", { text: stage.name }),
+                make("p", { text: stage.blurb })
+              ]),
+              cards
+            ])
+          );
+        });
+
+        if (!shown) box.append(make("p", { class: "empty", text: COPY.emptyResults }));
+      }
+
+      /* ---------------- garage ---------------- */
+
+      function renderGarage() {
+        const box = refs.panels.garage;
+        box.replaceChildren(make("p", { class: "foot", text: COPY.garageIntro + " " + M.statusHelp }));
+
+        M.drivers
+          .map((driver) => {
+            const nodes = NODES.filter((n) => n.driver === driver.id);
+            const points = nodes.reduce((sum, n) => sum + statusFor(n.id).points, 0);
+            const max = nodes.length * APP.rules.maxStatusPoints;
+            return { driver, nodes, points, max, pct: max ? Math.round((points / max) * 100) : 0 };
+          })
+          .sort((a, b) => b.points - a.points || a.driver.name.localeCompare(b.driver.name))
+          .forEach((row, i) => {
+            box.append(
+              make("div", { class: "dcard garage", vars: { c: row.driver.color } }, [
+                make("div", { class: "dhead" }, [
+                  make("span", { class: "pos", text: String(i + 1) }),
+                  make("span", {}, [
+                    make("span", { class: "dname", text: row.driver.name }),
+                    make("br"),
+                    make("span", { class: "dteam", text: row.driver.team })
+                  ]),
+                  make("span", { class: "push" }, [badge(fill(COPY.pointsBadge, { points: row.points, max: row.max }), { fill: row.driver.color })])
+                ]),
+                progressBar(row.pct, row.driver.color, row.driver.name),
+                make("div", { class: "dfocus", text: row.driver.focus }),
+                make("div", { class: "dnodes" }, row.nodes.map((node) => topicChip(node.id, node.id + " " + node.title)))
+              ])
+            );
+          });
+      }
+
+      function topicChip(id, text) {
+        const node = BY_ID.get(id);
+        return make("button", {
+          class: "tagbtn",
+          vars: { s: statusFor(id).color },
+          on: { click: () => select(id) }
+        }, [make("i"), document.createTextNode(text || (node ? node.title : id))]);
+      }
+
+      /* ---------------- F1 explainer ---------------- */
+
+      const SECTION_RENDERERS = {
+        prose: (section) => section.paragraphs.map((text) => make("p", { text })),
+        stats: (section) => [
+          make("div", { class: "stat-grid" }, section.items.map((item) =>
+            make("div", { class: "stat" }, [
+              make("b", { text: item.value }),
+              make("span", { text: item.label }),
+              make("em", { text: item.note })
+            ])
+          ))
+        ],
+        principles: (section) => [
+          make("div", { class: "item-grid" }, section.items.map((item) =>
+            make("article", { class: "item" }, [make("h3", { text: item.title }), make("p", { text: item.body }), scienceRow(item.science, false)])
+          ))
+        ],
+        glossary: (section) => [
+          make("div", { class: "glossary" }, section.items.map((item) =>
+            make("article", { class: "gterm" }, [make("h3", { text: item.term }), make("p", { text: item.body }), scienceRow(item.science, true)])
+          ))
+        ],
+        steps: (section) => [
+          make("div", { class: "steps" }, section.items.map((item) =>
+            make("div", { class: "step" }, [
+              make("div", { class: "when", text: item.when }),
+              make("div", {}, [make("div", { class: "what", text: item.what }), make("p", { text: item.body })])
+            ])
+          ))
+        ],
+        table: (section) => {
+          const table = make("table");
+          const head = make("tr");
+          section.columns.forEach((c) => head.append(make("th", { text: c })));
+          table.append(make("thead", {}, [head]));
+          const body = make("tbody");
+          section.rows.forEach((row) => {
+            const tr = make("tr");
+            row.forEach((cell) => tr.append(make("td", { text: cell })));
+            body.append(tr);
+          });
+          table.append(body);
+          return [make("div", { class: "table-wrap" }, [table]), section.note ? make("p", { class: "sub", text: section.note }) : null];
+        },
+        ratio: (section) => {
+          const bar = make("div", { class: "ratio-bar" }, section.items.map((item) =>
+            make("span", {
+              text: item.share + "%",
+              style: { flexGrow: String(item.share), background: item.color, color: item.labelColor || "#fff" }
+            })
+          ));
+          const cards = make("div", { class: "item-grid ratio-cards" }, section.items.map((item) =>
+            make("article", { class: "item ratio-card", vars: { c: item.color } }, [
+              make("b", { class: "ratio-share", text: item.share + "%" }),
+              make("h3", { text: item.label }),
+              make("p", { text: item.body })
+            ])
+          ));
+          return [bar, cards, section.note ? make("p", { class: "sub", text: section.note }) : null];
+        },
+        links: (section) => [
+          make("div", { class: "linklist" }, section.items.map((item) => {
+            let host = item.url;
+            try {
+              host = new URL(item.url).hostname.replace(/^www\./, "");
+            } catch (err) {
+              /* keep the raw string */
+            }
+            return make("a", { class: "linkrow", href: item.url, target: "_blank", rel: "noopener noreferrer" }, [
+              make("span", { class: "lname", text: item.label }),
+              make("span", { class: "lnote", text: item.note }),
+              make("span", { class: "lhost", text: host })
+            ]);
+          }))
+        ]
+      };
+
+      function renderPage(viewId, pageKey) {
+        const page = M.pages[pageKey];
+        const box = refs.panels[viewId];
+        box.className = "explainer";
+        box.replaceChildren(make("p", { class: "lede", text: page.lede }));
+
+        page.sections.forEach((section) => {
+          const heading = make("h2", { text: section.title });
+          heading.prepend(make("span", { class: "rule" }));
+          const parts = (SECTION_RENDERERS[section.type] || (() => []))(section);
+          box.append(
+            make("section", { class: "ex-section" }, [
+              heading,
+              section.intro ? make("p", { class: "sub", text: section.intro }) : null,
+              ...parts
+            ])
+          );
+        });
+      }
+
+      function scienceRow(ids, compact) {
+        if (!ids || !ids.length) return null;
+        const row = make("div", { class: "sci" });
+        if (!compact) row.append(make("span", { class: "caption", text: COPY.scienceLabel }));
+        ids.forEach((id) => {
+          const node = BY_ID.get(id);
+          if (node) row.append(topicChip(id, node.id + " " + node.title));
+        });
+        return row;
+      }
+
+      /* ---------------- detail drawer ---------------- */
+
+      function select(id) {
+        selectedId = id;
+        renderDetail();
+        if (jellyOk) refs.drawer.open = true;
+        else refs.drawer.setAttribute("open", "");
+        renderView();
+      }
+
+      function closeDetail() {
+        selectedId = null;
+        if (jellyOk) refs.drawer.open = false;
+        else refs.drawer.removeAttribute("open");
+        renderView();
+      }
+
+      function fact(label, text, isF1) {
+        return make("div", { class: "fact" + (isF1 ? " is-f1" : "") }, [make("h3", { text: label }), make("p", { text })]);
+      }
+
+      function renderDetail() {
+        refs.detailBody.replaceChildren();
+        if (!selectedId) return;
+
+        const node = BY_ID.get(selectedId);
+        const entry = progress[node.id] || {};
+        const status = statusFor(node.id);
+        const subject = M.subjects[node.subject];
+        const stage = M.stages.find((s) => s.id === node.stage);
+        const driver = M.drivers.find((d) => d.id === node.driver);
+        const L = COPY.factLabels;
+
+        refs.detailBody.append(
+          make("h2", { text: node.title }),
+          make("div", { class: "row" }, [
+            badge(subject.name, { fill: subject.color, label: subject.labelColor, size: "small" }),
+            badge(node.id, { variant: "platinum", size: "small", outline: true }),
+            badge(fill(COPY.stageBadge, { id: stage.id, name: stage.name }), { variant: "platinum", size: "small", outline: true }),
+            isUnlocked(node) ? null : badge(COPY.lockedBadge, { fill: APP.accent, size: "small" })
+          ].filter(Boolean)),
+          make("div", { class: "caption", text: COPY.statusPrompt }),
+          make("div", { class: "status-row" }, STATUS_IDS.map((sid) => {
+            const s = STATUS.get(sid);
+            const active = status.id === sid;
+            return button(fill(COPY.statusButton, { label: s.label, note: s.note }), {
+              fill: active ? s.color : undefined,
+              label: s.labelColor,
+              variant: active ? undefined : "platinum",
+              block: true,
+              onClick: () => setStatus(node.id, sid)
+            });
+          })),
+          make("div", { class: "facts" }, [
+            fact(L.spec, node.spec),
+            fact(L.f1, node.f1, true),
+            fact(L.diy, node.diy),
+            fact(L.check, node.check),
+            driver ? fact(L.driver, fill(COPY.driverFact, driver)) : null
+          ].filter(Boolean))
+        );
+
+        if (node.requires.length) refs.detailBody.append(linkFact(COPY.requiresLabel, node.requires));
+        const unlocks = UNLOCKS.get(node.id);
+        if (unlocks.length) refs.detailBody.append(linkFact(COPY.unlocksLabel, unlocks));
+
+        refs.detailBody.append(
+          make("div", { class: "caption", text: COPY.notesPrompt }),
+          textField("textarea", {
+            label: COPY.notesLabel,
+            rows: 4,
+            value: entry.notes || "",
+            placeholder: COPY.notesPlaceholder,
+            onInput: (value) => setNotes(node.id, value)
+          })
+        );
+
+        if (entry.updatedAt) {
+          refs.detailBody.append(make("div", { class: "stamp", text: fill(COPY.lastUpdated, { when: new Date(entry.updatedAt).toLocaleString() }) }));
+        }
+        refs.detailBody.append(button(COPY.closeButton, { variant: "platinum", block: true, onClick: closeDetail }));
+      }
+
+      function linkFact(title, ids) {
+        return make("div", { class: "fact" }, [
+          make("h3", { text: title }),
+          make("div", { class: "links" }, ids.map((id) => (BY_ID.has(id) ? topicChip(id, BY_ID.get(id).title) : null)).filter(Boolean))
+        ]);
+      }
+
+      /* ---------------- import and export ---------------- */
+
+      function exportProgress() {
+        const payload = {
+          app: APP.id,
+          version: APP.storage.schemaVersion,
+          exportedAt: new Date().toISOString(),
+          summary: {
+            topics: NODES.length,
+            points: NODES.reduce((sum, n) => sum + statusFor(n.id).points, 0),
+            maxPoints: MAX_POINTS
+          },
+          progress
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: APP.export.mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = make("a", { href: url, download: APP.export.filePrefix + "-" + new Date().toISOString().slice(0, 10) + ".json" });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), APP.timing.revokeObjectUrlMs);
+      }
+
+      async function handleImportFile(file) {
+        let parsed;
+        try {
+          parsed = JSON.parse(await file.text());
+        } catch (err) {
+          window.alert(COPY.importBadJson);
+          return;
+        }
+        const source = parsed && typeof parsed === "object" && parsed.progress ? parsed.progress : parsed;
+        const { entries, skipped } = sanitise(source);
+        const count = Object.keys(entries).length;
+        if (!count) {
+          window.alert(COPY.importNothingUsable);
+          return;
+        }
+        pendingImport = entries;
+        refs.importSummary.textContent = fill(skipped ? COPY.importSummarySkipped : COPY.importSummary, { count, skipped });
+        toggleImportSheet(true);
+      }
+
+      function toggleImportSheet(open) {
+        if (jellyOk) refs.importSheet.open = open;
+        else if (open) refs.importSheet.setAttribute("open", "");
+        else refs.importSheet.removeAttribute("open");
+      }
+
+      function applyImport(mode) {
+        if (!pendingImport) return;
+        if (mode === "replace") {
+          progress = pendingImport;
+        } else {
+          for (const [id, incoming] of Object.entries(pendingImport)) {
+            const existing = progress[id];
+            if (!existing || new Date(incoming.updatedAt) >= new Date(existing.updatedAt || 0)) progress[id] = incoming;
+          }
+        }
+        pendingImport = null;
+        saveProgress();
+        toggleImportSheet(false);
+        renderStats();
+        renderView();
+        renderDetail();
+      }
+
+      function resetProgress() {
+        if (!window.confirm(COPY.resetConfirm)) return;
+        progress = {};
+        saveProgress();
+        closeDetail();
+        renderStats();
+        renderView();
+      }
+
+      /* ---------------- views ---------------- */
+
+      /* Views the app implements itself, plus one generic renderer for every tab
+         that declares a "page" in the manifest. */
+      const VIEW_RENDERERS = { track: renderTrack, list: renderList, garage: renderGarage };
+      const PAGE_TABS = new Map(APP.tabs.filter((t) => t.page).map((t) => [t.id, t.page]));
+
+      function renderView() {
+        if (PAGE_TABS.has(view)) renderPage(view, PAGE_TABS.get(view));
+        else (VIEW_RENDERERS[view] || (() => {}))();
+        /* Search and subject filters only apply to the roadmap views. */
+        refs.controls.hidden = PAGE_TABS.has(view);
+      }
+
+      function setView(next) {
+        view = next;
+        if (!jellyOk) {
+          for (const [id, panel] of Object.entries(refs.tabPanels)) panel.hidden = id !== view;
+          [...refs.fallbackTabs.children].forEach((btn, i) => {
+            btn.style.opacity = APP.tabs[i].id === view ? "1" : "0.55";
+          });
+        }
+        renderView();
+        if (view === "track") requestAnimationFrame(fitZoom);
+      }
+
+      /* ---------------- boot ---------------- */
+
+      buildThemeStyles();
+      buildChrome();
+      applyMode();
+      renderModeSwitch();
+      renderSubjectChips();
+
+      refs.searchSlot.append(
+        textField("input", {
+          label: COPY.searchLabel,
+          placeholder: COPY.searchPlaceholder,
+          onInput: (value) => {
+            query = value.trim().toLowerCase();
+            renderView();
+          }
+        })
+      );
+
+      computeLayout();
+      buildTrackChrome();
+      renderStats();
+      setView(APP.defaultTab);
+
+      darkQuery.addEventListener("change", () => {
+        if (modePref === "auto") {
+          applyMode();
+          renderView();
+        }
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && selectedId) closeDetail();
+      });
+
+      let resizeTimer = null;
+      window.addEventListener("resize", () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          if (view === "track") fitZoom();
+          refs.drawer.setAttribute("side", wideQuery.matches ? "end" : "bottom");
+        }, APP.timing.resizeDebounceMs);
+      });
+    </script>
+  </body>
+</html>
