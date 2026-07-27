@@ -34,8 +34,8 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
   through the replication skill.'
 orchestration:
   cursor:
-    slice: replication-skill
-    step: share-with-team
+    slice: maths-resources
+    step: create-plan
   policy:
     coding_execution:
       subagent_required: true
@@ -289,11 +289,13 @@ plan:
     title: Create replication skill
     goal: Create the reusable GCSE roadmap resource skill, schema reference, topic scaffolder, and paper
       scaffolder from the proven tracer workflow.
-    status: in_progress
-    note: ''
+    status: done
+    note: Project-local replication skill shipped at a6cd982 with atomic topic and paper scaffolders,
+      explicit draft safety, schema reference, project discovery instructions, and 13 passing script tests.
     execution:
       model: openai/gpt-5.6-sol
       started: '2026-07-27T11:36:02.036510Z'
+      ended: '2026-07-27T12:00:08.605888Z'
     repos:
     - dotfiles
     depends_on:
@@ -364,19 +366,32 @@ plan:
         ended: '2026-07-27T11:59:12.675152Z'
     - key: share-with-team
       title: 'Share with team: ticket + PR for this slice''s repo'
-      status: in_progress
-      note: ''
+      status: skipped
+      note: User explicitly chose direct delivery to master instead of a ticket and PR. Project-local
+        skill commit a6cd982 was pushed to origin/master.
       execution:
         model: openai/gpt-5.6-sol
         started: '2026-07-27T11:59:29.890385Z'
+        ended: '2026-07-27T12:00:06.784841Z'
     - key: update-task-file
       title: Update this task file
-      status: planned
-      note: ''
+      status: done
+      note: Task record reflects the project-local skill implementation, relocation, validation, and direct
+        master delivery. Remaining subject, integration, and closing work is already represented by bounded
+        slices.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T12:00:07.342748Z'
+        ended: '2026-07-27T12:00:07.594487Z'
     - key: wait-for-feedback
       title: 'Wait for team feedback: loop on PR review until merged'
-      status: planned
-      note: ''
+      status: skipped
+      note: No PR feedback window exists because the user selected direct master delivery; origin/master
+        contains a6cd982.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T12:00:08.099782Z'
+        ended: '2026-07-27T12:00:08.099782Z'
     final_steps: []
   - key: maths-resources
     kind: implement
