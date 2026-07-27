@@ -216,7 +216,9 @@ This function should only modify configuration layer settings."
                                       ob-graphql
                                       pbcopy
                                       ;; https://github.com/borkdude/cljbang.el
-                                      (cljbang :location (recipe :fetcher github :repo "borkdude/cljbang.el")))
+                                      (cljbang :location (recipe :fetcher github :repo "borkdude/cljbang.el"))
+                                      ;; https://github.com/jaketothepast/codetutor
+                                      (codetutor :location (recipe :fetcher github :repo "jaketothepast/codetutor")))
 
    ;; A list of packages that cannot be updated.
    dotspacemacs-frozen-packages '()
@@ -1085,6 +1087,39 @@ before packages are loaded."
       "oc r" #'cljbang-require)
     :config
     (require 'cljbang-mode))
+
+  ;; CodeTutor: AI pair-programming tutor (https://github.com/jaketothepast/codetutor)
+  (use-package codetutor
+    :commands (codetutor-mode codetutor-open codetutor-what-next codetutor-ask
+               codetutor-follow-up codetutor-refresh-architecture-memory
+               codetutor-new-spec codetutor-open-spec codetutor-scratch
+               codetutor-inline-tips codetutor-clear-inline-tips)
+    :init
+    (setq codetutor-backend 'auto
+          codetutor-review-on-save nil)
+    (spacemacs/declare-prefix "ot" "codetutor")
+    (spacemacs/set-leader-keys
+      "ot o" #'codetutor-open
+      "ot n" #'codetutor-what-next
+      "ot a" #'codetutor-ask
+      "ot f" #'codetutor-follow-up
+      "ot m" #'codetutor-refresh-architecture-memory
+      "ot s" #'codetutor-new-spec
+      "ot S" #'codetutor-open-spec
+      "ot t" #'codetutor-scratch
+      "ot i" #'codetutor-inline-tips)
+    :config
+    (codetutor-mode 1)
+    ;; Upstream bug: the pi.dev backend command never sets :stdin (only the
+    ;; codex backend does), so `codetutor--request' never calls
+    ;; `process-send-eof' and the `pi' subprocess hangs forever waiting for
+    ;; stdin to close. Force EOF by giving that backend an empty :stdin;
+    ;; the actual prompt already travels via the `@promptfile' argument.
+    (advice-add 'codetutor--backend-command :filter-return
+                (lambda (backend)
+                  (if (equal (plist-get backend :name) "pi.dev")
+                      (plist-put backend :stdin "")
+                    backend))))
 
                                         ; (use-package spacious-padding
   ;;   :config

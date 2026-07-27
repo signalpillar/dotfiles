@@ -70,6 +70,7 @@ brew "clojure"
 brew "pipx"
 
 # Casks (GUI Apps & Fonts)
+cask "ghostty"
 cask "clipy"
 cask "hiddenbar"
 cask "meetingbar"
