@@ -16,6 +16,7 @@ profile defines step and slice-kind behavior.
 from __future__ import annotations
 
 import argparse
+import difflib
 import fcntl
 import json
 import os
@@ -317,6 +318,40 @@ class SliceKindDocument(StrictDocument):
     )
 
 
+class BootstrapSliceDocument(StrictDocument):
+    """Slice declaration in a bootstrap input document."""
+
+    key: str = Field(description="Stable slice identifier.")
+    kind: str = Field(description="Slice kind, validated against the active profile.")
+    title: str = Field(description="Short human-readable slice name.")
+    goal: str = Field(description="Bounded outcome that makes the slice complete.")
+    depends_on: list[str] = Field(default_factory=list, description="Slice keys that must finish before this slice is actionable.")
+    repos: list[str] = Field(default_factory=list, description="Repositories whose state this slice changes.")
+
+
+class BootstrapDocument(StrictDocument):
+    """Input document for the transactional bootstrap command."""
+
+    title: str = Field(description="Human-readable task title.")
+    status: TaskStatus = Field(default="in_progress", description="Overall task lifecycle state.")
+    initial_slice_kind: str | None = Field(default=None, description="When set, bootstrap seeds a slice of this kind (from profile step_template) before the declared slices.")
+    initial_slice_key: str | None = Field(default=None, description="Key for the seeded initial slice; defaults to task-{kind}.")
+    source: SourceDocument = Field(default_factory=SourceDocument, description="Task discovery metadata.")
+    project: ProjectDocument = Field(default_factory=ProjectDocument, description="Owning project metadata.")
+    context: str = Field(default="", description="Free-form background required before acting on the task.")
+    plan_note: str = Field(default="", description="High-level plan context.")
+    decisions: list[DecisionDocument] = Field(default_factory=list, description="Durable decisions in chronological order.")
+    slices: list[BootstrapSliceDocument] = Field(default_factory=list, description="Ordered task slices declared by the user.")
+
+    @model_validator(mode="after")
+    def validate_initial_slice_fields(self) -> "BootstrapDocument":
+        if self.initial_slice_key is not None and self.initial_slice_kind is None:
+            raise ValueError("initial_slice_key requires initial_slice_kind")
+        if not self.initial_slice_kind and not self.slices:
+            raise ValueError("bootstrap input must declare initial_slice_kind or at least one slice")
+        return self
+
+
 class ProfileDocument(StrictDocument):
     """Complete live execution profile loaded by every command."""
 
@@ -510,7 +545,9 @@ def missing_task_hint(task_file: Path) -> str:
         f"task file not found: {task_file}\n"
         f"create one from the example shape with:\n"
         f"  pi-job --task {task_file} scaffold\n"
-        f"then initialize orchestration:\n"
+        f"or write a bootstrap document and create+initialize in one transaction:\n"
+        f"  pi-job --task {task_file} bootstrap --from <bootstrap.yaml>\n"
+        f"after scaffold, initialize orchestration:\n"
         f"  pi-job --task {task_file} init [--kind setup|implement|...]"
     )
 
@@ -851,6 +888,20 @@ class TaskStore(Protocol):
         """Record a toolbelt artifact."""
         ...
 
+    def set_project(self, fields: Mapping[str, str]) -> None:
+        """Update task.project fields (merge, not replace)."""
+        ...
+
+    def set_context(self, context: str) -> None:
+        """Replace task.context."""
+        ...
+
+    def remove_slice(self, *, key: str) -> None:
+        """Remove a slice from the task plan. Must validate that no other slice
+        depends on it and that the orchestration cursor does not target it before
+        removing."""
+        ...
+
 
 class CueTaskStore:
     """Concrete TaskStore implementation using CUE files."""
@@ -933,6 +984,50 @@ class CueTaskStore:
         lines = lines[:ctx_open] + render_context_block(context, indent) + lines[ctx_close + 1 :]
 
         write_and_validate(self.path, original_text, "".join(lines))
+
+    def set_project(self, fields: Mapping[str, str]) -> None:
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        top_end = plan_idx if plan_idx != -1 else len(lines)
+        project_span = find_struct_field_span(lines, "project", 0, top_end)
+        if project_span is None:
+            die("could not find task.project block")
+        p_open, p_close, p_empty = project_span
+        if p_empty:
+            die("task.project is an empty inline block; migrate to YAML or use a canonical scaffold")
+        for field in ("key", "name", "route", "context"):
+            if field in fields:
+                lines = replace_scalar_field(lines, field, fields[field], p_open, p_close)
+        write_and_format(self.path, "".join(lines))
+
+    def set_context(self, context: str) -> None:
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        top_end = plan_idx if plan_idx != -1 else len(lines)
+        ctx_open, ctx_close, _ = context_field_span(lines, 0, top_end)
+        indent = line_indent(lines[ctx_open])
+        lines = lines[:ctx_open] + render_context_block(context, indent) + lines[ctx_close + 1:]
+        write_and_validate(self.path, original_text, "".join(lines))
+
+    def remove_slice(self, *, key: str) -> None:
+        original_text = self.path.read_text()
+        original_text = expand_inline_plan_block(original_text)
+        lines = original_text.splitlines(keepends=True)
+        plan_idx = find_line(lines, re.compile(r"^[ \t]*plan:\s*\{\s*$"))
+        if plan_idx == -1:
+            die("could not find task.plan block")
+        plan_close = find_block_close(lines, plan_idx)
+        span = find_key_struct_span(lines, key, plan_idx, plan_close)
+        if span is None:
+            die(f"slice not found: {key!r}")
+        open_idx, close_idx = span
+        if open_idx == close_idx and "slices" in lines[open_idx]:
+            die("slice is on a single-line array; migrate to YAML or expand the slices array first")
+        body_lines = list(lines)
+        del body_lines[open_idx:close_idx + 1]
+        write_and_validate(self.path, original_text, "".join(body_lines))
 
     def set_plan_note(self, note: str) -> None:
         text = self.path.read_text()
@@ -1482,6 +1577,22 @@ class YamlTaskStore:
             if path is not None:
                 artifact["path"] = path
             orchestration.setdefault("artifacts", {})[key] = artifact
+
+        self._mutate(mutation)
+
+    def set_project(self, fields: Mapping[str, str]) -> None:
+        self._mutate(lambda task: task.setdefault("project", {}).update(fields))
+
+    def set_context(self, context: str) -> None:
+        self._mutate(lambda task: task.update({"context": context}))
+
+    def remove_slice(self, *, key: str) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            slices = task.get("plan", {}).get("slices", [])
+            before = len(slices)
+            task["plan"]["slices"] = [s for s in slices if s.get("key") != key]
+            if len(task["plan"]["slices"]) == before:
+                die(f"slice not found: {key!r}")
 
         self._mutate(mutation)
 
@@ -2162,6 +2273,28 @@ class FsTaskStore:
             if path_file.exists():
                 path_file.unlink()
         self._write_text(L.artifact_note_file(key), note or "")
+
+    def set_project(self, fields: Mapping[str, str]) -> None:
+        L = self.layout
+        existing = self._read_record(L.project_file())
+        existing.update(fields)
+        self._write_record(L.project_file(), existing)
+
+    def set_context(self, context: str) -> None:
+        self._write_text(self.layout.context_file(), context)
+
+    def remove_slice(self, *, key: str) -> None:
+        L = self.layout
+        slice_dir = L.slice_dir(key)
+        if not slice_dir.is_dir():
+            die(f"slice not found: {key!r}")
+        shutil.rmtree(slice_dir)
+        order_file = L.slices_order_file()
+        if order_file.exists():
+            keys = [ln.strip() for ln in order_file.read_text().splitlines() if ln.strip()]
+            if key in keys:
+                keys.remove(key)
+                self._atomic_write_text(order_file, "".join(f"{k}\n" for k in keys))
 
 
 _WARNED_CUE_PATHS: set[Path] = set()
@@ -3490,7 +3623,7 @@ def cmd_finish(args: argparse.Namespace) -> None:
                 else str(args.reason)
             )
         elif args.note is not None:
-            note = args.note
+            note = (item.note + "\n" + args.note) if item.note else args.note
         if step_key is not None:
             assert step_item is not None
             issue = step_policy_issue(task_slice, step_item, model=str(model), status=target_status, note=note)
@@ -3938,7 +4071,7 @@ def build_sync_instruction(
     candidates = sync_candidate_slices(task, status_filter)
 
     lines = [
-        "PI-JOB SYNC CHECKLIST",
+        "PI-JOB SYNC PIPELINE",
         "",
         f"Task file: {task_file}",
         f"Repository root: {ROOT}",
@@ -3950,10 +4083,14 @@ def build_sync_instruction(
         return "\n".join(lines)
 
     lines += [
-        "For each slice below: dispatch a subagent to check its actual state against what's",
-        "recorded (PR merged/closed? described changes actually present?). Prefer pi-job",
-        "commands such as `add-pr`, `start`, `finish`, and `advance` when recording findings.",
-        "Direct task-file editing is unsupported; validate any emergency edit immediately.",
+        "For each slice below, run the pipeline:",
+        "  1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality",
+        "  2. verify - gh pr view <url> + optional git merge-base --is-ancestor <sha> main",
+        "  3. add-pr --status merged|closed if the PR state changed",
+        "  4. finish --note '<append-style evidence>' to record what was found",
+        "  5. advance to move past the verified step",
+        "  6. Jira ticket status update if applicable",
+        "Prefer pi-job commands; direct task-file editing is unsupported; validate any emergency edit immediately.",
         "",
     ]
     for i, task_slice in enumerate(candidates, start=1):
@@ -3970,10 +4107,6 @@ def build_sync_instruction(
             step = find_current_step(task_slice, current)
             step_status = status_value(step) if step else "?"
             lines.append(f"   current step: {current.step} ({step_status})")
-        lines.append(
-            "   check: verify PR/merge state and whether the recorded step/slice status "
-            "still matches reality; update it with the applicable pi-job command."
-        )
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -4171,9 +4304,55 @@ def cmd_init(args: argparse.Namespace) -> None:
 def cmd_scaffold(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     suffix = task_file.suffix.lower()
+
+    if args.empty_plan and args.initial_kind:
+        die("--empty-plan and --initial-kind are mutually exclusive")
+    if args.empty_plan:
+        mapping = {
+            "title": args.title,
+            "status": "planned",
+            "source": {"jira": "", "discovered": "", "context": "Short discovery note for why this task exists."},
+            "project": {"key": "", "name": "", "route": "", "context": ""},
+            "context": "",
+            "decisions": [],
+            "plan": {"note": "Add slices with pi-job add-slice or bootstrap.", "slices": []},
+        }
+    elif args.initial_kind:
+        get_slice_kind(args.initial_kind)
+        slice_key = f"{args.initial_kind}-slice"
+        kind_title = get_slice_kind(args.initial_kind).get("title", args.initial_kind)
+        mapping = {
+            "title": args.title,
+            "status": "planned",
+            "source": {"jira": "", "discovered": "", "context": "Short discovery note for why this task exists."},
+            "project": {"key": "", "name": "", "route": "", "context": ""},
+            "context": "",
+            "decisions": [],
+            "plan": {
+                "note": "Replace this scaffold plan with real slices using pi-job commands.",
+                "slices": [{
+                    "key": slice_key,
+                    "kind": args.initial_kind,
+                    "title": kind_title,
+                    "goal": f"Initial {args.initial_kind} slice seeded by pi-job scaffold",
+                    "status": "planned",
+                    "note": "",
+                    "steps": [
+                        {"key": key, "title": step_title, "status": "planned", "note": ""}
+                        for key, step_title in steps_from_kind_template(args.initial_kind)
+                    ],
+                    "final_steps": [],
+                }],
+            },
+        }
+    else:
+        mapping = example_task_mapping(title=args.title)
+
     if suffix in {".yaml", ".yml"}:
-        content = render_yaml_task(example_task_mapping(title=args.title), source=str(task_file))
+        content = render_yaml_task(mapping, source=str(task_file))
     elif suffix == ".cue":
+        if args.empty_plan or args.initial_kind:
+            die("--empty-plan and --initial-kind are only supported for YAML task files; migrate to YAML first")
         content = example_task_cue(title=args.title)
     else:
         die("scaffold requires a .yaml, .yml, or legacy .cue task path")
@@ -4404,6 +4583,13 @@ def cmd_project(args: argparse.Namespace) -> None:
             to_path.unlink(missing_ok=True)
         raise
     print(f"projected {src_store.describe()} -> {dst_store.describe()}")
+    if isinstance(src_store, CueTaskStore):
+        print(
+            "warning: CUE source was not deleted or archived. "
+            f"Archive {args.task.resolve()} with `mv {args.task.resolve()} {args.task.resolve()}.migrated` "
+            "to avoid confusion between the two live files.",
+            file=sys.stderr,
+        )
 
 
 LOCAL_DEF_NAMES = ("#Status", "#Step", "#Decision", "#Artifact", "#Slice")
@@ -4628,13 +4814,299 @@ def diagnose_slice(lines: list[str], open_idx: int, close_idx: int, line_range: 
     return f"#Slice (lines {line_range}):\n  Redundant with shared (safe to drop): {redundant_str}\n  Local-only delta (must keep): {delta_str}\n  Recommendation: {recommendation}"
 
 
+def require_task(task_arg: Path | None, *, cmd: str) -> Path:
+    if task_arg is None:
+        die(f"--task is required for `pi-job {cmd}`")
+    return task_arg.resolve()
+
+
+def cmd_bootstrap(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="bootstrap")
+    if task_file.suffix.lower() not in {".yaml", ".yml"}:
+        die("bootstrap requires a YAML task file (.yaml or .yml); migrate legacy CUE or directory stores first")
+    input_path = args.from_path
+    if not input_path:
+        die("--from <bootstrap.yaml> is required")
+    if not input_path.exists():
+        die(f"bootstrap input not found: {input_path}")
+    raw = load_yaml_mapping(input_path, label="bootstrap input")
+    try:
+        bootstrap = BootstrapDocument.model_validate(raw)
+    except ValidationError as exc:
+        die(f"bootstrap input validation failed:\n{exc}")
+    kind = bootstrap.initial_slice_kind
+    if kind:
+        get_slice_kind(kind)
+    assembled_slices: list[dict[str, Any]] = []
+    if kind:
+        seed_key = bootstrap.initial_slice_key or f"task-{kind}"
+        kind_title = get_slice_kind(kind).get("title", kind)
+        assembled_slices.append({
+            "key": seed_key,
+            "kind": kind,
+            "title": kind_title,
+            "goal": f"Initial {kind} slice seeded by pi-job bootstrap",
+            "status": "planned",
+            "note": "",
+            "repos": [],
+            "depends_on": [],
+            "steps": [
+                {"key": key, "title": step_title, "status": "planned", "note": ""}
+                for key, step_title in steps_from_kind_template(kind)
+            ],
+            "final_steps": [],
+        })
+    for sl in bootstrap.slices:
+        get_slice_kind(sl.kind)
+        assembled_slices.append({
+            "key": sl.key,
+            "kind": sl.kind,
+            "title": sl.title,
+            "goal": sl.goal,
+            "status": "planned",
+            "note": "",
+            "repos": list(sl.repos),
+            "depends_on": list(sl.depends_on),
+            "steps": [
+                {"key": key, "title": step_title, "status": "planned", "note": ""}
+                for key, step_title in steps_from_kind_template(sl.kind)
+            ],
+            "final_steps": [],
+        })
+    prospective = {
+        "title": bootstrap.title,
+        "status": bootstrap.status,
+        "source": {
+            "jira": bootstrap.source.jira or "",
+            "discovered": bootstrap.source.discovered or "",
+            "context": bootstrap.source.context or "",
+        },
+        "project": {
+            "key": bootstrap.project.key or "",
+            "name": bootstrap.project.name or "",
+            "route": bootstrap.project.route or "",
+            "context": bootstrap.project.context or "",
+        },
+        "context": bootstrap.context or "",
+        "decisions": [
+            {"date": d.date, "note": d.note, "source": d.source}
+            for d in bootstrap.decisions
+        ],
+        "plan": {
+            "note": bootstrap.plan_note or "",
+            "slices": assembled_slices,
+        },
+    }
+    slice_keys = {sl["key"] for sl in assembled_slices}
+    missing_deps: list[str] = []
+    for sl in assembled_slices:
+        for dep in sl.get("depends_on", []):
+            if dep not in slice_keys:
+                missing_deps.append(f"  {sl['key']!r} depends on unknown slice key {dep!r}")
+    if missing_deps:
+        die("bootstrap: unresolved dependency references:\n" + "\n".join(missing_deps))
+    validate_task_mapping(prospective, source=str(input_path))
+    cursor = next_cursor(prospective)
+    if cursor is None:
+        if all_slices_done(prospective):
+            die("bootstrap: task has no actionable slice (all slices are done)")
+        die("bootstrap: no slice is dependency-satisfied; check depends_on for a forward reference or cycle")
+    orchestration = {
+        "cursor": {"slice": cursor.slice, "step": cursor.step},
+        "policy": {"coding_execution": {
+            "subagent_required": True,
+            "lower_power_model_preferred": True,
+            "orchestrator_reviews_subagent": True,
+            "exceptions": [],
+        }},
+        "artifacts": {},
+    }
+    prospective["orchestration"] = orchestration
+    full_task = canonical_task_mapping(prospective, source=str(input_path))
+    new_yaml = render_yaml_task(full_task, source=str(input_path))
+    if args.dry_run:
+        existing = task_file.read_text() if task_file.exists() else ""
+        diff = difflib.unified_diff(
+            existing.splitlines(keepends=True),
+            new_yaml.splitlines(keepends=True),
+            fromfile=str(task_file) if task_file.exists() else "/dev/null",
+            tofile=str(task_file),
+        )
+        sys.stdout.writelines(diff)
+        return
+    if task_file.exists() and not args.force:
+        die(f"destination YAML task already exists: {task_file}\npass --force to overwrite, or choose another --task path")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("bootstrap requires a YAML task file")
+    with store.exclusive():
+        store.replace(full_task)
+    canonical_repr = store.read()
+    if canonical_repr != full_task:
+        die("bootstrap: written task failed semantic equality verification; possible concurrent modification")
+    profile = load_profile_contract()
+    print(f"created: {task_file}")
+    print(f"profile: {PROFILE}")
+    print(f"schema: Pydantic {TaskDocument.__name__}")
+    print(f"cursor: {cursor.label()}")
+    print()
+    print(build_instruction(task_file, canonical_repr, cursor))
+
+
+def cmd_set_project(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-project")
+    fields: dict[str, str] = {}
+    for attr in ("key", "name", "route", "context"):
+        value = getattr(args, attr, None)
+        if value is not None:
+            fields[attr] = value
+    if not fields:
+        die("at least one project field is required (--key, --name, --route, --context)")
+    store = open_task_store(task_file)
+    store.set_project(fields)
+    print(f"updated project: {', '.join(f'{k}={v}' for k, v in fields.items())}")
+
+
+def cmd_set_context(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-context")
+    text = args.context
+    if args.file_path:
+        if text:
+            die("--context and --file are mutually exclusive")
+        if not args.file_path.exists():
+            die(f"context file not found: {args.file_path}")
+        text = args.file_path.read_text(encoding="utf-8")
+    elif text is None:
+        die("--context <text> or --file <path> is required")
+    store = open_task_store(task_file)
+    store.set_context(text)
+    print("updated context")
+
+
+def cmd_add_decision_cli(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="add-decision")
+    note = args.note
+    if not note:
+        die("--note is required")
+    date = args.date or utc_now()[:10]
+    source = args.source or "pi-job add-decision"
+    store = open_task_store(task_file)
+    store.add_decision(date=date, note=note, source=source)
+    print(f"added decision ({date}): {note[:60]}" + ("..." if len(note) > 60 else ""))
+
+
+def cmd_remove_slice(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="remove-slice")
+    key = args.key
+    store = open_task_store(task_file)
+    task = store.read()
+    status_map = slice_status_map(task)
+    if key not in status_map:
+        die(f"slice not found: {key!r}")
+    slices_map = task_slices_map(task)
+    dependents = [sk for sk in status_map if sk != key and key in slices_map[sk].depends_on]
+    if dependents:
+        die(f"cannot remove slice {key!r}: other slices depend on it: {', '.join(dependents)}")
+    cursor = current_cursor(task)
+    if cursor and cursor.slice == key:
+        die(f"cannot remove slice {key!r}: orchestration cursor points at it; advance to another slice first")
+    store.remove_slice(key=key)
+    print(f"removed slice: {key}")
+
+
+def task_slices_map(task: dict[str, Any]) -> dict[str, TaskSlice]:
+    return {ts.key: ts for ts in task_slices(task)}
+
+
+def cmd_set_plan_note_cli(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-plan-note")
+    note = args.note if args.note is not None else ""
+    store = open_task_store(task_file)
+    store.set_plan_note(note)
+    print("updated plan note")
+
+
+def cmd_profile(args: argparse.Namespace) -> None:
+    profile = load_profile_contract()
+    if args.json_output:
+        print(json.dumps(profile, indent=2))
+        return
+    kinds = profile.get("slice_kinds", {})
+    steps = profile.get("step_kinds", {})
+    aids = profile.get("toolbelt", {})
+    print(f"Profile: {PROFILE}")
+    print(f"Slice kinds ({len(kinds)}): {', '.join(sorted(kinds))}")
+    print(f"Step kinds ({len(steps)}): {', '.join(sorted(steps))}")
+    print(f"Toolbelt aids ({len(aids)}): {', '.join(sorted(aids))}")
+    print("Pass --json for the full validated profile.")
+
+
+def cmd_schema(args: argparse.Namespace) -> None:
+    if args.json_output:
+        schemas = {
+            "task": TaskDocument.model_json_schema(),
+            "bootstrap": BootstrapDocument.model_json_schema(),
+        }
+        print(json.dumps(schemas, indent=2))
+        return
+    print(f"Task document: Pydantic {TaskDocument.__name__} ({len(TaskDocument.model_fields)} fields)")
+    print(f"Bootstrap input: Pydantic {BootstrapDocument.__name__} ({len(BootstrapDocument.model_fields)} fields)")
+    print(f"Profile: {PROFILE}")
+    print(f"Legacy CUE schema: {TASK_SCHEMA}")
+    print("Pass --json for a complete JSON Schema dump.")
+
+
+def cmd_kinds(args: argparse.Namespace) -> None:
+    kinds_action = args.kinds_action
+    kinds = contract_slice_kinds()
+    if kinds_action == "show":
+        kind_key = args.kind_key
+        if kind_key not in kinds:
+            die(f"unknown slice kind {kind_key!r}; expected one of: {', '.join(sorted(kinds))}")
+        entry = kinds[kind_key]
+        template_steps = entry.get("step_template") or []
+        step_kinds = contract_step_kinds()
+        if args.json_output:
+            resolved = dict(entry)
+            resolved["steps"] = [
+                {"key": key, "title": step_kinds.get(key, {}).get("title", key), "owner": step_kinds.get(key, {}).get("owner", "orchestrator")}
+                for key in template_steps
+            ]
+            resolved["required_steps"] = entry.get("required_steps", template_steps)
+            print(json.dumps(resolved, indent=2))
+            return
+        print(f"Slice kind: {kind_key}")
+        print(f"  Title: {entry.get('title', kind_key)}")
+        print(f"  Description: {entry.get('description', '')}")
+        required = entry.get("required_steps") or template_steps
+        print(f"  Required steps: {', '.join(required)}")
+        print(f"  Step template ({len(template_steps)}):")
+        for key in template_steps:
+            sk = step_kinds.get(key, {})
+            print(f"    {key} [{sk.get('owner', 'orchestrator')}] {sk.get('title', key)}")
+        policies = entry.get("policies") or {}
+        if policies:
+            print(f"  Policies: {json.dumps(policies)}")
+        return
+    if args.json_output:
+        print(json.dumps({k: v for k, v in sorted(kinds.items())}, indent=2))
+        return
+    step_kinds = contract_step_kinds()
+    for key in sorted(kinds):
+        entry = kinds[key]
+        template = entry.get("step_template") or []
+        step_desc = ", ".join(template)
+        print(f"  {key} — {entry.get('title', key)}: {step_desc}")
+
+
+
 def main() -> None:
     slice_kinds = sorted(valid_slice_kinds())
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--task",
         type=Path,
-        required=True,
+        default=None,
         help="YAML task file to orchestrate; legacy .cue files and directory stores are supported",
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -4727,6 +5199,8 @@ def main() -> None:
     scaffold.add_argument("--title", default="Example bounded change", help="task.title for the scaffold")
     scaffold.add_argument("--force", action="store_true", help="overwrite an existing task file")
     scaffold.add_argument("--dry-run", action="store_true", help="print the scaffold without writing")
+    scaffold.add_argument("--empty-plan", action="store_true", help="scaffold with no slices (for init --kind setup)")
+    scaffold.add_argument("--initial-kind", choices=slice_kinds, help="seed a single slice of this kind instead of the default implement example")
     scaffold.set_defaults(fn=cmd_scaffold)
 
     add_slice = sub.add_parser("add-slice", help="append a slice to plan.slices (--kind required; steps from slice_kinds template)")
@@ -4739,6 +5213,59 @@ def main() -> None:
     add_slice.add_argument("--after", help="insert after this existing slice key; default: end of plan.slices")
     add_slice.add_argument("--dry-run", action="store_true")
     add_slice.set_defaults(fn=cmd_add_slice)
+
+    bootstrap_cmd = sub.add_parser(
+        "bootstrap",
+        help="create and initialize a task file from a bootstrap intent document in one transaction",
+    )
+    bootstrap_cmd.add_argument("--from", dest="from_path", type=Path, required=True, help="bootstrap intent YAML document")
+    bootstrap_cmd.add_argument("--dry-run", action="store_true", help="print unified diff without writing")
+    bootstrap_cmd.add_argument("--force", action="store_true", help="overwrite an existing task file")
+    bootstrap_cmd.set_defaults(fn=cmd_bootstrap)
+
+    set_project = sub.add_parser("set-project", help="update task project fields (merge into existing)")
+    set_project.add_argument("--key", help="project key")
+    set_project.add_argument("--name", help="project name")
+    set_project.add_argument("--route", help="project route path")
+    set_project.add_argument("--context", help="project context description")
+    set_project.set_defaults(fn=cmd_set_project)
+
+    set_context = sub.add_parser("set-context", help="replace task.context")
+    set_context.add_argument("--context", help="new context text")
+    set_context.add_argument("--file", dest="file_path", type=Path, help="read context from a file")
+    set_context.set_defaults(fn=cmd_set_context)
+
+    add_decision = sub.add_parser("add-decision", help="append a durable decision record")
+    add_decision.add_argument("--date", default="", help="decision date (default: today UTC)")
+    add_decision.add_argument("--note", required=True, help="decision rationale")
+    add_decision.add_argument("--source", default="", help="decision origin (default: pi-job add-decision)")
+    add_decision.set_defaults(fn=cmd_add_decision_cli)
+
+    remove_slice = sub.add_parser("remove-slice", help="remove a slice from the plan (refuses when other slices depend on it)")
+    remove_slice.add_argument("--key", required=True, help="slice key to remove")
+    remove_slice.set_defaults(fn=cmd_remove_slice)
+
+    set_plan_note = sub.add_parser("set-plan-note", help="set task.plan.note")
+    set_plan_note.add_argument("--note", default="", help="plan note text")
+    set_plan_note.set_defaults(fn=cmd_set_plan_note_cli)
+
+    profile_cmd = sub.add_parser("profile", help="show the active execution profile")
+    profile_cmd.add_argument("--json", dest="json_output", action="store_true", help="output full validated profile as JSON")
+    profile_cmd.set_defaults(fn=cmd_profile)
+
+    schema_cmd = sub.add_parser("schema", help="show the task document schema")
+    schema_cmd.add_argument("--json", dest="json_output", action="store_true", help="output JSON Schema for task and bootstrap documents")
+    schema_cmd.set_defaults(fn=cmd_schema)
+
+    kinds_cmd = sub.add_parser("kinds", help="list or show slice kinds")
+    kinds_sub = kinds_cmd.add_subparsers(dest="kinds_action", required=True)
+    kinds_list = kinds_sub.add_parser("list", help="list all slice kinds")
+    kinds_list.add_argument("--json", dest="json_output", action="store_true", help="output machine-readable JSON")
+    kinds_list.set_defaults(fn=cmd_kinds)
+    kinds_show = kinds_sub.add_parser("show", help="show details for a specific slice kind")
+    kinds_show.add_argument("kind_key", help="slice kind to show")
+    kinds_show.add_argument("--json", dest="json_output", action="store_true", help="output machine-readable JSON")
+    kinds_show.set_defaults(fn=cmd_kinds)
 
     add_step = sub.add_parser("add-step", help="append a step to a slice's steps (or final_steps with --final)")
     add_step.add_argument("--slice", required=True)

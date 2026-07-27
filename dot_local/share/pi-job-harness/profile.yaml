@@ -342,6 +342,16 @@ step_kinds:
     validators:
       - metrics-recorded-or-not-applicable
     guidance: Record which dashboards/alerts to watch post-ship, or that none apply.
+  pi-job-feedback:
+    key: pi-job-feedback
+    title: Record pi-job feedback
+    owner: orchestrator
+    validators:
+      - feedback-recorded
+    guidance: |-
+      Append any gotchas, friction points, or recommendations that would make the
+      pi-job experience easier next time to ~/pi-job.feedback.yml (create if absent).
+      Skip only when the session produced no actionable feedback.
 slice_kinds:
   setup:
     key: setup
@@ -354,6 +364,7 @@ slice_kinds:
       - grill
       - select-toolbelt
       - plan-slices
+      - pi-job-feedback
   implement:
     key: implement
     title: Implementation
@@ -376,6 +387,7 @@ slice_kinds:
       - share-with-team
       - update-task-file
       - wait-for-feedback
+      - pi-job-feedback
     required_steps:
       - create-plan
       - grill-plan
@@ -395,6 +407,7 @@ slice_kinds:
       - update-docs
       - capture-metrics
       - update-task-file
+      - pi-job-feedback
   research:
     key: research
     title: Research
@@ -407,6 +420,7 @@ slice_kinds:
       - investigate
       - synthesize
       - update-task-file
+      - pi-job-feedback
   spike:
     key: spike
     title: Spike / prototype
@@ -425,3 +439,4 @@ slice_kinds:
       - edit-code
       - verify
       - update-task-file
+      - pi-job-feedback

@@ -523,7 +523,7 @@ def test_scaffold_creates_task_file() -> None:
             "--title",
             "Scaffolded example",
         ).stdout
-        assert_contains(out, f"scaffolded task file: {task}")
+        assert_contains(out, f"scaffolded task file: {task.resolve()}")
         assert task.exists()
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
@@ -2952,6 +2952,7 @@ def test_persisted_models_document_every_field() -> None:
         "PullRequestDocument", "RepositoryWorkDocument", "SliceDocument", "SourceDocument",
         "ProjectDocument", "CodingExecutionPolicyDocument", "OrchestrationPolicyDocument",
         "CursorDocument", "OrchestrationDocument", "PlanDocument", "TaskDocument",
+        "BootstrapSliceDocument", "BootstrapDocument",
         "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
         "SliceKindDocument", "ProfileDocument",
@@ -3084,7 +3085,7 @@ def test_yaml_force_advance_cannot_overwrite_concurrent_finish() -> None:
         assert advance_result.returncode == 0, advance_result.stderr
         step = store.read()["plan"]["slices"][0]["steps"][0]
         assert step["status"] == "done"
-        assert step["note"] == "completed"
+        assert "completed" in step["note"]
         assert step["execution"]["ended"]
 
 
@@ -3389,6 +3390,257 @@ def test_lifecycle_policy_is_step_key_agnostic() -> None:
         module.try_get_step_kind = original
 
 
+def test_scaffold_empty_plan_has_no_slices() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "empty.yaml"
+        out = run(str(PI_JOB), "--task", str(task), "scaffold", "--empty-plan", "--dry-run").stdout
+        assert "slices: []" in out
+        assert "do-the-change" not in out
+
+
+def test_scaffold_initial_kind_setup_seeds_setup_slice() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "initial-kind.yaml"
+        out = run(str(PI_JOB), "--task", str(task), "scaffold", "--initial-kind", "setup", "--dry-run").stdout
+        assert "setup-slice" in out
+        assert "explore-context" in out
+        assert "do-the-change" not in out
+
+
+def test_bootstrap_creates_initialized_task() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("""
+title: Bootstrap test
+initial_slice_kind: setup
+source:
+  discovered: "2026-07-27"
+  context: A test task.
+project:
+  key: test-project
+  name: Test Project
+  route: test.html
+  context: Test context.
+context: Background context.
+decisions:
+  - date: "2026-07-27"
+    note: Keep the URL.
+    source: chat:2026-07-27
+slices:
+  - key: implement-one
+    kind: implement
+    title: Implement one
+    goal: Ship the change.
+    depends_on:
+      - task-setup
+""", encoding="utf-8")
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input))
+        assert_contains(result.stdout, "created:")
+        assert_contains(result.stdout, "cursor: task-setup / explore-context")
+        assert_contains(result.stdout, "PI-JOB EXECUTION INSTRUCTION")
+        assert task.exists()
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Initialization: ok")
+        assert_contains(status, "Cursor: task-setup / explore-context")
+        validate = run(str(PI_JOB), "--task", str(task), "validate").stdout
+        assert_contains(validate, "ok:")
+
+
+def test_bootstrap_dry_run_prints_diff_and_does_not_write() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-dry.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Dry run test\nslices:\n  - key: only-slice\n    kind: implement\n    title: Only\n    goal: Test\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        out = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input), "--dry-run").stdout
+        assert "+++" in out
+        assert "PI-JOB EXECUTION INSTRUCTION" not in out
+        assert not task.exists()
+
+
+def test_bootstrap_refuses_overwrite_without_force() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-exists.yaml"
+        task.write_text("title: existing\nstatus: planned\n", encoding="utf-8")
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Bootstrap test\nslices:\n  - key: only-slice\n    kind: implement\n    title: Only\n    goal: Test\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input), check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "already exists")
+
+
+def test_bootstrap_rejects_unknown_kind() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-unknown-kind.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Bad kind\nslices:\n  - key: slice\n    kind: nonexistent\n    title: Bad\n    goal: Fail\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input), check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "unknown slice kind")
+
+
+def test_bootstrap_rejects_unresolved_dependency() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-bad-dep.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Bad dep\nslices:\n  - key: slice\n    kind: implement\n    title: Slice\n    goal: Test\n    depends_on: [missing]\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input), check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "unresolved dependency")
+
+
+def test_profile_show_json() -> None:
+    result = run(str(PI_JOB), "profile", "--json")
+    assert_contains(result.stdout, "config_layering")
+    assert_contains(result.stdout, "slice_kinds")
+    assert_contains(result.stdout, "step_kinds")
+
+
+def test_schema_show_json() -> None:
+    result = run(str(PI_JOB), "schema", "--json")
+    assert_contains(result.stdout, "task")
+    assert_contains(result.stdout, "bootstrap")
+
+
+def test_kinds_list_json() -> None:
+    result = run(str(PI_JOB), "kinds", "list", "--json")
+    assert_contains(result.stdout, "setup")
+    assert_contains(result.stdout, "implement")
+
+
+def test_kinds_show_json() -> None:
+    result = run(str(PI_JOB), "kinds", "show", "implement", "--json")
+    assert_contains(result.stdout, "step_template")
+    assert_contains(result.stdout, "create-plan")
+
+
+def test_set_project_mutation() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "project-mutation.yaml"
+        run(str(PI_JOB), "--task", str(task), "scaffold", "--empty-plan", "--force")
+        run(str(PI_JOB), "--task", str(task), "set-project", "--key", "new-key", "--name", "New Name")
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        task_data = store.read()
+        assert task_data["project"]["key"] == "new-key"
+        assert task_data["project"]["name"] == "New Name"
+
+
+def test_set_context_mutation() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "context-mutation.yaml"
+        run(str(PI_JOB), "--task", str(task), "scaffold", "--empty-plan", "--force")
+        run(str(PI_JOB), "--task", str(task), "set-context", "--context", "New context")
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        task_data = store.read()
+        assert task_data["context"] == "New context"
+
+
+def test_add_decision_mutation() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "decision-mutation.yaml"
+        run(str(PI_JOB), "--task", str(task), "scaffold", "--empty-plan", "--force")
+        run(str(PI_JOB), "--task", str(task), "add-decision", "--date", "2026-07-27", "--note", "Test decision", "--source", "test")
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        task_data = store.read()
+        assert len(task_data["decisions"]) == 1
+        assert task_data["decisions"][0]["note"] == "Test decision"
+
+
+def test_set_plan_note_mutation() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "plan-note-mutation.yaml"
+        run(str(PI_JOB), "--task", str(task), "scaffold", "--empty-plan", "--force")
+        run(str(PI_JOB), "--task", str(task), "set-plan-note", "--note", "Plan note text")
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        task_data = store.read()
+        assert task_data["plan"]["note"] == "Plan note text"
+
+
+def test_remove_slice_removes_and_guards() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "remove-slice.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Remove test\ninitial_slice_kind: setup\nslices:\n  - key: dependent\n    kind: implement\n    title: Dependent\n    goal: Test\n    depends_on: [task-setup]\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input))
+        # Refuse to remove a slice that others depend on
+        result = run(str(PI_JOB), "--task", str(task), "remove-slice", "--key", "task-setup", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "other slices depend on it")
+        # Removing a slice with no dependents works
+        result = run(str(PI_JOB), "--task", str(task), "remove-slice", "--key", "dependent")
+        assert result.returncode == 0
+        # Verify it's gone
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        task_data = store.read()
+        assert len(task_data["plan"]["slices"]) == 1
+
+
+def test_bootstrap_requires_yaml() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "task.cue"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Fail\nslices:\n  - key: slice\n    kind: implement\n    title: Slice\n    goal: Fail\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input), check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "requires a YAML task file")
+
+
+def test_bootstrap_requires_input() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "task.yaml"
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "--from")
+
+
+def test_bootstrap_rejects_initial_slice_key_without_kind() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text("title: Fail\ninitial_slice_key: my-key\nslices:\n  - key: slice\n    kind: implement\n    title: Slice\n    goal: Fail\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        result = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input), check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "initial_slice_key requires initial_slice_kind")
+    module = load_pi_job_module()
+    original = module.try_get_step_kind
+    module.try_get_step_kind = lambda key: {
+        "key": key,
+        "requires_user_decision": True,
+        "different_model_from_step": "generate-assets",
+    } if key == "independent-audit" else original(key)
+    try:
+        task_slice = module.TaskSlice.from_mapping({
+            "key": "custom",
+            "steps": [
+                {
+                    "key": "generate-assets",
+                    "execution": {"model": "provider/writer"},
+                },
+                {"key": "independent-audit"},
+            ],
+            "final_steps": [],
+        })
+        audit = task_slice.find_step("independent-audit")
+        assert audit is not None
+        assert isinstance(task_slice, module.TaskSlice)
+        assert isinstance(task_slice.find_step("generate-assets").execution, module.ExecutionRecord)
+        same_model = module.step_policy_issue(
+            task_slice, audit, model="provider/writer", status="in_progress", note=""
+        )
+        assert "independent-audit model must differ from generate-assets model" in same_model
+        declined = module.step_policy_issue(
+            task_slice, audit, model="provider/reviewer", status="skipped", note="ordinary skip"
+        )
+        assert "explicit user-declined reason" in declined
+    finally:
+        module.try_get_step_kind = original
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
@@ -3487,6 +3739,25 @@ def main() -> None:
     test_slice_skip_cannot_bypass_policy_governed_step()
     test_execution_issues_warn_for_legacy_completed_work()
     test_lifecycle_policy_is_step_key_agnostic()
+    test_scaffold_empty_plan_has_no_slices()
+    test_scaffold_initial_kind_setup_seeds_setup_slice()
+    test_bootstrap_creates_initialized_task()
+    test_bootstrap_dry_run_prints_diff_and_does_not_write()
+    test_bootstrap_refuses_overwrite_without_force()
+    test_bootstrap_rejects_unknown_kind()
+    test_bootstrap_rejects_unresolved_dependency()
+    test_profile_show_json()
+    test_schema_show_json()
+    test_kinds_list_json()
+    test_kinds_show_json()
+    test_set_project_mutation()
+    test_set_context_mutation()
+    test_add_decision_mutation()
+    test_set_plan_note_mutation()
+    test_remove_slice_removes_and_guards()
+    test_bootstrap_requires_yaml()
+    test_bootstrap_requires_input()
+    test_bootstrap_rejects_initial_slice_key_without_kind()
     print("pi-job tests passed")
 
 

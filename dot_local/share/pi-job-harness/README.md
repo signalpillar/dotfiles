@@ -40,13 +40,21 @@ It does **not** run the agent session and does **not** spawn subagents.
 
 Given a YAML task file and package-local `profile.yaml`, it can:
 
-- `scaffold` - create a missing task file from the generic example shape
+- `bootstrap` - create and initialize a task file from a bootstrap intent document in one atomic transaction (the fastest path from nothing to a working task)
+- `scaffold` - create a missing task file from the generic example shape; `--empty-plan` and `--initial-kind K` for targeted seeding
 - `init` - initialize `task.orchestration` and set the cursor; optionally seed the first slice from a slice kind template
-- `add-slice` - append a slice whose steps come from `slice_kinds[K].step_template`
+- `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
+- `add-step` - append a step to a slice
+- `set-project` / `set-context` / `set-plan-note` / `add-decision` - write task metadata and durable decisions
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
+- `show` - render the task as a cursor-focused slice/step tree with status glyphs
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status
 - `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
+- `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
+- `toolbelt` - list or register planning aids
+- `sync` - print a checklist of slices worth re-verifying
+- `set-worktree` / `add-pr` - manage worktree paths and pull request records
 
 Same task state should yield the same next action and instruction, independent of which model is orchestrating.
 
@@ -173,7 +181,9 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 1. Global hint: chezmoi [`AGENTS.md`](../../../AGENTS.md) points agents at `pi-job` for durable task orchestration.
 2. On PATH after chezmoi apply: `pi-job` -> `~/.local/bin/pi-job`.
 3. When a user names a task file, run `pi-job --task <file> status` first.
-4. If the file is missing, follow the error to `scaffold`, use task mutation commands to replace the example state, then run `init [--kind setup]`.
+4. If the file is missing, the preferred path is a single `bootstrap` transaction.
+   Alternatively, use `scaffold --empty-plan` (or `scaffold --initial-kind K` when appropriate), then `init [--kind setup]` to seed the first slice.
+   In either case, use task mutation commands (`set-project`, `set-context`, `add-decision`, `set-plan-note`, `remove-slice`) to shape the task.
 5. Use `plan` to create session todos, `instruction` before acting, and `advance` only after evidence or a recorded blocker.
 6. Prefer this package README over inventing a parallel workflow.
 
@@ -227,9 +237,16 @@ Run from the repository that owns the task file.
 The current working directory is reported as the repository root in instruction packets.
 
 ```bash
-# If the task file does not exist yet:
-pi-job --task projects/example/tasks/task.yaml scaffold
+# The fastest path: bootstrap from an intent document (one transaction)
+pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml
+
+# If the task file does not exist yet (scaffold then init):
+pi-job --task projects/example/tasks/task.yaml scaffold --empty-plan
 pi-job --task projects/example/tasks/task.yaml init --kind setup
+
+# Alternative: scaffold with the initial slice already seeded
+pi-job --task projects/example/tasks/task.yaml scaffold --initial-kind setup
+pi-job --task projects/example/tasks/task.yaml init
 
 pi-job --task projects/example/tasks/task.yaml status
 pi-job --task projects/example/tasks/task.yaml validate
@@ -241,8 +258,8 @@ pi-job --task projects/example/tasks/task.yaml finish --note "Verification evide
 pi-job --task projects/example/tasks/task.yaml advance
 ```
 
-If `--task` points at a missing file, commands fail closed and tell the agent to run `scaffold`, then `init`.
-A task without `task.orchestration` is not initialized; run `init` before `plan`, `next`, `advance`, or `instruction`.
+If `--task` points at a missing file, commands fail closed and tell the agent how to create one.
+A task without `task.orchestration` is not initialized; run `init` (or `bootstrap` which includes it) before `plan`, `next`, `advance`, or `instruction`.
 
 ### validate
 
@@ -252,11 +269,89 @@ A task without `task.orchestration` is not initialized; run `init` before `plan`
 - Slice structure and live profile-template requirements are checked after document validation.
 - Legacy CUE validation still exports through `task-schema.cue` before applying the same Pydantic task model.
 
+### scaffold
+
+- `scaffold` creates a YAML task file from the generic example shape (one implement slice `do-the-change`).
+- `--empty-plan` scaffolds with `plan.slices: []` so the plan starts clean; pair with `init --kind setup`.
+- `--initial-kind K` scaffolds with a single slice of kind K (e.g. `setup-slice` with key `{kind}-slice`), immediately valid for `init` without `--kind`.
+- `--dry-run` prints the scaffold content without writing.
+- `--force` overwrites an existing file.
+
+### bootstrap
+
+`bootstrap` creates and initializes a task file from a bootstrap intent document in one atomic transaction.
+It is the fastest path from nothing to a working task: validates the intent, expands steps from the active profile, seeds the initial slice, initializes orchestration, writes atomically, reads back, and emits the deterministic instruction packet.
+
+```bash
+pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml
+pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml --dry-run  # unified diff, no write
+pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml --force    # replace existing
+```
+
+The bootstrap intent document describes the task shape holistically:
+
+```yaml
+title: Add GCSE roadmap support resources
+initial_slice_kind: setup
+source:
+  discovered: "2026-07-27"
+  context: Why this task exists.
+project:
+  key: gcse-science-f1-roadmap
+  name: GCSE Science F1 Roadmap
+  route: prototypes/gcse-science-f1-roadmap.html
+context: Background required before acting.
+decisions:
+  - date: "2026-07-27"
+    source: chat:2026-07-27
+    note: Keep the existing published HTML URL.
+slices:
+  - key: support-foundation
+    kind: implement
+    title: Build the support foundation
+    goal: Add the resource schema, loader, UI and validation.
+    depends_on:
+      - task-setup
+```
+
+Safety guarantees:
+
+- Refuses accidental overwrites (pass `--force` to replace).
+- Validates the prospective task before writing, including the Pydantic task contract.
+- Expands steps only from the active profile's step templates.
+- Verifies slice keys through `TaskDocument` and checks that all dependency references resolve.
+- `--dry-run` prints a unified diff without writing.
+- Writes through a temporary file and atomic rename.
+- Reads back and revalidates the written result; aborts on semantic mismatch.
+- Returns the initialized cursor and the full instruction packet for the orchestrator to act on.
+- Reports the active profile and schema version used.
+
 ### init and add-slice
 
 - `init [--kind K]` creates `task.orchestration` with cursor at the first actionable slice/step.
   When `plan.slices` is empty and `--kind` is supplied, seeds one slice from `slice_kinds[K].step_template`.
 - `add-slice --kind K --key … --title … --goal …` is required for every new slice; steps are filled from the template.
+
+### Task mutation commands
+
+These commands write task metadata and durable state without editing the YAML by hand:
+
+- `pi-job --task <t> set-project --key K --name N --route R --context C` - merge into `task.project` (at least one flag required).
+- `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
+- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a decision record (date defaults to today UTC; source defaults to `pi-job add-decision`).
+- `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
+- `pi-job --task <t> remove-slice --key K` - remove a slice from the plan. Refuses when:
+  - another slice declares a `depends_on` reference to it
+  - the orchestration cursor points at it (advance to another slice first)
+
+### Introspection
+
+These commands do not require `--task`.
+
+- `pi-job profile [--json]` - show the active execution profile. Human output lists slice/step/toolbelt counts; `--json` dumps the full validated profile.
+- `pi-job schema [--json]` - show the task document and bootstrap input schemas. Human output summarizes model counts; `--json` dumps a complete JSON Schema object with `task` and `bootstrap` keys.
+- `pi-job kinds list [--json]` - list all slice kinds with their step templates. `--json` dumps the full slice_kinds catalog.
+- `pi-job kinds show <kind> [--json]` - show one slice kind's details including expanded step entries (title, owner). `--json` adds resolved step metadata.
 
 ### advance
 
@@ -370,9 +465,15 @@ See `plan_and_grill_guardrail` in `profile.yaml`.
 
 ## Syncing recorded state with reality: sync
 
-- `pi-job --task <t> sync [--status s1,s2]` - print a checklist of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR; `--status` overrides the selection.
+- `pi-job --task <t> sync [--status s1,s2]` - print a structured pipeline of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR; `--status` overrides the selection.
 - `pi-job` never spawns agents - `sync` only enumerates and prints instructions.
-  The orchestrator dispatches subagents per listed slice, then records findings through commands such as `add-pr`, `start`, `finish`, and `advance`.
+  The orchestrator dispatches subagents per listed slice, then runs the pipeline:
+  1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality
+  2. verify - `gh pr view <url>` + optional `git merge-base --is-ancestor <sha> main`
+  3. `add-pr --status merged|closed` if the PR state changed
+  4. `finish --note '<append-style evidence>'` to record what was found
+  5. `advance` to move past the verified step
+  6. Jira ticket status update if applicable
 
 ## Repo work: worktrees and PRs
 
