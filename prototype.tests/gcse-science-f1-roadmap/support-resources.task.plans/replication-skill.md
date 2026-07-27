@@ -19,7 +19,7 @@ All generation will be draft-only and non-destructive, while publication will re
 
 ### Concise Skill Entry Point
 
-- Add `dot_agents/skills/gcse-roadmap-resources/SKILL.md` with valid frontmatter, a trigger-rich third-person description, and fewer than 100 physical lines.
+- Add `prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/SKILL.md` with valid frontmatter, a trigger-rich third-person description, and fewer than 100 physical lines.
 - Cover the required read-first files, source-of-truth rules, workflow selection, safe editing rule, validation commands, and the link to `REFERENCE.md`.
 - Tell the agent to inspect the current manifest entry and existing resource files before deciding whether the request is an enrichment, a new topic, a link refresh, or paper ingestion.
 - Tell the agent never to invent syllabus coverage, board requirements, F1 facts, DIY facts, paper metadata, question mappings, or link accessibility.
@@ -29,7 +29,7 @@ All generation will be draft-only and non-destructive, while publication will re
 
 ### Detailed Reference
 
-- Add `dot_agents/skills/gcse-roadmap-resources/REFERENCE.md` as the detailed operating contract.
+- Add `prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/REFERENCE.md` as the detailed operating contract.
 - Document the catalog, topic record, constrained Markdown, paper node, and paper edge schemas exactly as enforced by `validate-resources.mjs`.
 - Document the evidence hierarchy, with the embedded manifest authoritative for roadmap facts, inspected official material authoritative for paper metadata, and live page inspection required for resource usefulness and access claims.
 - Document the M1 tracer as a structural example only, so its prose and links are not copied into unrelated topics.
@@ -48,7 +48,7 @@ All generation will be draft-only and non-destructive, while publication will re
 
 ### Topic Draft Scaffolder
 
-- Add `dot_agents/skills/gcse-roadmap-resources/scripts/scaffold-topic.mjs` as an importable module and command-line program using Node built-ins only.
+- Add `prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/scripts/scaffold-topic.mjs` as an importable module and command-line program using Node built-ins only.
 - Accept explicit `--html`, `--resources`, `--topic`, and `--output` arguments so the script works from either the chezmoi source tree or an applied dotfiles checkout.
 - Parse the embedded manifest, require exactly one matching topic ID, derive the lowercase subject and topic directory from that manifest entry, and reject unknown or ambiguous IDs.
 - Read the current catalog and reject a topic that is already cataloged or whose published destination already exists.
@@ -61,7 +61,7 @@ All generation will be draft-only and non-destructive, while publication will re
 
 ### Paper Draft Scaffolder
 
-- Add `dot_agents/skills/gcse-roadmap-resources/scripts/scaffold-paper.mjs` as an importable module and command-line program using Node built-ins only.
+- Add `prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/scripts/scaffold-paper.mjs` as an importable module and command-line program using Node built-ins only.
 - Accept explicit `--html`, `--resources`, `--paper-id`, and `--output` arguments.
 - Require a lowercase `paper:` identifier, reject an identifier already present in `papers.json`, and refuse an existing output path.
 - Emit one standalone draft JSON document with `draft: true`, one paper node template, and one question-level edge template that both reference the requested paper ID; this draft wrapper is intentionally not the publishable paper-graph shape.
@@ -72,7 +72,7 @@ All generation will be draft-only and non-destructive, while publication will re
 
 ### Script Tests And Validator Integration
 
-- Add `dot_agents/skills/gcse-roadmap-resources/tests/scaffold-scripts.test.mjs` using `node:test`, temporary directories, and fixture manifests and catalogs.
+- Add `prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/tests/scaffold-scripts.test.mjs` using `node:test`, temporary directories, and fixture manifests and catalogs.
 - Test that topic scaffolding derives `maths/m1` and a second subject correctly, emits `draft: true`, produces byte-identical output for identical inputs, and never changes the source catalog.
 - Test rejection of missing arguments, unknown topic IDs, already cataloged topics, pre-existing published destinations, pre-existing output paths, malformed manifests, and malformed catalogs.
 - Test that failures leave no partial output or temporary sibling directory.
@@ -115,7 +115,7 @@ All generation will be draft-only and non-destructive, while publication will re
 Run these commands from the repository root during the later verification step.
 
 ```sh
-node --test dot_agents/skills/gcse-roadmap-resources/tests/scaffold-scripts.test.mjs
+node --test prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/tests/scaffold-scripts.test.mjs
 npm run validate --prefix prototype.tests/gcse-science-f1-roadmap
 node prototype.tests/gcse-science-f1-roadmap/tests/audit-resource-links.mjs prototypes/gcse-science-f1-roadmap
 npm test --prefix prototype.tests/gcse-science-f1-roadmap

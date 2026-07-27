@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "fixtures": "tests/fetch-fixtures.sh",
-    "validate": "node tests/validate-manifest.mjs ../../prototypes/gcse-science-f1-roadmap.html && node tests/validate-resources.mjs ../../prototypes/gcse-science-f1-roadmap.html ../../prototypes/gcse-science-f1-roadmap && node --test tests/support-resources.test.mjs && node --test ../../dot_agents/skills/gcse-roadmap-resources/tests/scaffold-scripts.test.mjs",
+    "validate": "node tests/validate-manifest.mjs ../../prototypes/gcse-science-f1-roadmap.html && node tests/validate-resources.mjs ../../prototypes/gcse-science-f1-roadmap.html ../../prototypes/gcse-science-f1-roadmap && node --test tests/support-resources.test.mjs && node --test skills/gcse-roadmap-resources/tests/scaffold-scripts.test.mjs",
     "audit:links": "node tests/audit-resource-links.mjs ../../prototypes/gcse-science-f1-roadmap",
     "test": "npm run validate && playwright test tests/roadmap.spec.js --workers=1"
   },

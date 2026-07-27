@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { main as topicMain, findManifestTopic, renderTopicDraft, scaffoldTopic } from "../scripts/scaffold-topic.mjs";
 import { main as paperMain, renderPaperDraft, scaffoldPaper } from "../scripts/scaffold-paper.mjs";
-import { validatePaperGraphData, validateResourceLibrary } from "../../../../prototype.tests/gcse-science-f1-roadmap/tests/validate-resources.mjs";
+import { validatePaperGraphData, validateResourceLibrary } from "../../../tests/validate-resources.mjs";
 
 const skillRoot = path.resolve(import.meta.dirname, "..");
 const manifest = {

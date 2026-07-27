@@ -35,7 +35,7 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
 orchestration:
   cursor:
     slice: replication-skill
-    step: edit-code
+    step: share-with-team
   policy:
     coding_execution:
       subagent_required: true
@@ -322,27 +322,53 @@ plan:
         ended: '2026-07-27T11:41:36.344488Z'
     - key: edit-code
       title: Edit code
+      status: done
+      note: 'Implemented the project-local GCSE resource skill under prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources
+        with concise SKILL.md, schema/evidence REFERENCE.md, atomic non-overwriting topic and paper scaffolders,
+        explicit draft markers, and 13 deterministic script tests. Moved all implementation out of dot_agents
+        per user direction, updated package integration and plan paths, and added project AGENTS.md discovery
+        guidance. Evidence: 13 scaffold tests and the full 13-test Playwright suite passed; no old global-skill
+        path references remain; git diff --check passed.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:41:43.358603Z'
+        ended: '2026-07-27T11:54:38.710158Z'
+    - key: verify
+      title: Verify
+      status: done
+      note: 'Project-local relocation verified: 9 resource schema tests, 13 scaffold tests, and 13 Playwright
+        tests passed; the global dot_agents path does not exist; no old-path references remain; git diff
+        --check passed.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:54:39.443019Z'
+        ended: '2026-07-27T11:55:37.647784Z'
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: done
+      note: 'Acceptance evidence: project package validation discovers and runs the relocated skill tests;
+        deterministic topic and paper draft workflows pass real publication validators after explicit
+        review; all existing browser paths remain green after the package-path change.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:55:38.152010Z'
+        ended: '2026-07-27T11:55:38.402505Z'
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: skipped
+      note: 'User declined vulnerability-scan: User explicitly declined the independent vulnerability
+        scan for the replication-skill slice on 2026-07-27.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T11:59:12.675152Z'
+        ended: '2026-07-27T11:59:12.675152Z'
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
       status: in_progress
       note: ''
       execution:
         model: openai/gpt-5.6-sol
-        started: '2026-07-27T11:41:43.358603Z'
-    - key: verify
-      title: Verify
-      status: planned
-      note: ''
-    - key: e2e-evidence
-      title: Provide e2e/acceptance evidence or record the gap
-      status: planned
-      note: ''
-    - key: vulnerability-scan
-      title: Run an independent vulnerability scan
-      status: planned
-      note: ''
-    - key: share-with-team
-      title: 'Share with team: ticket + PR for this slice''s repo'
-      status: planned
-      note: ''
+        started: '2026-07-27T11:59:29.890385Z'
     - key: update-task-file
       title: Update this task file
       status: planned

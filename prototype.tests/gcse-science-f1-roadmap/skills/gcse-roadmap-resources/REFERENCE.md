@@ -156,8 +156,8 @@ One paper may support many topics, but each paper-topic pair has one edge contai
 ## Commands
 
 ```sh
-node dot_agents/skills/gcse-roadmap-resources/scripts/scaffold-topic.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --topic P1 --output /tmp/p1-draft
-node dot_agents/skills/gcse-roadmap-resources/scripts/scaffold-paper.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --paper-id paper:aqa-june-2025-p1h --output /tmp/aqa-june-2025-p1h.json
+node prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/scripts/scaffold-topic.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --topic P1 --output /tmp/p1-draft
+node prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/scripts/scaffold-paper.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --paper-id paper:aqa-june-2025-p1h --output /tmp/aqa-june-2025-p1h.json
 npm run validate --prefix prototype.tests/gcse-science-f1-roadmap
 node prototype.tests/gcse-science-f1-roadmap/tests/audit-resource-links.mjs prototypes/gcse-science-f1-roadmap
 npm test --prefix prototype.tests/gcse-science-f1-roadmap

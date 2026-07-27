@@ -36,8 +36,8 @@ Never regenerate or overwrite an existing topic directory, catalog entry, paper 
 ## Scaffold Drafts
 
 ```sh
-node dot_agents/skills/gcse-roadmap-resources/scripts/scaffold-topic.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --topic M2 --output /tmp/m2-draft
-node dot_agents/skills/gcse-roadmap-resources/scripts/scaffold-paper.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --paper-id paper:board-series-component --output /tmp/paper-draft.json
+node prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/scripts/scaffold-topic.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --topic M2 --output /tmp/m2-draft
+node prototype.tests/gcse-science-f1-roadmap/skills/gcse-roadmap-resources/scripts/scaffold-paper.mjs --html prototypes/gcse-science-f1-roadmap.html --resources prototypes/gcse-science-f1-roadmap --paper-id paper:board-series-component --output /tmp/paper-draft.json
 ```
 
 Drafts contain `draft: true` and conspicuous placeholders.
