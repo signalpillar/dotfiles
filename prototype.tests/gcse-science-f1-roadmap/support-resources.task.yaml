@@ -34,8 +34,8 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
   through the replication skill.'
 orchestration:
   cursor:
-    slice: maths-resources
-    step: share-with-team
+    slice: physics-resources
+    step: create-plan
   policy:
     coding_execution:
       subagent_required: true
@@ -398,11 +398,14 @@ plan:
     title: Publish maths resources
     goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
       Wikipedia links for all 20 maths topics.
-    status: in_progress
-    note: ''
+    status: done
+    note: All 20 maths support bundles are published and validated. Commit c801e03 is on origin/master;
+      all 60 links passed live audit; Node, scaffold, existing browser, and representative new-topic acceptance
+      checks passed; M1 and the prerequisite graph remain unchanged.
     execution:
       model: openai/gpt-5.6-sol
       started: '2026-07-27T12:00:39.192831Z'
+      ended: '2026-07-27T13:10:24.985746Z'
     repos:
     - dotfiles
     depends_on:
@@ -477,16 +480,32 @@ plan:
         ended: '2026-07-27T13:05:00.331705Z'
     - key: share-with-team
       title: 'Share with team: ticket + PR for this slice''s repo'
-      status: planned
-      note: ''
+      status: skipped
+      note: User chose direct delivery to master for this private project instead of a ticket and PR;
+        commit c801e03 was pushed to origin/master.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T13:06:14.308762Z'
+        ended: '2026-07-27T13:06:14.308762Z'
     - key: update-task-file
       title: Update this task file
-      status: planned
-      note: ''
+      status: done
+      note: Task record now contains complete maths implementation, validation, network audit, browser
+        evidence, direct-delivery evidence, and explicit resumable research/draft/review steps for all
+        remaining physics, chemistry, and biology topic batches. No maths follow-up remains untracked.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T13:06:14.843059Z'
+        ended: '2026-07-27T13:06:15.107046Z'
     - key: wait-for-feedback
       title: 'Wait for team feedback: loop on PR review until merged'
-      status: planned
-      note: ''
+      status: skipped
+      note: No PR feedback window exists because the user selected direct master delivery; origin/master
+        contains c801e03.
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T13:06:15.633915Z'
+        ended: '2026-07-27T13:06:15.633915Z'
     final_steps: []
   - key: physics-resources
     kind: implement
