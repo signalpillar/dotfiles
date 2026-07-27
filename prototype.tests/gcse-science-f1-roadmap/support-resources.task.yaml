@@ -35,7 +35,7 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
 orchestration:
   cursor:
     slice: maths-resources
-    step: edit-code
+    step: share-with-team
   policy:
     coding_execution:
       subagent_required: true
@@ -430,23 +430,51 @@ plan:
         ended: '2026-07-27T12:04:22.607950Z'
     - key: edit-code
       title: Edit code
-      status: in_progress
-      note: ''
+      status: done
+      note: 'Published draft-ready M2-M20 maths bundles and catalog mappings after independent topic review
+        and remediation. Corrected scope and mathematical qualifications, added omitted plotting/inverse-trig/uncertainty
+        methods, replaced misleading or weak resources, and verified final metadata. Preserved M1, manifest,
+        paper graph, runtime, and validators. Evidence: resource validation reports 20 topics, 0 papers,
+        0 paper edges; 9 resource tests and 13 scaffold tests pass; git diff checks pass. External link
+        audit and browser acceptance remain in the following steps.'
       execution:
         model: openai/gpt-5.6-sol
         started: '2026-07-27T12:04:39.269513Z'
+        ended: '2026-07-27T12:42:51.883357Z'
     - key: verify
       title: Verify
-      status: planned
-      note: ''
+      status: done
+      note: 'Verification passed: manifest remains 121 nodes and 189 prerequisite edges with 20 maths
+        nodes; resource validator reports 20 topics, 0 papers, 0 paper edges; 9 resource tests, 13 scaffold
+        tests, and 13 Playwright tests pass; all 60 declared maths destinations returned HTTP 200 with
+        no detected account/payment gates; git diff and cached diff checks pass.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T12:43:04.810858Z'
+        ended: '2026-07-27T12:43:55.370573Z'
     - key: e2e-evidence
       title: Provide e2e/acceptance evidence or record the gap
-      status: planned
-      note: ''
+      status: done
+      note: 'Real Chrome acceptance passed for representative M2, M3, M6, M12, M15, M17, and M20 bundles:
+        summaries rendered without raw Markdown; all declared supporting and Wikipedia hrefs matched metadata;
+        copied clipboard text matched each full prompt; paper state stayed independently empty. M2 and
+        content-dense M20 had zero page overflow and visible copy controls at 320, 390, 768, and 1360
+        px. M20 remained exactly copyable with Marked blocked, and delayed M18 resources could not replace
+        active M20. Three one-off acceptance tests passed; temporary spec was removed with no test-file
+        diff.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T12:43:55.904921Z'
+        ended: '2026-07-27T13:04:59.798116Z'
     - key: vulnerability-scan
       title: Run an independent vulnerability scan
-      status: planned
-      note: ''
+      status: skipped
+      note: 'User declined vulnerability-scan: User previously declined independent vulnerability scans
+        for this resource-library task; this slice adds static reviewed content and no new runtime code.'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T13:05:00.331705Z'
+        ended: '2026-07-27T13:05:00.331705Z'
     - key: share-with-team
       title: 'Share with team: ticket + PR for this slice''s repo'
       status: planned
@@ -481,6 +509,23 @@ plan:
       title: Grill the plan file
       status: planned
       note: ''
+    - key: research-topic-evidence
+      title: Research physics topic evidence
+      status: planned
+      note: For P1-P35, inspect each authoritative manifest record and every final live resource destination;
+        record scope, relevance, redirects, free access, and Wikipedia fit in bounded topic batches.
+    - key: draft-topic-bundles
+      title: Draft physics topic bundles
+      status: planned
+      note: Create unpublished P1-P35 topic.json, summary.md, and explain-prompt.md drafts from inspected
+        evidence; retain draft markers until each bundle satisfies the manifest-specific examples and
+        prompt requirements.
+    - key: review-topic-bundles
+      title: Review physics topic bundles
+      status: planned
+      note: Independently review every P1-P35 bundle for factual accuracy, exact manifest scope, prompt
+        interactivity, two credible free supporting links, one focused English Wikipedia link, and truthful
+        metadata; block individual failures.
     - key: edit-code
       title: Edit code
       status: planned
@@ -531,6 +576,23 @@ plan:
       title: Grill the plan file
       status: planned
       note: ''
+    - key: research-topic-evidence
+      title: Research chemistry topic evidence
+      status: planned
+      note: For C1-C33, inspect each authoritative manifest record and every final live resource destination;
+        record scope, relevance, redirects, free access, and Wikipedia fit in bounded topic batches.
+    - key: draft-topic-bundles
+      title: Draft chemistry topic bundles
+      status: planned
+      note: Create unpublished C1-C33 topic.json, summary.md, and explain-prompt.md drafts from inspected
+        evidence; retain draft markers until each bundle satisfies the manifest-specific examples and
+        prompt requirements.
+    - key: review-topic-bundles
+      title: Review chemistry topic bundles
+      status: planned
+      note: Independently review every C1-C33 bundle for factual accuracy, exact manifest scope, prompt
+        interactivity, two credible free supporting links, one focused English Wikipedia link, and truthful
+        metadata; block individual failures.
     - key: edit-code
       title: Edit code
       status: planned
@@ -581,6 +643,23 @@ plan:
       title: Grill the plan file
       status: planned
       note: ''
+    - key: research-topic-evidence
+      title: Research biology topic evidence
+      status: planned
+      note: For B1-B33, inspect each authoritative manifest record and every final live resource destination;
+        record scope, relevance, redirects, free access, and Wikipedia fit in bounded topic batches.
+    - key: draft-topic-bundles
+      title: Draft biology topic bundles
+      status: planned
+      note: Create unpublished B1-B33 topic.json, summary.md, and explain-prompt.md drafts from inspected
+        evidence; retain draft markers until each bundle satisfies the manifest-specific examples and
+        prompt requirements.
+    - key: review-topic-bundles
+      title: Review biology topic bundles
+      status: planned
+      note: Independently review every B1-B33 bundle for factual accuracy, exact manifest scope, prompt
+        interactivity, two credible free supporting links, one focused English Wikipedia link, and truthful
+        metadata; block individual failures.
     - key: edit-code
       title: Edit code
       status: planned

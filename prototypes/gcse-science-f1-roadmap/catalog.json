@@ -1,6 +1,25 @@
 {
   "schemaVersion": 1,
   "topics": {
-    "M1": "topics/maths/m1/topic.json"
+    "M1": "topics/maths/m1/topic.json",
+    "M2": "topics/maths/m2/topic.json",
+    "M3": "topics/maths/m3/topic.json",
+    "M4": "topics/maths/m4/topic.json",
+    "M5": "topics/maths/m5/topic.json",
+    "M6": "topics/maths/m6/topic.json",
+    "M7": "topics/maths/m7/topic.json",
+    "M8": "topics/maths/m8/topic.json",
+    "M9": "topics/maths/m9/topic.json",
+    "M10": "topics/maths/m10/topic.json",
+    "M11": "topics/maths/m11/topic.json",
+    "M12": "topics/maths/m12/topic.json",
+    "M13": "topics/maths/m13/topic.json",
+    "M14": "topics/maths/m14/topic.json",
+    "M15": "topics/maths/m15/topic.json",
+    "M16": "topics/maths/m16/topic.json",
+    "M17": "topics/maths/m17/topic.json",
+    "M18": "topics/maths/m18/topic.json",
+    "M19": "topics/maths/m19/topic.json",
+    "M20": "topics/maths/m20/topic.json"
   }
 }

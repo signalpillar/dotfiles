@@ -5,11 +5,11 @@
   "explainPrompt": "explain-prompt.md",
   "links": [
     {
-      "label": "Probability",
+      "label": "Probability - Edexcel GCSE Maths Revision",
       "url": "https://www.mathsgenie.co.uk/probability.html",
       "publisher": "Maths Genie",
-      "kind": "lesson",
-      "note": "GCSE lessons and practice on probability scales, outcomes, and calculating probabilities."
+      "kind": "reference",
+      "note": "A GCSE probability topic hub indexing clearly labelled lessons, videos, questions, and solutions on probability scales, outcomes, and calculations."
     },
     {
       "label": "Probability Terminology",

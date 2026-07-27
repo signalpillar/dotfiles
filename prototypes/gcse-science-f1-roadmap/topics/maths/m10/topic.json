@@ -12,11 +12,11 @@
       "note": "GCSE lessons, worked examples, and practice on calculating the mean and range."
     },
     {
-      "label": "Measurement Uncertainty, Accuracy, and Precision",
-      "url": "https://openstax.org/books/chemistry-2e/pages/1-5-measurement-uncertainty-accuracy-and-precision",
-      "publisher": "OpenStax",
-      "kind": "reference",
-      "note": "An open textbook section explaining why measurements are uncertain and how repeated values describe precision."
+      "label": "Working scientifically",
+      "url": "https://www.aqa.org.uk/subjects/physics/gcse/physics-8463/specification/working-scientifically",
+      "publisher": "AQA",
+      "kind": "official-specification",
+      "note": "The official GCSE specification lists arithmetic mean and range, measurement uncertainty, and examining anomalous values to identify a cause before ignoring poor measurements."
     }
   ],
   "wikipedia": {

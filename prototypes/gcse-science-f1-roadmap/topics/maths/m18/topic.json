@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M18",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Rates",
+      "url": "https://www.mathsisfun.com/numbers/rates.html",
+      "publisher": "Math Is Fun",
+      "kind": "lesson",
+      "note": "An illustrated explanation of rates, unit rates, division order, and the meaning of per."
+    },
+    {
+      "label": "Problem solving with compound measures",
+      "url": "https://www.thenational.academy/teachers/programmes/maths-secondary-ks4-foundation/units/compound-measures/lessons/problem-solving-with-compound-measures",
+      "publisher": "Oak National Academy",
+      "kind": "lesson",
+      "note": "A free GCSE lesson with worksheets and quizzes on speed, density, pressure, and flow-rate problems using compound units."
+    }
+  ],
+  "wikipedia": {
+    "label": "Rate (mathematics)",
+    "url": "https://en.wikipedia.org/wiki/Rate_(mathematics)"
+  }
+}

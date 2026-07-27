@@ -5,18 +5,18 @@
   "explainPrompt": "explain-prompt.md",
   "links": [
     {
-      "label": "Measurement Uncertainty, Accuracy, and Precision",
-      "url": "https://openstax.org/books/chemistry-2e/pages/1-5-measurement-uncertainty-accuracy-and-precision",
-      "publisher": "OpenStax",
+      "label": "Uncertainties in measurements: chemistry",
+      "url": "https://www.thenational.academy/teachers/programmes/chemistry-secondary-ks4-foundation-aqa/units/calculations-involving-masses/lessons/uncertainties-in-measurements-chemistry",
+      "publisher": "Oak National Academy",
       "kind": "lesson",
-      "note": "An open textbook lesson distinguishing uncertainty, accuracy, precision, and repeated measurements."
+      "note": "A free GCSE lesson with worksheets and quizzes on measurement uncertainty, mean values, half-range uncertainty, random error, precision, and accuracy."
     },
     {
-      "label": "What are the issues for characterization?",
-      "url": "https://www.itl.nist.gov/div898/handbook/mpc/section1/mpc11.htm",
-      "publisher": "National Institute of Standards and Technology",
-      "kind": "reference",
-      "note": "A free measurement handbook page relating bias, short-term precision, long-term variability, and uncertainty."
+      "label": "Working scientifically",
+      "url": "https://www.aqa.org.uk/subjects/physics/gcse/physics-8463/specification/working-scientifically",
+      "publisher": "AQA",
+      "kind": "official-specification",
+      "note": "Official GCSE definitions and guidance for accuracy, precision, repeatability, reproducibility, random error, and systematic error."
     }
   ],
   "wikipedia": {

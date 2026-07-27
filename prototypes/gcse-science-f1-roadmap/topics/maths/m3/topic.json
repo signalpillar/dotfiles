@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M3",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Solve a Formula for a Specific Variable",
+      "url": "https://openstax.org/books/elementary-algebra-2e/pages/2-6-solve-a-formula-for-a-specific-variable",
+      "publisher": "OpenStax",
+      "kind": "lesson",
+      "note": "A free textbook section with worked methods and practice for isolating a chosen variable."
+    },
+    {
+      "label": "Rearranging Harder Formulae - Revision",
+      "url": "https://mathsgenie.co.uk/gcse/maths/edexcel/grade-7-7-7-rearranging-harder-formulae",
+      "publisher": "Maths Genie",
+      "kind": "practice",
+      "note": "A GCSE topic page covering formulae with powers, fractions, brackets, and repeated variables."
+    }
+  ],
+  "wikipedia": {
+    "label": "Equation solving",
+    "url": "https://en.wikipedia.org/wiki/Equation_solving"
+  }
+}

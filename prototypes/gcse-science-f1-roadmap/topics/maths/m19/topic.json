@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M19",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Problem solving with direct and inverse proportion",
+      "url": "https://www.thenational.academy/teachers/programmes/maths-secondary-ks4-higher/units/direct-and-inverse-proportion/lessons/problem-solving-with-direct-and-inverse-proportion",
+      "publisher": "Oak National Academy",
+      "kind": "lesson",
+      "note": "A free GCSE lesson with worked problems, worksheets, and quizzes on equations and graphs for direct, inverse, and inverse-square relationships."
+    },
+    {
+      "label": "Use Direct and Inverse Variation",
+      "url": "https://openstax.org/books/elementary-algebra-2e/pages/8-9-use-direct-and-inverse-variation",
+      "publisher": "OpenStax",
+      "kind": "practice",
+      "note": "A free textbook section with worked direct and inverse variation methods and extensive practice questions."
+    }
+  ],
+  "wikipedia": {
+    "label": "Proportionality (mathematics)",
+    "url": "https://en.wikipedia.org/wiki/Proportionality_(mathematics)"
+  }
+}

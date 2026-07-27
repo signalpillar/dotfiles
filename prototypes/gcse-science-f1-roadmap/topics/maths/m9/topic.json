@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M9",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Vectors",
+      "url": "https://www.mathsisfun.com/algebra/vectors.html",
+      "publisher": "Math Is Fun",
+      "kind": "lesson",
+      "note": "Explains vector magnitude and direction, head-to-tail addition, components, and resultants."
+    },
+    {
+      "label": "Vector Components",
+      "url": "https://www.physicsclassroom.com/class/vectors/Lesson-1/Vector-Components",
+      "publisher": "The Physics Classroom",
+      "kind": "lesson",
+      "note": "A free illustrated tutorial on resolving vectors into perpendicular components and combining components to describe a vector."
+    }
+  ],
+  "wikipedia": {
+    "label": "Euclidean vector",
+    "url": "https://en.wikipedia.org/wiki/Euclidean_vector"
+  }
+}

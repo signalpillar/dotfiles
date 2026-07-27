@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M14",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Algebra - Substitution",
+      "url": "https://www.mathsisfun.com/algebra/substitution.html",
+      "publisher": "Math Is Fun",
+      "kind": "lesson",
+      "note": "A worked lesson on replacing variables with values, including powers and negative values."
+    },
+    {
+      "label": "Solve Equations using the Division and Multiplication Properties of Equality",
+      "url": "https://openstax.org/books/elementary-algebra-2e/pages/2-2-solve-equations-using-the-division-and-multiplication-properties-of-equality",
+      "publisher": "OpenStax",
+      "kind": "practice",
+      "note": "A free textbook section with worked one-step and multi-operation equation methods and extensive practice."
+    }
+  ],
+  "wikipedia": {
+    "label": "Equation solving",
+    "url": "https://en.wikipedia.org/wiki/Equation_solving"
+  }
+}

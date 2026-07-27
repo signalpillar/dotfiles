@@ -5,11 +5,11 @@
   "explainPrompt": "explain-prompt.md",
   "links": [
     {
-      "label": "Scatter Graphs",
+      "label": "Scatter Graphs - Edexcel GCSE Maths Revision",
       "url": "https://www.mathsgenie.co.uk/scatter-graphs.html",
       "publisher": "Maths Genie",
-      "kind": "lesson",
-      "note": "GCSE lessons, worked examples, and practice on plotting and interpreting scatter graphs."
+      "kind": "reference",
+      "note": "A GCSE scatter-graphs topic hub indexing clearly labelled lessons, videos, questions, and solutions on plotting and interpreting scatter graphs."
     },
     {
       "label": "Data, Sampling, and Variation in Data and Sampling",

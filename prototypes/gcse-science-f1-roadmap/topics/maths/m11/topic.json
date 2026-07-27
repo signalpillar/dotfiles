@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "topicId": "M11",
+  "summary": "summary.md",
+  "explainPrompt": "explain-prompt.md",
+  "links": [
+    {
+      "label": "Cuboids, Rectangular Prisms and Cubes",
+      "url": "https://www.mathsisfun.com/geometry/cuboids-rectangular-prisms.html",
+      "publisher": "Math Is Fun",
+      "kind": "lesson",
+      "note": "Works through surface-area and volume calculations for cuboids and cubes."
+    },
+    {
+      "label": "Diffusion and surface area to volume ratio",
+      "url": "https://www.thenational.academy/teachers/programmes/biology-secondary-ks4-foundation-aqa/units/transport-and-exchange-surfaces-in-humans/lessons/diffusion-and-surface-area-to-volume-ratio",
+      "publisher": "Oak National Academy",
+      "kind": "lesson",
+      "note": "A free GCSE lesson with calculations, worksheets, and quizzes comparing cube surface area, volume, ratios, and transfer by diffusion."
+    }
+  ],
+  "wikipedia": {
+    "label": "Surface-area-to-volume ratio",
+    "url": "https://en.wikipedia.org/wiki/Surface-area-to-volume_ratio"
+  }
+}

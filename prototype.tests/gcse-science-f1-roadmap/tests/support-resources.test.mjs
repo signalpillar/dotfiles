@@ -40,8 +40,9 @@ const validPaper = {
 
 const clone = (value) => structuredClone(value);
 
-test("the shipped M1 library validates", () => {
-  assert.deepEqual(validateResourceLibrary(htmlFile, resourceRoot), { topics: 1, papers: 0, paperEdges: 0 });
+test("the shipped resource library validates", () => {
+  const catalog = JSON.parse(fs.readFileSync(path.join(resourceRoot, "catalog.json"), "utf8"));
+  assert.deepEqual(validateResourceLibrary(htmlFile, resourceRoot), { topics: Object.keys(catalog.topics).length, papers: 0, paperEdges: 0 });
 });
 
 test("local paths reject traversal, absolute paths, queries, and fragments", () => {
