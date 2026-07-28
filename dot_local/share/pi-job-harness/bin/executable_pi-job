@@ -4565,8 +4565,7 @@ def append_slice_work_lines(
         worktree = work.get("worktree") or "not set"
         lines.append(f"    repo_work[{repo_name}]: worktree={worktree}")
         for pr in work.get("prs", []) or []:
-            note_suffix = f" — {pr.get('note')}" if pr.get("note") else ""
-            lines.append(f"        pr {pr.get('status')} {pr.get('url')}{note_suffix}")
+            lines.append(f"        pr {pr.get('status')} {pr.get('url')}")
 
 
 def step_detail_line(

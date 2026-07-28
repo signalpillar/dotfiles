@@ -1425,7 +1425,8 @@ def test_show_slice_prints_goal_notes_steps_repo_work() -> None:
         assert_contains(out, "[anthropic/claude-test]")
         assert_contains(out, "note: Step-level detail")
         assert_contains(out, "repo_work[graphius]: worktree=/tmp/wt-scoped")
-        assert_contains(out, "pr open https://github.com/example/pr/99 — Review me")
+        assert_contains(out, "pr open https://github.com/example/pr/99")
+        assert_not_contains(out, "Review me")
         assert_contains(out, "← current")
         for forbidden in ("SECRET CONTEXT", "decisions", "Shared context", "— toolbelt —"):
             if forbidden in out:
@@ -3235,7 +3236,8 @@ def test_show_renders_repo_work_worktree_and_prs() -> None:
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         # Verify all the rendering parts are present
         assert_contains(show, "repo_work[graphius]: worktree=/home/user/worktrees/graphius")
-        assert_contains(show, "pr open https://github.com/emed/graphius/pull/123 — WIP schema changes")
+        assert_contains(show, "pr open https://github.com/emed/graphius/pull/123")
+        assert_not_contains(show, "WIP schema changes")
 
 
 def test_add_slice_still_works_with_repo_work_in_schema() -> None:
