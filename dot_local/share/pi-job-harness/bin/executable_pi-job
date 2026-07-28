@@ -361,7 +361,7 @@ class ProfileDocument(StrictDocument):
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
     sync_pipeline_instructions: str = Field(default="", description="Pipeline instructions for the sync command, shown per slice.")
-    instruction_packets: dict[str, str] = Field(default_factory=dict, description="Reusable instruction text blocks. Supported keys: todo_tracking, future_work, orchestrator, subagent_orchestrator, plan_todo, missing_task_hint. Each value supports {cursor} or <TASK_FILE> interpolation.")
+    instruction_packets: dict[str, str] = Field(default_factory=dict, description="Reusable instruction text blocks. Supported keys: todo_tracking, future_work, orchestrator, subagent_orchestrator, plan_todo, missing_task_hint, seed_slice_plans. Each value supports {cursor} or <TASK_FILE> interpolation.")
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
     slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
@@ -885,6 +885,10 @@ class TaskStore(Protocol):
         """Set the worktree path for a slice's repo work."""
         ...
 
+    def clear_worktree(self, *, slice_key: str, repo: str) -> None:
+        """Remove the worktree path for an existing slice repo entry."""
+        ...
+
     def add_pr(
         self, *, slice_key: str, repo: str, url: str, status: str, note: str
     ) -> str:
@@ -1218,6 +1222,23 @@ class CueTaskStore:
 
         write_and_validate(self.path, original_text, "".join(lines))
 
+    def clear_worktree(self, *, slice_key: str, repo: str) -> None:
+        original_text = self.path.read_text()
+        lines = original_text.splitlines(keepends=True)
+        slice_span = find_key_struct_span(lines, slice_key)
+        if slice_span is None:
+            die(f"could not locate slice {slice_key!r} in task file text (unexpected)")
+
+        lines, entry_open, entry_close = locate_repo_entry(
+            lines, slice_span[0], slice_span[1], repo, slice_key=slice_key
+        )
+
+        wt_idx = find_line(lines, re.compile(r'^[ \t]*worktree:\s*"'), entry_open + 1, entry_close)
+        if wt_idx != -1:
+            del lines[wt_idx]
+
+        write_and_validate(self.path, original_text, "".join(lines))
+
     def add_pr(
         self, *, slice_key: str, repo: str, url: str, status: str, note: str
     ) -> str:
@@ -1506,6 +1527,15 @@ class YamlTaskStore:
         def mutation(task: dict[str, Any]) -> None:
             repo_work = self._slice(task, slice_key).setdefault("repo_work", {})
             repo_work.setdefault(repo, {"prs": []})["worktree"] = path
+
+        self._mutate(mutation)
+
+    def clear_worktree(self, *, slice_key: str, repo: str) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            repo_work = self._slice(task, slice_key).get("repo_work") or {}
+            if repo not in repo_work:
+                die(f"repo work not found: {slice_key}/{repo}")
+            repo_work[repo].pop("worktree", None)
 
         self._mutate(mutation)
 
@@ -2216,6 +2246,15 @@ class FsTaskStore:
     def set_worktree(self, *, slice_key: str, repo: str, path: str) -> None:
         self._write_text(self.layout.slice_repo_worktree_file(slice_key, repo), path)
 
+    def clear_worktree(self, *, slice_key: str, repo: str) -> None:
+        L = self.layout
+        repo_dir = L.slice_repo_work_dir(slice_key, repo)
+        if not repo_dir.is_dir():
+            die(f"repo work not found: {slice_key}/{repo}")
+        worktree_file = L.slice_repo_worktree_file(slice_key, repo)
+        if worktree_file.exists():
+            worktree_file.unlink()
+
     def add_pr(self, *, slice_key: str, repo: str, url: str, status: str, note: str) -> str:
         L = self.layout
         for pr_dir in L.slice_pr_dirs(slice_key, repo):
@@ -2472,20 +2511,24 @@ def task_slice_kinds(task: dict[str, Any]) -> set[str]:
     return {str(sl.get("kind") or "") for sl in task.get("plan", {}).get("slices", []) if sl.get("kind")}
 
 
-def slice_structure_issues(task: dict[str, Any]) -> list[str]:
+def slice_structure_issues(task: dict[str, Any], *, slice_key: str | None = None) -> list[str]:
     """Structural lint for plan.slices, independent of the step-ordering gate.
 
     Each slice must (1) carry a `kind` that exists in the contract's slice_kinds and
     (2) contain at least every step key its kind's step_template lists. Extra steps are
     fine; the template is the bare minimum. Placement across steps/final_steps does not
     matter - the union is checked - so a slice that keeps closing steps in final_steps
-    still passes. Returns a list of human-readable issues (empty means conformant)."""
+    still passes. Returns a list of human-readable issues (empty means conformant).
+
+    When slice_key is set, only that slice is checked."""
     valid = valid_slice_kinds()
     valid_hint = ", ".join(sorted(valid))
     issues: list[str] = []
     slices = task.get("plan", {}).get("slices", []) or []
     for idx, sl in enumerate(slices):
         key = str(sl.get("key") or f"#{idx}")
+        if slice_key is not None and key != slice_key:
+            continue
         kind = sl.get("kind")
         if not kind:
             issues.append(f"slice {key!r}: missing 'kind' (expected one of: {valid_hint})")
@@ -2508,6 +2551,11 @@ def slice_structure_issues(task: dict[str, Any]) -> list[str]:
                 f"kind {kind!r} template requires: {', '.join(template)}"
             )
     return issues
+
+
+def known_slice_keys(task: dict[str, Any]) -> str:
+    slices = task.get("plan", {}).get("slices", []) or []
+    return ", ".join(str(sl.get("key") or "") for sl in slices)
 
 
 def slice_template_warnings(task: dict[str, Any]) -> list[str]:
@@ -2663,6 +2711,16 @@ def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
         print(f"Next: initialize with pi-job --task {task_file_desc} init [--kind setup|implement|...]")
         return
     print("Initialization: ok")
+    structure_issues = slice_structure_issues(task)
+    if structure_issues:
+        count = len(structure_issues)
+        issue_word = "issue" if count == 1 else "issues"
+        print(
+            f"Structure: invalid ({count} {issue_word}; "
+            "try validate or validate --slice <key>)"
+        )
+    else:
+        print("Structure: ok")
     cursor = current_cursor(task)
     print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
     nxt = next_cursor(task)
@@ -2930,6 +2988,21 @@ def locate_or_create_repo_entry(lines, slice_open, slice_close, repo):
     insert_at = rw_open + 1
     lines = insert_lines(lines, insert_at, fresh_entry, after=False)
     return lines, insert_at, insert_at + len(fresh_entry) - 1
+
+
+def locate_repo_entry(lines, slice_open, slice_close, repo, *, slice_key: str):
+    """Locate an existing repo_work map entry without creating anything."""
+    rw_span = find_struct_field_span(lines, "repo_work", slice_open, slice_close)
+    if rw_span is None:
+        die(f"repo work not found: {slice_key}/{repo}")
+    rw_open, rw_close, rw_is_empty = rw_span
+    if rw_is_empty:
+        die(f"repo work not found: {slice_key}/{repo}")
+    entry_span = find_map_entry_span(lines, repo, rw_open, rw_close)
+    if entry_span is None:
+        die(f"repo work not found: {slice_key}/{repo}")
+    entry_open, entry_close, _entry_is_empty = entry_span
+    return lines, entry_open, entry_close
 
 
 def insert_lines(lines, at_idx, new_lines, *, after: bool) -> list[str]:
@@ -3566,6 +3639,13 @@ def cmd_finish(args: argparse.Namespace) -> None:
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
         target_status = "skipped" if args.skip else "done"
         existing = item.execution
+        if args.reconcile and args.skip:
+            die("finish --reconcile cannot be combined with --skip")
+        if args.reconcile and item.status not in ("in_progress",):
+            die(
+                f"reconcile refused: {label} status is {item.status!r}; "
+                "reconcile only applies to in_progress targets"
+            )
         if item.status == target_status and existing and existing.ended:
             print(f"already finished: {label} [{target_status}] at {existing.ended}")
             return
@@ -3577,7 +3657,9 @@ def cmd_finish(args: argparse.Namespace) -> None:
         model = require_fully_qualified_model(str(model))
         if existing and existing.model and args.model and existing.model != model:
             die(f"execution started by {existing.model!r}; refusing to finish it as {model!r}")
-        if not existing and not args.skip:
+        if args.reconcile and args.note is None:
+            die("finish --reconcile requires --note '<evidence>'")
+        if not existing and not args.skip and not args.reconcile:
             die(f"work was not started: {label}; run pi-job start --model <id> first")
         now = utc_now()
         started = existing.started if existing else now
@@ -3747,9 +3829,80 @@ def slice_plan_file(task_file: Path, slice_key: str) -> Path:
     return task_file.parent / f"{task_file.stem}.plans" / f"{slice_key}.md"
 
 
+slice_plan_path = slice_plan_file
+
+
 def slice_plan_note_pointer(task_file: Path, slice_key: str) -> str:
     """create-plan step note value: path relative to the task file's directory."""
     return f"Plan file: {task_file.stem}.plans/{slice_key}.md"
+
+
+def slice_kind_requires_plan_file(kind: str) -> bool:
+    """True when the slice kind's step_template includes create-plan."""
+    template = get_slice_kind(kind).get("step_template") or []
+    return "create-plan" in template
+
+
+def _truncate_seed_text(text: str, limit: int = 240) -> str:
+    collapsed = " ".join(str(text).split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[: limit - 3].rstrip() + "..."
+
+
+def build_seed_slice_plans_block(
+    task_file: Path, task: dict[str, Any], slices: list[dict[str, Any]]
+) -> str:
+    """Return a seed reminder block for qualifying slices, or empty string if none."""
+    qualifying = [
+        sl for sl in slices
+        if slice_kind_requires_plan_file(str(sl.get("kind") or ""))
+    ]
+    if not qualifying:
+        return ""
+
+    profile = load_profile_contract()
+    packets = profile.get("instruction_packets", {})
+    preamble = packets.get("seed_slice_plans", "")
+    if not preamble:
+        preamble = (
+            "Create these plan files immediately from known task context, decisions, goals, and deps.\n"
+            "Do not wait until each slice's create-plan cursor.\n"
+            "Later create-plan revises the same path; note stays: Plan file: <task-stem>.plans/<key>.md\n"
+            "Work against task <TASK>."
+        )
+
+    lines = ["SEED SLICE PLAN FILES NOW", preamble.rstrip(), ""]
+    for sl in qualifying:
+        key = str(sl.get("key") or "")
+        kind = str(sl.get("kind") or "")
+        lines.append(f"- {key} [{kind}]")
+        lines.append(f"  {slice_plan_note_pointer(task_file, key)}")
+        goal = str(sl.get("goal") or "").strip()
+        if goal:
+            lines.append(f"  Goal: {_truncate_seed_text(goal)}")
+        depends_on = sl.get("depends_on") or []
+        if depends_on:
+            lines.append(f"  Depends on: {', '.join(str(dep) for dep in depends_on)}")
+        repos = sl.get("repos") or []
+        if repos:
+            lines.append(f"  Repos: {', '.join(str(repo) for repo in repos)}")
+        lines.append("")
+
+    context = str(task.get("context") or "").strip()
+    if context:
+        lines.append("Shared context:")
+        lines.append(f"  {_truncate_seed_text(context)}")
+
+    decisions = task.get("decisions") or []
+    if decisions:
+        lines.append("Decisions:")
+        for decision in decisions:
+            date = str(decision.get("date") or "")
+            note = _truncate_seed_text(str(decision.get("note") or ""))
+            lines.append(f"  - {date}: {note}")
+
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
@@ -3974,32 +4127,56 @@ def cmd_advance(args: argparse.Namespace) -> None:
         task = store.read()
         require_initialized(task_file, task)
 
+        if args.resync and args.force:
+            die("--resync and --force are mutually exclusive")
+
         if not args.dry_run:
             current_for_guard = current_cursor(task)
             current_slice = find_current_slice(task, current_for_guard) if current_for_guard else None
             current_step = find_current_step(current_slice, current_for_guard) if current_for_guard else None
-            if args.force and has_lifecycle_policy(step_execution_policy(current_step)):
-                die(
-                    "do not force-skip a policy-governed step; use "
-                    "finish --skip --model <id> --reason '<decision>'"
-                )
-            block_reason = blocking_incomplete_step(task, current_for_guard)
-            if block_reason and not args.force:
-                die(
-                    f"{block_reason}\n"
-                    "mark the step done/skipped in the task file, or re-run with "
-                    "--force --reason '<why>' to record an explicit skip"
-                )
-            if args.force and not args.reason:
-                die("--force requires --reason '<why>' to record why the step is being skipped")
-            policy_reason = blocking_execution_policy(task, current_for_guard)
-            if policy_reason:
-                die(policy_reason)
+            if args.resync:
+                if not args.reason:
+                    die("--resync requires --reason '<why>' to record why the cursor is being realigned")
+            else:
+                if args.force and has_lifecycle_policy(step_execution_policy(current_step)):
+                    die(
+                        "do not force-skip a policy-governed step; use "
+                        "finish --skip --model <id> --reason '<decision>'"
+                    )
+                block_reason = blocking_incomplete_step(task, current_for_guard)
+                if block_reason and not args.force:
+                    die(
+                        f"{block_reason}\n"
+                        "mark the step done/skipped in the task file, or re-run with "
+                        "--force --reason '<why>' to record an explicit skip"
+                    )
+                if args.force and not args.reason:
+                    die("--force requires --reason '<why>' to record why the step is being skipped")
+                policy_reason = blocking_execution_policy(task, current_for_guard)
+                if policy_reason:
+                    die(policy_reason)
 
         if args.slice:
             if not args.step:
                 die("--slice requires --step when jumping explicitly")
             cursor = Cursor(slice=args.slice, step=args.step)
+        elif args.resync:
+            current = current_cursor(task)
+            cursor = next_cursor(task)
+            if cursor is None:
+                if all_slices_done(task):
+                    die("task has no next cursor (all slices are done)")
+                die("no dependency-satisfied slice is ready; use --slice/--step to jump explicitly")
+            if (
+                not args.dry_run
+                and current is not None
+                and cursor == current
+                and blocking_incomplete_step(task, current)
+            ):
+                die(
+                    "resync would keep cursor on the same unfinished step "
+                    f"{current.label()}; pass explicit --slice/--step to jump elsewhere"
+                )
         else:
             # --force without an explicit jump marks the incomplete current step skipped
             # so next_cursor can move past it instead of returning the same step.
@@ -4030,6 +4207,8 @@ def cmd_advance(args: argparse.Namespace) -> None:
         store.set_cursor(cursor)
         if args.force and args.reason:
             print(f"forced advance (skip reason: {args.reason})")
+        elif args.resync and args.reason:
+            print(f"resynced cursor (reason: {args.reason})")
         print(f"advanced cursor: {cursor.label()}")
 
 
@@ -4466,6 +4645,16 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
         extra_fields=extra_fields, steps=steps, final_steps=final_steps, after=args.after,
     )
     print(f"added slice: {args.key}")
+    updated = store.read()
+    new_slice = next(
+        (sl for sl in updated.get("plan", {}).get("slices", []) if sl.get("key") == args.key),
+        None,
+    )
+    if new_slice is not None:
+        seed_block = build_seed_slice_plans_block(task_file, updated, [new_slice])
+        if seed_block:
+            print()
+            print(seed_block, end="")
 
 
 BASELINE_STEP_FIELDS = {"key", "title", "status", "note"}
@@ -4519,9 +4708,21 @@ def cmd_set_worktree(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     task = store.read()
     slices = task.get("plan", {}).get("slices", [])
-    if not any(s.get("key") == args.slice for s in slices):
+    slice_dict = next((s for s in slices if s.get("key") == args.slice), None)
+    if slice_dict is None:
         known = ", ".join(str(s.get("key") or "") for s in slices)
         die(f"slice not found: {args.slice!r}; known slice keys: {known}")
+
+    if args.clear:
+        repo_work = slice_dict.get("repo_work") or {}
+        if args.repo not in repo_work:
+            die(f"repo work not found: {args.slice}/{args.repo}")
+        if args.dry_run:
+            print(f"would clear worktree: {args.slice}/{args.repo}")
+            return
+        store.clear_worktree(slice_key=args.slice, repo=args.repo)
+        print(f"cleared worktree: {args.slice}/{args.repo}")
+        return
 
     literal = f'worktree: "{cue_escape(args.path)}"\n'
     if args.dry_run:
@@ -4617,12 +4818,30 @@ def cmd_validate(args: argparse.Namespace) -> None:
     task_arg = args.task.resolve()
     store = open_task_store(task_arg)
     task = store.read()
-    issues = slice_structure_issues(task)
-    if issues:
-        die(
-            "slice structure invalid (every slice needs a contract kind and its "
-            "kind's template steps):\n  - " + "\n  - ".join(issues)
-        )
+    slice_key = getattr(args, "slice", None)
+    if slice_key is not None:
+        slices = task.get("plan", {}).get("slices", []) or []
+        if not any(str(sl.get("key") or "") == slice_key for sl in slices):
+            die(f"slice not found: {slice_key!r}; known slice keys: {known_slice_keys(task)}")
+        issues = slice_structure_issues(task, slice_key=slice_key)
+        if issues:
+            die(
+                "slice structure invalid (every slice needs a contract kind and its "
+                "kind's template steps):\n  - " + "\n  - ".join(issues)
+            )
+        full_issues = slice_structure_issues(task)
+        if full_issues:
+            count = len(full_issues)
+            print(
+                f"full-task: {count} legacy structure issue(s); use validate without --slice"
+            )
+    else:
+        issues = slice_structure_issues(task)
+        if issues:
+            die(
+                "slice structure invalid (every slice needs a contract kind and its "
+                "kind's template steps):\n  - " + "\n  - ".join(issues)
+            )
     title = task.get("title") or "<untitled>"
     print(f"ok: {store.describe()}")
     print(f"title: {title}")
@@ -4968,6 +5187,10 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
     print(f"cursor: {cursor.label()}")
     print()
     print(build_instruction(task_file, canonical_repr, cursor))
+    seed_block = build_seed_slice_plans_block(task_file, canonical_repr, assembled_slices)
+    if seed_block:
+        print()
+        print(seed_block, end="")
 
 
 def cmd_set_project(args: argparse.Namespace) -> None:
@@ -5135,6 +5358,10 @@ def main() -> None:
         "validate",
         help="validate task syntax, documented Pydantic fields, profile references, and slice structure",
     )
+    validate.add_argument(
+        "--slice",
+        help="validate only this slice's profile structure (full-task legacy debt is reported non-fatally)",
+    )
     validate.set_defaults(fn=cmd_validate)
 
     init = sub.add_parser("init", help="initialize task orchestration (optional --kind seeds first slice from template)")
@@ -5150,8 +5377,14 @@ def main() -> None:
     adv.add_argument("--slice", help="explicit slice key (requires --step)")
     adv.add_argument("--step", help="explicit step key")
     adv.add_argument("--dry-run", action="store_true")
-    adv.add_argument("--force", action="store_true", help="advance past an unfinished current step")
-    adv.add_argument("--reason", help="required with --force; recorded skip reason")
+    adv_force_resync = adv.add_mutually_exclusive_group()
+    adv_force_resync.add_argument("--force", action="store_true", help="advance past an unfinished current step")
+    adv_force_resync.add_argument(
+        "--resync",
+        action="store_true",
+        help="realign cursor without changing step status (requires --reason)",
+    )
+    adv.add_argument("--reason", help="required with --force or --resync; audit reason")
     adv.set_defaults(fn=cmd_advance)
 
     start = sub.add_parser("start", help="record model/start time and mark the current step or selected slice in progress")
@@ -5167,6 +5400,11 @@ def main() -> None:
     finish.add_argument("--step", help="explicit step key (uses the current slice unless --slice is supplied)")
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
     finish.add_argument("--note", help="completion evidence to store; omitted preserves the existing note")
+    finish.add_argument(
+        "--reconcile",
+        action="store_true",
+        help="finish an in_progress target without a prior start (requires --model and --note)",
+    )
     finish.add_argument("--skip", action="store_true", help="mark skipped instead of done")
     finish.add_argument("--reason", help="required with --skip")
     finish.set_defaults(fn=cmd_finish)
@@ -5297,7 +5535,13 @@ def main() -> None:
     set_worktree = sub.add_parser("set-worktree", help="record or update the filesystem worktree path for a slice's repo work")
     set_worktree.add_argument("--slice", required=True)
     set_worktree.add_argument("--repo", required=True)
-    set_worktree.add_argument("--path", required=True)
+    set_worktree_mode = set_worktree.add_mutually_exclusive_group(required=True)
+    set_worktree_mode.add_argument("--path", help="record or update the filesystem worktree path")
+    set_worktree_mode.add_argument(
+        "--clear",
+        action="store_true",
+        help="clear the recorded worktree path for this slice/repo",
+    )
     set_worktree.add_argument("--dry-run", action="store_true")
     set_worktree.set_defaults(fn=cmd_set_worktree)
 

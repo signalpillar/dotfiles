@@ -47,6 +47,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `add-step` - append a step to a slice
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` - write task metadata and durable decisions
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
+  (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint)
 - `show` - render the task as a cursor-focused slice/step tree with status glyphs
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status
@@ -264,6 +265,9 @@ A task without `task.orchestration` is not initialized; run `init` (or `bootstra
 ### validate
 
 - `pi-job --task <t> validate` is the canonical way to check a task file.
+- `pi-job --task <t> validate --slice KEY` checks only that slice against the active profile (kind plus required/template steps).
+  On success, if other slices still have structure issues, pi-job prints a non-fatal note (`full-task: N legacy structure issue(s); use validate without --slice`) and still exits 0.
+  Unknown slice keys fail closed with the known slice keys listed.
 - YAML syntax is loaded with duplicate-key detection.
 - Task and profile fields are checked through strict Pydantic models that reject unknown fields.
 - Slice structure and live profile-template requirements are checked after document validation.
@@ -325,12 +329,14 @@ Safety guarantees:
 - Reads back and revalidates the written result; aborts on semantic mismatch.
 - Returns the initialized cursor and the full instruction packet for the orchestrator to act on.
 - Reports the active profile and schema version used.
+- When the bootstrap plan introduces implement or spike slices (kinds whose template includes `create-plan`), prints a trailing `SEED SLICE PLAN FILES NOW` reminder listing relative plan paths so agents can write plan files immediately.
 
 ### init and add-slice
 
 - `init [--kind K]` creates `task.orchestration` with cursor at the first actionable slice/step.
   When `plan.slices` is empty and `--kind` is supplied, seeds one slice from `slice_kinds[K].step_template`.
 - `add-slice --kind K --key … --title … --goal …` is required for every new slice; steps are filled from the template.
+- After a successful non-dry-run `add-slice` for a qualifying kind, prints the same seed reminder for that slice only.
 
 ### Task mutation commands
 
@@ -357,6 +363,8 @@ These commands do not require `--task`.
 
 - Fails closed when the saved cursor's step is not `done`/`skipped`.
 - `--force --reason '<why>'` marks the current step skipped before advancing.
+- `--resync --reason '<why>'` realigns the cursor without changing step status; mutually exclusive with `--force`.
+  Without `--slice/--step`, bypasses the unfinished-current guard and moves to computed `next`; fails closed when that would stay on the same unfinished step (pass explicit `--slice/--step` instead).
 - Use `--slice` and `--step` to jump explicitly, or omit both to advance to computed next.
 
 ### Execution lifecycle
@@ -376,6 +384,8 @@ execution:
 - `--slice-only` targets the current slice; `--slice K` targets another slice; add `--step K` to target one of its steps.
 - Start the slice with the orchestrator model, then start and finish each step with the model that directly performs it.
 - `finish --skip --model <id> --reason '<why>'` records an atomic skip when no prior `start` exists.
+- `finish --reconcile --model <id> --note '<evidence>'` records completion for an `in_progress` target that was never started via pi-job; refuses `planned`/`done`/`skipped`.
+- Normal `finish` without `--reconcile` still requires a prior `start` (unless `--skip`).
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
 - Slice kinds may declare `required_steps` separately from `step_template`: persisted slices must satisfy the stable structural minimum, while later template additions produce migration warnings instead of invalidating old tasks.
 
@@ -478,6 +488,8 @@ See `plan_and_grill_guardrail` in `profile.yaml`.
 ## Repo work: worktrees and PRs
 
 - `pi-job --task <t> set-worktree --slice K --repo R --path P` - record/update the filesystem worktree path for a slice's repo work (upsert; not filesystem-validated).
+- `pi-job --task <t> set-worktree --slice K --repo R --clear` - remove the recorded worktree path for an **existing** repo entry; PR records are unchanged; fails if the repo entry was never created.
+- `--path` and `--clear` are mutually exclusive; exactly one is required.
 - `pi-job --task <t> add-pr --slice K --repo R --url U --status open|merged|closed [--note N]` - record a PR for a slice's repo work, upserting by URL.
 - `pi-job --task <t> show [--all]` - also renders each slice's `repo_work`: worktree path (or "not set") and each PR's status/url/note.
 

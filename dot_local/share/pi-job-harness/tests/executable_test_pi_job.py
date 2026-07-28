@@ -184,6 +184,24 @@ def assert_contains(haystack: str, needle: str) -> None:
         raise AssertionError(f"expected {needle!r} in:\n{haystack}")
 
 
+def seed_block_after_marker(stdout: str) -> str:
+    """Return stdout after the SEED SLICE PLAN FILES NOW marker (exclusive)."""
+    if "SEED SLICE PLAN FILES NOW" not in stdout:
+        raise AssertionError(f"expected 'SEED SLICE PLAN FILES NOW' in:\n{stdout}")
+    return stdout.split("SEED SLICE PLAN FILES NOW", 1)[1]
+
+
+def minimal_bootstrap_input_yaml(*, initial_slice_kind: str = "setup", slices_yaml: str = "") -> str:
+    """Minimal valid bootstrap input matching other bootstrap tests in this file."""
+    return f"""title: Seed block test
+initial_slice_kind: {initial_slice_kind}
+decisions:
+  - date: "2026-07-28"
+    note: Test decision
+    source: test
+{slices_yaml}"""
+
+
 def test_profiled_task() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "fixture.cue"
@@ -493,6 +511,109 @@ def test_advance_blocked_on_incomplete_current_step() -> None:
         task2.write_text(fixture)
         dry = run(str(PI_JOB), "--task", str(task2), "advance", "--dry-run").stdout
         assert_contains(dry, "slice:")
+
+
+def test_advance_resync_rejects_force_and_missing_reason() -> None:
+    """--resync is mutually exclusive with --force and requires --reason."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "resync-guards.cue"
+        fixture = TASK_FIXTURE.replace(
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
+        )
+        task.write_text(fixture)
+
+        both = run(
+            str(PI_JOB), "--task", str(task), "advance", "--resync", "--force", "--reason", "nope",
+            check=False,
+        )
+        if both.returncode == 0:
+            raise AssertionError("advance --resync --force unexpectedly succeeded")
+        assert "mutually exclusive" in both.stderr or "not allowed with argument --resync" in both.stderr
+
+        no_reason = run(str(PI_JOB), "--task", str(task), "advance", "--resync", check=False)
+        if no_reason.returncode == 0:
+            raise AssertionError("advance --resync without --reason unexpectedly succeeded")
+        assert_contains(no_reason.stderr, "--resync requires --reason")
+
+
+def test_advance_resync_explicit_jump_does_not_skip_previous_step() -> None:
+    """Resync with --slice/--step moves cursor without marking the prior step skipped."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "resync-jump.cue"
+        fixture = TASK_FIXTURE.replace(
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
+        )
+        task.write_text(fixture)
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "advance",
+            "--resync", "--reason", "jump to final step",
+            "--slice", "second-slice", "--step", "finish",
+        ).stdout
+        assert_contains(out, "advanced cursor: second-slice / finish")
+
+        text = task.read_text()
+        assert_contains(text, '#Step & {key: "s2", title: "Next", status: "planned", note: ""}')
+        assert 'status: "skipped"' not in text or "s2" not in text.split('status: "skipped"')[0]
+
+
+def test_advance_resync_without_jump_fails_on_same_unfinished_step() -> None:
+    """Resync without explicit jump fails when next_cursor stays on the unfinished step."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "resync-same.cue"
+        fixture = TASK_FIXTURE.replace(
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
+        )
+        task.write_text(fixture)
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "advance",
+            "--resync", "--reason", "try implicit resync",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("resync without jump unexpectedly succeeded on same unfinished step")
+        assert_contains(res.stderr, "same unfinished step")
+        assert_contains(res.stderr, "--slice/--step")
+
+
+def test_advance_resync_without_jump_succeeds_when_cursor_is_stale() -> None:
+    """Resync realigns a stale cursor to computed next without skipping steps."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "resync-stale.cue"
+        task.write_text(TASK_FIXTURE)
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "advance",
+            "--resync", "--reason", "cursor drifted from computed next",
+        ).stdout
+        assert_contains(out, "advanced cursor: second-slice / s2")
+
+        text = task.read_text()
+        assert_contains(text, '#Step & {key: "s2", title: "Next", status: "planned", note: ""}')
+
+
+def test_advance_force_still_skips_incomplete_step() -> None:
+    """Regression: --force still marks the incomplete current step skipped before advancing."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "force-skip.cue"
+        fixture = TASK_FIXTURE.replace(
+            'slice: "old-slice"\n            step:  "old-step"',
+            'slice: "second-slice"\n            step:  "s2"',
+        )
+        task.write_text(fixture)
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "advance",
+            "--force", "--reason", "manual override for test",
+        ).stdout
+        assert_contains(out, "forced advance (skip reason: manual override for test)")
+        text = task.read_text()
+        assert_contains(text, 'key: "s2"')
+        assert_contains(text, 'status: "skipped"')
 
 
 def test_missing_task_points_to_scaffold() -> None:
@@ -1974,6 +2095,203 @@ def test_validate_fails_on_unknown_slice_kind() -> None:
         assert_contains(res.stderr, "unknown kind")
 
 
+def _mixed_legacy_validate_fixture(module, task_path: Path) -> None:
+    """YAML task with one conformant implement slice and two legacy-debt slices."""
+    required = module.get_slice_kind("implement").get("required_steps") or []
+    good_steps = [
+        {"key": key, "title": title, "status": "planned", "note": ""}
+        for key, title in module.steps_from_kind_template("implement")
+        if str(key) in {str(step_key) for step_key in required}
+    ]
+    task = module.example_task_mapping(title="Mixed legacy structure")
+    task["plan"]["slices"] = [
+        {
+            "key": "good",
+            "kind": "implement",
+            "title": "Conformant slice",
+            "goal": "Passes scoped validate",
+            "status": "planned",
+            "note": "",
+            "steps": good_steps,
+            "final_steps": [],
+        },
+        {
+            "key": "legacy-unknown-kind",
+            "kind": "banana",
+            "title": "Legacy unknown kind",
+            "goal": "Old slice shape",
+            "status": "done",
+            "note": "",
+            "steps": [{"key": "create-plan", "title": "Plan", "status": "done", "note": ""}],
+            "final_steps": [],
+        },
+        {
+            "key": "legacy-missing-steps",
+            "kind": "implement",
+            "title": "Legacy implement slice",
+            "goal": "Only create-plan",
+            "status": "done",
+            "note": "",
+            "steps": [{"key": "create-plan", "title": "Plan", "status": "done", "note": ""}],
+            "final_steps": [],
+        },
+    ]
+    module.YamlTaskStore(task_path).replace(task)
+
+
+def test_validate_slice_passes_when_only_that_slice_is_conformant() -> None:
+    """Scoped validate succeeds for a conformant slice and notes full-task legacy debt."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "mixed-legacy.yaml"
+        _mixed_legacy_validate_fixture(module, task_path)
+
+        res = run(str(PI_JOB), "--task", str(task_path), "validate", "--slice", "good", check=False)
+        if res.returncode != 0:
+            raise AssertionError(
+                "validate --slice good should pass when that slice is conformant\n"
+                f"STDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+            )
+        assert_contains(res.stdout, "ok:")
+        assert_contains(res.stdout, "title: Mixed legacy structure")
+        assert_contains(res.stdout, "full-task: 2 legacy structure issue(s); use validate without --slice")
+
+
+def test_validate_slice_fails_for_nonconformant_slice() -> None:
+    """Scoped validate fails closed when the selected slice violates profile structure."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "mixed-legacy.yaml"
+        _mixed_legacy_validate_fixture(module, task_path)
+
+        res = run(
+            str(PI_JOB), "--task", str(task_path), "validate", "--slice", "legacy-missing-steps", check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("validate --slice legacy-missing-steps should fail")
+        assert_contains(res.stderr, "missing required step(s)")
+        assert_contains(res.stderr, "legacy-missing-steps")
+
+
+def test_validate_slice_rejects_unknown_slice() -> None:
+    """Unknown --slice key dies listing known slice keys."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "mixed-legacy.yaml"
+        _mixed_legacy_validate_fixture(module, task_path)
+
+        res = run(str(PI_JOB), "--task", str(task_path), "validate", "--slice", "missing", check=False)
+        if res.returncode == 0:
+            raise AssertionError("validate --slice missing should fail")
+        assert_contains(res.stderr, "slice not found: 'missing'")
+        assert_contains(res.stderr, "known slice keys: good, legacy-unknown-kind, legacy-missing-steps")
+
+
+def test_validate_without_slice_still_fails_on_legacy_debt() -> None:
+    """Full validate still dies on any structure issues (regression)."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "mixed-legacy.yaml"
+        _mixed_legacy_validate_fixture(module, task_path)
+
+        res = run(str(PI_JOB), "--task", str(task_path), "validate", check=False)
+        if res.returncode == 0:
+            raise AssertionError("full validate should fail when any slice has structure issues")
+        assert_contains(res.stderr, "slice structure invalid")
+        assert_contains(res.stderr, "legacy-unknown-kind")
+        assert_contains(res.stderr, "legacy-missing-steps")
+
+
+def _initialized_mixed_legacy_fixture(module, task_path: Path) -> None:
+    """Mixed legacy YAML task with orchestration so status reports Initialization: ok."""
+    _mixed_legacy_validate_fixture(module, task_path)
+    task = module.YamlTaskStore(task_path).read()
+    task["orchestration"] = {
+        "cursor": {"slice": "good", "step": "create-plan"},
+        "policy": {
+            "coding_execution": {
+                "subagent_required": True,
+                "lower_power_model_preferred": True,
+                "orchestrator_reviews_subagent": True,
+            }
+        },
+    }
+    module.YamlTaskStore(task_path).replace(task)
+
+
+def test_status_reports_structure_ok_for_conformant_task() -> None:
+    """Healthy initialized task reports Structure: ok."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "ok.cue"
+        task.write_text(
+            """
+package task
+
+task: {
+    title: "Validate ok"
+    status: "in_progress"
+    project: {name: "Fixture"}
+    orchestration: {
+        cursor: {slice: "only", step: "create-plan"}
+        policy: {
+            coding_execution: {
+                subagent_required: true
+                lower_power_model_preferred: true
+                orchestrator_reviews_subagent: true
+            }
+        }
+    }
+    plan: {
+        note: ""
+        slices: [
+            #Slice & {
+                key: "only"
+                kind: "implement"
+                title: "Only"
+                goal: "g"
+                status: "planned"
+                note: ""
+                steps: [
+                    #Step & {key: "create-plan", title: "Plan", status: "planned", note: ""},
+                    #Step & {key: "grill-plan", title: "Grill", status: "planned", note: ""},
+                    #Step & {key: "edit-code", title: "Edit", status: "planned", note: ""},
+                    #Step & {key: "verify", title: "Verify", status: "planned", note: ""},
+                ]
+                final_steps: [
+                    #Step & {key: "e2e-evidence", title: "Evidence", status: "planned", note: ""},
+                    #Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""},
+                    #Step & {key: "share-with-team", title: "Share", status: "planned", note: ""},
+                    #Step & {key: "update-task-file", title: "Update", status: "planned", note: ""},
+                    #Step & {key: "wait-for-feedback", title: "Wait", status: "planned", note: ""},
+                ]
+            },
+        ]
+    }
+}
+"""
+        )
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Initialization: ok")
+        assert_contains(status, "Structure: ok")
+
+
+def test_status_reports_structure_invalid_without_failing() -> None:
+    """Mixed legacy fixture reports Structure invalid but status still succeeds."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "mixed-legacy.yaml"
+        _initialized_mixed_legacy_fixture(module, task_path)
+
+        res = run(str(PI_JOB), "--task", str(task_path), "status", check=False)
+        if res.returncode != 0:
+            raise AssertionError(
+                "status must not fail on structure issues\n"
+                f"STDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
+            )
+        assert_contains(res.stdout, "Initialization: ok")
+        assert_contains(res.stdout, "Structure: invalid (2 issues; try validate or validate --slice <key>)")
+
+
 def test_migrate_task_reports_already_migrated() -> None:
     """Task with no local defs (pure shared-schema style) reports already migrated."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -2378,6 +2696,155 @@ def test_set_worktree_rejects_unknown_slice() -> None:
         if res.returncode == 0:
             raise AssertionError("set-worktree should reject unknown slice")
         assert_contains(res.stderr, "slice not found")
+
+
+def test_set_worktree_clear_rejects_missing_repo() -> None:
+    """set-worktree --clear fails closed when repo_work entry was never created."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-missing-repo.cue"
+        task.write_text(TASK_FIXTURE)
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "set-worktree",
+            "--slice", "second-slice", "--repo", "graphius", "--clear",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("set-worktree --clear should reject missing repo entry")
+        assert_contains(res.stderr, "repo work not found")
+
+
+def test_set_worktree_clear_rejects_path_and_clear() -> None:
+    """set-worktree rejects --path and --clear together."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-both-modes.cue"
+        task.write_text(TASK_FIXTURE)
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "set-worktree",
+            "--slice", "second-slice", "--repo", "graphius",
+            "--path", "/tmp/wt", "--clear",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("set-worktree should reject --path and --clear together")
+        stderr = res.stderr.lower()
+        if "mutually exclusive" not in stderr and "not allowed with argument" not in stderr:
+            raise AssertionError(f"expected argparse mutual-exclusion error, got:\n{res.stderr}")
+
+
+def test_set_worktree_clear_rejects_missing_path_and_clear() -> None:
+    """set-worktree requires exactly one of --path or --clear."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-no-mode.cue"
+        task.write_text(TASK_FIXTURE)
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "set-worktree",
+            "--slice", "second-slice", "--repo", "graphius",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("set-worktree should require --path or --clear")
+        stderr = res.stderr.lower()
+        if "mutually exclusive" not in stderr and "required" not in stderr:
+            raise AssertionError(f"expected argparse mode error, got:\n{res.stderr}")
+
+
+def test_set_worktree_clear_happy_path() -> None:
+    """set-worktree --clear removes the recorded worktree path from an existing repo entry."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-happy.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1")
+        clear = run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--clear")
+        assert_contains(clear.stdout, "cleared worktree: second-slice/graphius")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "repo_work[graphius]")
+        assert_contains(show, "worktree=not set")
+
+        raw = task.read_text()
+        if 'worktree: "/tmp/wt1"' in raw:
+            raise AssertionError(f"worktree line still present after clear:\n{raw}")
+
+
+def test_set_worktree_clear_leaves_prs() -> None:
+    """set-worktree --clear removes worktree but keeps PR records."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-leaves-prs.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1")
+        run(
+            str(PI_JOB), "--task", str(task), "add-pr",
+            "--slice", "second-slice", "--repo", "graphius",
+            "--url", "https://github.com/example/pr/1", "--status", "open",
+        )
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--clear")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "worktree=not set")
+        assert_contains(show, "pr open https://github.com/example/pr/1")
+
+
+def test_set_worktree_clear_idempotent_without_worktree() -> None:
+    """set-worktree --clear succeeds when repo entry exists but worktree is already absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-idempotent.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(
+            str(PI_JOB), "--task", str(task), "add-pr",
+            "--slice", "second-slice", "--repo", "graphius",
+            "--url", "https://github.com/example/pr/1", "--status", "open",
+        )
+        clear = run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--clear")
+        assert_contains(clear.stdout, "cleared worktree: second-slice/graphius")
+
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "worktree=not set")
+        assert_contains(show, "pr open https://github.com/example/pr/1")
+
+
+def test_set_worktree_clear_dry_run_no_mutation() -> None:
+    """set-worktree --clear --dry-run validates and previews without mutating the task file."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-clear-dry-run.cue"
+        task.write_text(TASK_FIXTURE)
+
+        run(str(PI_JOB), "--task", str(task), "set-worktree", "--slice", "second-slice", "--repo", "graphius", "--path", "/tmp/wt1")
+        before = task.read_bytes()
+        dry = run(
+            str(PI_JOB), "--task", str(task), "set-worktree",
+            "--slice", "second-slice", "--repo", "graphius", "--clear", "--dry-run",
+        )
+        assert_contains(dry.stdout, "would clear worktree: second-slice/graphius")
+        after = task.read_bytes()
+        if after != before:
+            raise AssertionError("dry-run --clear mutated the task file")
+
+
+def test_yaml_store_clear_worktree() -> None:
+    """YamlTaskStore.clear_worktree removes worktree key without touching PRs."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_path = Path(tmp) / "clear-worktree.yaml"
+        store = module.YamlTaskStore(task_path)
+        store.replace(module.example_task_mapping(title="Clear worktree unit"))
+        store.set_worktree(slice_key="do-the-change", repo="repo-a", path="/tmp/worktree")
+        store.add_pr(
+            slice_key="do-the-change", repo="repo-a", url="https://example.com/pr/1",
+            status="open", note="keep me",
+        )
+
+        store.clear_worktree(slice_key="do-the-change", repo="repo-a")
+        repo_entry = store.read()["plan"]["slices"][0]["repo_work"]["repo-a"]
+        if "worktree" in repo_entry:
+            raise AssertionError(f"worktree key should be absent after clear: {repo_entry!r}")
+        assert repo_entry["prs"][0]["url"] == "https://example.com/pr/1"
+        assert repo_entry["prs"][0]["note"] == "keep me"
 
 
 def test_add_pr_happy_path_creates_repo_work() -> None:
@@ -3252,6 +3719,114 @@ def test_lifecycle_records_model_and_timestamps() -> None:
         assert_contains(text, 'status: "done"')
 
 
+def test_finish_reconcile_succeeds_on_in_progress_without_start() -> None:
+    """finish --reconcile can close an in_progress step that was never started via pi-job."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "reconcile.cue"
+        task.write_text(
+            LIFECYCLE_FIXTURE.replace(
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""}',
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "in_progress", note: ""}',
+            )
+        )
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "finish", "--reconcile",
+            "--model", "google/gemini-reviewer",
+            "--note", "Synced completion from external session.",
+        ).stdout
+        assert_contains(out, "[done]")
+
+        text = task.read_text()
+        assert_contains(text, 'model: "google/gemini-reviewer"')
+        assert_contains(text, "Synced completion from external session.")
+        assert_contains(text, "ended:")
+
+
+def test_finish_reconcile_refuses_planned_status() -> None:
+    """Reconcile fails when the target is still planned."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "reconcile-planned.cue"
+        task.write_text(LIFECYCLE_FIXTURE)
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish", "--reconcile",
+            "--model", "google/gemini-reviewer",
+            "--note", "Should not apply.",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("reconcile on planned step unexpectedly succeeded")
+        assert_contains(res.stderr, "reconcile refused")
+        assert_contains(res.stderr, "planned")
+
+
+def test_finish_reconcile_refuses_done_status() -> None:
+    """Reconcile fails when the target is already done."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "reconcile-done.cue"
+        task.write_text(
+            LIFECYCLE_FIXTURE.replace(
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""}',
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "done", note: "already", execution: {model: "google/gemini-reviewer", started: "2026-07-01T10:05:00Z", ended: "2026-07-01T10:10:00Z"}}',
+            )
+        )
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish", "--reconcile",
+            "--model", "google/gemini-reviewer",
+            "--note", "Should not apply.",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("reconcile on done step unexpectedly succeeded")
+        assert_contains(res.stderr, "reconcile refused")
+        assert_contains(res.stderr, "done")
+
+
+def test_finish_without_start_still_fails_without_reconcile() -> None:
+    """Normal finish without prior start remains fail-closed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "no-reconcile.cue"
+        task.write_text(
+            LIFECYCLE_FIXTURE.replace(
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""}',
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "in_progress", note: ""}',
+            )
+        )
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--model", "google/gemini-reviewer",
+            "--note", "Should fail.",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("finish without start unexpectedly succeeded")
+        assert_contains(res.stderr, "work was not started")
+
+
+def test_finish_reconcile_requires_note() -> None:
+    """Reconcile without --note fails closed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "reconcile-no-note.cue"
+        task.write_text(
+            LIFECYCLE_FIXTURE.replace(
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""}',
+                '#Step & {key: "vulnerability-scan", title: "Scan", status: "in_progress", note: ""}',
+            )
+        )
+
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish", "--reconcile",
+            "--model", "google/gemini-reviewer",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("reconcile without --note unexpectedly succeeded")
+        assert_contains(res.stderr, "--reconcile requires --note")
+
+
 def test_vulnerability_scan_rejects_writer_model() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "same-model.cue"
@@ -3598,6 +4173,148 @@ def test_bootstrap_requires_input() -> None:
         assert_contains(result.stderr, "--from")
 
 
+def test_bootstrap_prints_seed_slice_plans_for_implement_not_setup() -> None:
+    """After bootstrap, stdout lists qualifying implement slices in the seed block, not setup."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-seed.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            minimal_bootstrap_input_yaml(
+                slices_yaml="""
+slices:
+  - key: implement-one
+    kind: implement
+    title: Implement one
+    goal: Ship the change.
+    depends_on:
+      - task-setup
+""",
+            ),
+            encoding="utf-8",
+        )
+        out = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input)).stdout
+        seed = seed_block_after_marker(out)
+        assert_contains(seed, "bootstrap-seed.plans/implement-one.md")
+        assert_contains(seed, "Depends on: task-setup")
+        if "- task-setup [" in seed:
+            raise AssertionError(f"setup slice must not appear as a seed entry:\n{seed}")
+        assert "task-setup.plans/" not in seed
+
+
+def test_add_slice_implement_prints_seed_block_for_new_slice_only() -> None:
+    """add-slice for a qualifying kind prints the seed block for that slice only."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "add-slice-seed.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
+        run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input))
+        out = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-slice",
+            "--key",
+            "wire-api",
+            "--title",
+            "Wire API",
+            "--goal",
+            "Connect the endpoints.",
+            "--kind",
+            "implement",
+        ).stdout
+        seed = seed_block_after_marker(out)
+        assert_contains(seed, "add-slice-seed.plans/wire-api.md")
+        if "- task-setup [" in seed:
+            raise AssertionError(f"seed block must list only the new slice:\n{seed}")
+        assert "task-setup.plans/" not in seed
+
+
+def test_add_slice_setup_prints_no_seed_block() -> None:
+    """add-slice for setup (no create-plan in template) must not print a seed block."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "add-slice-no-seed.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
+        run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input))
+        out = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-slice",
+            "--key",
+            "extra-setup",
+            "--title",
+            "Extra setup",
+            "--goal",
+            "More exploration.",
+            "--kind",
+            "setup",
+        ).stdout
+        if "SEED SLICE PLAN FILES NOW" in out:
+            raise AssertionError(f"setup add-slice must not print seed block:\n{out}")
+
+
+def test_bootstrap_dry_run_prints_no_seed_block() -> None:
+    """bootstrap --dry-run must not print the seed block."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-dry-seed.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            minimal_bootstrap_input_yaml(
+                slices_yaml="""
+slices:
+  - key: only-implement
+    kind: implement
+    title: Only implement
+    goal: Test dry-run seed omission.
+    depends_on:
+      - task-setup
+""",
+            ),
+            encoding="utf-8",
+        )
+        out = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "bootstrap",
+            "--from",
+            str(bootstrap_input),
+            "--dry-run",
+        ).stdout
+        if "SEED SLICE PLAN FILES NOW" in out:
+            raise AssertionError(f"bootstrap dry-run must not print seed block:\n{out}")
+
+
+def test_seed_block_uses_task_placeholder_not_absolute_path() -> None:
+    """Seed block plan paths are relative; may use <TASK>; must not repeat absolute task path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "my-task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            minimal_bootstrap_input_yaml(
+                slices_yaml="""
+slices:
+  - key: feature-a
+    kind: implement
+    title: Feature A
+    goal: Build feature A.
+    depends_on:
+      - task-setup
+""",
+            ),
+            encoding="utf-8",
+        )
+        out = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input)).stdout
+        seed = seed_block_after_marker(out)
+        assert_contains(seed, "my-task.plans/feature-a.md")
+        absolute_task = str(task.resolve())
+        if absolute_task in seed:
+            raise AssertionError(
+                f"seed block must not contain absolute task path {absolute_task!r}:\n{seed}"
+            )
+
+
 def test_bootstrap_rejects_initial_slice_key_without_kind() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "task.yaml"
@@ -3649,6 +4366,11 @@ def main() -> None:
     test_next_walks_to_closing_slice_after_implement_done()
     test_next_done_when_all_slices_finished()
     test_advance_blocked_on_incomplete_current_step()
+    test_advance_resync_rejects_force_and_missing_reason()
+    test_advance_resync_explicit_jump_does_not_skip_previous_step()
+    test_advance_resync_without_jump_fails_on_same_unfinished_step()
+    test_advance_resync_without_jump_succeeds_when_cursor_is_stale()
+    test_advance_force_still_skips_incomplete_step()
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
     test_toolbelt_lists_for_slice_kinds()
@@ -3696,6 +4418,12 @@ def main() -> None:
     test_validate_fails_when_slice_missing_template_steps()
     test_validate_allows_extra_steps_beyond_template()
     test_validate_fails_on_unknown_slice_kind()
+    test_validate_slice_passes_when_only_that_slice_is_conformant()
+    test_validate_slice_fails_for_nonconformant_slice()
+    test_validate_slice_rejects_unknown_slice()
+    test_validate_without_slice_still_fails_on_legacy_debt()
+    test_status_reports_structure_ok_for_conformant_task()
+    test_status_reports_structure_invalid_without_failing()
     test_migrate_task_reports_already_migrated()
     test_migrate_task_recommends_delete_for_identical_status()
     test_migrate_task_recommends_keep_for_status_with_used_extra_value()
@@ -3706,6 +4434,14 @@ def main() -> None:
     test_set_worktree_happy_path()
     test_set_worktree_upserts_existing_path()
     test_set_worktree_rejects_unknown_slice()
+    test_set_worktree_clear_rejects_missing_repo()
+    test_set_worktree_clear_rejects_path_and_clear()
+    test_set_worktree_clear_rejects_missing_path_and_clear()
+    test_set_worktree_clear_happy_path()
+    test_set_worktree_clear_leaves_prs()
+    test_set_worktree_clear_idempotent_without_worktree()
+    test_set_worktree_clear_dry_run_no_mutation()
+    test_yaml_store_clear_worktree()
     test_add_pr_happy_path_creates_repo_work()
     test_add_pr_upsert_by_url_keeps_latest_status()
     test_add_pr_rejects_unknown_slice()
@@ -3731,6 +4467,11 @@ def main() -> None:
     test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics()
     test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently()
     test_lifecycle_records_model_and_timestamps()
+    test_finish_reconcile_succeeds_on_in_progress_without_start()
+    test_finish_reconcile_refuses_planned_status()
+    test_finish_reconcile_refuses_done_status()
+    test_finish_without_start_still_fails_without_reconcile()
+    test_finish_reconcile_requires_note()
     test_vulnerability_scan_rejects_writer_model()
     test_vulnerability_scan_rejects_unqualified_author_model()
     test_advance_rejects_malformed_scan_timestamps()
@@ -3742,6 +4483,11 @@ def main() -> None:
     test_scaffold_empty_plan_has_no_slices()
     test_scaffold_initial_kind_setup_seeds_setup_slice()
     test_bootstrap_creates_initialized_task()
+    test_bootstrap_prints_seed_slice_plans_for_implement_not_setup()
+    test_add_slice_implement_prints_seed_block_for_new_slice_only()
+    test_add_slice_setup_prints_no_seed_block()
+    test_bootstrap_dry_run_prints_no_seed_block()
+    test_seed_block_uses_task_placeholder_not_absolute_path()
     test_bootstrap_dry_run_prints_diff_and_does_not_write()
     test_bootstrap_refuses_overwrite_without_force()
     test_bootstrap_rejects_unknown_kind()

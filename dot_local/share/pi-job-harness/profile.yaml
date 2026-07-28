@@ -136,6 +136,8 @@ plan_and_grill_guardrail: |-
   exist) - grill-plan is the per-slice equivalent.
   Exception: a genuinely trivial single-file edit may skip both steps (status:
   skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+  If the sibling plan file already exists from a bootstrap/add-slice seed reminder,
+  revise it with remaining detail rather than starting from a blank page.
 sync_pipeline_instructions: |-
   For each slice below, run the pipeline:
     1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality
@@ -174,6 +176,11 @@ instruction_packets:
       pi-job --task <TASK_FILE> bootstrap --from <bootstrap.yaml>
     after scaffold, initialize orchestration:
       pi-job --task <TASK_FILE> init [--kind setup|implement|...]
+  seed_slice_plans: |-
+    Create these plan files immediately from known task context, decisions, goals, and deps.
+    Do not wait until each slice's create-plan cursor.
+    Later create-plan revises the same path; note stays: Plan file: <task-stem>.plans/<key>.md
+    Work against task <TASK>.
 step_kinds:
   explore-context:
     key: explore-context
@@ -242,6 +249,8 @@ step_kinds:
       exist) - grill-plan is the per-slice equivalent.
       Exception: a genuinely trivial single-file edit may skip both steps (status:
       skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+      If the sibling plan file already exists from a bootstrap/add-slice seed reminder,
+      revise it with remaining detail rather than starting from a blank page.
   grill-plan:
     key: grill-plan
     title: Grill the plan file
