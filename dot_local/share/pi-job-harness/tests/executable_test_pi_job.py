@@ -3950,6 +3950,29 @@ def test_profile_requires_task_record_discipline_packet() -> None:
         raise AssertionError("profile accepted instruction_packets without required task_record_discipline")
 
 
+def test_profile_requires_out_of_band_edit_warning_packet() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["instruction_packets"]["out_of_band_edit_warning"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "out_of_band_edit_warning")
+    else:
+        raise AssertionError("profile accepted instruction_packets without required out_of_band_edit_warning")
+
+
+def test_warn_if_content_dirty_uses_profile_packet() -> None:
+    module = load_pi_job_module()
+    packets = module.load_profile_contract()["instruction_packets"]
+    body = packets["out_of_band_edit_warning"]
+    assert_contains(body, "{task_file}")
+    assert_contains(body, "acknowledge-edit --reason")
+    formatted = body.format(task_file="/tmp/example.yaml")
+    assert_contains(formatted, "pi-job --task /tmp/example.yaml acknowledge-edit --reason")
+    assert_not_contains(formatted, "{task_file}")
+
+
 def test_profile_requires_sync_pipeline_instructions() -> None:
     module = load_pi_job_module()
     profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
@@ -5088,6 +5111,8 @@ def main() -> None:
     test_profile_rejects_required_steps_absent_from_template()
     test_profile_requires_subagent_prompt_packet()
     test_profile_requires_task_record_discipline_packet()
+    test_profile_requires_out_of_band_edit_warning_packet()
+    test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
     test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics()
     test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently()

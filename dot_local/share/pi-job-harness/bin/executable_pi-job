@@ -378,6 +378,12 @@ class InstructionPacketsDocument(StrictDocument):
     missing_task_hint: str = Field(
         description="Error text when --task path is missing. Supports {task_file}."
     )
+    out_of_band_edit_warning: str = Field(
+        description=(
+            "Stderr warning when orchestration.content_digest does not match semantic content. "
+            "Supports {task_file}. Profile is the only body; Python must not hardcode the message."
+        )
+    )
     seed_slice_plans: str = Field(description="Preamble for SEED SLICE PLAN FILES NOW blocks after add-slice/bootstrap.")
 
 
@@ -568,20 +574,16 @@ def is_content_dirty(task: Mapping[str, Any]) -> bool:
 
 
 def warn_if_content_dirty(task: Mapping[str, Any], path: Path | str) -> None:
-    """Print one stderr warning when the task file was edited outside pi-job."""
+    """Print one stderr warning when the task file was edited outside pi-job.
+
+    Warning body comes from profile instruction_packets.out_of_band_edit_warning.
+    """
 
     if not is_content_dirty(task):
         return
-    task_path = str(path)
-    print(
-        "warning: task file semantic content does not match the last pi-job write digest; "
-        "prefer pi-job mutation commands "
-        "(start, finish, advance, add-slice, add-step, set-slice, block-slice, unblock-slice, "
-        "set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr) "
-        f"over hand-edits; for legitimate hand-edits run: "
-        f"pi-job --task {task_path} acknowledge-edit --reason '<why>'",
-        file=sys.stderr,
-    )
+    packets = load_profile_contract()["instruction_packets"]
+    text = packets["out_of_band_edit_warning"].format(task_file=str(path)).rstrip()
+    print(text, file=sys.stderr)
 
 
 def set_content_digest(task: dict[str, Any]) -> None:

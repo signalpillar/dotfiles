@@ -179,6 +179,10 @@ instruction_packets:
     - Create one todo per slice (or per step when helpful).
     - Mark the current/next slice/step in_progress; mark completed items done as evidence lands.
     - Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.
+  out_of_band_edit_warning: |-
+    warning: task file semantic content does not match the last pi-job write digest.
+    Prefer pi-job mutation commands over hand-edits (see pi-job --help; Writes in the task-record discipline packet).
+    For a legitimate hand-edit run: pi-job --task {task_file} acknowledge-edit --reason '<why>'
   missing_task_hint: |-
     task store not found: {task_file}
     create one from the example shape with:
