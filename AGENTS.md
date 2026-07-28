@@ -5,12 +5,9 @@ Project-level `AGENTS.md` files may extend or override these.
 
 ## General Guidelines
 
-- For durable multi-step work tracked in a task file, use `pi-job` (installed as `~/.local/bin/pi-job`).
-  Start with `pi-job --task <file> status`.
-  If the file is missing, follow the scaffold hint.
-  Use `plan` for session todos, `instruction` before acting, and `advance` only after evidence.
-  Full docs: `~/.local/share/pi-job-harness/README.md` (also `dot_local/share/pi-job-harness/README.md` in this repo).
-  If `pi-job` is not installed, follow the agent self-install in `~/.local/share/pi-job-harness/README.md` (or the raw GitHub copy of that README): prefer `uv` to install/pin Python 3.12, curl only the harness files into `~/.local/share/pi-job-harness`, and wrap `~/.local/bin/pi-job` with `uv run --script` - do not clone the whole dotfiles repo.
+- For durable multi-step work tracked in a task file, use the `pi-job` skill (`~/.agents/skills/pi-job`) and `pi-job --task <file> status`.
+  Do not open or hand-edit the task store; use the CLI.
+  If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).
 - Never use the em dash "—".
   Use a plain dash "-" instead.
 - Never hand-edit `CHANGELOG` files or anything marked auto-generated.

@@ -11,6 +11,7 @@ Legacy CUE files remain readable and writable during migration, but every CUE in
 ```text
 bin/pi-job              CLI entrypoint
 profile.yaml            validated step kinds, slice kinds, toolbelt, and artifact rules
+pyproject.toml          ruff config (includes extensionless chezmoi scripts)
 task-schema.cue         compatibility schema used only by legacy CUE tasks
 tests/executable_test_pi_job.py   regression tests (may install as tests/test_pi_job.py)
 ```
@@ -45,17 +46,18 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `init` - initialize `task.orchestration` and set the cursor; optionally seed the first slice from a slice kind template
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
-- `set-project` / `set-context` / `set-plan-note` / `add-decision` - write task metadata and durable decisions
+- `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and durable decisions without hand-editing the store
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
-  (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint)
-- `show` - render the task as a cursor-focused slice/step tree with status glyphs
-- `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders)
-- `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status
+  (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
+- `show` / `show --slice KEY` - tree view, or a slice-local detail view (goal, notes, steps, repo_work)
+- `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders, task-record discipline)
+- `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
 - `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
 - `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
 - `toolbelt` - list or register planning aids
 - `sync` - print a checklist of slices worth re-verifying
 - `set-worktree` / `add-pr` - manage worktree paths and pull request records
+- YAML writes store a semantic `orchestration.content_digest`; hand-edits produce a loud warning until `acknowledge-edit --reason`
 
 Same task state should yield the same next action and instruction, independent of which model is orchestrating.
 
@@ -170,7 +172,9 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 - Task state lives in exactly one `TaskStore` backend (YAML by default) - no parallel cursor and no agent memory as state.
 - Slice kinds and step kinds are configuration in `profile.yaml`, not hardcoded Python.
 - YAML task files are machine-owned documents.
-  Prefer `pi-job` commands over manual edits and run `validate` after any emergency edit.
+  Prefer `pi-job` mutation commands over manual edits.
+  pi-job stores `orchestration.content_digest` on writes and warns on read when semantic content no longer matches; run `acknowledge-edit --reason` after a legitimate hand-edit.
+  `validate` does not fail on a stale digest.
 - The harness is deterministic and fail-closed: missing task → `scaffold`; missing orchestration → `init`; then `plan` / `instruction` / `advance`.
 - `pi-job` emits instruction packets.
   It does not spawn agents.
@@ -272,6 +276,7 @@ A task without `task.orchestration` is not initialized; run `init` (or `bootstra
 - Task and profile fields are checked through strict Pydantic models that reject unknown fields.
 - Slice structure and live profile-template requirements are checked after document validation.
 - Legacy CUE validation still exports through `task-schema.cue` before applying the same Pydantic task model.
+- `validate` and `status` warn (non-fatal) when slice or step notes exceed ~2000 characters or the task file exceeds ~100KB; keep long prose in slice plan files.
 
 ### scaffold
 
@@ -346,6 +351,10 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a decision record (date defaults to today UTC; source defaults to `pi-job add-decision`).
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
+- `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and record a decision (YAML only).
+- `pi-job --task <t> set-slice --key K [--title T] [--goal G]` - update slice metadata (at least one of `--title` or `--goal` required; YAML only; refuses `done`/`skipped` slices).
+- `pi-job --task <t> block-slice --key K --reason R` - mark a slice `blocked` and append the reason to its note (YAML only; refuses `done`/`skipped`; re-block appends again).
+- `pi-job --task <t> unblock-slice --key K` - restore a `blocked` slice to `planned` without changing its note (YAML only).
 - `pi-job --task <t> remove-slice --key K` - remove a slice from the plan. Refuses when:
   - another slice declares a `depends_on` reference to it
   - the orchestration cursor points at it (advance to another slice first)
@@ -384,8 +393,11 @@ execution:
 - `--slice-only` targets the current slice; `--slice K` targets another slice; add `--step K` to target one of its steps.
 - Start the slice with the orchestrator model, then start and finish each step with the model that directly performs it.
 - `finish --skip --model <id> --reason '<why>'` records an atomic skip when no prior `start` exists.
+- `finish --note '<evidence>'` appends completion evidence with a blank line when a note already exists; omitted preserves the existing note.
+- `finish --replace --note '<evidence>'` overwrites the existing note instead of appending (`--replace` requires `--note` and cannot combine with `--skip`).
 - `finish --reconcile --model <id> --note '<evidence>'` records completion for an `in_progress` target that was never started via pi-job; refuses `planned`/`done`/`skipped`.
 - Normal `finish` without `--reconcile` still requires a prior `start` (unless `--skip`).
+- `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice` first for slice-level blocks.
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
 - Slice kinds may declare `required_steps` separately from `step_template`: persisted slices must satisfy the stable structural minimum, while later template additions produce migration warnings instead of invalidating old tasks.
 
@@ -448,6 +460,11 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   `--all` expands every slice including finished ones.
   `--status` filters which slices are listed.
   `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
+- `pi-job --task <t> show --slice KEY` - render one slice in full: goal, slice note, every step (key, status, model, note), and repo_work.
+  Does not dump task-level context, plan note, or decisions.
+  Tree flags (`--all`, `--started`, `--status`) are ignored when `--slice` is set.
+- Subagent instruction packets treat the emitted packet as sufficient context; they do not order inspecting the task store directly or opening full `profile.yaml`.
+  For sibling-step evidence within the current slice, the subagent prompt points at `pi-job --task <t> show --slice <key>`.
 
 The setup slice's `select-toolbelt` step picks aids suited to the task's slice kinds; `plan-slices` produces them.
 The catalog lives in `profile.yaml` under `toolbelt`.
@@ -631,6 +648,16 @@ What `pi-job` cares about most:
 - `decisions` and `orchestration.artifacts` - durable notes and artifact gates
 
 ## Test
+
+Behavior tests use YAML task fixtures; legacy CUE coverage lives only in explicitly named compatibility tests.
+
+When contributing Python changes under this package, also run:
+
+```bash
+uvx ruff@latest check .
+```
+
+`pyproject.toml` configures ruff so extensionless chezmoi scripts (`bin/executable_pi-job`, `tests/executable_test_pi_job.py`) are included.
 
 ```bash
 # from this package directory (chezmoi source):

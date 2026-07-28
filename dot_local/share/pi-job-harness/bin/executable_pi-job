@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -25,12 +26,13 @@ import shutil
 import stat
 import subprocess
 import sys
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Iterator, Literal, Mapping, NoReturn, Protocol
+from typing import Any, Literal, NoReturn, Protocol
 from uuid import uuid4
 
 import yaml
@@ -41,6 +43,9 @@ PACKAGE_DIR = Path(__file__).resolve().parent.parent
 PROFILE = PACKAGE_DIR / "profile.yaml"
 TASK_SCHEMA = PACKAGE_DIR / "task-schema.cue"
 STATUS_DONE = {"done", "skipped"}
+NOTE_WARN_CHARS = 2000
+TASK_FILE_WARN_BYTES = 100_000
+NOTE_WARN_TOP_N = 5
 TaskStatus = Literal["planned", "in_progress", "blocked", "done", "skipped"]
 PullRequestStatus = Literal["open", "merged", "closed"]
 SliceKindKey = Literal["setup", "implement", "closing", "research", "spike"]
@@ -135,7 +140,7 @@ class SliceDocument(StrictDocument):
     final_steps: list[StepDocument] = Field(default_factory=list, description="Ordered terminal or cleanup steps.")
 
     @model_validator(mode="after")
-    def unique_step_keys(self) -> "SliceDocument":
+    def unique_step_keys(self) -> SliceDocument:
         for group_name, steps in (("steps", self.steps), ("final_steps", self.final_steps)):
             keys = [step.key for step in steps]
             duplicates = sorted({key for key in keys if keys.count(key) > 1})
@@ -207,6 +212,10 @@ class OrchestrationDocument(StrictDocument):
         default_factory=dict,
         description="Planning and delivery artifacts keyed by profile artifact identifier.",
     )
+    content_digest: str | None = Field(
+        default=None,
+        description="SHA-256 hex of last pi-job semantic write; excludes this field from the hash input.",
+    )
 
 
 class PlanDocument(StrictDocument):
@@ -229,7 +238,7 @@ class TaskDocument(StrictDocument):
     plan: PlanDocument = Field(default_factory=PlanDocument, description="Ordered slice and step plan.")
 
     @model_validator(mode="after")
-    def unique_slice_keys(self) -> "TaskDocument":
+    def unique_slice_keys(self) -> TaskDocument:
         keys = [task_slice.key for task_slice in self.plan.slices]
         duplicates = sorted({key for key in keys if keys.count(key) > 1})
         if duplicates:
@@ -344,12 +353,32 @@ class BootstrapDocument(StrictDocument):
     slices: list[BootstrapSliceDocument] = Field(default_factory=list, description="Ordered task slices declared by the user.")
 
     @model_validator(mode="after")
-    def validate_initial_slice_fields(self) -> "BootstrapDocument":
+    def validate_initial_slice_fields(self) -> BootstrapDocument:
         if self.initial_slice_key is not None and self.initial_slice_kind is None:
             raise ValueError("initial_slice_key requires initial_slice_kind")
         if not self.initial_slice_kind and not self.slices:
             raise ValueError("bootstrap input must declare initial_slice_kind or at least one slice")
         return self
+
+
+class InstructionPacketsDocument(StrictDocument):
+    """Required instruction text blocks. Profile is the single source of truth; no Python fallbacks."""
+
+    todo_tracking: str = Field(description="Todo-tracking lines in every instruction packet. Supports {cursor}.")
+    future_work: str = Field(description="Future-work capture lines in every instruction packet.")
+    task_record_discipline: str = Field(
+        description="Task-record read/write discipline in every instruction packet. Supports {task_file}, {slice_key}."
+    )
+    orchestrator: str = Field(description="Orchestrator-owned step execution guidance.")
+    subagent_orchestrator: str = Field(description="Orchestrator dispatch guidance when the step owner is subagent.")
+    subagent_prompt: str = Field(
+        description="Subagent-facing prompt body. Supports {cursor}, {task_file}, {slice_key}."
+    )
+    plan_todo: str = Field(description="Todo guidance appended to `pi-job plan` output.")
+    missing_task_hint: str = Field(
+        description="Error text when --task path is missing. Supports {task_file}."
+    )
+    seed_slice_plans: str = Field(description="Preamble for SEED SLICE PLAN FILES NOW blocks after add-slice/bootstrap.")
 
 
 class ProfileDocument(StrictDocument):
@@ -360,13 +389,17 @@ class ProfileDocument(StrictDocument):
     toolbelt: dict[str, ToolbeltAidDocument] = Field(description="Planning aids keyed by stable identifier.")
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
-    sync_pipeline_instructions: str = Field(default="", description="Pipeline instructions for the sync command, shown per slice.")
-    instruction_packets: dict[str, str] = Field(default_factory=dict, description="Reusable instruction text blocks. Supported keys: todo_tracking, future_work, orchestrator, subagent_orchestrator, plan_todo, missing_task_hint, seed_slice_plans. Each value supports {cursor} or <TASK_FILE> interpolation.")
+    sync_pipeline_instructions: str = Field(
+        description="Pipeline instructions for the sync command. Required profile text; Python must not duplicate a fallback body."
+    )
+    instruction_packets: InstructionPacketsDocument = Field(
+        description="Required instruction text blocks. All packet bodies live here; Python must not duplicate them."
+    )
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
     slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
     @model_validator(mode="after")
-    def validate_catalog_references(self) -> "ProfileDocument":
+    def validate_catalog_references(self) -> ProfileDocument:
         catalogs: tuple[tuple[str, Mapping[Any, Any]], ...] = (
             ("artifact_rules", self.artifact_rules),
             ("toolbelt", self.toolbelt),
@@ -501,6 +534,76 @@ def canonical_task_mapping(value: Mapping[str, Any], *, source: str) -> dict[str
     return validate_task_mapping(value, source=source).model_dump(mode="json", exclude_none=True)
 
 
+def _task_mapping_for_content_digest(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a copy of task data with orchestration.content_digest stripped for hashing."""
+
+    data = json.loads(json.dumps(task))
+    orchestration = data.get("orchestration")
+    if isinstance(orchestration, dict):
+        orchestration.pop("content_digest", None)
+    return data
+
+
+def compute_content_digest(task: Mapping[str, Any]) -> str:
+    """SHA-256 hex of canonical semantic task content (digest field excluded)."""
+
+    canonical = canonical_task_mapping(
+        _task_mapping_for_content_digest(task),
+        source="content-digest",
+    )
+    payload = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def is_content_dirty(task: Mapping[str, Any]) -> bool:
+    """True when a stored digest exists and no longer matches semantic content."""
+
+    orchestration = task.get("orchestration")
+    if not isinstance(orchestration, dict):
+        return False
+    stored = orchestration.get("content_digest")
+    if not stored:
+        return False
+    return stored != compute_content_digest(task)
+
+
+def warn_if_content_dirty(task: Mapping[str, Any], path: Path | str) -> None:
+    """Print one stderr warning when the task file was edited outside pi-job."""
+
+    if not is_content_dirty(task):
+        return
+    task_path = str(path)
+    print(
+        "warning: task file semantic content does not match the last pi-job write digest; "
+        "prefer pi-job mutation commands "
+        "(start, finish, advance, add-slice, add-step, set-slice, block-slice, unblock-slice, "
+        "set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr) "
+        f"over hand-edits; for legitimate hand-edits run: "
+        f"pi-job --task {task_path} acknowledge-edit --reason '<why>'",
+        file=sys.stderr,
+    )
+
+
+def set_content_digest(task: dict[str, Any]) -> None:
+    """Refresh orchestration.content_digest from the current semantic task content."""
+
+    orchestration = task.get("orchestration")
+    if not isinstance(orchestration, dict) or "cursor" not in orchestration:
+        return
+    orchestration["content_digest"] = compute_content_digest(task)
+
+
+def semantic_task_mapping(value: Mapping[str, Any], *, source: str) -> dict[str, Any]:
+    """Canonical task mapping with orchestration.content_digest excluded for equality checks."""
+
+    data = canonical_task_mapping(value, source=source)
+    copy = json.loads(json.dumps(data))
+    orchestration = copy.get("orchestration")
+    if isinstance(orchestration, dict):
+        orchestration.pop("content_digest", None)
+    return copy
+
+
 def render_yaml_task(value: Mapping[str, Any], *, source: str) -> str:
     """Render canonical machine-owned YAML with stable field order."""
 
@@ -545,20 +648,8 @@ def atomic_create_text(path: Path, content: str) -> None:
 
 
 def missing_task_hint(task_file: Path) -> str:
-    profile = load_profile_contract()
-    packets = profile.get("instruction_packets", {})
-    hint_text = packets.get("missing_task_hint", "")
-    if hint_text:
-        return hint_text
-    return (
-        f"task file not found: {task_file}\n"
-        f"create one from the example shape with:\n"
-        f"  pi-job --task {task_file} scaffold\n"
-        f"or write a bootstrap document and create+initialize in one transaction:\n"
-        f"  pi-job --task {task_file} bootstrap --from <bootstrap.yaml>\n"
-        f"after scaffold, initialize orchestration:\n"
-        f"  pi-job --task {task_file} init [--kind setup|implement|...]"
-    )
+    packets = load_profile_contract()["instruction_packets"]
+    return packets["missing_task_hint"].format(task_file=str(task_file))
 
 
 def example_task_cue(*, title: str = "Example bounded change") -> str:
@@ -714,7 +805,7 @@ class ExecutionRecord:
     ended: str | None = None
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any] | None) -> "ExecutionRecord | None":
+    def from_mapping(cls, value: Mapping[str, Any] | None) -> ExecutionRecord | None:
         if not value:
             return None
         return cls(
@@ -733,7 +824,7 @@ class TaskStep:
     execution: ExecutionRecord | None = None
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "TaskStep":
+    def from_mapping(cls, value: Mapping[str, Any]) -> TaskStep:
         return cls(
             key=str(value.get("key") or ""),
             title=str(value.get("title") or ""),
@@ -759,7 +850,7 @@ class TaskSlice:
     execution: ExecutionRecord | None = None
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "TaskSlice":
+    def from_mapping(cls, value: Mapping[str, Any]) -> TaskSlice:
         return cls(
             key=str(value.get("key") or ""),
             kind=str(value.get("kind") or ""),
@@ -915,6 +1006,22 @@ class TaskStore(Protocol):
         removing."""
         ...
 
+    def set_slice_fields(
+        self, *, slice_key: str, title: str | None = None, goal: str | None = None
+    ) -> None:
+        """Update a slice's title and/or goal."""
+        ...
+
+    def set_slice_status(
+        self, *, slice_key: str, status: str, note: str | None = None
+    ) -> None:
+        """Update a slice's status and optionally its note."""
+        ...
+
+    def acknowledge_edit(self, *, reason: str) -> None:
+        """Refresh content digest after a legitimate out-of-band edit."""
+        ...
+
 
 class CueTaskStore:
     """Concrete TaskStore implementation using CUE files."""
@@ -1005,6 +1112,19 @@ class CueTaskStore:
         raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def remove_slice(self, *, key: str) -> None:
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
+
+    def set_slice_fields(
+        self, *, slice_key: str, title: str | None = None, goal: str | None = None
+    ) -> None:
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
+
+    def set_slice_status(
+        self, *, slice_key: str, status: str, note: str | None = None
+    ) -> None:
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
+
+    def acknowledge_edit(self, *, reason: str) -> None:
         raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def set_plan_note(self, note: str) -> None:
@@ -1302,16 +1422,28 @@ class YamlTaskStore:
         self.path = path
         self.create_only = create_only
         self._lock_depth = 0
+        self._digest_warn_suppressed = 0
 
     def describe(self) -> str:
         return f"YAML task file {self.path}"
 
+    @contextmanager
+    def _suppress_digest_warn(self) -> Iterator[None]:
+        self._digest_warn_suppressed += 1
+        try:
+            yield
+        finally:
+            self._digest_warn_suppressed -= 1
+
     def read(self) -> dict[str, Any]:
         data = load_yaml_mapping(self.path, label="task file")
-        return canonical_task_mapping(data, source=str(self.path))
+        task = canonical_task_mapping(data, source=str(self.path))
+        if self._digest_warn_suppressed == 0:
+            warn_if_content_dirty(task, self.path)
+        return task
 
-    def replace(self, task: Mapping[str, Any]) -> None:
-        """Replace the complete task after validation, using one atomic write."""
+    def _write_validated(self, task: Mapping[str, Any]) -> None:
+        """Atomically write a validated task document without changing content_digest."""
 
         content = render_yaml_task(task, source=str(self.path))
         if self.create_only:
@@ -1319,6 +1451,13 @@ class YamlTaskStore:
             self.create_only = False
         else:
             atomic_write_text(self.path, content)
+
+    def replace(self, task: Mapping[str, Any]) -> None:
+        """Replace the complete task after validation, using one atomic write."""
+
+        task_dict = task if isinstance(task, dict) else canonical_task_mapping(task, source=str(self.path))
+        set_content_digest(task_dict)
+        self._write_validated(task_dict)
 
     @contextmanager
     def exclusive(self) -> Iterator[None]:
@@ -1342,11 +1481,30 @@ class YamlTaskStore:
             finally:
                 self._lock_depth = 0
 
-    def _mutate(self, mutation: Callable[[dict[str, Any]], None]) -> None:
+    def _mutate(
+        self,
+        mutation: Callable[[dict[str, Any]], None],
+        *,
+        refresh_digest: bool = False,
+    ) -> None:
         with self.exclusive():
-            task = self.read()
+            with self._suppress_digest_warn():
+                task = self.read()
+            dirty = is_content_dirty(task)
             mutation(task)
-            self.replace(task)
+            if refresh_digest or not dirty:
+                set_content_digest(task)
+            self._write_validated(task)
+
+    def acknowledge_edit(self, *, reason: str) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task.setdefault("decisions", []).append({
+                "date": utc_now()[:10],
+                "note": f"Acknowledged out-of-band edit: {reason}",
+                "source": "pi-job acknowledge-edit",
+            })
+
+        self._mutate(mutation, refresh_digest=True)
 
     @staticmethod
     def _slice(task: Mapping[str, Any], slice_key: str) -> dict[str, Any]:
@@ -1600,6 +1758,29 @@ class YamlTaskStore:
 
         self._mutate(mutation)
 
+    def set_slice_fields(
+        self, *, slice_key: str, title: str | None = None, goal: str | None = None
+    ) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task_slice = self._slice(task, slice_key)
+            if title is not None:
+                task_slice["title"] = title
+            if goal is not None:
+                task_slice["goal"] = goal
+
+        self._mutate(mutation)
+
+    def set_slice_status(
+        self, *, slice_key: str, status: str, note: str | None = None
+    ) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task_slice = self._slice(task, slice_key)
+            task_slice["status"] = status
+            if note is not None:
+                task_slice["note"] = note
+
+        self._mutate(mutation)
+
 
 _PREFIX_WIDTH = 4
 _PREFIX_GAP = 10
@@ -1831,7 +2012,7 @@ class FsTaskStore:
     `.tmp-*` staging names as siblings of a layout-resolved path for atomic create/replace
     operations - the one place it names a path segment itself."""
 
-    def __init__(self, base: Path, layout: "TaskLayout | None" = None) -> None:
+    def __init__(self, base: Path, layout: TaskLayout | None = None) -> None:
         self.base = base
         self.layout = layout or TaskLayout(base)
 
@@ -1853,7 +2034,7 @@ class FsTaskStore:
         if not path.exists():
             return ""
         text = path.read_text()
-        return text[:-1] if text.endswith("\n") else text
+        return text.removesuffix("\n")
 
     def _read_optional_text(self, path: Path) -> str | None:
         if not path.exists():
@@ -2309,6 +2490,28 @@ class FsTaskStore:
                 keys.remove(key)
                 self._atomic_write_text(order_file, "".join(f"{k}\n" for k in keys))
 
+    def set_slice_fields(
+        self, *, slice_key: str, title: str | None = None, goal: str | None = None
+    ) -> None:
+        raise NotImplementedError(
+            "directory task storage does not support set-slice; migrate to YAML with "
+            "`pi-job --task <dir> project --to <file>.yaml`"
+        )
+
+    def set_slice_status(
+        self, *, slice_key: str, status: str, note: str | None = None
+    ) -> None:
+        raise NotImplementedError(
+            "directory task storage does not support slice status mutations; migrate to YAML with "
+            "`pi-job --task <dir> project --to <file>.yaml`"
+        )
+
+    def acknowledge_edit(self, *, reason: str) -> None:
+        raise NotImplementedError(
+            "directory task storage does not support acknowledge-edit; migrate to YAML with "
+            "`pi-job --task <dir> project --to <file>.yaml`"
+        )
+
 
 _WARNED_CUE_PATHS: set[Path] = set()
 
@@ -2435,7 +2638,7 @@ def project(src: TaskStore, dst: TaskStore) -> None:
 
 
 def run(argv: list[str], *, cwd: Path = ROOT, capture: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(argv, cwd=cwd, text=True, capture_output=capture)
+    return subprocess.run(argv, cwd=cwd, text=True, capture_output=capture, check=False)
 
 
 def load_task(task_file: Path) -> dict[str, Any]:
@@ -2701,7 +2904,7 @@ def merged_coding_policy(task: dict[str, Any], task_slice: TaskSlice | None) -> 
     return merged
 
 
-def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
+def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | None = None) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
     print(f"File: {task_file_desc}")
     print(f"Status: {task.get('status', '<unknown>')}")
@@ -2709,46 +2912,49 @@ def print_status(task_file_desc: str, task: dict[str, Any]) -> None:
     if not task.get("orchestration"):
         print("Initialization: required")
         print(f"Next: initialize with pi-job --task {task_file_desc} init [--kind setup|implement|...]")
-        return
-    print("Initialization: ok")
-    structure_issues = slice_structure_issues(task)
-    if structure_issues:
-        count = len(structure_issues)
-        issue_word = "issue" if count == 1 else "issues"
-        print(
-            f"Structure: invalid ({count} {issue_word}; "
-            "try validate or validate --slice <key>)"
-        )
     else:
-        print("Structure: ok")
-    cursor = current_cursor(task)
-    print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
-    nxt = next_cursor(task)
-    if nxt is None:
-        if all_slices_done(task):
-            print("Next: done")
+        print("Initialization: ok")
+        structure_issues = slice_structure_issues(task)
+        if structure_issues:
+            count = len(structure_issues)
+            issue_word = "issue" if count == 1 else "issues"
+            print(
+                f"Structure: invalid ({count} {issue_word}; "
+                "try validate or validate --slice <key>)"
+            )
         else:
-            print("Next: blocked (no dependency-satisfied slice ready)")
-    else:
-        print(f"Next: {nxt.label()}")
+            print("Structure: ok")
+        cursor = current_cursor(task)
+        print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
+        nxt = next_cursor(task)
+        if nxt is None:
+            if all_slices_done(task):
+                print("Next: done")
+            else:
+                print("Next: blocked (no dependency-satisfied slice ready)")
+        else:
+            print(f"Next: {nxt.label()}")
 
-    # Stale cursor warning
-    if cursor is not None and nxt is not None and cursor != nxt:
-        print(f"⚠ stored cursor is stale — cursor: {cursor.label()} vs computed next: {nxt.label()}; run `pi-job advance` to resync")
+        # Stale cursor warning
+        if cursor is not None and nxt is not None and cursor != nxt:
+            print(f"⚠ stored cursor is stale — cursor: {cursor.label()} vs computed next: {nxt.label()}; run `pi-job advance` to resync")
 
-    # Ready slices line
-    ready = ready_slices(task)
-    if ready:
-        ready_keys = [task_slice.key for task_slice in ready]
-        print(f"Ready: {', '.join(ready_keys)}")
-    else:
-        print("Ready: none")
+        # Ready slices line
+        ready = ready_slices(task)
+        if ready:
+            ready_keys = [task_slice.key for task_slice in ready]
+            print(f"Ready: {', '.join(ready_keys)}")
+        else:
+            print("Ready: none")
 
-    # Unknown dependency key warnings
-    status_map = slice_status_map(task)
-    unknown = unknown_dependency_keys(task, status_map)
-    for slice_key, dep_key in unknown:
-        print(f"⚠ slice '{slice_key}' depends_on unknown slice key '{dep_key}'")
+        # Unknown dependency key warnings
+        status_map = slice_status_map(task)
+        unknown = unknown_dependency_keys(task, status_map)
+        for slice_key, dep_key in unknown:
+            print(f"⚠ slice '{slice_key}' depends_on unknown slice key '{dep_key}'")
+
+    for issue in note_length_warnings(task, task_path):
+        print(f"warning: {issue}")
 
 
 def cursor_block(cursor: Cursor) -> str:
@@ -3228,10 +3434,9 @@ def resolve_field_spec(name: str, optional: bool, value_text: str) -> FieldSpec:
         operand = operand.strip()
         if operand.startswith("[..."):
             has_open_list = True
-        elif operand.startswith("["):
-            if closed_list_spec is None:
-                items = tuple(parse_closed_step_items(operand))
-                closed_list_spec = FieldSpec(name, optional, "closed_list", closed_items=items)
+        elif operand.startswith("[") and closed_list_spec is None:
+            items = tuple(parse_closed_step_items(operand))
+            closed_list_spec = FieldSpec(name, optional, "closed_list", closed_items=items)
 
     if closed_list_spec is not None:
         return closed_list_spec
@@ -3432,6 +3637,13 @@ def find_current_slice(task: Mapping[str, Any], cursor: Cursor) -> TaskSlice | N
     return None
 
 
+def find_slice(task: Mapping[str, Any], slice_key: str) -> TaskSlice | None:
+    for task_slice in task_slices(task):
+        if task_slice.key == slice_key:
+            return task_slice
+    return None
+
+
 def find_current_step(task_slice: TaskSlice | None, cursor: Cursor) -> TaskStep | None:
     if not task_slice or not cursor.step:
         return None
@@ -3443,15 +3655,23 @@ def find_step(task_slice: TaskSlice, step_key: str) -> TaskStep | None:
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def merge_note(existing: str, addition: str, *, replace: bool = False) -> str:
+    if replace:
+        return addition
+    if not existing:
+        return addition
+    return existing + "\n\n" + addition
 
 
 def parse_utc_timestamp(value: str) -> datetime | None:
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value)
     except (TypeError, ValueError):
         return None
-    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
         return None
     return parsed
 
@@ -3465,6 +3685,33 @@ def require_fully_qualified_model(model: str) -> str:
     if not is_fully_qualified_model(normalized):
         die("model ID must be fully qualified as provider/model")
     return normalized
+
+
+def note_length_warnings(task: Mapping[str, Any], task_path: Path | None = None) -> list[str]:
+    """Warn when slice/step notes or the on-disk task file exceed soft size limits."""
+    offenders: list[tuple[str, int]] = []
+    for task_slice in task_slices(task):
+        if len(task_slice.note) > NOTE_WARN_CHARS:
+            offenders.append((task_slice.key, len(task_slice.note)))
+        for step in task_slice.all_steps:
+            note_len = len(step.note)
+            if note_len > NOTE_WARN_CHARS:
+                offenders.append((f"{task_slice.key}/{step.key}", note_len))
+    offenders.sort(key=lambda item: item[1], reverse=True)
+    warnings: list[str] = []
+    for label, length in offenders[:NOTE_WARN_TOP_N]:
+        warnings.append(
+            f"oversized note {label}: {length} chars (soft limit {NOTE_WARN_CHARS}); "
+            "put long prose in the slice plan file, keep finish --note short"
+        )
+    if task_path is not None and task_path.is_file():
+        file_size = task_path.stat().st_size
+        if file_size > TASK_FILE_WARN_BYTES:
+            warnings.append(
+                f"task file size {file_size} bytes exceeds soft limit {TASK_FILE_WARN_BYTES}; "
+                "prefer plan files over growing notes"
+            )
+    return warnings
 
 
 def execution_issues(task: dict[str, Any]) -> list[str]:
@@ -3599,6 +3846,13 @@ def cmd_start(args: argparse.Namespace) -> None:
         task_slice, item, step_key = resolve_lifecycle_target(task, args)
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
         status = item.status
+        if task_slice.status == "blocked":
+            die(
+                f"slice is blocked: {task_slice.key}; "
+                f"run pi-job --task {task_file} unblock-slice --key {task_slice.key} first"
+            )
+        if status == "blocked":
+            die(f"cannot start blocked work: {label} [blocked]")
         if status in STATUS_DONE:
             die(f"cannot start completed work: {label} [{status}]")
         model = require_fully_qualified_model(args.model)
@@ -3641,6 +3895,10 @@ def cmd_finish(args: argparse.Namespace) -> None:
         existing = item.execution
         if args.reconcile and args.skip:
             die("finish --reconcile cannot be combined with --skip")
+        if args.replace and args.note is None:
+            die("finish --replace requires --note")
+        if args.replace and args.skip:
+            die("finish --replace cannot be combined with --skip")
         if args.reconcile and item.status not in ("in_progress",):
             die(
                 f"reconcile refused: {label} status is {item.status!r}; "
@@ -3679,7 +3937,7 @@ def cmd_finish(args: argparse.Namespace) -> None:
                 else str(args.reason)
             )
         elif args.note is not None:
-            note = (item.note + "\n" + args.note) if item.note else args.note
+            note = merge_note(item.note, args.note, replace=args.replace)
         if step_key is not None:
             assert step_item is not None
             issue = step_policy_issue(task_slice, step_item, model=str(model), status=target_status, note=note)
@@ -3766,8 +4024,7 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
     cursor = current_cursor(task)
     nxt = next_cursor(task)
     profile = load_profile_contract()
-    packets = profile.get("instruction_packets", {})
-    plan_todo_text = packets.get("plan_todo", "")
+    packets = profile["instruction_packets"]
 
     lines = [
         "PI-JOB TASK PLAN",
@@ -3804,18 +4061,7 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
             owner = step_kinds.get(step_key, {}).get("owner", "?")
             lines.append(f"    - {step_key} [{owner}/{step_st}] {step.title}{step_marker}")
     lines += ["", "Orchestrator todo instruction:"]
-    if plan_todo_text:
-        for line in plan_todo_text.strip().split("\n"):
-            stripped = line.strip()
-            if stripped:
-                lines.append(stripped)
-    else:
-        lines += [
-            "- Use the session todo capability to track this task plan.",
-            "- Create one todo per slice (or per step when helpful).",
-            "- Mark the current/next slice/step in_progress; mark completed items done as evidence lands.",
-            "- Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.",
-        ]
+    lines.extend(render_packet_lines(packets["plan_todo"], defaults={}))
     lines += [
         "",
         "Note: next/advance walk task.plan.slices in array order; closing work is just another slice.",
@@ -3862,15 +4108,8 @@ def build_seed_slice_plans_block(
         return ""
 
     profile = load_profile_contract()
-    packets = profile.get("instruction_packets", {})
-    preamble = packets.get("seed_slice_plans", "")
-    if not preamble:
-        preamble = (
-            "Create these plan files immediately from known task context, decisions, goals, and deps.\n"
-            "Do not wait until each slice's create-plan cursor.\n"
-            "Later create-plan revises the same path; note stays: Plan file: <task-stem>.plans/<key>.md\n"
-            "Work against task <TASK>."
-        )
+    packets = profile["instruction_packets"]
+    preamble = packets["seed_slice_plans"]
 
     lines = ["SEED SLICE PLAN FILES NOW", preamble.rstrip(), ""]
     for sl in qualifying:
@@ -3903,6 +4142,17 @@ def build_seed_slice_plans_block(
             lines.append(f"  - {date}: {note}")
 
     return "\n".join(lines).rstrip() + "\n"
+
+
+def render_packet_lines(text: str, *, defaults: dict[str, str]) -> list[str]:
+    """Split packet text into non-empty stripped lines with placeholder interpolation."""
+
+    lines: list[str] = []
+    for line in text.strip().split("\n"):
+        stripped = line.strip()
+        if stripped:
+            lines.append(stripped.format(**defaults))
+    return lines
 
 
 def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
@@ -4017,81 +4267,42 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             ]
         lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
     profile = load_profile_contract()
-    packets = profile.get("instruction_packets", {})
+    packets = profile["instruction_packets"]
 
+    packet_defaults = {
+        "cursor": cursor.label(),
+        "task_file": str(task_file),
+        "slice_key": task_slice.key if task_slice else (cursor.slice or "<unknown>"),
+    }
+
+    discipline_lines = ["", "Task record discipline:"]
+    discipline_lines.extend(
+        render_packet_lines(packets["task_record_discipline"], defaults=packet_defaults)
+    )
     todo_lines = ["", "Todo tracking:"]
-    todo_text = packets.get("todo_tracking", "")
-    if todo_text:
-        for line in todo_text.strip().split("\n"):
-            stripped = line.strip()
-            if stripped:
-                todo_lines.append(stripped.format(cursor=cursor.label()))
-    else:
-        todo_lines += [
-            "- Keep session todos aligned with `pi-job plan` for this task.",
-            f"- Set the todo for cursor {cursor.label()} to in_progress before executing.",
-            "- Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.",
-        ]
+    todo_lines.extend(render_packet_lines(packets["todo_tracking"], defaults=packet_defaults))
     todo_lines += ["", "Future-work capture:"]
-    future_text = packets.get("future_work", "")
-    if future_text:
-        for line in future_text.strip().split("\n"):
-            stripped = line.strip()
-            if stripped:
-                todo_lines.append(stripped)
-    else:
-        todo_lines += [
-            "- Create a new task slice for future work, an issue worth revisiting, technical debt, or an unresolved doubt discovered while executing.",
-            "- Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.",
-        ]
+    todo_lines.extend(render_packet_lines(packets["future_work"], defaults=packet_defaults))
 
     if owner == "subagent":
-        subagent_text = packets.get("subagent_orchestrator", "")
         subagent_lines = ["", "Orchestrator instruction:"]
-        if subagent_text:
-            for line in subagent_text.strip().split("\n"):
-                stripped = line.strip()
-                if stripped:
-                    subagent_lines.append(stripped)
-        else:
-            subagent_lines += [
-                "- Choose an appropriate lower-cost model using judgement.",
-                "- Run this step in a subagent.",
-                "- Give the subagent the prompt below exactly, plus any runtime tool context it needs.",
-                "- Review the subagent result before running pi-job advance.",
-            ]
-        lines += subagent_lines + todo_lines + [
-            "",
-            "Subagent prompt:",
-            f"Read the task file first: {task_file}",
-            f"Read the step/slice-kind contract: {PROFILE}",
-            f"Execute only cursor {cursor.label()}.",
-            "Return changed files, commands run, verification evidence, and unresolved risks.",
-            "Do not advance the task record unless this cursor step explicitly asks for task-record updates.",
-        ]
+        subagent_lines.extend(render_packet_lines(packets["subagent_orchestrator"], defaults=packet_defaults))
+        prompt_lines = ["", "Subagent prompt:"]
+        prompt_lines.extend(render_packet_lines(packets["subagent_prompt"], defaults=packet_defaults))
+        lines += subagent_lines + discipline_lines + todo_lines + prompt_lines
     else:
-        orch_text = packets.get("orchestrator", "")
         orch_lines = ["", "Orchestrator instruction:"]
-        if orch_text:
-            for line in orch_text.strip().split("\n"):
-                stripped = line.strip()
-                if stripped:
-                    orch_lines.append(stripped)
-        else:
-            orch_lines += [
-                "- Execute this step in the main orchestration session.",
-                "- Do not skip required artifacts or validators from the task contract.",
-                "- Run pi-job advance only after the step evidence is recorded or a blocker is written down.",
-            ]
-        lines += orch_lines + todo_lines
+        orch_lines.extend(render_packet_lines(packets["orchestrator"], defaults=packet_defaults))
+        lines += orch_lines + discipline_lines + todo_lines
     if step and step.key in ("select-toolbelt", "plan-slices"):
         lines += toolbelt_block(task, task_slice_kinds(task))
     return "\n".join(lines)
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task.resolve())
-    print_status(str(args.task.resolve()), store.read())
+    task_file = args.task.resolve()
+    store = open_task_store(task_file)
+    print_status(str(task_file), store.read(), task_path=task_file)
 
 
 def cmd_next(args: argparse.Namespace) -> None:
@@ -4264,8 +4475,7 @@ def build_sync_instruction(
     task_file: Path, task: dict[str, Any], status_filter: set[str] | None
 ) -> str:
     candidates = sync_candidate_slices(task, status_filter)
-    profile = load_profile_contract()
-    pipeline_text = profile.get("sync_pipeline_instructions", "")
+    pipeline_text = load_profile_contract()["sync_pipeline_instructions"]
 
     lines = [
         "PI-JOB SYNC PIPELINE",
@@ -4279,16 +4489,7 @@ def build_sync_instruction(
         lines.append("Nothing matched the sync criteria (in_progress/blocked slices, or slices with an open PR).")
         return "\n".join(lines)
 
-    if pipeline_text:
-        lines += [pipeline_text, ""]
-    else:
-        lines += [
-            "For each slice below: dispatch a subagent to check its actual state against what's",
-            "recorded (PR merged/closed? described changes actually present?). Prefer pi-job",
-            "commands such as `add-pr`, `start`, `finish`, and `advance` when recording findings.",
-            "Direct task-file editing is unsupported; validate any emergency edit immediately.",
-            "",
-        ]
+    lines += [pipeline_text, ""]
     for i, task_slice in enumerate(candidates, start=1):
         lines.append(f"{i}. {task_slice.key} ({task_slice.status})")
         repo_work = task_slice.repo_work or {}
@@ -4327,14 +4528,118 @@ def step_line(step: TaskStep, *, terminal: bool, current_step: str | None, color
     return f"    {glyph} {key}{execution_suffix}{suffix}"
 
 
+def append_multiline_note(
+    lines: list[str],
+    label_prefix: str,
+    note: str,
+    continuation_indent: str,
+) -> None:
+    if not note:
+        return
+    parts = note.split("\n")
+    lines.append(f"{label_prefix}{parts[0]}")
+    for part in parts[1:]:
+        lines.append(f"{continuation_indent}{part}")
+
+
+def append_slice_work_lines(
+    lines: list[str],
+    task_slice: TaskSlice,
+    status_map: Mapping[str, str],
+) -> None:
+    if task_slice.depends_on:
+        dep_strs = []
+        for dep_key in task_slice.depends_on:
+            dep_status = status_map.get(dep_key, "missing")
+            dep_strs.append(f"{dep_key}:{dep_status}")
+        deps_line = f"    deps: [{', '.join(dep_strs)}]"
+        if not is_actionable(task_slice, status_map):
+            deps_line += "  (not ready)"
+        lines.append(deps_line)
+
+    repo_work = task_slice.repo_work or {}
+    for repo_name in sorted(repo_work):
+        work = repo_work[repo_name] or {}
+        worktree = work.get("worktree") or "not set"
+        lines.append(f"    repo_work[{repo_name}]: worktree={worktree}")
+        for pr in work.get("prs", []) or []:
+            note_suffix = f" — {pr.get('note')}" if pr.get("note") else ""
+            lines.append(f"        pr {pr.get('status')} {pr.get('url')}{note_suffix}")
+
+
+def step_detail_line(
+    step: TaskStep,
+    *,
+    terminal: bool,
+    current_step: str | None,
+    color: bool,
+) -> list[str]:
+    st = step.status
+    raw = "·" if (terminal and st not in STATUS_DONE) else GLYPH.get(st, "○")
+    paint_status = "planned" if raw == "·" else st
+    glyph = paint_glyph(raw, paint_status, color=color)
+    key = step.key
+    execution_suffix = f" [{step.execution.model}]" if step.execution and step.execution.model else ""
+    if current_step is not None and key == current_step:
+        marker = "← current"
+        cursor_suffix = f"   {_CURRENT_STYLE}{marker}{_RESET}" if color else f"   {marker}"
+    else:
+        cursor_suffix = ""
+    lines = [f"    {glyph} {key} [{st}]{execution_suffix}{cursor_suffix}"]
+    append_multiline_note(lines, "        note: ", step.note, "            ")
+    return lines
+
+
+def render_slice_scoped(
+    task: Mapping[str, Any],
+    task_slice: TaskSlice,
+    *,
+    cursor: Cursor | None,
+    status_map: Mapping[str, str],
+    color: bool,
+) -> list[str]:
+    lines = [f"{task.get('title', '<untitled>')}"]
+    title = task_slice.title or "<untitled>"
+    lines.append(
+        f"slice: {task_slice.key} [{task_slice.kind}] — {title} [{task_slice.status}]"
+    )
+    if task_slice.goal:
+        lines.append(f"goal: {task_slice.goal}")
+    append_multiline_note(lines, "note: ", task_slice.note, "    ")
+    append_slice_work_lines(lines, task_slice, status_map)
+    is_current = bool(cursor and cursor.slice == task_slice.key)
+    current_step = cursor.step if is_current and cursor else None
+    for step in task_slice.steps:
+        lines.extend(
+            step_detail_line(step, terminal=False, current_step=current_step, color=color)
+        )
+    for step in task_slice.final_steps:
+        lines.extend(
+            step_detail_line(step, terminal=True, current_step=current_step, color=color)
+        )
+    return lines
+
+
 def cmd_show(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
     cursor = current_cursor(task)
-    status_filter = set(args.status.split(",")) if args.status else None
     color = color_enabled(args.color)
+
+    if args.slice:
+        task_slice = find_slice(task, args.slice)
+        if task_slice is None:
+            die(f"slice not found: {args.slice!r}; known slice keys: {known_slice_keys(task)}")
+        status_map = slice_status_map(task)
+        lines = render_slice_scoped(
+            task, task_slice, cursor=cursor, status_map=status_map, color=color
+        )
+        print("\n".join(lines))
+        return
+
+    status_filter = set(args.status.split(",")) if args.status else None
 
     lines = [f"{task.get('title', '<untitled>')}"]
     if cursor:
@@ -4376,25 +4681,7 @@ def cmd_show(args: argparse.Namespace) -> None:
         if st in STATUS_DONE and not args.all:
             continue
 
-        # Render dependencies if present
-        if task_slice.depends_on:
-            dep_strs = []
-            for dep_key in task_slice.depends_on:
-                dep_status = status_map.get(dep_key, "missing")
-                dep_strs.append(f"{dep_key}:{dep_status}")
-            deps_line = f"    deps: [{', '.join(dep_strs)}]"
-            if not is_actionable(task_slice, status_map):
-                deps_line += "  (not ready)"
-            lines.append(deps_line)
-
-        repo_work = task_slice.repo_work or {}
-        for repo_name in sorted(repo_work):
-            work = repo_work[repo_name] or {}
-            worktree = work.get("worktree") or "not set"
-            lines.append(f"    repo_work[{repo_name}]: worktree={worktree}")
-            for pr in work.get("prs", []) or []:
-                note_suffix = f" — {pr.get('note')}" if pr.get("note") else ""
-                lines.append(f"        pr {pr.get('status')} {pr.get('url')}{note_suffix}")
+        append_slice_work_lines(lines, task_slice, status_map)
 
         # Expand steps for the cursor slice, --all, or --started (active work only).
         expand_steps = (
@@ -4792,8 +5079,8 @@ def cmd_project(args: argparse.Namespace) -> None:
         project(src_store, dst_store)
         if isinstance(dst_store, YamlTaskStore):
             created_destination = True
-            source_data = canonical_task_mapping(src_store.read(), source=src_store.describe())
-            destination_data = canonical_task_mapping(dst_store.read(), source=dst_store.describe())
+            source_data = semantic_task_mapping(src_store.read(), source=src_store.describe())
+            destination_data = semantic_task_mapping(dst_store.read(), source=dst_store.describe())
             if source_data != destination_data:
                 die("projected YAML task failed semantic equality verification")
     except BaseException:
@@ -4848,6 +5135,8 @@ def cmd_validate(args: argparse.Namespace) -> None:
     for issue in slice_template_warnings(task):
         print(f"warning: {issue}")
     for issue in execution_issues(task):
+        print(f"warning: {issue}")
+    for issue in note_length_warnings(task, task_path=task_arg if task_arg.is_file() else None):
         print(f"warning: {issue}")
     if isinstance(store, CueTaskStore):
         print(f"schema: {TASK_SCHEMA}")
@@ -4933,7 +5222,7 @@ def diagnose_status(task_file: Path, lines: list[str], raw_text: str, open_idx: 
     try:
         local_values = cue_def_disjunction_values([task_file])
         shared_values = cue_def_disjunction_values([TASK_SCHEMA])
-    except (Exception, SystemExit):
+    except (Exception, SystemExit):  # noqa: BLE001 - diagnosis must not abort the parent command
         return f"#Status (lines {line_range}):\n  Diagnosis error: could not extract disjunction values"
 
     extra = [v for v in local_values if v not in shared_values]
@@ -4973,7 +5262,7 @@ def diagnose_struct_def(lines: list[str], open_idx: int, close_idx: int, def_nam
     try:
         local_fields = parse_def_struct_fields_from_raw(lines, open_idx, close_idx)
         shared_fields = cue_def_fields_from([TASK_SCHEMA], def_name)
-    except (Exception, SystemExit):
+    except (Exception, SystemExit):  # noqa: BLE001 - diagnosis must not abort the parent command
         return f"{def_name} (lines {line_range}):\n  Diagnosis error: could not extract field specs"
 
     local_sig = {(f.name, f.optional, f.kind) for f in local_fields}
@@ -5003,7 +5292,7 @@ def diagnose_slice(lines: list[str], open_idx: int, close_idx: int, line_range: 
     try:
         local_fields = parse_def_struct_fields_from_raw(lines, open_idx, close_idx)
         shared_fields = cue_def_fields_from([TASK_SCHEMA], "#Slice")
-    except (Exception, SystemExit):
+    except (Exception, SystemExit):  # noqa: BLE001 - diagnosis must not abort the parent command
         return f"#Slice (lines {line_range}):\n  Diagnosis error: could not extract field specs"
 
     local_by_name = {f.name: f for f in local_fields}
@@ -5180,7 +5469,7 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
     canonical_repr = store.read()
     if canonical_repr != full_task:
         die("bootstrap: written task failed semantic equality verification; possible concurrent modification")
-    profile = load_profile_contract()
+    load_profile_contract()
     print(f"created: {task_file}")
     print(f"profile: {PROFILE}")
     print(f"schema: Pydantic {TaskDocument.__name__}")
@@ -5191,6 +5480,63 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
     if seed_block:
         print()
         print(seed_block, end="")
+
+
+def cmd_set_slice(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-slice")
+    if args.title is None and args.goal is None:
+        die("at least one of --title or --goal is required")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("set-slice requires a YAML task file")
+    task = store.read()
+    key = args.key
+    status_map = slice_status_map(task)
+    if key not in status_map:
+        die(f"slice not found: {key!r}")
+    if status_map[key] in STATUS_DONE:
+        die(f"cannot update completed slice: {key} [{status_map[key]}]")
+    store.set_slice_fields(slice_key=key, title=args.title, goal=args.goal)
+    parts = [f"key={key}"]
+    if args.title is not None:
+        parts.append(f"title={args.title}")
+    if args.goal is not None:
+        parts.append(f"goal={args.goal}")
+    print(f"updated slice: {', '.join(parts)}")
+
+
+def cmd_block_slice(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="block-slice")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("block-slice requires a YAML task file")
+    task = store.read()
+    key = args.key
+    status_map = slice_status_map(task)
+    if key not in status_map:
+        die(f"slice not found: {key!r}")
+    if status_map[key] in STATUS_DONE:
+        die(f"cannot block completed slice: {key} [{status_map[key]}]")
+    existing_note = task_slices_map(task)[key].note
+    new_note = merge_note(existing_note, args.reason, replace=False)
+    store.set_slice_status(slice_key=key, status="blocked", note=new_note)
+    print(f"blocked slice: {key}")
+
+
+def cmd_unblock_slice(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="unblock-slice")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("unblock-slice requires a YAML task file")
+    task = store.read()
+    key = args.key
+    status_map = slice_status_map(task)
+    if key not in status_map:
+        die(f"slice not found: {key!r}")
+    if status_map[key] != "blocked":
+        die(f"slice is not blocked: {key} [{status_map[key]}]")
+    store.set_slice_status(slice_key=key, status="planned")
+    print(f"unblocked slice: {key} [planned]")
 
 
 def cmd_set_project(args: argparse.Namespace) -> None:
@@ -5233,6 +5579,18 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     store.add_decision(date=date, note=note, source=source)
     print(f"added decision ({date}): {note[:60]}" + ("..." if len(note) > 60 else ""))
+
+
+def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="acknowledge-edit")
+    reason = args.reason
+    if not reason:
+        die("--reason is required")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("acknowledge-edit requires a YAML task file")
+    store.acknowledge_edit(reason=reason)
+    print(f"acknowledged out-of-band edit: {reason[:60]}" + ("..." if len(reason) > 60 else ""))
 
 
 def cmd_remove_slice(args: argparse.Namespace) -> None:
@@ -5399,7 +5757,16 @@ def main() -> None:
     finish.add_argument("--slice", help="explicit slice key; without --step this targets the slice itself")
     finish.add_argument("--step", help="explicit step key (uses the current slice unless --slice is supplied)")
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
-    finish.add_argument("--note", help="completion evidence to store; omitted preserves the existing note")
+    finish.add_argument(
+        "--note",
+        help="completion evidence to store; omitted preserves the existing note; "
+        "when supplied appends with a blank line; --replace overwrites instead",
+    )
+    finish.add_argument(
+        "--replace",
+        action="store_true",
+        help="overwrite the existing note instead of appending; requires --note",
+    )
     finish.add_argument(
         "--reconcile",
         action="store_true",
@@ -5440,6 +5807,11 @@ def main() -> None:
         choices=("auto", "always", "never"),
         default="auto",
         help="color status glyphs (✓ green, ✗ red, …); auto = TTY only, respects NO_COLOR",
+    )
+    show.add_argument(
+        "--slice",
+        metavar="KEY",
+        help="render one slice in full (goal, notes, steps, repo_work); ignores tree expansion flags",
     )
     show.set_defaults(fn=cmd_show)
 
@@ -5496,6 +5868,13 @@ def main() -> None:
     add_decision.add_argument("--source", default="", help="decision origin (default: pi-job add-decision)")
     add_decision.set_defaults(fn=cmd_add_decision_cli)
 
+    acknowledge_edit = sub.add_parser(
+        "acknowledge-edit",
+        help="refresh content digest after a legitimate hand-edit to the task file",
+    )
+    acknowledge_edit.add_argument("--reason", required=True, help="why the out-of-band edit was made")
+    acknowledge_edit.set_defaults(fn=cmd_acknowledge_edit)
+
     remove_slice = sub.add_parser("remove-slice", help="remove a slice from the plan (refuses when other slices depend on it)")
     remove_slice.add_argument("--key", required=True, help="slice key to remove")
     remove_slice.set_defaults(fn=cmd_remove_slice)
@@ -5503,6 +5882,21 @@ def main() -> None:
     set_plan_note = sub.add_parser("set-plan-note", help="set task.plan.note")
     set_plan_note.add_argument("--note", default="", help="plan note text")
     set_plan_note.set_defaults(fn=cmd_set_plan_note_cli)
+
+    set_slice = sub.add_parser("set-slice", help="update a slice title and/or goal")
+    set_slice.add_argument("--key", required=True, help="slice key to update")
+    set_slice.add_argument("--title", help="new slice title")
+    set_slice.add_argument("--goal", help="new slice goal")
+    set_slice.set_defaults(fn=cmd_set_slice)
+
+    block_slice = sub.add_parser("block-slice", help="mark a slice blocked and append a reason to its note")
+    block_slice.add_argument("--key", required=True, help="slice key to block")
+    block_slice.add_argument("--reason", required=True, help="blocker reason appended to the slice note")
+    block_slice.set_defaults(fn=cmd_block_slice)
+
+    unblock_slice = sub.add_parser("unblock-slice", help="restore a blocked slice to planned without changing its note")
+    unblock_slice.add_argument("--key", required=True, help="slice key to unblock")
+    unblock_slice.set_defaults(fn=cmd_unblock_slice)
 
     profile_cmd = sub.add_parser("profile", help="show the active execution profile")
     profile_cmd.add_argument("--json", dest="json_output", action="store_true", help="output full validated profile as JSON")

@@ -154,6 +154,11 @@ instruction_packets:
   future_work: |-
     - Create a new task slice for future work, an issue worth revisiting, technical debt, or an unresolved doubt discovered while executing.
     - Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.
+  task_record_discipline: |-
+    The task record is machine-owned; do not open or edit the task store directly.
+    Reads: pi-job --task {task_file} status | plan | show [--slice {slice_key}] | instruction [--current].
+    Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
+    Why: direct inspection loads the whole record into context; hand-edits bypass validation and orchestration guards.
   orchestrator: |-
     - Execute this step in the main orchestration session.
     - Do not skip required artifacts or validators from the task contract.
@@ -163,19 +168,25 @@ instruction_packets:
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
     - Review the subagent result before running pi-job advance.
+  subagent_prompt: |-
+    This packet is your execution context; do not inspect the task store directly.
+    For sibling-step evidence in this slice, run: pi-job --task {task_file} show --slice {slice_key}
+    Execute only cursor {cursor}.
+    Return changed files, commands run, verification evidence, and unresolved risks.
+    Do not advance the task record unless this cursor step explicitly asks for task-record updates.
   plan_todo: |-
     - Use the session todo capability to track this task plan.
     - Create one todo per slice (or per step when helpful).
     - Mark the current/next slice/step in_progress; mark completed items done as evidence lands.
     - Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.
   missing_task_hint: |-
-    task file not found: <TASK_FILE>
+    task store not found: {task_file}
     create one from the example shape with:
-      pi-job --task <TASK_FILE> scaffold
+      pi-job --task {task_file} scaffold
     or write a bootstrap document and create+initialize in one transaction:
-      pi-job --task <TASK_FILE> bootstrap --from <bootstrap.yaml>
+      pi-job --task {task_file} bootstrap --from <bootstrap.yaml>
     after scaffold, initialize orchestration:
-      pi-job --task <TASK_FILE> init [--kind setup|implement|...]
+      pi-job --task {task_file} init [--kind setup|implement|...]
   seed_slice_plans: |-
     Create these plan files immediately from known task context, decisions, goals, and deps.
     Do not wait until each slice's create-plan cursor.
@@ -353,7 +364,7 @@ step_kinds:
     owner: orchestrator
     validators:
       - task-file-current
-    guidance: Keep the task record current. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes.
+    guidance: Keep the task record current via pi-job mutation commands only (add-slice, add-step, add-decision, set-plan-note, finish, advance; see pi-job --help). Do not edit the task store directly. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes.
   investigate:
     key: investigate
     title: Investigate
