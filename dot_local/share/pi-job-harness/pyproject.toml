@@ -1,0 +1,21 @@
+[project]
+name = "pi-job-harness"
+version = "0.0.0"
+description = "Local package metadata for ruff and contributor tooling (not published)."
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+# Chezmoi names scripts executable_* without a .py suffix; include them explicitly.
+include = [
+  "pyproject.toml",
+  "*.py",
+  "*.pyi",
+  "bin/executable_pi-job",
+  "tests/executable_test_pi_job.py",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Source tree is not chmod +x; chezmoi apply installs executables.
+"bin/executable_*" = ["EXE001"]
+"tests/executable_*" = ["EXE001"]
