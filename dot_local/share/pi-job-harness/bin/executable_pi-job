@@ -4515,7 +4515,14 @@ def slice_counts(task_slice: TaskSlice) -> tuple[int, int]:
     return done, len(task_slice.all_steps)
 
 
-def step_line(step: TaskStep, *, terminal: bool, current_step: str | None, color: bool) -> str:
+def step_line(
+    step: TaskStep,
+    *,
+    terminal: bool,
+    current_step: str | None,
+    color: bool,
+    include_model: bool = False,
+) -> str:
     st = step.status
     raw = "·" if (terminal and st not in STATUS_DONE) else GLYPH.get(st, "○")
     paint_status = "planned" if raw == "·" else st
@@ -4526,7 +4533,11 @@ def step_line(step: TaskStep, *, terminal: bool, current_step: str | None, color
         suffix = f"   {_CURRENT_STYLE}{marker}{_RESET}" if color else f"   {marker}"
     else:
         suffix = ""
-    execution_suffix = f"   [{step.execution.model}]" if step.execution and step.execution.model else ""
+    execution_suffix = (
+        f"   [{step.execution.model}]"
+        if include_model and step.execution and step.execution.model
+        else ""
+    )
     return f"    {glyph} {key}{execution_suffix}{suffix}"
 
 
@@ -4574,13 +4585,18 @@ def step_detail_line(
     terminal: bool,
     current_step: str | None,
     color: bool,
+    include_model: bool = True,
 ) -> list[str]:
     st = step.status
     raw = "·" if (terminal and st not in STATUS_DONE) else GLYPH.get(st, "○")
     paint_status = "planned" if raw == "·" else st
     glyph = paint_glyph(raw, paint_status, color=color)
     key = step.key
-    execution_suffix = f" [{step.execution.model}]" if step.execution and step.execution.model else ""
+    execution_suffix = (
+        f" [{step.execution.model}]"
+        if include_model and step.execution and step.execution.model
+        else ""
+    )
     if current_step is not None and key == current_step:
         marker = "← current"
         cursor_suffix = f"   {_CURRENT_STYLE}{marker}{_RESET}" if color else f"   {marker}"
@@ -4598,6 +4614,7 @@ def render_slice_scoped(
     cursor: Cursor | None,
     status_map: Mapping[str, str],
     color: bool,
+    include_model: bool = True,
 ) -> list[str]:
     lines = [f"{task.get('title', '<untitled>')}"]
     title = task_slice.title or "<untitled>"
@@ -4612,11 +4629,23 @@ def render_slice_scoped(
     current_step = cursor.step if is_current and cursor else None
     for step in task_slice.steps:
         lines.extend(
-            step_detail_line(step, terminal=False, current_step=current_step, color=color)
+            step_detail_line(
+                step,
+                terminal=False,
+                current_step=current_step,
+                color=color,
+                include_model=include_model,
+            )
         )
     for step in task_slice.final_steps:
         lines.extend(
-            step_detail_line(step, terminal=True, current_step=current_step, color=color)
+            step_detail_line(
+                step,
+                terminal=True,
+                current_step=current_step,
+                color=color,
+                include_model=include_model,
+            )
         )
     return lines
 
@@ -4635,12 +4664,18 @@ def cmd_show(args: argparse.Namespace) -> None:
             die(f"slice not found: {args.slice!r}; known slice keys: {known_slice_keys(task)}")
         status_map = slice_status_map(task)
         lines = render_slice_scoped(
-            task, task_slice, cursor=cursor, status_map=status_map, color=color
+            task,
+            task_slice,
+            cursor=cursor,
+            status_map=status_map,
+            color=color,
+            include_model=True,
         )
         print("\n".join(lines))
         return
 
     status_filter = set(args.status.split(",")) if args.status else None
+    include_model = bool(args.full)
 
     lines = [f"{task.get('title', '<untitled>')}"]
     if cursor:
@@ -4668,15 +4703,18 @@ def cmd_show(args: argparse.Namespace) -> None:
         glyph_status = "in_progress" if is_current else st
         glyph = paint_glyph(GLYPH.get(glyph_status, "○"), glyph_status, color=color)
         repos = ", ".join(task_slice.repos)
+        # Done/skipped: omit [kind/n/m] - progress is already in the footer.
+        kind_counts = "" if st in STATUS_DONE else f" [{task_slice.kind}/{d}/{t}]"
         execution_suffix = (
             f" [{task_slice.execution.model}]"
-            if task_slice.execution and task_slice.execution.model
+            if include_model and task_slice.execution and task_slice.execution.model
             else ""
         )
-        lines.append(
-            f"{glyph} {task_slice.key:<{key_width}} [{task_slice.kind}/{d}/{t}] "
-            f"{repos}{execution_suffix}".rstrip()
-        )
+        header = f"{glyph} {task_slice.key:<{key_width}}{kind_counts}"
+        if repos:
+            header += f" {repos}"
+        header += execution_suffix
+        lines.append(header.rstrip())
 
         # Done/skipped slices stay header-only unless --all (no deps, repo_work, or steps).
         if st in STATUS_DONE and not args.all:
@@ -4693,9 +4731,25 @@ def cmd_show(args: argparse.Namespace) -> None:
         if expand_steps:
             current_step = cursor.step if is_current and cursor else None
             for step in task_slice.steps:
-                lines.append(step_line(step, terminal=False, current_step=current_step, color=color))
+                lines.append(
+                    step_line(
+                        step,
+                        terminal=False,
+                        current_step=current_step,
+                        color=color,
+                        include_model=include_model,
+                    )
+                )
             for step in task_slice.final_steps:
-                lines.append(step_line(step, terminal=True, current_step=current_step, color=color))
+                lines.append(
+                    step_line(
+                        step,
+                        terminal=True,
+                        current_step=current_step,
+                        color=color,
+                        include_model=include_model,
+                    )
+                )
 
     lines += ["", f"{done_slices}/{len(slices)} slices · {done_steps}/{total_steps} steps", "— toolbelt —"]
     artifacts = task_artifacts(task)
@@ -5802,6 +5856,11 @@ def main() -> None:
         "--started", action="store_true",
         help="also expand in_progress/blocked slices (not the cursor's slice); done/skipped stay collapsed unless --all",
     )
+    show.add_argument(
+        "--full",
+        action="store_true",
+        help="include executor model IDs on slice headers and expanded steps (tree view)",
+    )
     show.add_argument("--status", help="comma-separated slice statuses to include")
     show.add_argument(
         "--color",
@@ -5812,7 +5871,7 @@ def main() -> None:
     show.add_argument(
         "--slice",
         metavar="KEY",
-        help="render one slice in full (goal, notes, steps, repo_work); ignores tree expansion flags",
+        help="render one slice in full (goal, notes, steps, repo_work, models); ignores tree expansion flags",
     )
     show.set_defaults(fn=cmd_show)
 

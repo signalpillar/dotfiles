@@ -1241,23 +1241,93 @@ def test_show_renders_tree_and_footer() -> None:
 
 
 def test_show_aligns_kind_counts_after_longest_key() -> None:
-    """Slice headers align [kind/N/M] just after the longest key (one space), not a fixed wide column."""
+    """Unfinished slice headers align [kind/N/M] just after the longest key (one space)."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "align.yaml"
-        write_task_yaml(task, standard_fixture_mapping())
+        write_task_yaml(task, {
+            "title": "Align unfinished",
+            "status": "in_progress",
+            "project": {"name": "Fixture"},
+            "orchestration": {
+                "cursor": {"slice": "second-slice", "step": "s2"},
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [
+                    {
+                        "key": "first",
+                        "kind": "implement",
+                        "title": "First",
+                        "goal": "g",
+                        "status": "planned",
+                        "note": "",
+                        "steps": [{"key": "s1", "title": "S1", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "second-slice",
+                        "kind": "implement",
+                        "title": "Second",
+                        "goal": "g",
+                        "status": "in_progress",
+                        "note": "",
+                        "steps": [
+                            {"key": "s1", "title": "S1", "status": "done", "note": ""},
+                            {"key": "s2", "title": "S2", "status": "planned", "note": ""},
+                        ],
+                        "final_steps": [],
+                    },
+                ],
+            },
+        })
         out = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
         cols = []
         for line in out.splitlines():
             if "[" in line and "/" in line and line.lstrip()[:1] in "✓⊘▸✗○":
                 cols.append(line.index("["))
         if len(cols) < 2:
-            raise AssertionError(f"expected >=2 slice headers with [kind/N/M]:\n{out}")
+            raise AssertionError(f"expected >=2 unfinished slice headers with [kind/N/M]:\n{out}")
         if len(set(cols)) != 1:
             raise AssertionError(f"[kind/N/M] columns should match, got {cols}:\n{out}")
-        # TASK_FIXTURE keys: "first", "second-slice" → longest 12; "✓ " + pad + " ["
         expected = 2 + len("second-slice") + 1
         if cols[0] != expected:
             raise AssertionError(f"expected [ at column {expected} (tight to longest key), got {cols[0]}:\n{out}")
+
+
+def test_show_omits_kind_counts_and_models_for_done_by_default() -> None:
+    """Done slices omit [kind/n/m]; tree view omits models unless --full."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "compact-show.yaml"
+        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
+        # Record a model on the done slice so --full can surface it.
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        data = store.read()
+        data["plan"]["slices"][0]["execution"] = {
+            "model": "cursor/test-model",
+            "started": "2026-07-01T10:00:00Z",
+            "ended": "2026-07-01T10:05:00Z",
+        }
+        data["plan"]["slices"][1]["execution"] = {
+            "model": "cursor/active-model",
+            "started": "2026-07-01T11:00:00Z",
+        }
+        store.replace(data)
+
+        out = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
+        assert_contains(out, "implement/1/3")  # unfinished second-slice still shows counts
+        for line in out.splitlines():
+            if line.lstrip().startswith("✓") and "first" in line:
+                if "[" in line:
+                    raise AssertionError(f"done slice must omit [kind/n/m]:\n{line}\n{out}")
+                if "cursor/test-model" in line:
+                    raise AssertionError(f"default show must omit models:\n{line}\n{out}")
+        assert_not_contains(out, "cursor/active-model")
+
+        full = run(str(PI_JOB), "--task", str(task), "show", "--full", "--color", "never").stdout
+        assert_contains(full, "cursor/active-model")
+        assert_contains(full, "cursor/test-model")
 
 
 def test_show_started_flag_expands_non_planned_slices() -> None:
@@ -5015,6 +5085,7 @@ def main() -> None:
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
     test_show_aligns_kind_counts_after_longest_key()
+    test_show_omits_kind_counts_and_models_for_done_by_default()
     test_show_started_flag_expands_non_planned_slices()
     test_show_color_always_tints_glyphs_never_stays_plain()
     test_show_slice_prints_goal_notes_steps_repo_work()

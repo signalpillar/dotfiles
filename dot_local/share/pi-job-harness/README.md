@@ -49,7 +49,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and durable decisions without hand-editing the store
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
-- `show` / `show --slice KEY` - tree view, or a slice-local detail view (goal, notes, steps, repo_work)
+- `show` / `show --slice KEY` / `show --full` - tree view (compact by default), optional models, or a slice-local detail view (goal, notes, steps, repo_work)
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders, task-record discipline)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
 - `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
@@ -508,7 +508,7 @@ See `plan_and_grill_guardrail` in `profile.yaml`.
 - `pi-job --task <t> set-worktree --slice K --repo R --clear` - remove the recorded worktree path for an **existing** repo entry; PR records are unchanged; fails if the repo entry was never created.
 - `--path` and `--clear` are mutually exclusive; exactly one is required.
 - `pi-job --task <t> add-pr --slice K --repo R --url U --status open|merged|closed [--note N]` - record a PR for a slice's repo work, upserting by URL.
-- `pi-job --task <t> show [--all]` - also renders each slice's `repo_work`: worktree path (or "not set") and each PR's status/url/note.
+- `pi-job --task <t> show [--all]` - also renders each slice's `repo_work`: worktree path (or "not set") and each PR's status/url.
 
 ## Task storage backends
 
