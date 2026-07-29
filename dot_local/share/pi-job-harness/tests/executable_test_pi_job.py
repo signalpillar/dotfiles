@@ -671,6 +671,7 @@ def test_profiled_task() -> None:
         run(str(PI_JOB), "--task", str(task), "advance")
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(advanced, "Cursor: second-slice / s2")
+        assert_not_contains(advanced, "Next:")
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "PI-JOB EXECUTION INSTRUCTION")
@@ -828,6 +829,82 @@ def test_subagent_instruction_create_plan_includes_plan_path() -> None:
         assert_not_contains(instruction, "Read the task file")
 
 
+def orchestrator_grill_plan_yaml_task(*, slice_key: str = "plan-slice") -> str:
+    """Initialized YAML task with cursor on orchestrator-owned grill-plan."""
+
+    return f"""title: Grill plan instruction test
+status: in_progress
+orchestration:
+  cursor:
+    slice: {slice_key}
+    step: grill-plan
+plan:
+  note: ""
+  slices:
+    - key: {slice_key}
+      kind: implement
+      title: Implement
+      goal: Test grill-plan instruction
+      status: in_progress
+      note: ""
+      steps:
+        - key: create-plan
+          title: Create plan
+          status: done
+          note: "Plan file: grill-plan-instruction.plans/{slice_key}.md"
+        - key: grill-plan
+          title: Grill the plan file
+          status: planned
+          note: ""
+      final_steps: []
+"""
+
+
+def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
+    """Phrase-lock the profile-owned create-plan / grill-plan contract in instruction packets."""
+    assert_contains(instruction, "constraint-and-behaviour contract")
+    assert_contains(instruction, "intent, system behaviour, constraints, verification")
+    assert_contains(instruction, "optional short touch surface")
+    assert_contains(
+        instruction,
+        "Do not move delivery status, cursor, or session journals into plan files",
+    )
+    assert_not_contains(instruction, "approach, files/functions touched, key tradeoffs")
+
+
+def test_create_plan_instruction_defines_constraint_and_behaviour_contract() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "create-plan-contract.yaml"
+        task.write_text(subagent_create_plan_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        _assert_constraint_and_behaviour_plan_contract(instruction)
+
+
+def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "grill-plan-contract.yaml"
+        task.write_text(orchestrator_grill_plan_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        _assert_constraint_and_behaviour_plan_contract(instruction)
+        assert_contains(
+            instruction,
+            "Challenge behaviour, boundaries, must-not constraints, and verification",
+        )
+        assert_contains(instruction, "prose volume is not an acceptance criterion")
+
+
+def test_profile_yaml_aliases_shared_guidance_strings() -> None:
+    """Anchors keep plan/grill and PR guidance as one source; aliases must resolve equal."""
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    plan_text = profile["plan_and_grill_guardrail"]
+    if profile["step_kinds"]["create-plan"]["guidance"] != plan_text:
+        raise AssertionError("create-plan guidance must alias plan_and_grill_guardrail")
+    if profile["step_kinds"]["grill-plan"]["guidance"] != plan_text:
+        raise AssertionError("grill-plan guidance must alias plan_and_grill_guardrail")
+    pr_text = profile["pr_template_guardrail"]
+    if profile["step_kinds"]["share-with-team"]["guidance"] != pr_text:
+        raise AssertionError("share-with-team guidance must alias pr_template_guardrail")
 
 
 def _assert_task_record_discipline_block(instruction: str) -> None:
@@ -909,6 +986,17 @@ def test_next_walks_to_closing_slice_after_implement_done() -> None:
         run(str(PI_JOB), "--task", str(task), "advance")
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(advanced, "Cursor: closing / update-test-plan")
+        assert_not_contains(advanced, "Next:")
+
+
+def test_status_omits_next_when_cursor_matches_computed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "aligned-cursor.yaml"
+        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Cursor: second-slice / s2")
+        assert_not_contains(status, "Next:")
 
 
 def test_next_done_when_all_slices_finished() -> None:
@@ -1432,9 +1520,9 @@ def test_show_color_always_tints_glyphs_never_stays_plain() -> None:
             raise AssertionError(f"--color never must not emit ANSI escapes:\n{plain!r}")
         assert_contains(colored, "\033[32m✓\033[0m")  # done green
         assert_contains(colored, "\033[36m▸\033[0m")  # current / in_progress cyan
-        assert_contains(colored, "\033[1;36m← current\033[0m")  # cursor marker bold cyan
+        assert_contains(colored, "\033[1;35m← current\033[0m")  # cursor marker bold magenta
         assert_contains(plain, "← current")
-        if "\033[1;36m" in plain:
+        if "\033[1;35m" in plain:
             raise AssertionError("--color never must not tint ← current")
 
 
@@ -5069,7 +5157,11 @@ def main() -> None:
     test_task_record_discipline_interpolates_task_file_and_slice_key()
     test_update_task_file_guidance_names_mutation_commands()
     test_plan_output_omits_task_record_discipline()
+    test_create_plan_instruction_defines_constraint_and_behaviour_contract()
+    test_grill_plan_instruction_defines_constraint_and_behaviour_contract()
+    test_profile_yaml_aliases_shared_guidance_strings()
     test_next_walks_to_closing_slice_after_implement_done()
+    test_status_omits_next_when_cursor_matches_computed()
     test_next_done_when_all_slices_finished()
     test_advance_blocked_on_incomplete_current_step()
     test_advance_resync_rejects_force_and_missing_reason()

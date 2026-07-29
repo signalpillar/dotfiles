@@ -47,7 +47,9 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 - Out-of-band hand-edit: `acknowledge-edit --reason '<why>'` (clears the digest warning; do not silent-ignore it)
 - See `pi-job --help` for the rest
 
-Put long prose in the slice plan file (`<task-stem>.plans/<slice-key>.md`), not in endless notes.
+Put slice plans in `<task-stem>.plans/<slice-key>.md`, not in endless notes.
+Those files are succinct constraint-and-behaviour contracts.
+Full wording lives in `plan_and_grill_guardrail` in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi source: `dot_local/share/pi-job-harness/profile.yaml`).
 `validate` / `status` warn on oversized notes (~2000 chars) and large task files (~100KB); they do not refuse `finish`.
 
 ## Harness Python contributions

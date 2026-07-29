@@ -453,16 +453,17 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
-- `pi-job --task <t> show [--all] [--started] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
+- `pi-job --task <t> show [--all] [--started] [--full] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
   By default only the current cursor slice expands.
-  `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps).
+  `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps) and omit `[kind/n/m]` (footer still has totals).
+  Executor models are omitted unless `--full`.
   `--started` additionally expands `in_progress`/`blocked` slices.
   `--all` expands every slice including finished ones.
   `--status` filters which slices are listed.
   `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
 - `pi-job --task <t> show --slice KEY` - render one slice in full: goal, slice note, every step (key, status, model, note), and repo_work.
   Does not dump task-level context, plan note, or decisions.
-  Tree flags (`--all`, `--started`, `--status`) are ignored when `--slice` is set.
+  Tree flags (`--all`, `--started`, `--status`, `--full`) are ignored when `--slice` is set.
 - Subagent instruction packets treat the emitted packet as sufficient context; they do not order inspecting the task store directly or opening full `profile.yaml`.
   For sibling-step evidence within the current slice, the subagent prompt points at `pi-job --task <t> show --slice <key>`.
 
@@ -473,22 +474,10 @@ The catalog lives in `profile.yaml` under `toolbelt`.
 
 **Setup slice** uses step key `grill` to interrogate overall task scope before implement slices exist.
 
-**Implement and spike slices** must lead with two steps before other work in that slice:
-
-1. `create-plan` - write the detailed implementation plan for that slice to a sibling Markdown plan file (approach, files/functions touched, key tradeoffs).
-   Do not inline the plan body in the task file.
-   Directory beside the task file: `<task-stem>.plans/`.
-   File: `<slice-key>.md`.
-   Example: task `projects/foo/tasks/bar.yaml` + slice `wire-api` produces `projects/foo/tasks/bar.plans/wire-api.md`.
-   The `create-plan` step `note` is only a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (relative to the task file's directory).
-2. `grill-plan` - interrogate that plan file with the grill-me skill (`skills/grill-me/SKILL.md`) before writing code.
-   If grilling surfaces a gap, revise the plan file, grill again, and mark `grill-plan` done only once the plan survives.
-   The step note records what was challenged and what changed.
-
-`grill-plan` is distinct from setup's `grill` (overall scope vs per-slice plan).
-Advance refuses to pass an incomplete step, so later steps stay unreachable until both are done or explicitly skipped.
-A genuinely trivial single-file edit may skip both (`status: skipped`, note with reason) under the slice kind's `coding_execution.exceptions`.
-See `plan_and_grill_guardrail` in `profile.yaml`.
+**Implement and spike slices** must lead with `create-plan` then `grill-plan` before other work in that slice.
+Sibling plan files are succinct constraint-and-behaviour contracts.
+Full wording (required sections, grill axes, task-store boundary, naming, skip exception) lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
+Do not restate that contract here.
 
 ## Syncing recorded state with reality: sync
 

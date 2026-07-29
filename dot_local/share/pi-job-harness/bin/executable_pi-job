@@ -62,7 +62,7 @@ _GLYPH_STYLE = {
     "blocked": "\033[31m",     # red cross
     "planned": "\033[2m",      # dim
 }
-_CURRENT_STYLE = "\033[1;36m"  # bold cyan for "← current"
+_CURRENT_STYLE = "\033[1;35m"  # bold magenta: readable on light and dark terminals
 
 
 class StrictDocument(BaseModel):
@@ -2929,17 +2929,22 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
         cursor = current_cursor(task)
         print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
         nxt = next_cursor(task)
+        # Omit Next when it matches Cursor (the common mid-step case).
+        # Always show terminal/blocked outcomes, and when next diverges (stale cursor).
         if nxt is None:
             if all_slices_done(task):
                 print("Next: done")
             else:
                 print("Next: blocked (no dependency-satisfied slice ready)")
-        else:
+        elif cursor is None or cursor != nxt:
             print(f"Next: {nxt.label()}")
 
         # Stale cursor warning
         if cursor is not None and nxt is not None and cursor != nxt:
-            print(f"⚠ stored cursor is stale — cursor: {cursor.label()} vs computed next: {nxt.label()}; run `pi-job advance` to resync")
+            print(
+                f"⚠ stored cursor is stale - cursor: {cursor.label()} vs computed next: {nxt.label()}; "
+                "run `pi-job advance` to resync"
+            )
 
         # Ready slices line
         ready = ready_slices(task)

@@ -105,7 +105,7 @@ toolbelt:
     suits:
       - setup
       - research
-pr_template_guardrail: |-
+pr_template_guardrail: &pr_template_guidance |-
   Before writing any PR body: (1) check the target repo for a template at
   .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
   under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
@@ -114,20 +114,26 @@ pr_template_guardrail: |-
   PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
   Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
   case.
-plan_and_grill_guardrail: |-
+plan_and_grill_guardrail: &plan_and_grill_guidance |-
   Before any other step in an implement/spike slice starts, that slice's steps must
   begin with exactly two leading steps, in order:
-  (1) create-plan - write the actual implementation plan for THIS slice to a sibling
-      Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
-      restatement of the slice's goal. Do NOT inline the plan body in the task file.
+  (1) create-plan - write THIS slice's plan to a sibling Markdown plan file as a
+      constraint-and-behaviour contract, not a how-to essay or delivery journal.
+      Required sections: intent, system behaviour, constraints, verification;
+      optional short touch surface.
+      Not a restatement of the slice's goal. Do NOT inline the plan body in the task file.
+      Do not move delivery status, cursor, or session journals into plan files
+      (pi-job store owns those).
       Naming: beside the task file, directory `<task-stem>.plans/`, file
       `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
       -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
       a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
       task file's directory).
   (2) grill-plan - interrogate that plan file using the grill-me skill
-      (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
-      what changed. If grilling surfaces a real gap, revise the plan FILE (not the
+      (skills/grill-me/SKILL.md).
+      Challenge behaviour, boundaries, must-not constraints, and verification; prose volume is not an acceptance criterion.
+      grill-plan's note records what was challenged and what changed.
+      If grilling surfaces a real gap, revise the plan FILE (not the
       task-file note), grill again, only mark grill-plan done once the plan survives
       - this is a loop, not a one-shot rubber stamp.
   Mark both done only once the plan has survived grilling; advance refuses to pass an
@@ -242,30 +248,7 @@ step_kinds:
     validators:
       - plan-recorded
       - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
-    guidance: |-
-      Before any other step in an implement/spike slice starts, that slice's steps must
-      begin with exactly two leading steps, in order:
-      (1) create-plan - write the actual implementation plan for THIS slice to a sibling
-          Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
-          restatement of the slice's goal. Do NOT inline the plan body in the task file.
-          Naming: beside the task file, directory `<task-stem>.plans/`, file
-          `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
-          -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
-          a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
-          task file's directory).
-      (2) grill-plan - interrogate that plan file using the grill-me skill
-          (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
-          what changed. If grilling surfaces a real gap, revise the plan FILE (not the
-          task-file note), grill again, only mark grill-plan done once the plan survives
-          - this is a loop, not a one-shot rubber stamp.
-      Mark both done only once the plan has survived grilling; advance refuses to pass an
-      incomplete step, so edit-code-style steps stay unreachable until both are done.
-      Distinct from the setup slice's `grill` step (overall scope before implement slices
-      exist) - grill-plan is the per-slice equivalent.
-      Exception: a genuinely trivial single-file edit may skip both steps (status:
-      skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
-      If the sibling plan file already exists from a bootstrap/add-slice seed reminder,
-      revise it with remaining detail rather than starting from a blank page.
+    guidance: *plan_and_grill_guidance
   grill-plan:
     key: grill-plan
     title: Grill the plan file
@@ -273,28 +256,7 @@ step_kinds:
     validators:
       - grill-done-or-user-declined
       - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
-    guidance: |-
-      Before any other step in an implement/spike slice starts, that slice's steps must
-      begin with exactly two leading steps, in order:
-      (1) create-plan - write the actual implementation plan for THIS slice to a sibling
-          Markdown plan file (approach, files/functions touched, key tradeoffs). Not a
-          restatement of the slice's goal. Do NOT inline the plan body in the task file.
-          Naming: beside the task file, directory `<task-stem>.plans/`, file
-          `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
-          -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
-          a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
-          task file's directory).
-      (2) grill-plan - interrogate that plan file using the grill-me skill
-          (skills/grill-me/SKILL.md). grill-plan's note records what was challenged and
-          what changed. If grilling surfaces a real gap, revise the plan FILE (not the
-          task-file note), grill again, only mark grill-plan done once the plan survives
-          - this is a loop, not a one-shot rubber stamp.
-      Mark both done only once the plan has survived grilling; advance refuses to pass an
-      incomplete step, so edit-code-style steps stay unreachable until both are done.
-      Distinct from the setup slice's `grill` step (overall scope before implement slices
-      exist) - grill-plan is the per-slice equivalent.
-      Exception: a genuinely trivial single-file edit may skip both steps (status:
-      skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
+    guidance: *plan_and_grill_guidance
   edit-code:
     key: edit-code
     title: Edit code
@@ -335,15 +297,7 @@ step_kinds:
     validators:
       - pr-template-checked
       - share-with-team-template-used
-    guidance: |-
-      Before writing any PR body: (1) check the target repo for a template at
-      .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
-      under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
-      section by section - do not invent a different structure; (3) if absent, use the
-      share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
-      PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
-      Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
-      case.
+    guidance: *pr_template_guidance
     artifact_gates:
       - key: ticket
         required: true
