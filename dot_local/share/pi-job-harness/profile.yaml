@@ -124,6 +124,12 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       Not a restatement of the slice's goal. Do NOT inline the plan body in the task file.
       Do not move delivery status, cursor, or session journals into plan files
       (pi-job store owns those).
+      DX and agent experience share the same constructs: clear names and short contracts
+      help the next human and the next agent equally - write the plan for both.
+      Persist durable agreements with `pi-job add-decision` (and/or the grilled plan);
+      do not leave load-bearing agreements only in chat.
+      Token smell: if the plan needs a huge dump to be usable, shrink the slice or the
+      contract - do not compensate by loading more of the task store into context.
       Naming: beside the task file, directory `<task-stem>.plans/`, file
       `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
       -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
@@ -136,6 +142,8 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       If grilling surfaces a real gap, revise the plan FILE (not the
       task-file note), grill again, only mark grill-plan done once the plan survives
       - this is a loop, not a one-shot rubber stamp.
+      After grill survives, capture any durable choice that should outlive the session
+      with `pi-job add-decision` (date/note/source), not only in chat.
   Mark both done only once the plan has survived grilling; advance refuses to pass an
   incomplete step, so edit-code-style steps stay unreachable until both are done.
   Distinct from the setup slice's `grill` step (overall scope before implement slices
@@ -164,7 +172,9 @@ instruction_packets:
     The task record is machine-owned; do not open or edit the task store directly.
     Reads: pi-job --task {task_file} status | plan | show [--slice {slice_key}] | instruction [--current].
     Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
-    Why: direct inspection loads the whole record into context; hand-edits bypass validation and orchestration guards.
+    Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
+    Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
+    DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
   orchestrator: |-
     - Execute this step in the main orchestration session.
     - Do not skip required artifacts or validators from the task contract.

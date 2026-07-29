@@ -180,6 +180,11 @@ They appear in `instruction` and `plan` for orchestrator self-check.
   It does not spawn agents.
   The orchestrator chooses models and launches subagents.
 - Session todos should track the slice/step plan from `plan`, not a separate profile phase list.
+- Prefer small context: `status` / `show --slice` / `instruction` over loading the whole task file.
+  Token smell: if a step needs a huge dump, shrink the contract or the slice.
+- Sibling slice plans are succinct constraint-and-behaviour contracts (intent, behaviour, constraints, verification).
+  Persist durable agreements with `add-decision` (and/or the grilled plan), not only in chat.
+- Developer experience and agent experience share the same constructs: clear names, modular boundaries, and machine-readable contracts help both.
 
 ## How an agent should know about it
 

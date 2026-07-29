@@ -11,6 +11,7 @@ description: >-
 
 Prefer the CLI over opening the task store.
 Full-file reads burn tokens; hand-edits bypass validation and digest checks.
+Developer experience and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
 
 ## Cold start
 
@@ -49,6 +50,8 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
 Put slice plans in `<task-stem>.plans/<slice-key>.md`, not in endless notes.
 Those files are succinct constraint-and-behaviour contracts.
+Persist durable agreements with `add-decision` (and/or the grilled plan), not only in chat.
+Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice.
 Full wording lives in `plan_and_grill_guardrail` in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi source: `dot_local/share/pi-job-harness/profile.yaml`).
 `validate` / `status` warn on oversized notes (~2000 chars) and large task files (~100KB); they do not refuse `finish`.
 

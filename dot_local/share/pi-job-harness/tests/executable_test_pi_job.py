@@ -869,6 +869,9 @@ def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
         instruction,
         "Do not move delivery status, cursor, or session journals into plan files",
     )
+    assert_contains(instruction, "DX and agent experience share the same constructs")
+    assert_contains(instruction, "Persist durable agreements with `pi-job add-decision`")
+    assert_contains(instruction, "Token smell:")
     assert_not_contains(instruction, "approach, files/functions touched, key tradeoffs")
 
 
@@ -891,6 +894,7 @@ def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> N
             "Challenge behaviour, boundaries, must-not constraints, and verification",
         )
         assert_contains(instruction, "prose volume is not an acceptance criterion")
+        assert_contains(instruction, "capture any durable choice that should outlive the session")
 
 
 def test_profile_yaml_aliases_shared_guidance_strings() -> None:
@@ -914,6 +918,9 @@ def _assert_task_record_discipline_block(instruction: str) -> None:
     assert_contains(instruction, "Reads:")
     assert_contains(instruction, "Writes:")
     assert_contains(instruction, "Why:")
+    assert_contains(instruction, "token cost")
+    assert_contains(instruction, "Token smell:")
+    assert_contains(instruction, "DX and agent experience share the same constructs")
     assert_contains(instruction, "status")
     assert_contains(instruction, "plan")
     assert_contains(instruction, "show")
