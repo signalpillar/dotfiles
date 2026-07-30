@@ -634,6 +634,20 @@ def atomic_write_text(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def yaml_task_lock_path(task_path: Path) -> Path:
+    """Return the advisory lock path for a YAML task file.
+
+    Locks live under ``$XDG_CACHE_HOME/pi-job/locks`` (default ``~/.cache``),
+    keyed by a hash of the resolved task path, so task directories stay free of
+    sibling ``.*.yaml.lock`` sentinels. Resolve before hashing so two names for
+    the same file share one lock.
+    """
+
+    digest = hashlib.sha256(os.fsencode(task_path.resolve())).hexdigest()
+    cache_home = Path(os.environ["XDG_CACHE_HOME"]) if os.environ.get("XDG_CACHE_HOME") else Path.home() / ".cache"
+    return cache_home / "pi-job" / "locks" / f"{digest}.lock"
+
+
 def atomic_create_text(path: Path, content: str) -> None:
     """Publish a complete new file atomically without replacing an existing path."""
 
@@ -1473,7 +1487,7 @@ class YamlTaskStore:
                 self._lock_depth -= 1
             return
 
-        lock_path = self.path.with_name(f".{self.path.name}.lock")
+        lock_path = yaml_task_lock_path(self.path)
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with lock_path.open("a+", encoding="utf-8") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)

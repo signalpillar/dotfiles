@@ -510,7 +510,8 @@ Do not restate that contract here.
 `open_task_store()` selects the backend from that shape; no separate storage flag is needed.
 
 - **`YamlTaskStore`** (default) - a strictly validated, deterministically serialized YAML document.
-  Mutations hold a sibling advisory lock across load, validation, mutation, and atomic replacement.
+  Mutations hold an advisory lock across load, validation, mutation, and atomic replacement.
+  The lock file lives under `$XDG_CACHE_HOME/pi-job/locks/` (default `~/.cache`), keyed by a hash of the resolved task path, so task directories stay free of sibling `.*.yaml.lock` sentinels.
   Atomic replacement preserves the task file's existing permission mode.
 - **`CueTaskStore`** (deprecated) - a compatibility backend for existing CUE files.
   Reads and writes remain available, and each invocation prints migration guidance.

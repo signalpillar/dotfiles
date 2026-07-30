@@ -3979,6 +3979,54 @@ def test_yaml_mutations_serialize_concurrent_writers() -> None:
         assert notes == {f"decision-{index}" for index in range(24)}
 
 
+def test_yaml_task_lock_lives_under_xdg_cache_not_task_dir() -> None:
+    """Advisory lock files must not sit beside the task YAML in the project tree."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cache_home = tmp_path / "cache"
+        task_dir = tmp_path / "tasks"
+        task_dir.mkdir()
+        task_path = task_dir / "demo.yaml"
+        os.environ["XDG_CACHE_HOME"] = str(cache_home)
+        try:
+            expected_lock = module.yaml_task_lock_path(task_path)
+            assert expected_lock.is_relative_to(cache_home / "pi-job" / "locks")
+            store = module.YamlTaskStore(task_path)
+            store.replace(module.example_task_mapping(title="Cache lock"))
+            store.add_decision(date="2026-07-30", note="touch lock", source="lock-path-test")
+            assert expected_lock.is_file(), f"expected lock at {expected_lock}"
+            assert expected_lock.stat().st_size == 0
+            sibling = task_dir / f".{task_path.name}.lock"
+            if sibling.exists():
+                raise AssertionError(f"sibling lock must not be created: {sibling}")
+            assert list(task_dir.glob(".*.lock")) == []
+            assert list(task_dir.glob("*.lock")) == []
+        finally:
+            os.environ.pop("XDG_CACHE_HOME", None)
+
+
+def test_yaml_task_lock_path_resolves_aliases_to_same_inode_key() -> None:
+    """Different path names for the same file must share one lock key."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cache_home = tmp_path / "cache"
+        os.environ["XDG_CACHE_HOME"] = str(cache_home)
+        try:
+            real = tmp_path / "real" / "task.yaml"
+            real.parent.mkdir(parents=True)
+            real.write_text("title: x\n", encoding="utf-8")
+            alias_dir = tmp_path / "alias"
+            alias_dir.mkdir()
+            alias = alias_dir / "task.yaml"
+            alias.symlink_to(real)
+            assert module.yaml_task_lock_path(real) == module.yaml_task_lock_path(alias)
+            assert module.yaml_task_lock_path(real) == module.yaml_task_lock_path(real.parent / ".." / "real" / "task.yaml")
+        finally:
+            os.environ.pop("XDG_CACHE_HOME", None)
+
+
 def test_yaml_lifecycle_lock_preserves_first_executor() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
@@ -5277,6 +5325,8 @@ def main() -> None:
     test_persisted_models_document_every_field()
     test_yaml_task_store_round_trip_and_atomic_mutations()
     test_yaml_mutations_serialize_concurrent_writers()
+    test_yaml_task_lock_lives_under_xdg_cache_not_task_dir()
+    test_yaml_task_lock_path_resolves_aliases_to_same_inode_key()
     test_yaml_lifecycle_lock_preserves_first_executor()
     test_yaml_force_advance_cannot_overwrite_concurrent_finish()
     test_yaml_rejects_duplicate_and_unknown_fields()
