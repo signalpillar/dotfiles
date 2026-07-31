@@ -1,0 +1,35 @@
+/*
+ * Shared browser foundation for static prototypes.
+ *
+ * Keep this file deliberately small: cross-prototype page and form fixes
+ * belong here. Jelly UI rules live in prototype-jelly.css. Each prototype
+ * keeps its visual identity and layout rules inline.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-block-size: 100%;
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}

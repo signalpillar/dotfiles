@@ -1,0 +1,13 @@
+{
+  "name": "llm-lifecycle-timelines-tests",
+  "private": true,
+  "scripts": {
+    "fixtures": "tests/fetch-fixtures.sh",
+    "validate": "node tests/validate-model.mjs ../../prototypes/llm-lifecycle-timelines.html ../../prototypes/llm-lifecycle-timelines.yaml",
+    "test": "npm run validate && playwright test tests/timelines.spec.js --workers=1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "js-yaml": "4.1.0"
+  }
+}

@@ -1,0 +1,40 @@
+/*
+ * Shared Jelly UI foundation for static prototypes.
+ *
+ * Link after prototype-base.css. Keep colours, borders, and spacing in the
+ * prototype; this file only owns host behaviour, tab containment, and the
+ * generic :not(:defined) display fallbacks proven across prototypes.
+ */
+
+/* Jelly's theme host does not provide a page box of its own. */
+jelly-theme {
+  display: contents;
+}
+
+/* Intrinsic tab width must not widen the page on compact viewports. */
+jelly-tabs::part(tabs) {
+  max-inline-size: 100%;
+}
+
+/*
+ * Preserve usable light DOM when the component CDN is unavailable.
+ * Prototype-specific CSS still owns colours, borders, and spacing.
+ */
+jelly-card:not(:defined) {
+  display: block;
+}
+
+jelly-button:not(:defined),
+jelly-chip:not(:defined),
+jelly-badge:not(:defined) {
+  display: inline-block;
+}
+
+jelly-tabs:not(:defined) jelly-tab-panel:not([active]) {
+  display: none;
+}
+
+jelly-drawer:not(:defined):not([open]),
+jelly-dialog:not(:defined):not([open]) {
+  display: none;
+}

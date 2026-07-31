@@ -5,6 +5,8 @@ const path = require("node:path");
 
 const workspace = path.resolve(__dirname, "../../..");
 const htmlPath = path.join(workspace, "prototypes/gcse-science-f1-roadmap.html");
+const baseCssPath = path.join(workspace, "prototypes/prototype-base.css");
+const jellyCssPath = path.join(workspace, "prototypes/prototype-jelly.css");
 const resourceRoot = path.join(workspace, "prototypes/gcse-science-f1-roadmap");
 const fixtures = path.join(__dirname, "fixtures");
 const storageKey = "gcse-science-f1-roadmap-v1";
@@ -23,6 +25,16 @@ test.beforeAll(async () => {
     if (pathname === "/gcse-science-f1-roadmap.html") {
       response.writeHead(200, { "content-type": "text/html" });
       response.end(fs.readFileSync(htmlPath));
+      return;
+    }
+    if (pathname === "/prototype-base.css") {
+      response.writeHead(200, { "content-type": "text/css; charset=utf-8" });
+      response.end(fs.readFileSync(baseCssPath));
+      return;
+    }
+    if (pathname === "/prototype-jelly.css") {
+      response.writeHead(200, { "content-type": "text/css; charset=utf-8" });
+      response.end(fs.readFileSync(jellyCssPath));
       return;
     }
     if (pathname.startsWith("/gcse-science-f1-roadmap/")) {

@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Modern LLM Timelines</title>
+    <link rel="stylesheet" href="https://unpkg.com/open-props">
+    <link rel="stylesheet" href="prototype-base.css">
+    <link rel="stylesheet" href="prototype-jelly.css">
+    <script type="module" src="https://jelly-ui.com/package.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --page-bg: #f5f7fb;
+        --surface: #ffffff;
+        --surface-raised: #eef3f8;
+        --text: #172033;
+        --muted: #5c6b80;
+        --development: #087f5b;
+        --serving: #2f6fdb;
+        --accent: var(--development);
+        --line: color-mix(in srgb, var(--accent) 42%, #bdc7d5);
+        --border: #dce3ec;
+        --shadow-color: 220 20% 45%;
+        --shadow-strength: 5%;
+      }
+
+      body {
+        color: var(--text);
+        background:
+          radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 32rem),
+          var(--page-bg);
+      }
+
+      jelly-button:not(:defined) {
+        min-height: 2.625rem;
+        padding: var(--size-1) var(--size-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-3);
+        cursor: pointer;
+        font-size: var(--font-size-0);
+      }
+
+      .shell {
+        width: min(90rem, 100%);
+        margin: 0 auto;
+        padding: var(--size-4) var(--size-3) var(--size-8);
+      }
+
+      header {
+        display: grid;
+        gap: var(--size-2);
+        margin-block-end: var(--size-5);
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--accent);
+        font-size: var(--font-size-0);
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 18ch;
+        margin: 0;
+        font-size: clamp(2.3rem, 8vw, 5.8rem);
+        line-height: 0.94;
+        letter-spacing: -0.065em;
+      }
+
+      .purpose {
+        max-width: 65ch;
+        margin: 0;
+        color: var(--muted);
+        font-size: var(--font-size-2);
+        line-height: 1.55;
+      }
+
+      .timeline-switcher {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--size-2);
+        max-width: 42rem;
+        margin-block-end: var(--size-5);
+      }
+
+      .timeline-tab {
+        min-height: 2.75rem;
+        padding: var(--size-1) var(--size-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+        cursor: pointer;
+        font-size: var(--font-size-0);
+        text-align: left;
+      }
+
+      .timeline-tab[aria-selected="true"] {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+
+      .timeline-tab strong,
+      .timeline-tab span {
+        display: block;
+      }
+
+      .timeline-tab span {
+        display: none;
+        margin-block-start: var(--size-000);
+        color: var(--muted);
+        font-size: var(--font-size-0);
+      }
+
+      .status {
+        padding: var(--size-4);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-4);
+        background: var(--surface);
+      }
+
+      .status[hidden],
+      #app[hidden] {
+        display: none;
+      }
+
+      .file-picker {
+        display: inline-flex;
+        min-height: 2.625rem;
+        align-items: center;
+        margin-block-start: var(--size-3);
+        padding: var(--size-1) var(--size-2);
+        border-radius: var(--radius-3);
+        background: var(--accent);
+        color: #ffffff;
+        cursor: pointer;
+        font-size: var(--font-size-0);
+        font-weight: 800;
+      }
+
+      .file-picker input {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        opacity: 0;
+      }
+
+      .timeline-heading {
+        display: grid;
+        gap: var(--size-1);
+        margin-block-end: var(--size-4);
+      }
+
+      .timeline-heading h2,
+      .detail h2,
+      .overlay-drawer h2 {
+        margin: 0;
+        letter-spacing: -0.035em;
+      }
+
+      .timeline-heading p,
+      .detail-summary,
+      .overlay-summary {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .timeline-scroll {
+        position: relative;
+        min-width: 0;
+        padding: var(--size-2) 0;
+      }
+
+      .timeline-track {
+        position: relative;
+        display: grid;
+        gap: var(--size-3);
+        min-width: 0;
+      }
+
+      .timeline-track::before {
+        position: absolute;
+        z-index: 0;
+        top: 1.15rem;
+        bottom: 1.15rem;
+        left: 1.15rem;
+        width: 3px;
+        border-radius: var(--radius-round);
+        background: linear-gradient(180deg, var(--accent), var(--line));
+        content: "";
+      }
+
+      .stage-row {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: var(--size-2);
+        min-width: 0;
+      }
+
+      .stage-detail-slot:empty {
+        display: none;
+      }
+
+      .detail-pane:not(:has(#detail)) {
+        display: none;
+      }
+
+      .stage-button {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 2.35rem minmax(0, 1fr);
+        align-items: start;
+        gap: var(--size-3);
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .stage-marker {
+        display: grid;
+        width: 2.35rem;
+        height: 2.35rem;
+        place-items: center;
+        border: 3px solid var(--page-bg);
+        border-radius: var(--radius-round);
+        background: var(--line);
+        color: #ffffff;
+        font-weight: 900;
+        box-shadow: 0 0 0 2px var(--line);
+      }
+
+      .stage-card {
+        height: 100%;
+        min-height: 0;
+        padding: var(--size-3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-4);
+        background: color-mix(in srgb, var(--surface) 92%, transparent);
+        box-shadow: var(--shadow-3);
+        transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+      }
+
+      .stage-button:hover .stage-card,
+      .stage-button:focus-visible .stage-card,
+      .stage-button[aria-current="step"] .stage-card {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+        transform: translateX(3px);
+      }
+
+      .stage-button:focus-visible {
+        outline: none;
+      }
+
+      .stage-button[aria-current="step"] .stage-marker {
+        background: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent), 0 0 1.5rem color-mix(in srgb, var(--accent) 55%, transparent);
+      }
+
+      .stage-card h3 {
+        margin: 0 0 var(--size-2);
+        font-size: var(--font-size-2);
+        line-height: 1.2;
+      }
+
+      .stage-card p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .stage-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-1);
+        margin-block-start: var(--size-3);
+      }
+
+      .detail {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--size-4);
+        margin: 0;
+        padding: var(--size-4);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-5);
+        background: var(--surface);
+        box-shadow: var(--shadow-4);
+      }
+
+      .stage-detail-slot .detail {
+        margin-inline-start: calc(2.35rem + var(--size-3));
+      }
+
+      .detail-topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--size-3);
+      }
+
+      .step-count {
+        color: var(--accent);
+        font-size: var(--font-size-0);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .nav-actions {
+        display: flex;
+        gap: var(--size-1);
+      }
+
+      .detail-grid {
+        display: grid;
+        gap: var(--size-4);
+      }
+
+      .detail h3 {
+        margin: 0 0 var(--size-2);
+        font-size: var(--font-size-1);
+      }
+
+      .detail p {
+        line-height: 1.55;
+      }
+
+      .when {
+        margin: var(--size-3) 0 0;
+        padding-inline-start: var(--size-3);
+        border-inline-start: 3px solid var(--accent);
+        color: var(--muted);
+      }
+
+      .artifact-list {
+        margin: 0;
+        padding-inline-start: var(--size-4);
+        color: var(--muted);
+      }
+
+      .artifact-list li + li {
+        margin-block-start: var(--size-2);
+      }
+
+      .overlay-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-1);
+      }
+
+      .overlay-button {
+        min-height: 2.5rem;
+        padding: var(--size-1) var(--size-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-round);
+        background: color-mix(in srgb, var(--accent) 8%, var(--surface-raised));
+        cursor: pointer;
+        font-size: var(--font-size-0);
+      }
+
+      .overlay-button:hover,
+      .overlay-button:focus-visible {
+        border-color: var(--accent);
+        outline: none;
+      }
+
+      details.note {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-3);
+        background: var(--surface-raised);
+      }
+
+      details.note + details.note {
+        margin-block-start: var(--size-2);
+      }
+
+      details.note summary {
+        padding: var(--size-2);
+        cursor: pointer;
+        font-size: var(--font-size-0);
+        font-weight: 750;
+      }
+
+      .note-body {
+        padding: 0 var(--size-3) var(--size-3);
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .note-body p {
+        margin: 0;
+      }
+
+      .note-source {
+        margin-block-start: var(--size-2) !important;
+        color: var(--text);
+        font-size: var(--font-size-0);
+      }
+
+      .empty {
+        margin: 0;
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      jelly-drawer:not(:defined) {
+        display: none;
+        position: fixed;
+        inset: auto 0 0;
+        z-index: 40;
+        max-height: min(82dvh, 40rem);
+        padding: var(--size-4);
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-5) var(--radius-5) 0 0;
+        background: var(--surface);
+        box-shadow: var(--shadow-6);
+      }
+
+      jelly-drawer:not(:defined)[open] {
+        display: block;
+      }
+
+      .overlay-drawer {
+        display: grid;
+        gap: var(--size-4);
+        padding-block-end: var(--size-3);
+        padding-inline-end: var(--size-5);
+      }
+
+      .drawer-head {
+        display: grid;
+        gap: var(--size-1);
+        padding-inline-end: var(--size-4);
+      }
+
+      .drawer-actions {
+        display: grid;
+        gap: var(--size-2);
+      }
+
+      .drawer-actions jelly-button {
+        min-height: 2.625rem;
+      }
+
+      .applies-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-1);
+      }
+
+      @media (min-width: 48rem) {
+        .timeline-tab span {
+          display: block;
+        }
+
+        .shell {
+          padding: var(--size-7) var(--size-5) var(--size-8);
+        }
+
+        header {
+          grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+          align-items: end;
+        }
+
+        .purpose {
+          justify-self: end;
+        }
+
+        .timeline-layout {
+          display: grid;
+          grid-template-columns: minmax(20rem, 0.8fr) minmax(28rem, 1.2fr);
+          align-items: start;
+          gap: var(--size-5);
+        }
+
+        .detail-pane {
+          display: block;
+          min-width: 0;
+        }
+
+        .stage-detail-slot {
+          display: none !important;
+        }
+
+        .detail {
+          grid-template-columns: minmax(0, 1.25fr) minmax(17rem, 0.75fr);
+          position: sticky;
+          top: var(--size-4);
+        }
+
+        .detail-topline {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script type="application/json" id="app-manifest">
+      {
+        "dataFile": "llm-lifecycle-timelines.yaml",
+        "initialTimeline": "development",
+        "timelineOrder": ["development", "serving"],
+        "labels": {
+          "eyebrow": "Two connected journeys",
+          "loading": "Loading timeline model...",
+          "loadError": "The browser could not read the neighbouring YAML file directly.",
+          "chooseFile": "Open timelines YAML",
+          "chooseHint": "Choose llm-lifecycle-timelines.yaml from this folder. On GitHub Pages it loads automatically.",
+          "stage": "Stage",
+          "previous": "Previous",
+          "next": "Next",
+          "when": "When it happens",
+          "artifacts": "Key artifacts",
+          "overlays": "Cross-cutting work",
+          "notes": "Notes",
+          "noNotes": "No notes attached yet.",
+          "viaOverlay": "Via {overlay}",
+          "appliesTo": "Applies to",
+          "close": "Close",
+          "note": "note",
+          "notesPlural": "notes"
+        },
+        "theme": {
+          "development": "#087f5b",
+          "serving": "#2f6fdb"
+        },
+        "drawer": {
+          "side": "bottom"
+        },
+        "layout": {
+          "wideMinWidth": 768,
+          "compactDetail": "inline-expand"
+        }
+      }
+    </script>
+
+    <jelly-theme mode="light">
+      <main class="shell">
+        <header>
+          <div>
+            <p class="eyebrow" id="eyebrow"></p>
+            <h1 id="page-title"></h1>
+          </div>
+          <p class="purpose" id="page-purpose"></p>
+        </header>
+
+        <section class="status" id="status" aria-live="polite"></section>
+
+        <div id="app" hidden>
+          <nav class="timeline-switcher" id="timeline-switcher" aria-label="Timelines"></nav>
+          <section aria-labelledby="timeline-title">
+            <div class="timeline-heading">
+              <h2 id="timeline-title"></h2>
+              <p id="timeline-description"></p>
+            </div>
+            <div class="timeline-layout">
+              <div class="timeline-scroll" id="timeline-scroll" tabindex="0" aria-label="Timeline stages">
+                <div class="timeline-track" id="timeline-track"></div>
+              </div>
+              <div class="detail-pane" id="detail-pane">
+                <article class="detail" id="detail" aria-live="polite"></article>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </jelly-theme>
+
+    <jelly-drawer id="overlay-drawer" side="bottom">
+      <div class="overlay-drawer" id="overlay-drawer-content"></div>
+    </jelly-drawer>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const config = JSON.parse(document.getElementById("app-manifest").textContent);
+        const labels = config.labels;
+        const state = {
+          model: null,
+          timeline: config.initialTimeline,
+          stageIndex: 0
+        };
+
+        const elements = {
+          eyebrow: document.getElementById("eyebrow"),
+          pageTitle: document.getElementById("page-title"),
+          pagePurpose: document.getElementById("page-purpose"),
+          status: document.getElementById("status"),
+          app: document.getElementById("app"),
+          switcher: document.getElementById("timeline-switcher"),
+          timelineTitle: document.getElementById("timeline-title"),
+          timelineDescription: document.getElementById("timeline-description"),
+          timelineScroll: document.getElementById("timeline-scroll"),
+          timelineTrack: document.getElementById("timeline-track"),
+          detailPane: document.getElementById("detail-pane"),
+          detail: document.getElementById("detail"),
+          drawer: document.getElementById("overlay-drawer"),
+          drawerContent: document.getElementById("overlay-drawer-content")
+        };
+
+        const wideQuery = window.matchMedia(`(min-width: ${config.layout.wideMinWidth}px)`);
+
+        const text = (value = "") => document.createTextNode(String(value));
+
+        function el(tag, options = {}, children = []) {
+          const node = document.createElement(tag);
+          Object.entries(options).forEach(([key, value]) => {
+            if (key === "className") node.className = value;
+            else if (key === "textContent") node.textContent = value;
+            else if (key.startsWith("aria-")) node.setAttribute(key, value);
+            else if (key in node) node[key] = value;
+            else node.setAttribute(key, value);
+          });
+          children.flat().filter(Boolean).forEach((child) => {
+            node.append(child instanceof Node ? child : text(child));
+          });
+          return node;
+        }
+
+        function currentStages() {
+          return state.model[state.timeline].stages;
+        }
+
+        function overlayById(id) {
+          return state.model.overlays.find((overlay) => overlay.id === id);
+        }
+
+        function fill(template, values) {
+          return template.replace(/\{(\w+)\}/g, (match, key) => (key in values ? values[key] : match));
+        }
+
+        function notesLabel(count) {
+          return `${count} ${count === 1 ? labels.note : labels.notesPlural}`;
+        }
+
+        function validateModel(model) {
+          if (!model || !model.meta || !Array.isArray(model.overlays)) {
+            throw new Error("Missing meta or overlays.");
+          }
+          config.timelineOrder.forEach((timelineId) => {
+            if (!model[timelineId] || !Array.isArray(model[timelineId].stages)) {
+              throw new Error(`Missing timeline: ${timelineId}.`);
+            }
+            model[timelineId].stages.forEach((stage) => {
+              if (!stage.id || !stage.name || !Array.isArray(stage.related_overlays) || !Array.isArray(stage.notes)) {
+                throw new Error(`Invalid stage in ${timelineId}.`);
+              }
+              stage.related_overlays.forEach((overlayId) => {
+                if (!model.overlays.some((overlay) => overlay.id === overlayId)) {
+                  throw new Error(`Unknown overlay: ${overlayId}.`);
+                }
+              });
+            });
+          });
+          return model;
+        }
+
+        function setTheme() {
+          document.documentElement.style.setProperty("--accent", config.theme[state.timeline]);
+        }
+
+        function readHash() {
+          const [timelineId, stageId] = location.hash.slice(1).split("/");
+          if (!config.timelineOrder.includes(timelineId) || !state.model[timelineId]) return;
+          state.timeline = timelineId;
+          const index = state.model[timelineId].stages.findIndex((stage) => stage.id === stageId);
+          state.stageIndex = index >= 0 ? index : 0;
+        }
+
+        function writeHash() {
+          const stage = currentStages()[state.stageIndex];
+          history.replaceState(null, "", `#${state.timeline}/${stage.id}`);
+        }
+
+        function renderTabs() {
+          elements.switcher.replaceChildren();
+          config.timelineOrder.forEach((timelineId) => {
+            const timeline = state.model[timelineId];
+            const button = el("button", {
+              className: "timeline-tab",
+              type: "button",
+              role: "tab",
+              "aria-selected": String(timelineId === state.timeline)
+            }, [
+              el("strong", { textContent: timeline.title }),
+              el("span", { textContent: `${timeline.stages.length} ${labels.stage.toLowerCase()}s` })
+            ]);
+            button.addEventListener("click", () => selectTimeline(timelineId));
+            elements.switcher.append(button);
+          });
+        }
+
+        function stageNoteEntries(stage) {
+          const direct = (stage.notes || []).map((note) => ({ note }));
+          const inherited = stage.related_overlays.flatMap((id) => {
+            const overlay = overlayById(id);
+            return (overlay.notes || []).map((note) => ({ note, via: overlay.name }));
+          });
+          return [...direct, ...inherited];
+        }
+
+        function renderStageCard(stage, index) {
+          const noteCount = stageNoteEntries(stage).length;
+          const metadata = [];
+
+          if (stage.related_overlays.length) {
+            metadata.push(el("jelly-badge", { size: "small", textContent: `${stage.related_overlays.length} ${labels.overlays.toLowerCase()}` }));
+          }
+          if (noteCount) {
+            metadata.push(el("jelly-badge", { size: "small", textContent: notesLabel(noteCount) }));
+          }
+
+          const button = el("button", {
+            className: "stage-button",
+            type: "button",
+            "aria-current": index === state.stageIndex ? "step" : "false",
+            "aria-label": `${labels.stage} ${index + 1}: ${stage.name}`
+          }, [
+            el("span", { className: "stage-marker", textContent: index + 1 }),
+            el("div", { className: "stage-card" }, [
+              el("h3", { textContent: stage.name }),
+              el("p", { textContent: stage.summary }),
+              metadata.length ? el("div", { className: "stage-meta" }, metadata) : null
+            ])
+          ]);
+          button.addEventListener("click", () => selectStage(index));
+          return el("div", {
+            className: "stage-row",
+            "data-stage-index": String(index),
+            "data-stage-id": stage.id
+          }, [
+            button,
+            el("div", { className: "stage-detail-slot" })
+          ]);
+        }
+
+        function placeDetail() {
+          const selected = elements.timelineTrack.querySelector(`[data-stage-index="${state.stageIndex}"]`);
+          const inlineSlot = selected?.querySelector(".stage-detail-slot");
+          if (wideQuery.matches || !inlineSlot) {
+            elements.detailPane.append(elements.detail);
+            return;
+          }
+          inlineSlot.append(elements.detail);
+        }
+
+        function renderNotes(entries) {
+          if (!entries || !entries.length) return el("p", { className: "empty", textContent: labels.noNotes });
+          const wrapper = el("div");
+          entries.forEach(({ note, via }, index) => {
+            const titleParts = [
+              via ? fill(labels.viaOverlay, { overlay: via }) : null,
+              note.date,
+              note.source
+            ].filter(Boolean);
+            const detail = el("details", { className: "note" }, [
+              el("summary", { textContent: titleParts.join(" · ") || `${labels.notes} ${index + 1}` }),
+              el("div", { className: "note-body" }, [
+                el("p", { textContent: note.text }),
+                note.source ? el("p", { className: "note-source", textContent: note.source }) : null
+              ])
+            ]);
+            wrapper.append(detail);
+          });
+          return wrapper;
+        }
+
+        function renderOverlayButtons(stage) {
+          if (!stage.related_overlays.length) {
+            return el("p", { className: "empty", textContent: labels.noNotes });
+          }
+          const list = el("div", { className: "overlay-list" });
+          stage.related_overlays.forEach((id) => {
+            const overlay = overlayById(id);
+            const count = (overlay.notes || []).length;
+            const button = el("button", {
+              className: "overlay-button",
+              type: "button",
+              textContent: count ? `${overlay.name} · ${notesLabel(count)}` : overlay.name
+            });
+            button.addEventListener("click", () => openOverlay(overlay));
+            list.append(button);
+          });
+          return list;
+        }
+
+        function renderDetail() {
+          const stages = currentStages();
+          const stage = stages[state.stageIndex];
+          const firstColumn = el("div", { className: "detail-grid" }, [
+            el("div", {}, [
+              el("h2", { textContent: stage.name }),
+              el("p", { className: "detail-summary", textContent: stage.summary }),
+              el("p", { className: "when" }, [
+                el("strong", { textContent: `${labels.when}: ` }),
+                stage.happens_when
+              ])
+            ]),
+            el("section", {}, [
+              el("h3", { textContent: labels.artifacts }),
+              el("ul", { className: "artifact-list" },
+                (stage.key_artifacts || []).map((artifact) => el("li", { textContent: artifact }))
+              )
+            ])
+          ]);
+
+          const secondColumn = el("div", { className: "detail-grid" }, [
+            el("section", {}, [
+              el("h3", { textContent: labels.overlays }),
+              renderOverlayButtons(stage)
+            ]),
+            el("section", {}, [
+              el("h3", { textContent: labels.notes }),
+              renderNotes(stageNoteEntries(stage))
+            ])
+          ]);
+
+          const previous = el("jelly-button", { size: "small", textContent: labels.previous });
+          previous.toggleAttribute("disabled", state.stageIndex === 0);
+          previous.addEventListener("click", () => selectStage(state.stageIndex - 1));
+          const next = el("jelly-button", { size: "small", textContent: labels.next });
+          next.toggleAttribute("disabled", state.stageIndex === stages.length - 1);
+          next.addEventListener("click", () => selectStage(state.stageIndex + 1));
+
+          elements.detail.replaceChildren(
+            el("div", { className: "detail-topline" }, [
+              el("span", {
+                className: "step-count",
+                textContent: `${labels.stage} ${state.stageIndex + 1} / ${stages.length}`
+              }),
+              el("div", { className: "nav-actions" }, [previous, next])
+            ]),
+            firstColumn,
+            secondColumn
+          );
+        }
+
+        function renderTimeline(options = {}) {
+          const timeline = state.model[state.timeline];
+          setTheme();
+          renderTabs();
+          elements.timelineTitle.textContent = timeline.title;
+          elements.timelineDescription.textContent = timeline.description;
+          elements.timelineTrack.replaceChildren(
+            ...timeline.stages.map((stage, index) => renderStageCard(stage, index))
+          );
+          renderDetail();
+          placeDetail();
+          writeHash();
+          if (options.focusStage) {
+            requestAnimationFrame(() => {
+              const selected = elements.timelineTrack.querySelector(`[data-stage-index="${state.stageIndex}"]`);
+              const button = selected?.querySelector(".stage-button");
+              selected?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+              button?.focus({ preventScroll: true });
+            });
+          }
+        }
+
+        function selectTimeline(timelineId) {
+          if (timelineId === state.timeline) return;
+          state.timeline = timelineId;
+          state.stageIndex = 0;
+          renderTimeline({ focusStage: true });
+        }
+
+        function selectStage(index) {
+          const lastIndex = currentStages().length - 1;
+          state.stageIndex = Math.max(0, Math.min(index, lastIndex));
+          renderTimeline({ focusStage: true });
+        }
+
+        // Jelly animates the close and only drops the open attribute when it finishes,
+        // so driving the attribute ourselves would skip its inert and scroll-lock teardown.
+        function setDrawerOpen(open) {
+          if (customElements.get("jelly-drawer")) {
+            elements.drawer.open = open;
+            return;
+          }
+          elements.drawer.toggleAttribute("open", open);
+        }
+
+        function openOverlay(overlay) {
+          const close = el("jelly-button", { size: "small", textContent: labels.close });
+          close.addEventListener("click", () => setDrawerOpen(false));
+          elements.drawer.setAttribute("side", config.drawer.side);
+          elements.drawer.setAttribute("label", overlay.name);
+          elements.drawerContent.replaceChildren(
+            el("div", { className: "drawer-head" }, [
+              el("p", { className: "eyebrow", textContent: labels.overlays }),
+              el("h2", { textContent: overlay.name })
+            ]),
+            el("p", { className: "overlay-summary", textContent: overlay.summary }),
+            el("section", {}, [
+              el("h3", { textContent: labels.appliesTo }),
+              el("div", { className: "applies-list" },
+                (overlay.applies_to || []).map((item) => el("jelly-chip", { size: "small", textContent: item }))
+              )
+            ]),
+            el("section", {}, [
+              el("h3", { textContent: labels.notes }),
+              renderNotes((overlay.notes || []).map((note) => ({ note })))
+            ]),
+            el("div", { className: "drawer-actions" }, [close])
+          );
+          setDrawerOpen(true);
+        }
+
+        function showFilePicker(error) {
+          elements.status.replaceChildren(
+            el("strong", { textContent: labels.loadError }),
+            el("p", { textContent: labels.chooseHint }),
+            el("label", { className: "file-picker" }, [
+              labels.chooseFile,
+              el("input", { type: "file", accept: ".yaml,.yml,text/yaml" })
+            ]),
+            error ? el("p", { className: "empty", textContent: error.message }) : null
+          );
+          const input = elements.status.querySelector("input");
+          input.addEventListener("change", async () => {
+            const [file] = input.files;
+            if (!file) return;
+            try {
+              initialise(window.jsyaml.load(await file.text()));
+            } catch (loadError) {
+              showFilePicker(loadError);
+            }
+          });
+        }
+
+        function initialise(rawModel) {
+          state.model = validateModel(rawModel);
+          readHash();
+          elements.eyebrow.textContent = labels.eyebrow;
+          elements.pageTitle.textContent = state.model.meta.title;
+          elements.pagePurpose.textContent = state.model.meta.purpose;
+          elements.status.hidden = true;
+          elements.app.hidden = false;
+          renderTimeline();
+        }
+
+        async function load() {
+          elements.status.textContent = labels.loading;
+          try {
+            if (!window.jsyaml) throw new Error("YAML parser did not load.");
+            const response = await fetch(config.dataFile);
+            if (!response.ok) throw new Error(`YAML request failed (${response.status}).`);
+            initialise(window.jsyaml.load(await response.text()));
+          } catch (error) {
+            showFilePicker(error);
+          }
+        }
+
+        elements.timelineScroll.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowUp") selectStage(state.stageIndex - 1);
+          if (event.key === "ArrowDown") selectStage(state.stageIndex + 1);
+        });
+
+        const onWideChange = () => {
+          if (!state.model) return;
+          placeDetail();
+        };
+        if (typeof wideQuery.addEventListener === "function") {
+          wideQuery.addEventListener("change", onWideChange);
+        } else {
+          wideQuery.addListener(onWideChange);
+        }
+
+        window.addEventListener("hashchange", () => {
+          if (!state.model) return;
+          readHash();
+          renderTimeline({ focusStage: true });
+        });
+
+        window.addEventListener("load", load);
+      })();
+    </script>
+  </body>
+</html>

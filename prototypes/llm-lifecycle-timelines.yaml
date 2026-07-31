@@ -1,0 +1,359 @@
+# Educational model: modern LLM development vs serving.
+# Add notes under any stage (or under overlays) to pin real-world snippets
+# to a place on the timeline.
+#
+# Schema (per stage):
+#   id: stable slug
+#   name: human label
+#   summary: one-line what happens
+#   happens_when: rough order / dependency cue
+#   key_artifacts: things produced or consumed
+#   related_overlays: ids of cross-cutting concerns that apply here
+#   notes: list of { date?, source?, text }
+#
+# Schema (per overlay):
+#   id, name, summary, applies_to: [stage ids or "all"], notes: [...]
+
+meta:
+  title: Modern LLM timelines
+  purpose: >
+    Map development/training stages and inference/serving stages so
+    industry snippets (kernels, forward pass, RLHF, etc.) have a home.
+  version: 1
+  conventions:
+    - Prefer adding a note on an existing stage/overlay over inventing a new stage.
+    - Use overlays for work that spans many stages (kernels, quantization, eval).
+    - Dates on notes are optional; sources are encouraged.
+
+# ---------------------------------------------------------------------------
+# Timeline A - how a modern frontier model is built
+# ---------------------------------------------------------------------------
+development:
+  title: LLM development / training
+  description: >
+    From data and architecture through pretraining, post-training alignment,
+    eval, and the checkpoint that will be served.
+  stages:
+    - id: problem_and_spec
+      name: Problem framing & model spec
+      summary: Decide capability targets, context length, modalities, safety bar, cost envelope.
+      happens_when: before data or architecture freezes
+      key_artifacts:
+        - model card draft / capability goals
+        - eval suite requirements
+        - latency/cost targets for serving
+      related_overlays: [eval_harness, safety_redteam]
+      notes: []
+
+    - id: data_pipeline
+      name: Data collection, filtering & mixture
+      summary: Gather, dedupe, filter, license-check, and mix corpora (web, code, books, domain).
+      happens_when: continuous; freezes matter for a given training run
+      key_artifacts:
+        - filtered datasets / mixture recipes
+        - data quality reports
+        - synthetic data pipelines (optional)
+      related_overlays: [eval_harness]
+      notes: []
+
+    - id: tokenizer_and_architecture
+      name: Tokenizer & architecture design
+      summary: Vocab/tokenizer; transformer (or variant) shape - layers, width, MoE, attention.
+      happens_when: before large-scale pretraining
+      key_artifacts:
+        - tokenizer model
+        - architecture config / FLOPs budget
+      related_overlays: [kernel_compute, systems_parallelism]
+      notes: []
+
+    - id: pretraining
+      name: Pretraining (next-token prediction at scale)
+      summary: Train on the mixture to learn general representations; dominant compute spend.
+      happens_when: after architecture + data mixture are set
+      key_artifacts:
+        - base / foundation checkpoints
+        - training logs (loss, throughput, MFU)
+      related_overlays: [systems_parallelism, kernel_compute, checkpointing]
+      notes: []
+
+    - id: midtraining
+      name: Mid-training / continued pretraining
+      summary: Optional domain or capability push (long context, code, math) on the base model.
+      happens_when: after base pretraining; before or interleaved with SFT
+      key_artifacts:
+        - midtrained checkpoints
+        - domain mixture recipes
+      related_overlays: [systems_parallelism, kernel_compute, eval_harness]
+      notes: []
+
+    - id: sft
+      name: Supervised fine-tuning (SFT)
+      summary: Teach instruction-following and formats via curated (prompt, response) pairs.
+      happens_when: after a capable base/midtrained checkpoint
+      key_artifacts:
+        - SFT datasets
+        - instruct checkpoint
+      related_overlays: [eval_harness, safety_redteam]
+      notes: []
+
+    - id: preference_and_rl
+      name: Preference optimization & RL
+      summary: Align to preferences/rewards (RLHF, RLAIF, DPO/IPO, GRPO, process rewards, etc.).
+      happens_when: after SFT (typical); may iterate with eval
+      key_artifacts:
+        - preference / reward data
+        - reward model or verifier (if used)
+        - aligned checkpoint
+      related_overlays: [eval_harness, safety_redteam]
+      notes: []
+
+    - id: distillation_compression
+      name: Distillation & training-time compression
+      summary: Optional student models, speculative-draft models, or quantization-aware training.
+      happens_when: often late; can feed serving efficiency
+      key_artifacts:
+        - distilled / draft models
+        - QAT checkpoints
+      related_overlays: [quantization, speculative_decoding]
+      notes: []
+
+    - id: candidate_selection
+      name: Eval gates & candidate selection
+      summary: Pick the checkpoint that meets quality, safety, and cost bars for release.
+      happens_when: before production serve cutover
+      key_artifacts:
+        - eval scorecards
+        - release candidate weights
+      related_overlays: [eval_harness, safety_redteam]
+      notes: []
+
+# ---------------------------------------------------------------------------
+# Timeline B - how a modern LLM request is served (inference)
+# ---------------------------------------------------------------------------
+serving:
+  title: LLM serving / inference
+  description: >
+    Path of one (or a batch of) requests from API to tokens out, plus the
+    systems work that makes GPUs busy and cheap.
+  stages:
+    - id: ingress
+      name: Ingress & routing
+      summary: Auth, rate limits, model/version routing, priority, multi-tenant isolation.
+      happens_when: every request
+      key_artifacts:
+        - request metadata
+        - chosen model replica / pool
+      related_overlays: [observability, autoscaling]
+      notes: []
+
+    - id: preprocess
+      name: Preprocess & tokenize
+      summary: Apply chat template, tools schema, tokenize prompt into token ids.
+      happens_when: after ingress; before GPU work
+      key_artifacts:
+        - token ids
+        - multimodal embeddings (if any)
+      related_overlays: []
+      notes: []
+
+    - id: schedule
+      name: Batching & scheduling
+      summary: Continuous batching, paged attention slots, prefill vs decode priority.
+      happens_when: before/alongside GPU execution
+      key_artifacts:
+        - scheduled microbatches
+        - KV-cache slot assignments
+      related_overlays: [kv_cache, disaggregation, observability]
+      notes: []
+
+    - id: prefill
+      name: Prefill (prompt forward pass)
+      summary: One (or chunked) forward pass over the full prompt; build KV cache.
+      happens_when: once per prompt (or per chunk); compute-heavy for long context
+      key_artifacts:
+        - KV cache for prompt tokens
+        - first-token logits (TTFT path)
+      related_overlays: [kernel_compute, kv_cache, quantization, disaggregation]
+      notes: []
+
+    - id: decode
+      name: Decode (autoregressive generation)
+      summary: Repeated forward passes for next-token; usually memory-bandwidth bound.
+      happens_when: until stop / max tokens / tool call
+      key_artifacts:
+        - growing KV cache
+        - token stream
+      related_overlays:
+        - kernel_compute
+        - kv_cache
+        - quantization
+        - speculative_decoding
+        - disaggregation
+      notes: []
+
+    - id: sample
+      name: Logits processing & sampling
+      summary: Temperature, top-p/k, penalties, constrained decoding, stop sequences.
+      happens_when: each decode step (and sometimes after speculative verify)
+      key_artifacts:
+        - chosen next token id(s)
+      related_overlays: [speculative_decoding]
+      notes: []
+
+    - id: postprocess
+      name: Detokenize & stream response
+      summary: Decode tokens to text/bytes; stream SSE/WebSocket; tool-call parse.
+      happens_when: as tokens arrive
+      key_artifacts:
+        - streamed output
+        - usage/billing counters
+      related_overlays: [observability]
+      notes: []
+
+# ---------------------------------------------------------------------------
+# Overlays - cross-cutting work that is easy to mis-place on a linear timeline
+# ---------------------------------------------------------------------------
+overlays:
+  - id: kernel_compute
+    name: Kernels & forward-pass compute efficiency
+    summary: >
+      Low-level GPU code (CUDA/Triton/Gluon/etc.) that implements matmuls,
+      attention, norms, and fused ops. Wins come from less memory movement,
+      better layouts, less sync, more parallelism - keeping GPUs busy.
+    applies_to:
+      - development.pretraining
+      - development.midtraining
+      - development.preference_and_rl
+      - serving.prefill
+      - serving.decode
+    notes:
+      - date: "2026-07"
+        source: OpenAI GPT-5.6 launch notes (serving cost / Sol + Codex kernels)
+        text: >
+          GPT-5.6 Sol optimized the model's forward pass and rewrote production
+          kernels (Triton/Gluon) to cut idle GPU time from excess memory movement,
+          synchronization, and poor data layouts. Reported ~20% lower end-to-end
+          serving cost. Primary home: serving.prefill + serving.decode via this
+          overlay; training steps also benefit from the same kernel stack.
+        pins:
+          - serving.prefill
+          - serving.decode
+          - overlays.kernel_compute
+
+  - id: systems_parallelism
+    name: Distributed training parallelism
+    summary: Data/tensor/pipeline/expert parallel; collective communication; MFU.
+    applies_to:
+      - development.pretraining
+      - development.midtraining
+      - development.preference_and_rl
+    notes: []
+
+  - id: checkpointing
+    name: Checkpointing & fault tolerance
+    summary: Save/resume large runs; sharded checkpoints; eval snapshots.
+    applies_to:
+      - development.pretraining
+      - development.midtraining
+      - development.preference_and_rl
+    notes: []
+
+  - id: kv_cache
+    name: KV cache & paged attention
+    summary: Store past keys/values so decode does not recompute the prompt each step.
+    applies_to:
+      - serving.schedule
+      - serving.prefill
+      - serving.decode
+    notes: []
+
+  - id: quantization
+    name: Quantization (weights / activations / KV)
+    summary: Lower precision to cut memory and bandwidth; may trade quality.
+    applies_to:
+      - development.distillation_compression
+      - serving.prefill
+      - serving.decode
+    notes: []
+
+  - id: speculative_decoding
+    name: Speculative decoding
+    summary: Draft model proposes tokens; target model verifies in parallel - fewer target forwards.
+    applies_to:
+      - serving.decode
+      - serving.sample
+      - development.distillation_compression
+    notes: []
+
+  - id: disaggregation
+    name: Prefill/decode disaggregation
+    summary: Run prefill and decode on different pools tuned to each phase's bottleneck.
+    applies_to:
+      - serving.schedule
+      - serving.prefill
+      - serving.decode
+    notes: []
+
+  - id: eval_harness
+    name: Evaluation harness
+    summary: Capability, regression, and online eval - gates training and watches serving.
+    applies_to:
+      - development.problem_and_spec
+      - development.candidate_selection
+      - serving.postprocess
+    notes: []
+
+  - id: safety_redteam
+    name: Safety & red-teaming
+    summary: Policy, refusal behavior, adversarial probes across train and serve.
+    applies_to:
+      - development.sft
+      - development.preference_and_rl
+      - development.candidate_selection
+      - serving.ingress
+    notes: []
+
+  - id: observability
+    name: Serving observability
+    summary: TTFT, TPOT, throughput, cache hit rate, GPU util, cost per 1M tokens.
+    applies_to:
+      - serving.ingress
+      - serving.schedule
+      - serving.postprocess
+    notes: []
+
+  - id: autoscaling
+    name: Capacity & autoscaling
+    summary: Replica counts, fractional GPUs, traffic shaping under load.
+    applies_to:
+      - serving.ingress
+    notes: []
+
+# ---------------------------------------------------------------------------
+# Quick map - where common buzzwords land (edit freely)
+# ---------------------------------------------------------------------------
+buzzword_index:
+  - term: forward pass
+    means: One model evaluation that maps current tokens → logits (next-token scores).
+    primarily: [serving.prefill, serving.decode, overlays.kernel_compute]
+  - term: kernel
+    means: GPU program implementing a math op or fused ops used inside the forward pass.
+    primarily: [overlays.kernel_compute]
+  - term: Triton / Gluon
+    means: GPU kernel languages/frameworks used to write those ops.
+    primarily: [overlays.kernel_compute]
+  - term: prefill vs decode
+    means: Process full prompt once vs generate tokens one (or few) at a time.
+    primarily: [serving.prefill, serving.decode]
+  - term: KV cache
+    means: Cached attention state so decode is cheap relative to recomputing the prompt.
+    primarily: [overlays.kv_cache]
+  - term: RLHF / preference tuning
+    means: Post-training alignment stage, not serving.
+    primarily: [development.preference_and_rl]
+  - term: continuous batching
+    means: Scheduler packs many requests' decode steps onto the GPU together.
+    primarily: [serving.schedule]
+  - term: speculative decoding
+    means: Draft+verify to reduce expensive target-model forwards during decode.
+    primarily: [overlays.speculative_decoding]
