@@ -23,6 +23,7 @@
         --accent: var(--development);
         --line: color-mix(in srgb, var(--accent) 42%, #bdc7d5);
         --border: #dce3ec;
+        --ui-radius: var(--radius-2);
         --shadow-color: 220 20% 45%;
         --shadow-strength: 5%;
       }
@@ -38,7 +39,7 @@
         min-height: 2.625rem;
         padding: var(--size-1) var(--size-2);
         border: 1px solid var(--border);
-        border-radius: var(--radius-3);
+        border-radius: var(--ui-radius);
         cursor: pointer;
         font-size: var(--font-size-0);
       }
@@ -92,7 +93,7 @@
         min-height: 2.75rem;
         padding: var(--size-1) var(--size-2);
         border: 1px solid var(--border);
-        border-radius: var(--radius-3);
+        border-radius: var(--ui-radius);
         background: var(--surface);
         cursor: pointer;
         font-size: var(--font-size-0);
@@ -120,7 +121,7 @@
       .status {
         padding: var(--size-4);
         border: 1px solid var(--border);
-        border-radius: var(--radius-4);
+        border-radius: var(--ui-radius);
         background: var(--surface);
       }
 
@@ -135,7 +136,7 @@
         align-items: center;
         margin-block-start: var(--size-3);
         padding: var(--size-1) var(--size-2);
-        border-radius: var(--radius-3);
+        border-radius: var(--ui-radius);
         background: var(--accent);
         color: #ffffff;
         cursor: pointer;
@@ -245,7 +246,7 @@
         min-height: 0;
         padding: var(--size-3);
         border: 1px solid var(--border);
-        border-radius: var(--radius-4);
+        border-radius: var(--ui-radius);
         background: color-mix(in srgb, var(--surface) 92%, transparent);
         box-shadow: var(--shadow-3);
         transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
@@ -294,7 +295,7 @@
         margin: 0;
         padding: var(--size-4);
         border: 1px solid var(--border);
-        border-radius: var(--radius-5);
+        border-radius: var(--ui-radius);
         background: var(--surface);
         box-shadow: var(--shadow-4);
       }
@@ -364,7 +365,7 @@
         min-height: 2.5rem;
         padding: var(--size-1) var(--size-2);
         border: 1px solid var(--line);
-        border-radius: var(--radius-round);
+        border-radius: var(--ui-radius);
         background: color-mix(in srgb, var(--accent) 8%, var(--surface-raised));
         cursor: pointer;
         font-size: var(--font-size-0);
@@ -378,7 +379,7 @@
 
       details.note {
         border: 1px solid var(--border);
-        border-radius: var(--radius-3);
+        border-radius: var(--ui-radius);
         background: var(--surface-raised);
       }
 
@@ -424,7 +425,7 @@
         padding: var(--size-4);
         overflow: auto;
         border: 1px solid var(--border);
-        border-radius: var(--radius-5) var(--radius-5) 0 0;
+        border-radius: var(--ui-radius) var(--ui-radius) 0 0;
         background: var(--surface);
         box-shadow: var(--shadow-6);
       }
@@ -904,7 +905,10 @@
         }
 
         function openOverlay(overlay) {
+          // Without block, the host stretches to the grid column while its inner
+          // button keeps its intrinsic width, so the painted body outruns the target.
           const close = el("jelly-button", { size: "small", textContent: labels.close });
+          close.toggleAttribute("block", true);
           close.addEventListener("click", () => setDrawerOpen(false));
           elements.drawer.setAttribute("side", config.drawer.side);
           elements.drawer.setAttribute("label", overlay.name);

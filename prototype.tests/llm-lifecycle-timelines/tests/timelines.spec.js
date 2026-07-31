@@ -284,6 +284,14 @@ test("overlay detail opens in a bottom drawer rather than a popup", async ({ pag
   await expect(drawer.locator("h2")).toHaveText(overlay.name);
   await expect(drawer.locator("jelly-chip")).toHaveText(overlay.applies_to);
 
+  // A stretched host with an intrinsic inner button paints its body past the real target.
+  const closeBox = await page.evaluate(() => {
+    const host = document.querySelector(".drawer-actions jelly-button");
+    const inner = host.shadowRoot.querySelector("button");
+    return { host: host.getBoundingClientRect().width, inner: inner.getBoundingClientRect().width };
+  });
+  expect(closeBox.inner).toBeCloseTo(closeBox.host, 0);
+
   await drawer.getByText("Close", { exact: true }).click();
   await expect(drawer).not.toHaveAttribute("open", "");
 

@@ -83,7 +83,7 @@ Keep Prev / Next / Back actions in the lower third of the detail when they are t
   Prototypes that use Jelly UI also link `prototype-jelly.css` after the base file.
 - Split shared CSS by concern:
   - `prototype-base.css` owns browser foundations: box sizing, page overflow safety, inherited form typography, and `[hidden]`.
-  - `prototype-jelly.css` owns Jelly host behavior, tab containment, and generic `:not(:defined)` display fallbacks.
+  - `prototype-jelly.css` owns Jelly host behavior, tab containment, minimal corner radius via `--jelly-prototype-radius`, and generic `:not(:defined)` display fallbacks.
 - Keep layout, colours, typography choices, component composition, and prototype-specific fallbacks in the prototype HTML.
 - Promote a rule into the matching shared file only after at least two prototypes need the same fix.
   Do not turn either file into a design system or a collection of utility classes.
@@ -131,6 +131,12 @@ Read them before writing the first line, not after debugging.
   When closing a drawer, set its `open` property to `false` and remove the `open` attribute so upgraded and fallback paths agree.
 - Use `size="small"` for dense secondary controls, but preserve a practical 40-44px hit area on phones with local min-size rules.
   Visual density and touch-target size are separate concerns.
+- A Jelly control stretched by its parent layout breaks in a way that looks like a broken component.
+  As a grid or flex item the host stretches, but the shadow `<button>` keeps its intrinsic width, so the painted soft body sits far wider than the clickable target.
+  Use the component's own `block` attribute for a full-width button instead of stretching the host, or keep the item from stretching with `justify-items: start`.
+- Jelly defaults to pill / wide radii.
+  `prototype-jelly.css` sets `--jelly-prototype-radius` to `var(--radius-2)` and maps the common component radius tokens to it.
+  Override that custom property on a prototype only when it needs a different corner language.
 
 ### Open Props
 

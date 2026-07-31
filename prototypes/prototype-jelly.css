@@ -2,9 +2,14 @@
  * Shared Jelly UI foundation for static prototypes.
  *
  * Link after prototype-base.css. Keep colours, borders, and spacing in the
- * prototype; this file only owns host behaviour, tab containment, and the
- * generic :not(:defined) display fallbacks proven across prototypes.
+ * prototype; this file owns host behaviour, tab containment, minimal corner
+ * radius, and the generic :not(:defined) display fallbacks.
  */
+
+:root {
+  /* Jelly defaults to pill / wide radii; prototypes keep corners minimal. */
+  --jelly-prototype-radius: var(--radius-2);
+}
 
 /* Jelly's theme host does not provide a page box of its own. */
 jelly-theme {
@@ -14,6 +19,30 @@ jelly-theme {
 /* Intrinsic tab width must not widen the page on compact viewports. */
 jelly-tabs::part(tabs) {
   max-inline-size: 100%;
+}
+
+jelly-button {
+  --jelly-button-radius: var(--jelly-prototype-radius);
+}
+
+jelly-badge {
+  --jelly-badge-radius: var(--jelly-prototype-radius);
+}
+
+jelly-chip {
+  --jelly-chip-radius: var(--jelly-prototype-radius);
+}
+
+jelly-card {
+  --jelly-radius: var(--jelly-prototype-radius);
+}
+
+jelly-drawer {
+  --jelly-drawer-radius: var(--jelly-prototype-radius);
+}
+
+jelly-dialog {
+  --jelly-dialog-radius: var(--jelly-prototype-radius);
 }
 
 /*
@@ -28,6 +57,11 @@ jelly-button:not(:defined),
 jelly-chip:not(:defined),
 jelly-badge:not(:defined) {
   display: inline-block;
+}
+
+jelly-button:not(:defined)[block] {
+  display: block;
+  inline-size: 100%;
 }
 
 jelly-tabs:not(:defined) jelly-tab-panel:not([active]) {
