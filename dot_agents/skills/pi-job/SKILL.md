@@ -23,6 +23,11 @@ If the file is missing, follow the scaffold/bootstrap hint from the CLI.
 Deep reference: `~/.local/share/pi-job-harness/README.md` (chezmoi source: `dot_local/share/pi-job-harness/README.md`).
 Install: see that README's agent self-install section (uv + harness files only).
 
+After bootstrap, scaffold+init, or any `instruction` packet: enter the orchestrator loop immediately.
+Do not wait for the user to say "continue".
+Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
+Follow the packet's `NEXT ACTION` checklist.
+
 ## Orchestrator loop
 
 1. `status` / `plan` - where you are; align session todos with `plan`
@@ -31,6 +36,7 @@ Install: see that README's agent self-install section (uv + harness files only).
 4. Do the step (subagent when the packet says so)
 5. `finish` (with evidence note) or `finish --skip --reason ...`
 6. `advance` - only after evidence or an explicit skip
+7. Repeat from `instruction --current` until the task is done or blocked on the user
 
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 

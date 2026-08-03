@@ -940,6 +940,34 @@ def test_orchestrator_instruction_includes_task_record_discipline() -> None:
         _assert_task_record_discipline_block(instruction)
 
 
+def test_instruction_includes_next_action_and_enter_the_loop() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "next-action.yaml"
+        task.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "NEXT ACTION")
+        assert_contains(instruction, "Do not wait for another user prompt")
+        assert_contains(instruction, "Enter the orchestrator loop immediately")
+        assert_contains(instruction, "Do not wait for the user to say \"continue\"")
+        assert_contains(instruction, str(task))
+        assert_not_contains(instruction, "{task_file}")
+        assert_not_contains(instruction, "{cursor}")
+        next_idx = instruction.index("NEXT ACTION")
+        orch_idx = instruction.index("Orchestrator instruction:")
+        assert next_idx < orch_idx, "NEXT ACTION must appear before Orchestrator instruction"
+
+
+def test_bootstrap_instruction_includes_next_action() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-next.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
+        out = run(str(PI_JOB), "--task", str(task), "bootstrap", "--from", str(bootstrap_input)).stdout
+        assert_contains(out, "NEXT ACTION")
+        assert_contains(out, "Do not wait for another user prompt")
+        assert_contains(out, "Enter the orchestrator loop immediately")
+
+
 def test_subagent_instruction_includes_task_record_discipline() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "subagent-discipline.yaml"
@@ -4277,6 +4305,18 @@ def test_profile_requires_out_of_band_edit_warning_packet() -> None:
         raise AssertionError("profile accepted instruction_packets without required out_of_band_edit_warning")
 
 
+def test_profile_requires_next_action_packet() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["instruction_packets"]["next_action"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "next_action")
+    else:
+        raise AssertionError("profile accepted instruction_packets without required next_action")
+
+
 def test_warn_if_content_dirty_uses_profile_packet() -> None:
     module = load_pi_job_module()
     packets = module.load_profile_contract()["instruction_packets"]
@@ -5411,6 +5451,8 @@ def main() -> None:
     test_init_with_kind_setup_seeds_setup_slice()
     test_edit_code_owner_from_step_kinds()
     test_orchestrator_instruction_includes_task_record_discipline()
+    test_instruction_includes_next_action_and_enter_the_loop()
+    test_bootstrap_instruction_includes_next_action()
     test_subagent_instruction_includes_task_record_discipline()
     test_task_record_discipline_interpolates_task_file_and_slice_key()
     test_update_task_file_guidance_names_mutation_commands()
@@ -5538,6 +5580,7 @@ def main() -> None:
     test_profile_requires_subagent_prompt_packet()
     test_profile_requires_task_record_discipline_packet()
     test_profile_requires_out_of_band_edit_warning_packet()
+    test_profile_requires_next_action_packet()
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
     test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics()

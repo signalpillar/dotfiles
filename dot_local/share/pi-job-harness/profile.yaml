@@ -175,7 +175,18 @@ instruction_packets:
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
     Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
     DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
+  next_action: |-
+    Do not wait for another user prompt.
+    1. If the current slice has no execution metadata: `pi-job --task {task_file} start --slice-only --model <orchestrator-model-id>`
+    2. `pi-job --task {task_file} start --model <fully-qualified-model-id>`
+    3. Execute cursor {cursor} per this packet
+    4. `pi-job --task {task_file} finish` with evidence, then `pi-job --task {task_file} advance`, then `pi-job --task {task_file} instruction --current`
+    Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
   orchestrator: |-
+    - Enter the orchestrator loop immediately after this packet (including right after bootstrap, scaffold+init, or instruction).
+    - Do not wait for the user to say "continue".
+    - Loop: start → execute this step → finish with evidence → advance → instruction --current.
+    - Pause only when the step requires a user decision, grill/clarify answers, or a recorded blocker.
     - Execute this step in the main orchestration session.
     - Do not skip required artifacts or validators from the task contract.
     - Run pi-job advance only after the step evidence is recorded or a blocker is written down.
@@ -184,6 +195,7 @@ instruction_packets:
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
     - Review the subagent result before running pi-job advance.
+    - After review, continue the orchestrator loop (finish → advance → instruction); do not wait for "continue".
   subagent_prompt: |-
     This packet is your execution context; do not inspect the task store directly.
     For sibling-step evidence in this slice, run: pi-job --task {task_file} show --slice {slice_key}

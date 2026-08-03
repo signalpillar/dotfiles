@@ -369,6 +369,12 @@ class InstructionPacketsDocument(StrictDocument):
     task_record_discipline: str = Field(
         description="Task-record read/write discipline in every instruction packet. Supports {task_file}, {slice_key}."
     )
+    next_action: str = Field(
+        description=(
+            "Concrete next-action checklist at the top of every instruction packet. "
+            "Supports {task_file}, {cursor}, {slice_key}."
+        )
+    )
     orchestrator: str = Field(description="Orchestrator-owned step execution guidance.")
     subagent_orchestrator: str = Field(description="Orchestrator dispatch guidance when the step owner is subagent.")
     subagent_prompt: str = Field(
@@ -4195,6 +4201,14 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
     title = step.title if step else task_slice.title if task_slice else cursor.label()
     note = step.note if step else task_slice.note if task_slice else ""
 
+    profile = load_profile_contract()
+    packets = profile["instruction_packets"]
+    packet_defaults = {
+        "cursor": cursor.label(),
+        "task_file": str(task_file),
+        "slice_key": task_slice.key if task_slice else (cursor.slice or "<unknown>"),
+    }
+
     lines = [
         "PI-JOB EXECUTION INSTRUCTION",
         "",
@@ -4203,7 +4217,11 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
         f"Owner: {owner}",
+        "",
+        "NEXT ACTION",
     ]
+    lines.extend(render_packet_lines(packets["next_action"], defaults=packet_defaults))
+    lines.append("")
     if task_slice:
         lines.append(f"Slice: {task_slice.key} [{task_slice.kind}] — {task_slice.title or '<untitled>'}")
         if task_slice.goal:
@@ -4287,14 +4305,6 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
                 "- Choose a different fully qualified model ID for this step.",
             ]
         lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
-    profile = load_profile_contract()
-    packets = profile["instruction_packets"]
-
-    packet_defaults = {
-        "cursor": cursor.label(),
-        "task_file": str(task_file),
-        "slice_key": task_slice.key if task_slice else (cursor.slice or "<unknown>"),
-    }
 
     discipline_lines = ["", "Task record discipline:"]
     discipline_lines.extend(
