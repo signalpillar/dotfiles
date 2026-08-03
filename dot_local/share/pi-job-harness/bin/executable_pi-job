@@ -4980,6 +4980,7 @@ def render_slice_markdown(
     task_slice: TaskSlice,
     *,
     cursor: Cursor | None,
+    summary: bool = False,
 ) -> list[str]:
     is_current_slice = bool(cursor and cursor.slice == task_slice.key)
     current_step = cursor.step if is_current_slice and cursor else None
@@ -4996,6 +4997,10 @@ def render_slice_markdown(
     if task_slice.goal:
         lines.append(f"**Goal:** {escape_md_inline(task_slice.goal)}")
         lines.append("")
+    if summary:
+        while lines and lines[-1] == "":
+            lines.pop()
+        return lines
     if task_slice.repos:
         lines.append(f"**Repos:** {', '.join(escape_md_inline(repo) for repo in task_slice.repos)}")
         lines.append("")
@@ -5048,7 +5053,13 @@ def render_slice_markdown(
     return lines
 
 
-def render_task_markdown(task: Mapping[str, Any], *, chronological: bool = False) -> str:
+def render_task_markdown(
+    task: Mapping[str, Any],
+    *,
+    chronological: bool = False,
+    summary: bool = False,
+    slice_key: str | None = None,
+) -> str:
     cursor = current_cursor(dict(task))
     title = escape_md_inline(str(task.get("title") or "<untitled>"))
     status = str(task.get("status") or "")
@@ -5062,31 +5073,39 @@ def render_task_markdown(task: Mapping[str, Any], *, chronological: bool = False
     lines.extend(render_decisions_markdown(task))
     lines.append("")
 
-    context = str(task.get("context") or "")
-    if context:
-        lines.append("## Context")
-        lines.append("")
-        append_markdown_prose(lines, context)
-        lines.append("")
+    if not summary:
+        context = str(task.get("context") or "")
+        if context:
+            lines.append("## Context")
+            lines.append("")
+            append_markdown_prose(lines, context)
+            lines.append("")
 
-    source_lines = render_source_markdown(task)
-    if source_lines:
-        lines.extend(source_lines)
-        lines.append("")
+        source_lines = render_source_markdown(task)
+        if source_lines:
+            lines.extend(source_lines)
+            lines.append("")
 
-    plan_note = str((task.get("plan") or {}).get("note") or "")
-    if plan_note:
-        lines.append("## Plan note")
-        lines.append("")
-        append_markdown_prose(lines, plan_note)
-        lines.append("")
+        plan_note = str((task.get("plan") or {}).get("note") or "")
+        if plan_note:
+            lines.append("## Plan note")
+            lines.append("")
+            append_markdown_prose(lines, plan_note)
+            lines.append("")
 
-    artifact_lines = render_artifacts_markdown(task)
-    if artifact_lines:
-        lines.extend(artifact_lines)
-        lines.append("")
+        artifact_lines = render_artifacts_markdown(task)
+        if artifact_lines:
+            lines.extend(artifact_lines)
+            lines.append("")
 
     slice_items = ordered_slices_for_markdown(task, chronological=chronological)
+    if slice_key:
+        matched = tuple(s for s in slice_items if s.key == slice_key)
+        if not matched:
+            known = ", ".join(s.key for s in task_slices(task)) or "(none)"
+            die(f"slice not found: {slice_key!r}; known slice keys: {known}")
+        slice_items = matched
+
     if slice_items:
         toc_lines = render_slices_toc(slice_items, cursor=cursor)
         lines.extend(toc_lines)
@@ -5094,7 +5113,13 @@ def render_task_markdown(task: Mapping[str, Any], *, chronological: bool = False
         lines.append("## Slices")
         lines.append("")
         for index, task_slice in enumerate(slice_items):
-            lines.extend(render_slice_markdown(task_slice, cursor=cursor))
+            lines.extend(
+                render_slice_markdown(
+                    task_slice,
+                    cursor=cursor,
+                    summary=summary,
+                )
+            )
             if index + 1 < len(slice_items):
                 lines.append("")
 
@@ -5104,9 +5129,19 @@ def render_task_markdown(task: Mapping[str, Any], *, chronological: bool = False
 
 
 def cmd_markdown(args: argparse.Namespace) -> None:
+    if args.summary and args.slice:
+        die("markdown: --summary and --slice are mutually exclusive")
     store = open_task_store(args.task.resolve())
     task = store.read()
-    print(render_task_markdown(task, chronological=bool(args.chronological)), end="")
+    print(
+        render_task_markdown(
+            task,
+            chronological=bool(args.chronological),
+            summary=bool(args.summary),
+            slice_key=args.slice,
+        ),
+        end="",
+    )
 
 
 def cmd_show(args: argparse.Namespace) -> None:
@@ -6383,6 +6418,16 @@ def main() -> None:
         "--chronological",
         action="store_true",
         help="sort slices oldest-changed-first using execution timestamps (plan order tie-break)",
+    )
+    markdown.add_argument(
+        "--summary",
+        action="store_true",
+        help="compact preview: Decisions + Contents + slice headers/goals only (no steps/notes)",
+    )
+    markdown.add_argument(
+        "--slice",
+        metavar="KEY",
+        help="preview one slice in full (keeps title/project/Decisions); mutually exclusive with --summary",
     )
     markdown.set_defaults(fn=cmd_markdown)
 

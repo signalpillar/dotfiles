@@ -5904,6 +5904,63 @@ def test_markdown_chronological_sort() -> None:
             raise AssertionError(f"expected chronological order oldest, middle, newest, no-timestamps:\n{out}")
 
 
+def test_markdown_summary_omits_steps_and_context() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "summary.yaml"
+        write_task_yaml(task, _markdown_representative_mapping())
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown", "--summary").stdout
+        assert_contains(out, "## Decisions")
+        assert_contains(out, "## Contents")
+        assert_contains(out, "### active-slice (current)")
+        assert_contains(out, "**Goal:**")
+        assert_not_contains(out, "## Context")
+        assert_not_contains(out, "## Source")
+        assert_not_contains(out, "## Artifacts")
+        assert_not_contains(out, "#### Steps")
+        assert_not_contains(out, "**edit-code**")
+        assert_not_contains(out, "**Repo work")
+
+
+def test_markdown_slice_scopes_to_one_slice() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "one-slice.yaml"
+        write_task_yaml(task, _markdown_representative_mapping())
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown", "--slice", "active-slice").stdout
+        assert_contains(out, "## Decisions")
+        assert_contains(out, "](#slice-active-slice)")
+        assert_contains(out, "### active-slice (current)")
+        assert_contains(out, "#### Steps")
+        assert_contains(out, "**edit-code** (current)")
+        assert_not_contains(out, "### done-slice")
+        assert_not_contains(out, "](#slice-done-slice)")
+
+        missing = run(str(PI_JOB), "--task", str(task), "markdown", "--slice", "nope", check=False)
+        if missing.returncode == 0:
+            raise AssertionError("expected unknown --slice to fail")
+        assert_contains(missing.stderr, "slice not found")
+
+
+def test_markdown_summary_and_slice_are_mutually_exclusive() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "mutex.yaml"
+        write_task_yaml(task, _markdown_representative_mapping())
+        res = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "markdown",
+            "--summary",
+            "--slice",
+            "active-slice",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("expected --summary with --slice to fail")
+        assert_contains(res.stderr, "mutually exclusive")
+
+
 def test_markdown_validation_failure() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "invalid.yaml"
@@ -6157,6 +6214,9 @@ def main() -> None:
     test_markdown_current_badges()
     test_markdown_default_slice_order()
     test_markdown_chronological_sort()
+    test_markdown_summary_omits_steps_and_context()
+    test_markdown_slice_scopes_to_one_slice()
+    test_markdown_summary_and_slice_are_mutually_exclusive()
     test_markdown_validation_failure()
     test_markdown_read_only()
     print("pi-job tests passed")
