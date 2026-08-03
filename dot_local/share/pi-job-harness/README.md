@@ -50,6 +50,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` - tree view (compact by default), optional models, collapsed consecutive done names, or a slice-local detail view (goal, notes, steps, repo_work)
+- `markdown` / `markdown --chronological` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders, task-record discipline)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
 - `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
@@ -470,6 +471,16 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 - `pi-job --task <t> show --slice KEY` - render one slice in full: goal, slice note, every step (key, status, model, note), and repo_work.
   Does not dump task-level context, plan note, or decisions.
   Tree flags (`--all`, `--started`, `--status`, `--full`) are ignored when `--slice` is set.
+- `pi-job --task <t> markdown [--chronological]` - render a portable Markdown preview to stdout.
+  Loads through `TaskStore`, validates, and never writes back.
+  Uninitialized tasks (no `orchestration`) preview when the document validates.
+  Document order: title/status, project, prominent `## Decisions` (dated bullets; `_none_` when empty), context and remaining metadata (empty sections omitted), then slices/steps.
+  Prefer Markdown when recording notes and decisions (`finish --note`, `add-decision`, `set-context`, `set-plan-note`).
+  Decisions and nested notes render as blockquotes; context and plan notes render as Markdown prose.
+  Titles and headings are escaped.
+  The saved cursor slice and step are marked inline with `(current)`; orchestration is not dumped as a separate appendix.
+  Default slice order follows `plan.slices`.
+  `--chronological` sorts slices by the earliest non-empty `execution.started` or `execution.ended` on the slice or any step/final_step (no-timestamp slices after; plan order tie-break).
 - Subagent instruction packets treat the emitted packet as sufficient context; they do not order inspecting the task store directly or opening full `profile.yaml`.
   For sibling-step evidence within the current slice, the subagent prompt points at `pi-job --task <t> show --slice <key>`.
 

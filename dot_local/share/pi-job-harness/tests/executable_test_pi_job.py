@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import hashlib
 import os
 import re
 import subprocess
@@ -5445,6 +5446,409 @@ def test_bootstrap_rejects_initial_slice_key_without_kind() -> None:
         module.try_get_step_kind = original
 
 
+def _markdown_representative_mapping(*, chronological_cursor: tuple[str, str] = ("active-slice", "edit-code")) -> dict:
+    return {
+        "title": "Markdown representative task",
+        "status": "in_progress",
+        "context": "Shared background for the preview.",
+        "source": {
+            "jira": "PROJ-123",
+            "discovered": "2026-08-01",
+            "context": "Found during harness work.",
+        },
+        "project": {
+            "key": "pi-job-harness",
+            "name": "pi-job harness",
+            "route": "dot_local/share/pi-job-harness",
+            "context": "Chezmoi-managed harness copy.",
+        },
+        "decisions": [
+            {
+                "date": "2026-08-03",
+                "note": "Prefer **Markdown** in decision notes.",
+                "source": "chat:2026-08-03",
+            },
+            {
+                "date": "2026-08-02",
+                "note": "Decisions stay near the top.",
+                "source": "review",
+            },
+        ],
+        "orchestration": {
+            "cursor": {"slice": chronological_cursor[0], "step": chronological_cursor[1]},
+            "policy": _orchestration_policy(),
+            "artifacts": {
+                "test-case-table": {
+                    "status": "done",
+                    "path": "plans/test-case-table.md",
+                    "note": "Coverage matrix for preview journeys.",
+                },
+            },
+        },
+        "plan": {
+            "note": "High-level plan context for the representative fixture.",
+            "slices": [
+                {
+                    "key": "done-slice",
+                    "kind": "implement",
+                    "title": "Already done",
+                    "goal": "Finished earlier",
+                    "status": "done",
+                    "note": "",
+                    "execution": {
+                        "model": "cursor/test",
+                        "started": "2026-08-01T09:00:00Z",
+                        "ended": "2026-08-01T10:00:00Z",
+                    },
+                    "steps": [
+                        {
+                            "key": "create-plan",
+                            "title": "Create plan",
+                            "status": "done",
+                            "note": "",
+                            "execution": {
+                                "model": "cursor/test",
+                                "started": "2026-08-01T09:00:00Z",
+                                "ended": "2026-08-01T09:30:00Z",
+                            },
+                        },
+                    ],
+                    "final_steps": [],
+                },
+                {
+                    "key": "active-slice",
+                    "kind": "implement",
+                    "title": "Active work",
+                    "goal": "Exercise the preview renderer",
+                    "status": "in_progress",
+                    "note": "Slice note with evidence.",
+                    "repos": ["graphius"],
+                    "depends_on": ["done-slice"],
+                    "repo_work": {
+                        "graphius": {
+                            "worktree": "/tmp/wt-markdown",
+                            "prs": [
+                                {
+                                    "url": "https://github.com/example/pr/42",
+                                    "status": "open",
+                                    "note": "Needs review",
+                                },
+                            ],
+                        },
+                    },
+                    "execution": {
+                        "model": "cursor/composer",
+                        "started": "2026-08-03T12:00:00Z",
+                    },
+                    "steps": [
+                        {
+                            "key": "create-plan",
+                            "title": "Create plan",
+                            "status": "done",
+                            "note": "",
+                            "execution": {
+                                "model": "cursor/composer",
+                                "started": "2026-08-03T10:00:00Z",
+                                "ended": "2026-08-03T11:00:00Z",
+                            },
+                        },
+                        {
+                            "key": "edit-code",
+                            "title": "Edit code",
+                            "status": "in_progress",
+                            "note": "Step note for the cursor step.",
+                            "execution": {
+                                "model": "cursor/composer",
+                                "started": "2026-08-03T12:00:00Z",
+                            },
+                        },
+                    ],
+                    "final_steps": [
+                        {"key": "verify", "title": "Verify", "status": "planned", "note": ""},
+                    ],
+                },
+            ],
+        },
+    }
+
+
+def test_markdown_representative_full_dump() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "representative.yaml"
+        write_task_yaml(task, _markdown_representative_mapping())
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        decisions_idx = out.index("## Decisions")
+        slices_idx = out.index("## Slices")
+        assert decisions_idx < slices_idx, out
+        assert_contains(out, "# Markdown representative task")
+        assert_contains(out, "**Status:** in_progress")
+        assert_contains(out, "## Project")
+        assert_contains(out, "**key:** pi-job-harness")
+        assert_contains(out, "- **2026-08-03** (chat:2026-08-03)")
+        assert_contains(out, "> Prefer **Markdown** in decision notes.")
+        assert_contains(out, "> Decisions stay near the top.")
+        decisions_block = out.split("## Decisions", 1)[1].split("## Context", 1)[0]
+        if "```" in decisions_block:
+            raise AssertionError(f"decisions must be blockquotes, not fenced code:\n{out}")
+        assert_contains(out, "## Context")
+        assert_contains(out, "Shared background for the preview.")
+        assert_contains(out, "## Source")
+        assert_contains(out, "**jira:** PROJ-123")
+        assert_contains(out, "## Plan note")
+        assert_contains(out, "## Artifacts")
+        assert_contains(out, "**test-case-table** [done]")
+        assert_contains(out, "### active-slice (current)")
+        assert_contains(out, "**edit-code** (current)")
+        assert_contains(out, "**Repo work (graphius):**")
+        assert_contains(out, "https://github.com/example/pr/42")
+        assert_not_contains(out, "PI-JOB")
+        assert_not_contains(out, "\033[")
+
+
+def test_markdown_minimal_omits_empty_decisions_none() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "minimal.yaml"
+        write_task_yaml(task, {
+            "title": "Minimal preview",
+            "status": "planned",
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "only",
+                    "kind": "implement",
+                    "title": "Only slice",
+                    "goal": "Do one thing",
+                    "status": "planned",
+                    "note": "",
+                    "steps": [{"key": "create-plan", "title": "Create plan", "status": "planned", "note": ""}],
+                    "final_steps": [],
+                }],
+            },
+        })
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        assert_contains(out, "## Decisions")
+        assert_contains(out, "_none_")
+        for forbidden in ("## Context", "## Source", "## Plan note", "## Artifacts", "**Repos:**", "#### Final steps"):
+            assert_not_contains(out, forbidden)
+
+
+def test_markdown_uninitialized_preview() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "uninitialized.yaml"
+        write_task_yaml(
+            task,
+            standard_fixture_mapping(title="Uninitialized markdown preview", uninitialized=True),
+        )
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        assert_contains(out, "# Uninitialized markdown preview")
+        assert_contains(out, "## Slices")
+        assert_not_contains(out, "(current)")
+
+
+def test_markdown_escapes_and_quotes_metacharacters() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "escape.yaml"
+        write_task_yaml(task, {
+            "title": "# Not a heading",
+            "status": "in_progress",
+            "context": "## nested heading\n**bold context**",
+            "decisions": [{
+                "date": "2026-08-03",
+                "note": "Use **bold** in decisions.\nSecond line.",
+                "source": "test",
+            }],
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "meta-slice",
+                    "kind": "implement",
+                    "title": "## Slice title",
+                    "goal": "Keep structure intact",
+                    "status": "in_progress",
+                    "note": "# note heading\nwith **emphasis**",
+                    "steps": [{
+                        "key": "create-plan",
+                        "title": "Create plan",
+                        "status": "planned",
+                        "note": "",
+                    }],
+                    "final_steps": [],
+                }],
+            },
+        })
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        assert_contains(out, "# \\# Not a heading")
+        assert_contains(out, "### meta-slice [implement] — \\#\\# Slice title")
+        assert_contains(out, "## nested heading")
+        assert_contains(out, "**bold context**")
+        assert_contains(out, "> Use **bold** in decisions.")
+        assert_contains(out, "> Second line.")
+        assert_contains(out, "> # note heading")
+        assert_contains(out, "> with **emphasis**")
+        context_block = out.split("## Context", 1)[1].split("## Slices", 1)[0]
+        if context_block.lstrip().startswith("```"):
+            raise AssertionError(f"context must be Markdown prose, not fenced:\n{out}")
+        decisions_block = out.split("## Decisions", 1)[1].split("## Context", 1)[0]
+        if "```" in decisions_block:
+            raise AssertionError(f"decisions must be blockquotes, not fenced:\n{out}")
+
+
+def test_markdown_current_badges() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "current.yaml"
+        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        assert_contains(out, "### second-slice (current)")
+        assert_contains(out, "**s2** (current)")
+        if " (current)" in out.replace("### second-slice (current)", "").replace("**s2** (current)", ""):
+            raise AssertionError(f"(current) badge must appear only on cursor slice/step:\n{out}")
+
+
+def test_markdown_default_slice_order() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "order.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        first_idx = out.index("### first")
+        second_idx = out.index("### second-slice")
+        if first_idx > second_idx:
+            raise AssertionError(f"expected plan order (first before second-slice):\n{out}")
+
+
+def test_markdown_chronological_sort() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "chrono.yaml"
+        write_task_yaml(task, {
+            "title": "Chronological sort",
+            "status": "in_progress",
+            "orchestration": {
+                "cursor": {"slice": "middle", "step": "create-plan"},
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [
+                    {
+                        "key": "newest",
+                        "kind": "implement",
+                        "title": "Newest change",
+                        "goal": "Latest timestamp",
+                        "status": "done",
+                        "note": "",
+                        "execution": {
+                            "model": "cursor/test",
+                            "started": "2026-08-03T12:00:00Z",
+                            "ended": "2026-08-03T13:00:00Z",
+                        },
+                        "steps": [],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "oldest",
+                        "kind": "implement",
+                        "title": "Oldest change",
+                        "goal": "Earliest timestamp",
+                        "status": "done",
+                        "note": "",
+                        "steps": [{
+                            "key": "create-plan",
+                            "title": "Create plan",
+                            "status": "done",
+                            "note": "",
+                            "execution": {
+                                "model": "cursor/test",
+                                "started": "2026-08-01T08:00:00Z",
+                                "ended": "2026-08-01T09:00:00Z",
+                            },
+                        }],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "middle",
+                        "kind": "implement",
+                        "title": "Middle change",
+                        "goal": "Between oldest and newest",
+                        "status": "in_progress",
+                        "note": "",
+                        "execution": {
+                            "model": "cursor/test",
+                            "started": "2026-08-02T10:00:00Z",
+                        },
+                        "steps": [{"key": "create-plan", "title": "Create plan", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "no-timestamps",
+                        "kind": "implement",
+                        "title": "No timestamps",
+                        "goal": "Sorts after timestamped slices",
+                        "status": "planned",
+                        "note": "",
+                        "steps": [{"key": "create-plan", "title": "Create plan", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                ],
+            },
+        })
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown", "--chronological").stdout
+        oldest_idx = out.index("### oldest")
+        middle_idx = out.index("### middle")
+        newest_idx = out.index("### newest")
+        none_idx = out.index("### no-timestamps")
+        order = [oldest_idx, middle_idx, newest_idx, none_idx]
+        if order != sorted(order):
+            raise AssertionError(f"expected chronological order oldest, middle, newest, no-timestamps:\n{out}")
+
+
+def test_markdown_validation_failure() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "invalid.yaml"
+        write_task_yaml(task, {
+            "title": "Invalid preview",
+            "status": "in_progress",
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "broken",
+                    "kind": "implement",
+                    "title": "Broken",
+                    "goal": "Bad status",
+                    "status": "planned",
+                    "note": "",
+                    "steps": [{"key": "create-plan", "title": "Create plan", "status": "not-a-status", "note": ""}],
+                    "final_steps": [],
+                }],
+            },
+        })
+
+        res = run(str(PI_JOB), "--task", str(task), "markdown", check=False)
+        if res.returncode == 0:
+            raise AssertionError("expected markdown to fail validation")
+        assert_contains(res.stderr, "task validation failed")
+        if res.stdout.strip().startswith("# Invalid preview"):
+            raise AssertionError(f"stdout must not look like successful markdown preview:\n{res.stdout}")
+
+
+def test_markdown_read_only() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "readonly.yaml"
+        write_task_yaml(task, _markdown_representative_mapping())
+        before = hashlib.sha256(task.read_bytes()).hexdigest()
+
+        run(str(PI_JOB), "--task", str(task), "markdown", "--chronological")
+
+        after = hashlib.sha256(task.read_bytes()).hexdigest()
+        if before != after:
+            raise AssertionError("markdown preview must not mutate the task file")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
@@ -5645,6 +6049,15 @@ def main() -> None:
     test_finish_while_dirty_does_not_clear_digest()
     test_missing_digest_does_not_warn()
     test_fixture_policy_disallows_incidental_cue_task_paths()
+    test_markdown_representative_full_dump()
+    test_markdown_minimal_omits_empty_decisions_none()
+    test_markdown_uninitialized_preview()
+    test_markdown_escapes_and_quotes_metacharacters()
+    test_markdown_current_badges()
+    test_markdown_default_slice_order()
+    test_markdown_chronological_sort()
+    test_markdown_validation_failure()
+    test_markdown_read_only()
     print("pi-job tests passed")
 
 

@@ -85,7 +85,12 @@ class StepDocument(StrictDocument):
     key: str = Field(description="Stable step identifier used by cursors and profile lookups.")
     title: str = Field(description="Short human-readable step name.")
     status: TaskStatus = Field(description="Current lifecycle state of the step.")
-    note: str = Field(description="Evidence, decision, blocker, or skip reason recorded for the step.")
+    note: str = Field(
+        description=(
+            "Evidence, decision, blocker, or skip reason recorded for the step. "
+            "Prefer Markdown; `pi-job markdown` renders notes formatted."
+        )
+    )
     execution: ExecutionDocument | None = Field(default=None, description="Executor provenance, when recorded.")
 
 
@@ -93,7 +98,12 @@ class DecisionDocument(StrictDocument):
     """A durable decision made while executing a task."""
 
     date: str = Field(description="Decision date, normally formatted as YYYY-MM-DD.")
-    note: str = Field(description="Decision and enough rationale to understand it later.")
+    note: str = Field(
+        description=(
+            "Decision and enough rationale to understand it later. "
+            "Prefer Markdown; `pi-job markdown` renders it as a blockquote."
+        )
+    )
     source: str = Field(description="Origin of the decision, such as a chat, issue, or review.")
 
 
@@ -3987,6 +3997,8 @@ def cmd_finish(args: argparse.Namespace) -> None:
             note=note, execution=execution,
         )
         print(f"finished: {label} [{target_status}] at {now}")
+        if args.note is not None:
+            print("tip: prefer Markdown in --note; `pi-job markdown` renders notes formatted")
 
 
 def blocking_incomplete_step(task: dict[str, Any], cursor: Cursor | None) -> str | None:
@@ -4677,6 +4689,326 @@ def render_slice_scoped(
             )
         )
     return lines
+
+
+def escape_md_inline(text: str) -> str:
+    """Escape characters that would break Markdown headings or inline structure."""
+
+    return (
+        text.replace("\\", "\\\\")
+        .replace("#", "\\#")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("`", "\\`")
+    )
+
+
+def append_blockquote(lines: list[str], text: str, *, indent: str = "") -> None:
+    """Append Markdown blockquote lines so recorded Markdown stays formatted."""
+
+    body = text.splitlines() or [""]
+    for line in body:
+        lines.append(f"{indent}> {line}" if line else f"{indent}>")
+
+
+def append_markdown_prose(lines: list[str], text: str) -> None:
+    """Append recorded Markdown as section body (not fenced)."""
+
+    lines.extend(text.splitlines() or [""])
+
+
+def append_markdown_field(lines: list[str], label: str, text: str) -> None:
+    if not text:
+        return
+    lines.append(f"**{label}:**")
+    lines.append("")
+    append_blockquote(lines, text)
+
+
+def execution_markdown_lines(execution: ExecutionRecord | None) -> list[str]:
+    if not execution or not (execution.model or execution.started or execution.ended):
+        return []
+    parts = []
+    if execution.model:
+        parts.append(f"model={execution.model}")
+    if execution.started:
+        parts.append(f"started={execution.started}")
+    if execution.ended:
+        parts.append(f"ended={execution.ended}")
+    return [f"**Execution:** {', '.join(parts)}"]
+
+
+def collect_execution_timestamps(execution: ExecutionRecord | None) -> list[str]:
+    if not execution:
+        return []
+    timestamps: list[str] = []
+    if execution.started:
+        timestamps.append(execution.started)
+    if execution.ended:
+        timestamps.append(execution.ended)
+    return timestamps
+
+
+def slice_earliest_change(task_slice: TaskSlice) -> str | None:
+    timestamps: list[str] = []
+    timestamps.extend(collect_execution_timestamps(task_slice.execution))
+    for step in task_slice.all_steps:
+        timestamps.extend(collect_execution_timestamps(step.execution))
+    return min(timestamps) if timestamps else None
+
+
+def ordered_slices_for_markdown(
+    task: Mapping[str, Any],
+    *,
+    chronological: bool,
+) -> tuple[TaskSlice, ...]:
+    slices = list(task_slices(task))
+    if not chronological:
+        return tuple(slices)
+    indexed = list(enumerate(slices))
+
+    def sort_key(item: tuple[int, TaskSlice]) -> tuple[int, str, int]:
+        plan_index, task_slice = item
+        change_time = slice_earliest_change(task_slice)
+        if change_time is None:
+            return (1, "", plan_index)
+        return (0, change_time, plan_index)
+
+    indexed.sort(key=sort_key)
+    return tuple(task_slice for _, task_slice in indexed)
+
+
+def render_decisions_markdown(task: Mapping[str, Any]) -> list[str]:
+    lines = ["## Decisions", ""]
+    decisions = task.get("decisions") or []
+    if not decisions:
+        lines.append("_none_")
+        return lines
+    for decision in decisions:
+        date = escape_md_inline(str(decision.get("date") or ""))
+        source = str(decision.get("source") or "").strip()
+        note = str(decision.get("note") or "")
+        header = f"- **{date}**"
+        if source:
+            header += f" ({escape_md_inline(source)})"
+        lines.append(header)
+        if note:
+            lines.append("")
+            append_blockquote(lines, note, indent="  ")
+    return lines
+
+
+def render_project_markdown(task: Mapping[str, Any]) -> list[str]:
+    project = task.get("project") or {}
+    fields = [
+        ("key", str(project.get("key") or "")),
+        ("name", str(project.get("name") or "")),
+        ("route", str(project.get("route") or "")),
+        ("context", str(project.get("context") or "")),
+    ]
+    if not any(value for _, value in fields):
+        return []
+    lines = ["## Project", ""]
+    for name, value in fields:
+        if not value:
+            continue
+        if name == "context":
+            lines.append(f"- **{name}:**")
+            lines.append("")
+            append_blockquote(lines, value, indent="  ")
+            continue
+        lines.append(f"- **{name}:** {escape_md_inline(value)}")
+    return lines
+
+
+def render_source_markdown(task: Mapping[str, Any]) -> list[str]:
+    source = task.get("source") or {}
+    fields = [
+        ("jira", str(source.get("jira") or "")),
+        ("discovered", str(source.get("discovered") or "")),
+        ("context", str(source.get("context") or "")),
+    ]
+    if not any(value for _, value in fields):
+        return []
+    lines = ["## Source", ""]
+    for name, value in fields:
+        if not value:
+            continue
+        if name == "context":
+            lines.append(f"- **{name}:**")
+            lines.append("")
+            append_blockquote(lines, value, indent="  ")
+            continue
+        lines.append(f"- **{name}:** {escape_md_inline(value)}")
+    return lines
+
+
+def render_artifacts_markdown(task: Mapping[str, Any]) -> list[str]:
+    artifacts = task_artifacts(task)
+    if not artifacts:
+        return []
+    lines = ["## Artifacts", ""]
+    for key in sorted(artifacts):
+        artifact = artifacts[key] or {}
+        status = str(artifact.get("status") or "")
+        path = str(artifact.get("path") or "").strip()
+        note = str(artifact.get("note") or "")
+        header = f"- **{escape_md_inline(key)}** [{status}]"
+        if path:
+            header += f" `{path}`"
+        lines.append(header)
+        if note:
+            lines.append("")
+            append_blockquote(lines, note, indent="  ")
+    return lines
+
+
+def render_step_markdown(
+    step: TaskStep,
+    *,
+    current_step: str | None,
+    terminal: bool,
+) -> list[str]:
+    current_badge = " (current)" if current_step is not None and step.key == current_step else ""
+    terminal_label = " (final)" if terminal else ""
+    title = escape_md_inline(step.title or step.key or "<untitled>")
+    lines = [f"- **{escape_md_inline(step.key)}**{current_badge}{terminal_label} [{step.status}] — {title}"]
+    exec_lines = execution_markdown_lines(step.execution)
+    if exec_lines:
+        lines.extend(f"  {line}" for line in exec_lines)
+    if step.note:
+        lines.append("")
+        append_blockquote(lines, step.note, indent="  ")
+    return lines
+
+
+def render_slice_markdown(
+    task_slice: TaskSlice,
+    *,
+    cursor: Cursor | None,
+) -> list[str]:
+    is_current_slice = bool(cursor and cursor.slice == task_slice.key)
+    current_step = cursor.step if is_current_slice and cursor else None
+    current_badge = " (current)" if is_current_slice else ""
+    title = escape_md_inline(task_slice.title or task_slice.key or "<untitled>")
+    lines = [
+        (
+            f"### {escape_md_inline(task_slice.key)}{current_badge} "
+            f"[{task_slice.kind}] — {title} [{task_slice.status}]"
+        ),
+        "",
+    ]
+    if task_slice.goal:
+        lines.append(f"**Goal:** {escape_md_inline(task_slice.goal)}")
+        lines.append("")
+    if task_slice.repos:
+        lines.append(f"**Repos:** {', '.join(escape_md_inline(repo) for repo in task_slice.repos)}")
+        lines.append("")
+    if task_slice.depends_on:
+        lines.append(
+            f"**Depends on:** {', '.join(escape_md_inline(dep) for dep in task_slice.depends_on)}"
+        )
+        lines.append("")
+    exec_lines = execution_markdown_lines(task_slice.execution)
+    if exec_lines:
+        lines.extend(exec_lines)
+        lines.append("")
+    if task_slice.note:
+        append_markdown_field(lines, "Note", task_slice.note)
+        lines.append("")
+    repo_work = task_slice.repo_work or {}
+    for repo_name in sorted(repo_work):
+        work = repo_work[repo_name] or {}
+        lines.append(f"**Repo work ({escape_md_inline(repo_name)}):**")
+        worktree = work.get("worktree")
+        if worktree:
+            lines.append(f"- **Worktree:** `{worktree}`")
+        for pr in work.get("prs") or []:
+            pr_status = str(pr.get("status") or "")
+            pr_url = str(pr.get("url") or "")
+            lines.append(f"- **PR:** {pr_status} {pr_url}")
+            pr_note = str(pr.get("note") or "")
+            if pr_note:
+                lines.append("")
+                append_blockquote(lines, pr_note, indent="  ")
+        lines.append("")
+    if task_slice.steps:
+        lines.append("#### Steps")
+        lines.append("")
+        for step in task_slice.steps:
+            lines.extend(
+                render_step_markdown(step, current_step=current_step, terminal=False)
+            )
+            lines.append("")
+    if task_slice.final_steps:
+        lines.append("#### Final steps")
+        lines.append("")
+        for step in task_slice.final_steps:
+            lines.extend(
+                render_step_markdown(step, current_step=current_step, terminal=True)
+            )
+            lines.append("")
+    while lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def render_task_markdown(task: Mapping[str, Any], *, chronological: bool = False) -> str:
+    cursor = current_cursor(dict(task))
+    title = escape_md_inline(str(task.get("title") or "<untitled>"))
+    status = str(task.get("status") or "")
+    lines = [f"# {title}", "", f"**Status:** {status}", ""]
+
+    project_lines = render_project_markdown(task)
+    if project_lines:
+        lines.extend(project_lines)
+        lines.append("")
+
+    lines.extend(render_decisions_markdown(task))
+    lines.append("")
+
+    context = str(task.get("context") or "")
+    if context:
+        lines.append("## Context")
+        lines.append("")
+        append_markdown_prose(lines, context)
+        lines.append("")
+
+    source_lines = render_source_markdown(task)
+    if source_lines:
+        lines.extend(source_lines)
+        lines.append("")
+
+    plan_note = str((task.get("plan") or {}).get("note") or "")
+    if plan_note:
+        lines.append("## Plan note")
+        lines.append("")
+        append_markdown_prose(lines, plan_note)
+        lines.append("")
+
+    artifact_lines = render_artifacts_markdown(task)
+    if artifact_lines:
+        lines.extend(artifact_lines)
+        lines.append("")
+
+    slice_items = ordered_slices_for_markdown(task, chronological=chronological)
+    if slice_items:
+        lines.append("## Slices")
+        lines.append("")
+        for index, task_slice in enumerate(slice_items):
+            lines.extend(render_slice_markdown(task_slice, cursor=cursor))
+            if index + 1 < len(slice_items):
+                lines.append("")
+
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines) + "\n"
+
+
+def cmd_markdown(args: argparse.Namespace) -> None:
+    store = open_task_store(args.task.resolve())
+    task = store.read()
+    print(render_task_markdown(task, chronological=bool(args.chronological)), end="")
 
 
 def cmd_show(args: argparse.Namespace) -> None:
@@ -5691,6 +6023,7 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     store.add_decision(date=date, note=note, source=source)
     print(f"added decision ({date}): {note[:60]}" + ("..." if len(note) > 60 else ""))
+    print("tip: prefer Markdown in --note; `pi-job markdown` renders decisions as blockquotes")
 
 
 def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
@@ -5871,8 +6204,9 @@ def main() -> None:
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
     finish.add_argument(
         "--note",
-        help="completion evidence to store; omitted preserves the existing note; "
-        "when supplied appends with a blank line; --replace overwrites instead",
+        help="completion evidence as Markdown (preferred); rendered formatted in "
+        "`pi-job markdown`; omitted preserves the existing note; when supplied "
+        "appends with a blank line; --replace overwrites instead",
     )
     finish.add_argument(
         "--replace",
@@ -5937,6 +6271,17 @@ def main() -> None:
     )
     show.set_defaults(fn=cmd_show)
 
+    markdown = sub.add_parser(
+        "markdown",
+        help="render the task as a read-only Markdown preview on stdout",
+    )
+    markdown.add_argument(
+        "--chronological",
+        action="store_true",
+        help="sort slices oldest-changed-first using execution timestamps (plan order tie-break)",
+    )
+    markdown.set_defaults(fn=cmd_markdown)
+
     instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")
     instruction.add_argument("--current", action="store_true", help="use saved cursor instead of computed next")
     instruction.set_defaults(fn=cmd_instruction)
@@ -5980,13 +6325,20 @@ def main() -> None:
     set_project.set_defaults(fn=cmd_set_project)
 
     set_context = sub.add_parser("set-context", help="replace task.context")
-    set_context.add_argument("--context", help="new context text")
+    set_context.add_argument(
+        "--context",
+        help="new context as Markdown (preferred); rendered formatted in `pi-job markdown`",
+    )
     set_context.add_argument("--file", dest="file_path", type=Path, help="read context from a file")
     set_context.set_defaults(fn=cmd_set_context)
 
     add_decision = sub.add_parser("add-decision", help="append a durable decision record")
     add_decision.add_argument("--date", default="", help="decision date (default: today UTC)")
-    add_decision.add_argument("--note", required=True, help="decision rationale")
+    add_decision.add_argument(
+        "--note",
+        required=True,
+        help="decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`",
+    )
     add_decision.add_argument("--source", default="", help="decision origin (default: pi-job add-decision)")
     add_decision.set_defaults(fn=cmd_add_decision_cli)
 
@@ -6002,7 +6354,11 @@ def main() -> None:
     remove_slice.set_defaults(fn=cmd_remove_slice)
 
     set_plan_note = sub.add_parser("set-plan-note", help="set task.plan.note")
-    set_plan_note.add_argument("--note", default="", help="plan note text")
+    set_plan_note.add_argument(
+        "--note",
+        default="",
+        help="plan note as Markdown (preferred); rendered formatted in `pi-job markdown`",
+    )
     set_plan_note.set_defaults(fn=cmd_set_plan_note_cli)
 
     set_slice = sub.add_parser("set-slice", help="update a slice title and/or goal")

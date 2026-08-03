@@ -172,6 +172,7 @@ instruction_packets:
     The task record is machine-owned; do not open or edit the task store directly.
     Reads: pi-job --task {task_file} status | plan | show [--slice {slice_key}] | instruction [--current].
     Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
+    Write notes and decisions as Markdown so `pi-job markdown` can render them formatted (decisions as blockquotes; context/notes as Markdown prose or quotes).
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
     Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
     DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
