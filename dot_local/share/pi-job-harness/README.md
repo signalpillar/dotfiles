@@ -543,6 +543,7 @@ Task data from every backend passes through the documented Pydantic task contrac
 | `closing` | Cross-slice bookkeeping once implement slices are done - typically once, last |
 | `research` | Investigation without code changes |
 | `spike` | Time-boxed prototype; create-plan/grill-plan apply like implement |
+| `follow-work` | Observe a peer's Jira item until landing; capture understanding; spawn or decline follow-ups (no code changes) |
 
 Machine-readable templates and policies live under `slice_kinds` and `step_kinds` in `profile.yaml`.
 

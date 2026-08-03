@@ -4848,6 +4848,109 @@ def test_kinds_show_json() -> None:
     assert_contains(result.stdout, "create-plan")
 
 
+FOLLOW_WORK_TEMPLATE_STEPS = [
+    "clarify-scope",
+    "collect-references",
+    "wait-for-landing",
+    "review-capture",
+    "follow-up-gate",
+    "update-task-file",
+    "pi-job-feedback",
+]
+
+FOLLOW_WORK_REQUIRED_STEPS = [
+    "clarify-scope",
+    "collect-references",
+    "wait-for-landing",
+    "review-capture",
+    "follow-up-gate",
+    "update-task-file",
+]
+
+
+def test_follow_work_kind_list_and_show() -> None:
+    """kinds list/show includes follow-work with the contract template and required_steps."""
+    listed = run(str(PI_JOB), "kinds", "list", "--json").stdout
+    assert_contains(listed, "follow-work")
+
+    shown = run(str(PI_JOB), "kinds", "show", "follow-work", "--json").stdout
+    assert_contains(shown, "no_code_changes")
+    for step_key in FOLLOW_WORK_TEMPLATE_STEPS:
+        assert_contains(shown, step_key)
+    for step_key in FOLLOW_WORK_REQUIRED_STEPS:
+        assert_contains(shown, step_key)
+    assert "pi-job-feedback" in shown
+    assert '"required_steps"' in shown
+
+    module = load_pi_job_module()
+    kind = module.get_slice_kind("follow-work")
+    assert kind.get("policies", {}).get("no_code_changes") is True
+    assert [str(k) for k in (kind.get("step_template") or [])] == FOLLOW_WORK_TEMPLATE_STEPS
+    assert [str(k) for k in (kind.get("required_steps") or [])] == FOLLOW_WORK_REQUIRED_STEPS
+    template_titles = [key for key, _title in module.steps_from_kind_template("follow-work")]
+    assert template_titles == FOLLOW_WORK_TEMPLATE_STEPS
+
+
+def test_add_slice_follow_work_seeds_template_steps() -> None:
+    """add-slice --kind follow-work seeds every step from the slice kind template."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "follow-work-add-slice.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+
+        dry = run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "observe-peer",
+            "--title", "Observe peer delivery",
+            "--goal", "Capture understanding after their ticket lands.",
+            "--kind", "follow-work",
+            "--dry-run",
+        ).stdout
+        for step_key in FOLLOW_WORK_TEMPLATE_STEPS:
+            assert_contains(dry, step_key)
+
+        run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "observe-peer",
+            "--title", "Observe peer delivery",
+            "--goal", "Capture understanding after their ticket lands.",
+            "--kind", "follow-work",
+        )
+
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        task_data = store.read()
+        slice_entry = next(sl for sl in task_data["plan"]["slices"] if sl["key"] == "observe-peer")
+        assert slice_entry["kind"] == "follow-work"
+        present = [step["key"] for step in (slice_entry.get("steps") or []) + (slice_entry.get("final_steps") or [])]
+        assert present == FOLLOW_WORK_TEMPLATE_STEPS
+
+
+def _follow_work_conformant_slice_yaml() -> dict:
+    steps = [
+        {"key": key, "title": key.replace("-", " ").title(), "status": "planned", "note": ""}
+        for key in FOLLOW_WORK_TEMPLATE_STEPS
+    ]
+    return {
+        "key": "follow-peer",
+        "kind": "follow-work",
+        "title": "Follow peer ticket",
+        "goal": "Observe until landing and capture understanding.",
+        "status": "planned",
+        "note": "",
+        "steps": steps,
+        "final_steps": [],
+    }
+
+
+def test_validate_accepts_conformant_follow_work_fixture() -> None:
+    """validate accepts a follow-work slice that satisfies required_steps."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "follow-work-validate.yaml"
+        write_task_yaml(task, structure_task_yaml(_follow_work_conformant_slice_yaml()))
+        out = run(str(PI_JOB), "--task", str(task), "validate").stdout
+        assert_contains(out, "ok:")
+
+
 def test_set_project_mutation() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "project-mutation.yaml"
@@ -5381,6 +5484,9 @@ def main() -> None:
     test_schema_show_json()
     test_kinds_list_json()
     test_kinds_show_json()
+    test_follow_work_kind_list_and_show()
+    test_add_slice_follow_work_seeds_template_steps()
+    test_validate_accepts_conformant_follow_work_fixture()
     test_set_project_mutation()
     test_set_context_mutation()
     test_add_decision_mutation()

@@ -347,6 +347,64 @@ step_kinds:
     validators:
       - open-questions-called-out
     guidance: Produce the answer or doc; call out open questions.
+  collect-references:
+    key: collect-references
+    title: Collect references
+    owner: orchestrator
+    validators:
+      - jira-ticket-or-explicit-no-ticket-exception
+      - pr-links-optional-at-collect
+    guidance: |-
+      Record the Jira ticket to follow (required unless an explicit no-ticket exception is documented with reason).
+      PR links are optional here; add or update them during wait-for-landing as they appear.
+      PRs are observed, not authored - do not open PRs, comment, or engage.
+      Stub the peer-capture Subject section in the sibling plan file
+      <task-stem>.plans/<slice-key>.md: ticket key, owner, and any PR URLs known so far.
+  wait-for-landing:
+    key: wait-for-landing
+    title: Wait for landing
+    owner: orchestrator
+    validators:
+      - landed-or-abandoned-with-reason
+      - pr-links-updated-if-discovered
+    skip_rule: skip when work is already abandoned before wait (record abandon reason; proceed to thin capture)
+    guidance: |-
+      Observe until the ticket reaches Done or the PR merges, or the work is explicitly abandoned.
+      On abandon: skip this step with reason, then proceed to a thin review-capture (Subject, Outcome, Open questions, Follow-ups only).
+      During wait, add PR links via pi-job add-pr as they are discovered; still no engagement (no comments, reviews, or code changes).
+      Re-check via pi-job sync when helpful.
+  review-capture:
+    key: review-capture
+    title: Review and capture understanding
+    owner: orchestrator
+    validators:
+      - peer-capture-outline-complete-or-thin-on-abandon
+    guidance: |-
+      Write durable peer-capture into the sibling plan file
+      <task-stem>.plans/<slice-key>.md (same path convention as implement plans).
+      Record only a pointer in the step note: Plan file: <task-stem>.plans/<slice-key>.md.
+      Use this nine-section outline when the work landed:
+      1. Subject - ticket, owner, PR links
+      2. Outcome - landed | abandoned (with reason)
+      3. Constraints
+      4. Decisions
+      5. Invariants
+      6. Use cases
+      7. Test cases
+      8. Open questions
+      9. Follow-ups - spawned slices or explicit none
+      On abandon: sections 3-7 may be n/a; Subject, Outcome, Open questions, and Follow-ups are mandatory.
+      Observe-only throughout - no code changes, PR comments, or Jira notes on the followed work.
+  follow-up-gate:
+    key: follow-up-gate
+    title: Follow-up gate
+    owner: orchestrator
+    validators:
+      - follow-up-slices-spawned-or-explicit-none
+    guidance: |-
+      Decide bounded follow-up work surfaced by the capture.
+      Spawn follow-up slices with pi-job add-slice (appropriate kind and dependencies) OR record explicit none with reason.
+      Do not bury actionable follow-ups only in free-form notes.
   update-test-plan:
     key: update-test-plan
     title: Update the test plan
@@ -466,3 +524,24 @@ slice_kinds:
       - verify
       - update-task-file
       - pi-job-feedback
+  follow-work:
+    key: follow-work
+    title: Follow peer work
+    description: Observe another person's Jira delivery item until it lands, capture durable understanding, then spawn or decline follow-ups.
+    policies:
+      no_code_changes: true
+    step_template:
+      - clarify-scope
+      - collect-references
+      - wait-for-landing
+      - review-capture
+      - follow-up-gate
+      - update-task-file
+      - pi-job-feedback
+    required_steps:
+      - clarify-scope
+      - collect-references
+      - wait-for-landing
+      - review-capture
+      - follow-up-gate
+      - update-task-file
