@@ -49,7 +49,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and durable decisions without hand-editing the store
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
-- `show` / `show --slice KEY` / `show --full` - tree view (compact by default), optional models, or a slice-local detail view (goal, notes, steps, repo_work)
+- `show` / `show --slice KEY` / `show --full` / `show --short` - tree view (compact by default), optional models, collapsed consecutive done names, or a slice-local detail view (goal, notes, steps, repo_work)
 - `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders, task-record discipline)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
 - `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
@@ -458,7 +458,8 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
-- `pi-job --task <t> show [--all] [--started] [--full] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
+- `pi-job --task <t> show [--all] [--started] [--full] [--short] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
+  `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`); skipped breaks the run; ignored with `--all`.
   By default only the current cursor slice expands.
   `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps) and omit `[kind/n/m]` (footer still has totals).
   Executor models are omitted unless `--full`.

@@ -4708,6 +4708,7 @@ def cmd_show(args: argparse.Namespace) -> None:
         if not status_filter or s.status in status_filter
     ]
     key_width = max((len(task_slice.key) for task_slice in visible_slices), default=0)
+    short = bool(args.short) and not args.all
     done_slices = done_steps = total_steps = 0
     for task_slice in slices:
         st = task_slice.status
@@ -4716,8 +4717,33 @@ def cmd_show(args: argparse.Namespace) -> None:
         total_steps += t
         if st in STATUS_DONE:
             done_slices += 1
+
+    # With --short, collapse consecutive status==done slices onto one "✓ a, b, c" line.
+    # Skipped and non-done slices still render one-per-line. --all disables collapsing.
+    i = 0
+    while i < len(slices):
+        task_slice = slices[i]
+        st = task_slice.status
         if status_filter and st not in status_filter:
+            i += 1
             continue
+
+        if short and st == "done" and not (cursor and cursor.slice == task_slice.key):
+            run_keys: list[str] = []
+            while (
+                i < len(slices)
+                and slices[i].status == "done"
+                and not (cursor and cursor.slice == slices[i].key)
+            ):
+                if not status_filter or slices[i].status in status_filter:
+                    run_keys.append(slices[i].key)
+                i += 1
+            if run_keys:
+                glyph = paint_glyph(GLYPH["done"], "done", color=color)
+                lines.append(f"{glyph} {', '.join(run_keys)}")
+            continue
+
+        d, t = slice_counts(task_slice)
         is_current = bool(cursor and cursor.slice == task_slice.key)
         glyph_status = "in_progress" if is_current else st
         glyph = paint_glyph(GLYPH.get(glyph_status, "○"), glyph_status, color=color)
@@ -4737,6 +4763,7 @@ def cmd_show(args: argparse.Namespace) -> None:
 
         # Done/skipped slices stay header-only unless --all (no deps, repo_work, or steps).
         if st in STATUS_DONE and not args.all:
+            i += 1
             continue
 
         append_slice_work_lines(lines, task_slice, status_map)
@@ -4769,6 +4796,7 @@ def cmd_show(args: argparse.Namespace) -> None:
                         include_model=include_model,
                     )
                 )
+        i += 1
 
     lines += ["", f"{done_slices}/{len(slices)} slices · {done_steps}/{total_steps} steps", "— toolbelt —"]
     artifacts = task_artifacts(task)
@@ -5879,6 +5907,11 @@ def main() -> None:
         "--full",
         action="store_true",
         help="include executor model IDs on slice headers and expanded steps (tree view)",
+    )
+    show.add_argument(
+        "--short",
+        action="store_true",
+        help="collapse consecutive done slices onto one line (names only); ignored with --all or --slice",
     )
     show.add_argument("--status", help="comma-separated slice statuses to include")
     show.add_argument(

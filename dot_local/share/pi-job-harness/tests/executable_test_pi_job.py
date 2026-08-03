@@ -1425,6 +1425,106 @@ def test_show_omits_kind_counts_and_models_for_done_by_default() -> None:
         assert_contains(full, "cursor/test-model")
 
 
+def test_show_short_collapses_consecutive_done_slices() -> None:
+    """--short puts consecutive done slice keys on one line; skipped breaks the run."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "short-show.yaml"
+        write_task_yaml(task, {
+            "title": "Short show",
+            "status": "in_progress",
+            "project": {"name": "Fixture"},
+            "orchestration": {
+                "cursor": {"slice": "active", "step": "s1"},
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [
+                    {
+                        "key": "alpha",
+                        "kind": "implement",
+                        "title": "Alpha",
+                        "goal": "g",
+                        "status": "done",
+                        "note": "",
+                        "repos": ["repo-a"],
+                        "steps": [{"key": "s1", "title": "S1", "status": "done", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "beta",
+                        "kind": "implement",
+                        "title": "Beta",
+                        "goal": "g",
+                        "status": "done",
+                        "note": "",
+                        "steps": [{"key": "s1", "title": "S1", "status": "done", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "gamma-skip",
+                        "kind": "implement",
+                        "title": "Gamma",
+                        "goal": "g",
+                        "status": "skipped",
+                        "note": "",
+                        "steps": [{"key": "s1", "title": "S1", "status": "skipped", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "delta",
+                        "kind": "implement",
+                        "title": "Delta",
+                        "goal": "g",
+                        "status": "done",
+                        "note": "",
+                        "steps": [{"key": "s1", "title": "S1", "status": "done", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "active",
+                        "kind": "implement",
+                        "title": "Active",
+                        "goal": "g",
+                        "status": "in_progress",
+                        "note": "",
+                        "steps": [{"key": "s1", "title": "S1", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                ],
+            },
+        })
+        out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--color", "never").stdout
+        assert_contains(out, "✓ alpha, beta")
+        collapsed = next(line for line in out.splitlines() if "alpha, beta" in line)
+        if "repo-a" in collapsed:
+            raise AssertionError(f"short done line must be names only:\n{collapsed}\n{out}")
+        assert_contains(out, "gamma-skip")
+        assert_contains(out, "✓ delta")
+        # skipped and active stay on their own lines
+        gamma_lines = [line for line in out.splitlines() if "gamma-skip" in line]
+        if len(gamma_lines) != 1 or "alpha" in gamma_lines[0]:
+            raise AssertionError(f"skipped must stay alone:\n{out}")
+        # --all disables collapsing
+        all_out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--all", "--color", "never").stdout
+        if "alpha, beta" in all_out:
+            raise AssertionError(f"--all must not collapse done names:\n{all_out}")
+        # default show still one line per done slice
+        default = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
+        if "alpha, beta" in default:
+            raise AssertionError(f"default show must not collapse:\n{default}")
+        # cursor slice stays on its own line even when done
+        store = load_pi_job_module().YamlTaskStore(task)
+        data = store.read()
+        data["orchestration"]["cursor"] = {"slice": "delta", "step": None}
+        store.replace(data)
+        cursor_out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--color", "never").stdout
+        assert_contains(cursor_out, "✓ alpha, beta")
+        if "alpha, beta, delta" in cursor_out:
+            raise AssertionError(f"cursor done slice must not fold into short run:\n{cursor_out}")
+        assert_contains(cursor_out, "delta")
+
+
 def test_show_started_flag_expands_non_planned_slices() -> None:
     """By default only the current cursor's slice expands. --started additionally
     expands in_progress/blocked slices; done/skipped and still-planned stay collapsed.
@@ -5336,6 +5436,7 @@ def main() -> None:
     test_show_renders_tree_and_footer()
     test_show_aligns_kind_counts_after_longest_key()
     test_show_omits_kind_counts_and_models_for_done_by_default()
+    test_show_short_collapses_consecutive_done_slices()
     test_show_started_flag_expands_non_planned_slices()
     test_show_color_always_tints_glyphs_never_stays_plain()
     test_show_slice_prints_goal_notes_steps_repo_work()
