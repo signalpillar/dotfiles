@@ -35,7 +35,7 @@ context: 'Add `pi-job --task <file> markdown`.
 orchestration:
   cursor:
     slice: task-closing
-    step: update-test-plan
+    step: pi-job-feedback
   policy:
     coding_execution:
       subagent_required: true
@@ -51,7 +51,7 @@ orchestration:
       status: done
       path: pi-job-markdown-preview.task.plans/config-flag-matrix.md
       note: Default vs chronological sort flag matrix written.
-  content_digest: ff3146baee8e33f8954fa4c0a65602a2e598a16a7dc5e5b40c5883e1e28d82c4
+  content_digest: ad42bfe677793593f2a5c4635d41acdc1a3248c23d65318a7925972085e96749
 decisions:
 - date: '2026-08-03'
   note: Name the subcommand `markdown`; it prints the preview to stdout and does not modify the task.
@@ -84,6 +84,10 @@ decisions:
   note: Render decisions and nested notes as Markdown blockquotes (not code fences). Prefer Markdown when
     recording notes/decisions/context so `pi-job markdown` shows formatting. CLI help and add-decision/finish
     tips prompt for Markdown.
+  source: chat:2026-08-03
+- date: '2026-08-03'
+  note: Default markdown preview includes a `## Contents` ToC of all slices (key + title, status, optional
+    current badge) with links to `#slice-<key>` anchors before each slice heading.
   source: chat:2026-08-03
 plan:
   note: ''
@@ -313,8 +317,12 @@ plan:
     kind: closing
     title: Close the Markdown preview task
     goal: Reconcile final test, documentation, metrics, and task evidence after implementation.
-    status: planned
-    note: ''
+    status: done
+    note: Task closing done.
+    execution:
+      model: cursor/grok-4.5
+      started: '2026-08-03T14:31:01.130792Z'
+      ended: '2026-08-03T14:33:02.857379Z'
     repos: []
     depends_on:
     - add-markdown-preview
@@ -322,22 +330,43 @@ plan:
     steps:
     - key: update-test-plan
       title: Update the test plan
-      status: planned
-      note: ''
+      status: done
+      note: Updated test-case-table for Contents ToC; added test_markdown_contents_lists_all_slices_in_order.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-03T14:31:01.765883Z'
+        ended: '2026-08-03T14:32:58.959272Z'
     - key: update-docs
       title: Update documentation
-      status: planned
-      note: ''
+      status: done
+      note: 'README documents default Contents ToC before ## Slices.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-03T14:32:59.477426Z'
+        ended: '2026-08-03T14:32:59.724977Z'
     - key: capture-metrics
       title: Capture metrics to watch
-      status: planned
-      note: ''
+      status: done
+      note: 'Watch: ToC stays aligned with --chronological order; HTML anchors remain clickable in common
+        Markdown viewers.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-03T14:33:00.530434Z'
+        ended: '2026-08-03T14:33:00.804286Z'
     - key: update-task-file
       title: Update this task file
-      status: planned
-      note: ''
+      status: done
+      note: Closing complete after Contents ToC addition.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-03T14:33:01.408448Z'
+        ended: '2026-08-03T14:33:01.681496Z'
     - key: pi-job-feedback
       title: Record pi-job feedback
-      status: planned
-      note: ''
+      status: done
+      note: No further pi-job feedback beyond earlier entries on fencing vs quotes and bootstrap loop.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-03T14:33:02.212210Z'
+        ended: '2026-08-03T14:33:02.579049Z'
     final_steps: []

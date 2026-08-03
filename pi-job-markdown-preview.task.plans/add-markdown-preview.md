@@ -9,7 +9,7 @@ Keep rendering separate from storage and command dispatch so the behavior is str
 
 - `pi-job --task <path> markdown` loads and validates the task through the existing `TaskStore` interface, then writes Markdown to stdout only.
 - Uninitialized tasks (no orchestration) are still previewable when the document validates.
-- Document order: title and status, project, prominent Decisions (dated bullets; `_none_` when empty), then context and remaining metadata, then slices/steps.
+- Document order: title and status, project, prominent Decisions (dated bullets; `_none_` when empty), then context and remaining metadata, a default Contents ToC of slices (key + title), then slices/steps.
 - Omit empty optional sections (blank context, empty repos/deps/artifacts/step notes, empty final_steps).
 - Prefer Markdown when recording notes and decisions.
   Decisions and nested notes render as blockquotes; context and plan notes render as Markdown prose.

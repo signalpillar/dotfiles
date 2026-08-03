@@ -2,7 +2,7 @@
 
 | Case | Version | Expectation |
 | --- | --- | --- |
-| Representative full task | v0 | Full dump; Decisions near top with dated bullets; `(current)` on cursor slice/step |
+| Representative full task | v0 | Full dump; Decisions near top with dated bullets; Contents ToC of slices; `(current)` on cursor slice/step |
 | Minimal / sparse task | v0 | Empty optional sections omitted; Decisions shows `_none_` |
 | Uninitialized task | v0 | Preview succeeds without orchestration |
 | Notes with Markdown metacharacters | v0 | Notes/context fenced; titles escaped; structure intact |

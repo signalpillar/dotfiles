@@ -474,7 +474,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 - `pi-job --task <t> markdown [--chronological]` - render a portable Markdown preview to stdout.
   Loads through `TaskStore`, validates, and never writes back.
   Uninitialized tasks (no `orchestration`) preview when the document validates.
-  Document order: title/status, project, prominent `## Decisions` (dated bullets; `_none_` when empty), context and remaining metadata (empty sections omitted), then slices/steps.
+  Document order: title/status, project, prominent `## Decisions` (dated bullets; `_none_` when empty), context and remaining metadata (empty sections omitted), a default `## Contents` table of slices (key + title, with `(current)` and status; links to slice anchors), then slices/steps.
   Prefer Markdown when recording notes and decisions (`finish --note`, `add-decision`, `set-context`, `set-plan-note`).
   Decisions and nested notes render as blockquotes; context and plan notes render as Markdown prose.
   Titles and headings are escaped.

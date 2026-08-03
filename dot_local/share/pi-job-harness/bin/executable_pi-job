@@ -4882,6 +4882,29 @@ def render_step_markdown(
     return lines
 
 
+def render_slices_toc(
+    slice_items: tuple[TaskSlice, ...],
+    *,
+    cursor: Cursor | None,
+) -> list[str]:
+    """Return a default table of contents for slices (key + title)."""
+
+    if not slice_items:
+        return []
+    lines = ["## Contents", ""]
+    for task_slice in slice_items:
+        is_current = bool(cursor and cursor.slice == task_slice.key)
+        current_badge = " (current)" if is_current else ""
+        key = escape_md_inline(task_slice.key)
+        title = escape_md_inline(task_slice.title or task_slice.key or "<untitled>")
+        status = escape_md_inline(task_slice.status)
+        anchor = f"slice-{task_slice.key}"
+        lines.append(
+            f"- [{key}{current_badge} — {title}](#{anchor}) `[{status}]`"
+        )
+    return lines
+
+
 def render_slice_markdown(
     task_slice: TaskSlice,
     *,
@@ -4892,6 +4915,7 @@ def render_slice_markdown(
     current_badge = " (current)" if is_current_slice else ""
     title = escape_md_inline(task_slice.title or task_slice.key or "<untitled>")
     lines = [
+        f'<a id="slice-{task_slice.key}"></a>',
         (
             f"### {escape_md_inline(task_slice.key)}{current_badge} "
             f"[{task_slice.kind}] — {title} [{task_slice.status}]"
@@ -4993,6 +5017,9 @@ def render_task_markdown(task: Mapping[str, Any], *, chronological: bool = False
 
     slice_items = ordered_slices_for_markdown(task, chronological=chronological)
     if slice_items:
+        toc_lines = render_slices_toc(slice_items, cursor=cursor)
+        lines.extend(toc_lines)
+        lines.append("")
         lines.append("## Slices")
         lines.append("")
         for index, task_slice in enumerate(slice_items):

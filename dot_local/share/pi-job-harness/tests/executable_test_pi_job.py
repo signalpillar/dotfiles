@@ -5598,12 +5598,36 @@ def test_markdown_representative_full_dump() -> None:
         assert_contains(out, "## Plan note")
         assert_contains(out, "## Artifacts")
         assert_contains(out, "**test-case-table** [done]")
+        assert_contains(out, "## Contents")
+        assert_contains(out, "[active-slice (current) —")
+        assert_contains(out, "](#slice-active-slice)")
+        contents_idx = out.index("## Contents")
+        assert contents_idx < slices_idx, out
+        assert_contains(out, '<a id="slice-active-slice"></a>')
         assert_contains(out, "### active-slice (current)")
         assert_contains(out, "**edit-code** (current)")
         assert_contains(out, "**Repo work (graphius):**")
         assert_contains(out, "https://github.com/example/pr/42")
         assert_not_contains(out, "PI-JOB")
         assert_not_contains(out, "\033[")
+
+
+def test_markdown_contents_lists_all_slices_in_order() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "toc.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        assert_contains(out, "## Contents")
+        first_toc = out.index("[first —")
+        second_toc = out.index("[second-slice —")
+        contents_end = out.index("## Slices")
+        assert first_toc < second_toc < contents_end, out
+        chrono = run(str(PI_JOB), "--task", str(task), "markdown", "--chronological").stdout
+        # Fixture first slice is done without timestamps; still listed in Contents.
+        assert_contains(chrono, "## Contents")
+        assert_contains(chrono, "](#slice-first)")
+        assert_contains(chrono, "](#slice-second-slice)")
 
 
 def test_markdown_minimal_omits_empty_decisions_none() -> None:
@@ -5705,8 +5729,12 @@ def test_markdown_current_badges() -> None:
         out = run(str(PI_JOB), "--task", str(task), "markdown").stdout
         assert_contains(out, "### second-slice (current)")
         assert_contains(out, "**s2** (current)")
-        if " (current)" in out.replace("### second-slice (current)", "").replace("**s2** (current)", ""):
-            raise AssertionError(f"(current) badge must appear only on cursor slice/step:\n{out}")
+        assert_contains(out, "[second-slice (current) — Second](#slice-second-slice)")
+        # Exactly three (current) markers: Contents entry, slice heading, and step.
+        assert out.count(" (current)") == 3, out
+        assert_not_contains(out, "### first (current)")
+        assert_not_contains(out, "**s1** (current)")
+        assert_not_contains(out, "**finish** (current)")
 
 
 def test_markdown_default_slice_order() -> None:
@@ -6050,6 +6078,7 @@ def main() -> None:
     test_missing_digest_does_not_warn()
     test_fixture_policy_disallows_incidental_cue_task_paths()
     test_markdown_representative_full_dump()
+    test_markdown_contents_lists_all_slices_in_order()
     test_markdown_minimal_omits_empty_decisions_none()
     test_markdown_uninitialized_preview()
     test_markdown_escapes_and_quotes_metacharacters()
