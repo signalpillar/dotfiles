@@ -666,3 +666,9 @@ function start_aider_agent {
 function osx_resize_png_image {
     sips -z 240 240 $1 --out $2.240x240.png
 }
+
+function ai_coding_agents_usage {
+    # Report Coding Agents token usage and cost from local logs.
+    # https://github.com/ccusage/ccusage - pass args through (e.g. daily, monthly, session, blocks).
+    bunx ccusage $@
+}
