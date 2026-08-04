@@ -95,12 +95,13 @@ class StepDocument(StrictDocument):
 
 
 class DecisionDocument(StrictDocument):
-    """A durable decision made while executing a task."""
+    """Product/scope decision that later sessions must honor without re-grilling."""
 
     date: str = Field(description="Decision date, normally formatted as YYYY-MM-DD.")
     note: str = Field(
         description=(
-            "Decision and enough rationale to understand it later. "
+            "Product, scope, architecture, or policy agreement - not step evidence "
+            "(use finish --note for e2e, PR, deploy, or progress). "
             "Prefer Markdown; `pi-job markdown` renders it as a blockquote."
         )
     )
@@ -244,7 +245,10 @@ class TaskDocument(StrictDocument):
     project: ProjectDocument = Field(default_factory=ProjectDocument, description="Owning project metadata.")
     context: str = Field(default="", description="Free-form background required before acting on the task.")
     orchestration: OrchestrationDocument | None = Field(default=None, description="Cursor and policy state after initialization.")
-    decisions: list[DecisionDocument] = Field(default_factory=list, description="Durable decisions in chronological order.")
+    decisions: list[DecisionDocument] = Field(
+        default_factory=list,
+        description="Product/scope decisions in chronological order - not step evidence (use finish --note).",
+    )
     plan: PlanDocument = Field(default_factory=PlanDocument, description="Ordered slice and step plan.")
 
     @model_validator(mode="after")
@@ -359,7 +363,10 @@ class BootstrapDocument(StrictDocument):
     project: ProjectDocument = Field(default_factory=ProjectDocument, description="Owning project metadata.")
     context: str = Field(default="", description="Free-form background required before acting on the task.")
     plan_note: str = Field(default="", description="High-level plan context.")
-    decisions: list[DecisionDocument] = Field(default_factory=list, description="Durable decisions in chronological order.")
+    decisions: list[DecisionDocument] = Field(
+        default_factory=list,
+        description="Product/scope decisions in chronological order - not step evidence (use finish --note).",
+    )
     slices: list[BootstrapSliceDocument] = Field(default_factory=list, description="Ordered task slices declared by the user.")
 
     @model_validator(mode="after")
@@ -6330,16 +6337,20 @@ def main() -> None:
     start.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
     start.set_defaults(fn=cmd_start)
 
-    finish = sub.add_parser("finish", help="record end time and mark the current step or selected slice done/skipped")
+    finish = sub.add_parser(
+        "finish",
+        help="record end time and mark the current step or selected slice done/skipped",
+        description="record end time and mark the current step or selected slice done/skipped",
+    )
     finish.add_argument("--model", help="model ID; required only for an atomic skip that was not started")
     finish.add_argument("--slice", help="explicit slice key; without --step this targets the slice itself")
     finish.add_argument("--step", help="explicit step key (uses the current slice unless --slice is supplied)")
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
     finish.add_argument(
         "--note",
-        help="completion evidence as Markdown (preferred); rendered formatted in "
-        "`pi-job markdown`; omitted preserves the existing note; when supplied "
-        "appends with a blank line; --replace overwrites instead",
+        help="append completion/evidence for this step (not product decisions; use add-decision); "
+        "Markdown preferred; rendered formatted in `pi-job markdown`; omitted preserves the "
+        "existing note; when supplied appends with a blank line; --replace overwrites instead",
     )
     finish.add_argument(
         "--replace",
@@ -6481,7 +6492,11 @@ def main() -> None:
     set_context.add_argument("--file", dest="file_path", type=Path, help="read context from a file")
     set_context.set_defaults(fn=cmd_set_context)
 
-    add_decision = sub.add_parser("add-decision", help="append a durable decision record")
+    add_decision = sub.add_parser(
+        "add-decision",
+        help="append a product/scope decision (not step evidence; use finish --note)",
+        description="append a product/scope decision (not step evidence; use finish --note)",
+    )
     add_decision.add_argument("--date", default="", help="decision date (default: today UTC)")
     add_decision.add_argument(
         "--note",

@@ -46,7 +46,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `init` - initialize `task.orchestration` and set the cursor; optionally seed the first slice from a slice kind template
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
-- `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and durable decisions without hand-editing the store
+- `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
 - `status` / `next` / `plan` - report where the work is and what slices/steps remain
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` - tree view (compact by default), optional models, collapsed consecutive done names, or a slice-local detail view (goal, notes, steps, repo_work)
@@ -181,11 +181,46 @@ They appear in `instruction` and `plan` for orchestrator self-check.
   It does not spawn agents.
   The orchestrator chooses models and launches subagents.
 - Session todos should track the slice/step plan from `plan`, not a separate profile phase list.
-- Prefer small context: `status` / `show --slice` / `instruction` over loading the whole task file.
+- Prefer small context: `status` / `show --slice` / `markdown --slice` / `instruction` over loading the whole task file.
   Token smell: if a step needs a huge dump, shrink the contract or the slice.
 - Sibling slice plans are succinct constraint-and-behaviour contracts (intent, behaviour, constraints, verification).
-  Persist durable agreements with `add-decision` (and/or the grilled plan), not only in chat.
+  Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
+  Step evidence belongs in `finish --note`, not `add-decision`.
 - Developer experience and agent experience share the same constructs: clear names, modular boundaries, and machine-readable contracts help both.
+
+## Channels
+
+Hard rules for which write API to use (same contract in profile packets, CLI help, and skill):
+
+- **DECISION (`add-decision`)** = product, scope, architecture, or policy agreement that later sessions must honor without re-grilling.
+  Must still be true if the PR never merged.
+  Prefer one sentence + rationale.
+  Not a journal.
+- **STEP NOTE (`finish --note`)** = evidence that THIS step happened or failed: commands, e2e results, scan findings, "gap recorded", skip reasons.
+- **SLICE NOTE** = cross-step narrative for the slice (blocker story, handoff).
+  Prefer `finish --slice-only`; not `add-decision`.
+- **PLAN FILE (`*.plans/<slice-key>.md`)** = constraint-and-behaviour contract.
+  Long prose lives here.
+- **PLAN NOTE (`set-plan-note`)** = destination / high-level map.
+  Not a progress log.
+- **PR / REPO (`add-pr`, `set-worktree`)** = delivery lifecycle.
+  Sync uses `finish --note` for verify evidence - keep it there.
+
+**Good `add-decision`**
+
+- UK ConfirmMedication assets resolve via ProgrammeDefinition.defaultPartnerId; no static Graphius maps.
+- Ship with temporary US CDN assets; UK-native assets blocked on uk-treatment-assets-commission before prod.
+
+**Bad `add-decision` (use `finish --note` / `add-pr` instead)**
+
+- PR #3420 MERGED + deployed to dev-uk.
+- e2e passed for assetUrl on ConfirmMedication.
+- RESOLVED: folded mapping into SHEMED-2329.
+
+**Good `finish --note`**
+
+- Ran graphius e2e on dev-uk; ConfirmMedication assetUrl returns CDN path; PI hold path verified.
+- `gh pr view` shows #3420 merged; advanced past wait-for-feedback.
 
 ## How an agent should know about it
 
@@ -355,7 +390,7 @@ These commands write task metadata and durable state without editing the YAML by
 
 - `pi-job --task <t> set-project --key K --name N --route R --context C` - merge into `task.project` (at least one flag required).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
-- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a decision record (date defaults to today UTC; source defaults to `pi-job add-decision`).
+- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note`; date defaults to today UTC; source defaults to `pi-job add-decision`).
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
 - `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and record a decision (YAML only).
 - `pi-job --task <t> set-slice --key K [--title T] [--goal G]` - update slice metadata (at least one of `--title` or `--goal` required; YAML only; refuses `done`/`skipped` slices).
@@ -486,7 +521,9 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Default slice order follows `plan.slices`.
   `--chronological` sorts slices by the earliest non-empty `execution.started` or `execution.ended` on the slice or any step/final_step (no-timestamp slices after; plan order tie-break).
 - Subagent instruction packets treat the emitted packet as sufficient context; they do not order inspecting the task store directly or opening full `profile.yaml`.
-  For sibling-step evidence within the current slice, the subagent prompt points at `pi-job --task <t> show --slice <key>`.
+  Subagents must run `pi-job --task <t> markdown --slice <key>` first to load binding `## Decisions` plus that slice.
+  For sibling-step evidence after decisions are loaded, the subagent prompt points at `pi-job --task <t> show --slice <key>`.
+  Orchestrators dispatch subagents with the markdown --slice command; they do not paste a decisions dump.
 
 The setup slice's `select-toolbelt` step picks aids suited to the task's slice kinds; `plan-slices` produces them.
 The catalog lives in `profile.yaml` under `toolbelt`.
@@ -508,7 +545,7 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 - `pi-job --task <t> wayfinder-context` - print the map reconstructed from the task file at the slice level (no step noise): the `DESTINATION` (`plan.note`), recorded `DECISIONS`, `IN PROGRESS / DONE` slices, the `FRONTIER` (planned slices whose dependencies are satisfied), and the `FOG` (planned slices still blocked, with their unmet dependencies).
   Read-only; reuses the same `is_actionable` logic as `next`.
 - The `wayfinder` step drives the wayfinder skill (installed separately), using this task file as its issue tracker; the pi-job skill's Wayfinder section holds the map-to-task-file mapping.
-  It loads the map with `wayfinder-context`, spawns as many subagents as needed to resolve unknowns (research the world, prototype to see, grill the user), records each resolution with `add-decision`, and grows the plan with `add-slice`.
+  It loads the map with `wayfinder-context`, spawns as many subagents as needed to resolve unknowns (research the world, prototype to see, grill the user), records scope/architecture resolutions with `add-decision` (not PR/e2e/deploy chatter), and grows the plan with `add-slice`.
   It creates `fog` slices for areas still too foggy or decidable only after other work, and implement/research/spike slices for work now clear.
 - A `fog` slice (`clarify-scope → wayfinder → plan-slices`) is a deferred decision-branch, scheduled by `depends_on` so it is charted only once its prerequisites land.
   Its `wayfinder` step recurses, so charting one area can spawn further fog slices for its sub-fog.
@@ -646,7 +683,7 @@ Models use strict types and reject unknown fields.
 | `project` | object | Stable project key, name, workflow route, and project context. |
 | `context` | string | Free-form background required before acting. |
 | `orchestration` | object or null | Saved cursor, persisted execution policy, and artifacts. |
-| `decisions[]` | decision | Date, durable rationale, and source for a decision. |
+| `decisions[]` | decision | Date, product/scope rationale, and source for a binding decision (not step evidence). |
 | `plan.note` | string | High-level plan context. |
 | `plan.slices[]` | slice | Ordered atomic delivery units. |
 | `slice.key` | string | Stable identity used by dependencies and the cursor. |

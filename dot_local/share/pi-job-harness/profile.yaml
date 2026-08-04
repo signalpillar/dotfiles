@@ -126,8 +126,9 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       (pi-job store owns those).
       DX and agent experience share the same constructs: clear names and short contracts
       help the next human and the next agent equally - write the plan for both.
-      Persist durable agreements with `pi-job add-decision` (and/or the grilled plan);
-      do not leave load-bearing agreements only in chat.
+      Persist product/scope/architecture/policy agreements with `pi-job add-decision`
+      (and/or the grilled plan); do not leave load-bearing scope choices only in chat.
+      Step evidence belongs in `finish --note`, not `add-decision`.
       Token smell: if the plan needs a huge dump to be usable, shrink the slice or the
       contract - do not compensate by loading more of the task store into context.
       Naming: beside the task file, directory `<task-stem>.plans/`, file
@@ -142,8 +143,9 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       If grilling surfaces a real gap, revise the plan FILE (not the
       task-file note), grill again, only mark grill-plan done once the plan survives
       - this is a loop, not a one-shot rubber stamp.
-      After grill survives, capture any durable choice that should outlive the session
+      After grill survives, capture product/scope choices that should outlive the session
       with `pi-job add-decision` (date/note/source), not only in chat.
+      Do not use add-decision for PR, deploy, e2e, or progress chatter.
   Mark both done only once the plan has survived grilling; advance refuses to pass an
   incomplete step, so edit-code-style steps stay unreachable until both are done.
   Distinct from the setup slice's `grill` step (overall scope before implement slices
@@ -170,8 +172,21 @@ instruction_packets:
     - Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
-    Reads: pi-job --task {task_file} status | plan | show [--slice {slice_key}] | instruction [--current].
+    Reads: pi-job --task {task_file} status | plan | markdown [--slice {slice_key}] | show [--slice {slice_key}] | instruction [--current].
     Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
+    Channels (which write for which fact):
+    DECISION (add-decision) = product, scope, architecture, or policy agreement that
+      later sessions must honor without re-grilling. Must still be true if the PR
+      never merged. Prefer one sentence + rationale. Not a journal.
+    STEP NOTE (finish --note) = evidence that THIS step happened or failed:
+      commands, e2e results, scan findings, "gap recorded", skip reasons.
+    SLICE NOTE = cross-step narrative for the slice (blocker story, handoff).
+      Prefer finish --slice-only; not add-decision.
+    PLAN FILE (*.plans/<slice-key>.md) = constraint-and-behaviour contract.
+      Long prose lives here.
+    PLAN NOTE (set-plan-note) = destination / high-level map. Not a progress log.
+    PR / REPO (add-pr, set-worktree) = delivery lifecycle. Sync uses finish --note
+      for verify evidence - keep it there.
     Write notes and decisions as Markdown so `pi-job markdown` can render them formatted (decisions as blockquotes; context/notes as Markdown prose or quotes).
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
     Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
@@ -195,11 +210,18 @@ instruction_packets:
     - Choose an appropriate lower-cost model using judgement.
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
+    - Tell the subagent to run first: pi-job --task {task_file} markdown --slice {slice_key}
+    - Do not paste a decisions dump into the subagent prompt; the markdown --slice read loads binding decisions.
     - Review the subagent result before running pi-job advance.
     - After review, continue the orchestrator loop (finish → advance → instruction); do not wait for "continue".
   subagent_prompt: |-
     This packet is your execution context; do not inspect the task store directly.
-    For sibling-step evidence in this slice, run: pi-job --task {task_file} show --slice {slice_key}
+    Before any other work, run: pi-job --task {task_file} markdown --slice {slice_key}
+    Treat every ## Decisions entry as binding. If SUPERSEDED/RESOLVED, follow the superseding entry.
+    On conflict or a blocking decision, STOP and report - do not re-litigate.
+    New product/scope/architecture/policy decisions only via add-decision.
+    Step evidence (e2e, PR/merge/deploy, WIP/RESOLVED progress) via finish --note / add-pr / plan file - never add-decision.
+    For sibling-step evidence in this slice after decisions are loaded, run: pi-job --task {task_file} show --slice {slice_key}
     Execute only cursor {cursor}.
     Return changed files, commands run, verification evidence, and unresolved risks.
     Do not advance the task record unless this cursor step explicitly asks for task-record updates.
@@ -278,8 +300,9 @@ step_kinds:
       `pi-job --task <this-file> wayfinder-context` to load the map: the destination, recorded
       decisions, and the current frontier/fog of research and fog slices. Take those as given - do not
       re-decide resolved areas. pi-job orchestrates, it does not execute, so spawn as many subagents as
-      needed to reduce uncertainty (research the world, prototype to see, grill the user). Record each
-      resolution as a decision with `add-decision`. Then create whatever slices the chart calls for with
+      needed to reduce uncertainty (research the world, prototype to see, grill the user). Record
+      scope/architecture resolutions with `add-decision`; record research evidence with `finish --note`
+      on the wayfinder step or grow implement/research slices. Then create whatever slices the chart calls for with
       `pi-job add-slice` and the appropriate depends_on: fog slices for areas still too foggy or
       decidable only after other work is done, and implement/research/spike slices for work now clear
       enough to schedule. The pi-job skill's Wayfinder section holds the full map-to-task-file mapping.

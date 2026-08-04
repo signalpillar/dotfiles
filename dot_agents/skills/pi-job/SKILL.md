@@ -42,9 +42,32 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
 ## Reads (do not open the store)
 
-- `status`, `plan`, `show`, `show --slice KEY`, `instruction [--current]`
-- Use `show --slice KEY` when you need that slice's goal, notes, steps, or repo_work
+- `status`, `plan`, `markdown [--slice KEY]`, `show`, `show --slice KEY`, `instruction [--current]`
+- Subagent-owned steps: run `markdown --slice KEY` first to load binding `## Decisions` plus that slice
+- Use `show --slice KEY` for sibling-step evidence after decisions are loaded
 - Do not dump or browse the whole task document into context
+
+## Channels
+
+Hard rules for which write API to use:
+
+- **DECISION (`add-decision`)** = product, scope, architecture, or policy agreement that later sessions must honor without re-grilling.
+  Must still be true if the PR never merged.
+  Not a journal.
+- **STEP NOTE (`finish --note`)** = evidence that THIS step happened or failed: commands, e2e, scan findings, skip reasons.
+- **SLICE NOTE** = cross-step narrative; prefer `finish --slice-only`, not `add-decision`.
+- **PLAN FILE** (`<task-stem>.plans/<slice-key>.md`) = constraint-and-behaviour contract.
+- **PLAN NOTE (`set-plan-note`)** = destination / high-level map, not a progress log.
+- **PR / REPO (`add-pr`, `set-worktree`)** = delivery lifecycle; sync verify evidence stays in `finish --note`.
+
+Anti-patterns (do not use `add-decision` for these):
+
+- PR merge/deploy status (`PR #3420 MERGED + deployed`)
+- e2e or verify results (`e2e passed for assetUrl`)
+- progress markers (`RESOLVED: folded mapping into SHEMED-2329`)
+
+Good `add-decision`: scope agreements like "assets resolve via ProgrammeDefinition.defaultPartnerId; no static maps".
+Good `finish --note`: "Ran graphius e2e on dev-uk; assetUrl returns CDN path".
 
 ## Writes (mutation commands only)
 
@@ -56,7 +79,8 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
 Put slice plans in `<task-stem>.plans/<slice-key>.md`, not in endless notes.
 Those files are succinct constraint-and-behaviour contracts.
-Persist durable agreements with `add-decision` (and/or the grilled plan), not only in chat.
+Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
+Step evidence belongs in `finish --note`, not `add-decision`.
 Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice.
 Full wording lives in `plan_and_grill_guardrail` in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi source: `dot_local/share/pi-job-harness/profile.yaml`).
 `validate` / `status` warn on oversized notes (~2000 chars) and large task files (~100KB); they do not refuse `finish`.
@@ -79,7 +103,7 @@ Map wayfinder's constructs onto pi-job:
 | Wayfinder | pi-job |
 |---|---|
 | the map | this task file (destination = `plan.note`) |
-| decisions so far | `decisions` via `add-decision` |
+| decisions so far | `decisions` via `add-decision` (product/scope only; not PR/e2e/deploy chatter) |
 | research / prototype / decision ticket | a slice: `add-slice --kind research` / `spike` / `fog` |
 | implementation ticket | `add-slice --kind implement` |
 | blocking relationship | `--depends-on` |

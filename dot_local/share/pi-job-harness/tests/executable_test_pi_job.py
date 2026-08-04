@@ -856,6 +856,9 @@ def test_subagent_instruction_prohibits_direct_task_store_inspection() -> None:
         assert_contains(instruction, "Subagent prompt:")
         assert_contains(instruction, "Owner: subagent")
         assert_contains(instruction, "implement-slice / edit-code")
+        assert_contains(instruction, "markdown --slice")
+        assert_contains(instruction, "markdown --slice implement-slice")
+        assert_contains(instruction, "Treat every ## Decisions entry as binding")
         assert_contains(instruction, "show --slice")
         assert_contains(instruction, "show --slice implement-slice")
 
@@ -865,8 +868,10 @@ def test_subagent_instruction_includes_scoped_read_command() -> None:
         task = Path(tmp) / "subagent-scoped-read.yaml"
         task.write_text(subagent_instruction_yaml_task(slice_key="target-slice"), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "markdown --slice target-slice")
         assert_contains(instruction, "show --slice target-slice")
         assert_not_contains(instruction, "show --slice {slice_key}")
+        assert_not_contains(instruction, "markdown --slice {slice_key}")
 
 
 def test_orchestrator_instruction_has_no_subagent_prompt() -> None:
@@ -877,6 +882,37 @@ def test_orchestrator_instruction_has_no_subagent_prompt() -> None:
         assert_not_contains(instruction, "Subagent prompt:")
         assert_not_contains(instruction, "Read the task file")
         assert_not_contains(instruction, "show --slice")
+        assert_not_contains(instruction, "markdown --slice")
+
+
+def test_subagent_orchestrator_directs_markdown_slice_without_decisions_dump() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "subagent-orchestrator-markdown.yaml"
+        task.write_text(subagent_instruction_yaml_task(slice_key="target-slice"), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "Orchestrator instruction:")
+        assert_contains(instruction, "markdown --slice target-slice")
+        assert_contains(instruction, "Do not paste a decisions dump")
+        orch_idx = instruction.index("Orchestrator instruction:")
+        prompt_idx = instruction.index("Subagent prompt:")
+        assert orch_idx < prompt_idx, "Orchestrator instruction must precede Subagent prompt"
+
+
+def test_add_decision_and_finish_help_describe_channels() -> None:
+    add_help = run(str(PI_JOB), "add-decision", "--help").stdout
+    finish_help = run(str(PI_JOB), "finish", "--help").stdout
+    assert_contains(add_help, "product/scope decision")
+    assert_contains(add_help, "not step evidence")
+    assert_contains(add_help, "finish --note")
+    assert_contains(finish_help, "not product")
+    assert_contains(finish_help, "add-decision")
+
+
+def test_decision_document_schema_describes_channels_contract() -> None:
+    schema = run(str(PI_JOB), "schema", "--json").stdout
+    assert_contains(schema, "Product, scope, architecture, or policy agreement")
+    assert_contains(schema, "not step evidence")
+    assert_contains(schema, "finish --note")
 
 
 def test_subagent_instruction_still_inlines_step_kind_guidance() -> None:
@@ -940,7 +976,8 @@ def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
         "Do not move delivery status, cursor, or session journals into plan files",
     )
     assert_contains(instruction, "DX and agent experience share the same constructs")
-    assert_contains(instruction, "Persist durable agreements with `pi-job add-decision`")
+    assert_contains(instruction, "Persist product/scope/architecture/policy agreements with `pi-job add-decision`")
+    assert_contains(instruction, "Step evidence belongs in `finish --note`, not `add-decision`")
     assert_contains(instruction, "Token smell:")
     assert_not_contains(instruction, "approach, files/functions touched, key tradeoffs")
 
@@ -964,7 +1001,8 @@ def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> N
             "Challenge behaviour, boundaries, must-not constraints, and verification",
         )
         assert_contains(instruction, "prose volume is not an acceptance criterion")
-        assert_contains(instruction, "capture any durable choice that should outlive the session")
+        assert_contains(instruction, "capture product/scope choices that should outlive the session")
+        assert_contains(instruction, "Do not use add-decision for PR, deploy, e2e, or progress chatter")
 
 
 def test_profile_yaml_aliases_shared_guidance_strings() -> None:
@@ -994,6 +1032,10 @@ def _assert_task_record_discipline_block(instruction: str) -> None:
     assert_contains(instruction, "status")
     assert_contains(instruction, "plan")
     assert_contains(instruction, "show")
+    assert_contains(instruction, "markdown")
+    assert_contains(instruction, "Channels (which write for which fact):")
+    assert_contains(instruction, "DECISION (add-decision)")
+    assert_contains(instruction, "STEP NOTE (finish --note)")
     assert_contains(instruction, "instruction")
     assert_contains(instruction, "add-slice")
     assert_contains(instruction, "validation")
@@ -1054,6 +1096,7 @@ def test_task_record_discipline_interpolates_task_file_and_slice_key() -> None:
         task.write_text(subagent_instruction_yaml_task(slice_key="target-slice"), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, str(task))
+        assert_contains(instruction, "markdown [--slice target-slice]")
         assert_contains(instruction, "show [--slice target-slice]")
         assert_not_contains(instruction, "{task_file}")
         assert_not_contains(instruction, "{slice_key}")
@@ -6016,6 +6059,12 @@ def main() -> None:
     test_bootstrap_instruction_includes_next_action()
     test_subagent_instruction_includes_task_record_discipline()
     test_task_record_discipline_interpolates_task_file_and_slice_key()
+    test_subagent_instruction_prohibits_direct_task_store_inspection()
+    test_subagent_instruction_includes_scoped_read_command()
+    test_orchestrator_instruction_has_no_subagent_prompt()
+    test_subagent_orchestrator_directs_markdown_slice_without_decisions_dump()
+    test_add_decision_and_finish_help_describe_channels()
+    test_decision_document_schema_describes_channels_contract()
     test_update_task_file_guidance_names_mutation_commands()
     test_plan_output_omits_task_record_discipline()
     test_create_plan_instruction_defines_constraint_and_behaviour_contract()
