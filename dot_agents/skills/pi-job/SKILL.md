@@ -43,8 +43,10 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 ## Reads (do not open the store)
 
 - `status`, `plan`, `markdown [--slice KEY]`, `show`, `show --slice KEY`, `instruction [--current]`
-- Subagent-owned steps: run `markdown --slice KEY` first to load binding `## Decisions` plus that slice
-- Use `show --slice KEY` for sibling-step evidence after decisions are loaded
+- Subagent-owned steps: run `pi-job --task TASK_FILE markdown --slice SLICE_KEY` first
+  (TASK_FILE / SLICE_KEY are command hints - use the real `--task` path and current slice from the packet header)
+- That loads binding `## Decisions` plus that slice
+- Use `show --slice SLICE_KEY` for sibling-step evidence after decisions are loaded
 - Do not dump or browse the whole task document into context
 
 ## Channels

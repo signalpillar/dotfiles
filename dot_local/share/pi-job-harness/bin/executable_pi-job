@@ -384,18 +384,29 @@ class InstructionPacketsDocument(StrictDocument):
     todo_tracking: str = Field(description="Todo-tracking lines in every instruction packet. Supports {cursor}.")
     future_work: str = Field(description="Future-work capture lines in every instruction packet.")
     task_record_discipline: str = Field(
-        description="Task-record read/write discipline in every instruction packet. Supports {task_file}, {slice_key}."
+        description=(
+            "Task-record read/write discipline in every instruction packet. "
+            "Use literal TASK_FILE / SLICE_KEY command hints (not interpolated paths). Supports {cursor}."
+        )
     )
     next_action: str = Field(
         description=(
             "Concrete next-action checklist at the top of every instruction packet. "
-            "Supports {task_file}, {cursor}, {slice_key}."
+            "Use literal TASK_FILE command hints (not interpolated paths). Supports {cursor}."
         )
     )
     orchestrator: str = Field(description="Orchestrator-owned step execution guidance.")
-    subagent_orchestrator: str = Field(description="Orchestrator dispatch guidance when the step owner is subagent.")
+    subagent_orchestrator: str = Field(
+        description=(
+            "Orchestrator dispatch guidance when the step owner is subagent. "
+            "Use literal TASK_FILE / SLICE_KEY command hints (not interpolated paths)."
+        )
+    )
     subagent_prompt: str = Field(
-        description="Subagent-facing prompt body. Supports {cursor}, {task_file}, {slice_key}."
+        description=(
+            "Subagent-facing prompt body. Supports {cursor}. "
+            "Use literal TASK_FILE / SLICE_KEY command hints (not interpolated paths)."
+        )
     )
     plan_todo: str = Field(description="Todo guidance appended to `pi-job plan` output.")
     missing_task_hint: str = Field(
@@ -4298,15 +4309,15 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         lines += [
             "",
             "Lifecycle recording:",
-            f"- Before work begins, run `pi-job --task {task_file} start --model <fully-qualified-model-id>`.",
-            f"- After evidence is recorded, run `pi-job --task {task_file} finish` before `pi-job advance`.",
+            "- Before work begins, run `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`.",
+            "- After evidence is recorded, run `pi-job --task TASK_FILE finish` before `pi-job advance`.",
             "- Start the containing slice separately with `start --slice-only --model <orchestrator-model-id>` if it has no execution metadata.",
         ]
     elif task_slice:
         lines += [
             "",
             "Lifecycle recording:",
-            f"- Finish this slice with `pi-job --task {task_file} finish --slice-only` after every step is done or skipped.",
+            "- Finish this slice with `pi-job --task TASK_FILE finish --slice-only` after every step is done or skipped.",
         ]
     if step and step_kind and has_lifecycle_policy(step_kind):
         source_step_key = str(step_kind.get("different_model_from_step") or "")

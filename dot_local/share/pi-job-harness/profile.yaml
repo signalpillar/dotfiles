@@ -172,7 +172,8 @@ instruction_packets:
     - Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
-    Reads: pi-job --task {task_file} status | plan | markdown [--slice {slice_key}] | show [--slice {slice_key}] | instruction [--current].
+    TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
+    Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction [--current].
     Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
     Channels (which write for which fact):
     DECISION (add-decision) = product, scope, architecture, or policy agreement that
@@ -193,10 +194,10 @@ instruction_packets:
     DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
   next_action: |-
     Do not wait for another user prompt.
-    1. If the current slice has no execution metadata: `pi-job --task {task_file} start --slice-only --model <orchestrator-model-id>`
-    2. `pi-job --task {task_file} start --model <fully-qualified-model-id>`
+    1. If the current slice has no execution metadata: `pi-job --task TASK_FILE start --slice-only --model <orchestrator-model-id>`
+    2. `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`
     3. Execute cursor {cursor} per this packet
-    4. `pi-job --task {task_file} finish` with evidence, then `pi-job --task {task_file} advance`, then `pi-job --task {task_file} instruction --current`
+    4. `pi-job --task TASK_FILE finish` with evidence, then `pi-job --task TASK_FILE advance`, then `pi-job --task TASK_FILE instruction --current`
     Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
   orchestrator: |-
     - Enter the orchestrator loop immediately after this packet (including right after bootstrap, scaffold+init, or instruction).
@@ -210,18 +211,19 @@ instruction_packets:
     - Choose an appropriate lower-cost model using judgement.
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
-    - Tell the subagent to run first: pi-job --task {task_file} markdown --slice {slice_key}
+    - Tell the subagent to run first: pi-job --task TASK_FILE markdown --slice SLICE_KEY
     - Do not paste a decisions dump into the subagent prompt; the markdown --slice read loads binding decisions.
     - Review the subagent result before running pi-job advance.
     - After review, continue the orchestrator loop (finish → advance → instruction); do not wait for "continue".
   subagent_prompt: |-
     This packet is your execution context; do not inspect the task store directly.
-    Before any other work, run: pi-job --task {task_file} markdown --slice {slice_key}
+    TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
+    Before any other work, run: pi-job --task TASK_FILE markdown --slice SLICE_KEY
     Treat every ## Decisions entry as binding. If SUPERSEDED/RESOLVED, follow the superseding entry.
     On conflict or a blocking decision, STOP and report - do not re-litigate.
     New product/scope/architecture/policy decisions only via add-decision.
     Step evidence (e2e, PR/merge/deploy, WIP/RESOLVED progress) via finish --note / add-pr / plan file - never add-decision.
-    For sibling-step evidence in this slice after decisions are loaded, run: pi-job --task {task_file} show --slice {slice_key}
+    For sibling-step evidence in this slice after decisions are loaded, run: pi-job --task TASK_FILE show --slice SLICE_KEY
     Execute only cursor {cursor}.
     Return changed files, commands run, verification evidence, and unresolved risks.
     Do not advance the task record unless this cursor step explicitly asks for task-record updates.
