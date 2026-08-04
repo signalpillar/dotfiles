@@ -742,6 +742,75 @@ def test_init_with_kind_setup_seeds_setup_slice() -> None:
         assert_contains(show, "explore-context")
 
 
+def test_setup_template_includes_wayfinder_step() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "setup-wayfinder.yaml"
+        write_task_yaml(task, {
+            "title": "Setup wayfinder",
+            "status": "in_progress",
+            "plan": {"note": "", "slices": []},
+        })
+        run(str(PI_JOB), "--task", str(task), "init", "--kind", "setup")
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "wayfinder")
+
+
+def test_fog_slice_kind_seeds_template() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "fog.yaml"
+        write_task_yaml(task, {
+            "title": "Fog kind",
+            "status": "in_progress",
+            "plan": {"note": "", "slices": []},
+        })
+        run(str(PI_JOB), "--task", str(task), "init", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(task), "add-slice", "--kind", "fog",
+            "--key", "chart-x", "--title", "Chart X", "--goal", "clear the fog")
+        show = run(str(PI_JOB), "--task", str(task), "show", "--slice", "chart-x").stdout
+        assert_contains(show, "clarify-scope")
+        assert_contains(show, "wayfinder")
+        assert_contains(show, "plan-slices")
+
+
+def test_wayfinder_context_reports_frontier_and_fog() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "wf-context.yaml"
+        write_task_yaml(task, {
+            "title": "Chart it",
+            "status": "in_progress",
+            "orchestration": {
+                "cursor": {"slice": "b", "step": ""},
+                "policy": _orchestration_policy(),
+            },
+            "decisions": [
+                {"date": "2026-08-04", "note": "Use YAML backend", "source": "chat"},
+            ],
+            "plan": {
+                "note": "Ship the thing",
+                "slices": [
+                    {"key": "a", "kind": "research", "title": "A", "goal": "learn",
+                     "status": "done", "note": "found it", "steps": [], "final_steps": []},
+                    {"key": "b", "kind": "fog", "title": "B", "goal": "chart",
+                     "status": "in_progress", "note": "charting", "steps": [], "final_steps": []},
+                    {"key": "c", "kind": "implement", "title": "C", "goal": "build now",
+                     "status": "planned", "note": "ready", "depends_on": ["a"],
+                     "steps": [], "final_steps": []},
+                    {"key": "d", "kind": "implement", "title": "D", "goal": "build later",
+                     "status": "planned", "note": "blocked", "depends_on": ["c"],
+                     "steps": [], "final_steps": []},
+                ],
+            },
+        })
+        out = run(str(PI_JOB), "--task", str(task), "wayfinder-context").stdout
+        assert_contains(out, "DESTINATION:")
+        assert_contains(out, "Ship the thing")
+        assert_contains(out, "Use YAML backend")
+        assert_contains(out, "FRONTIER")
+        assert_contains(out, "c [implement, planned]")
+        assert_contains(out, "FOG")
+        assert_contains(out, "d [implement] blocked_by=['c']")
+
+
 def test_edit_code_owner_from_step_kinds() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "edit-code-owner.yaml"
@@ -5881,6 +5950,9 @@ def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
     test_init_with_kind_setup_seeds_setup_slice()
+    test_setup_template_includes_wayfinder_step()
+    test_fog_slice_kind_seeds_template()
+    test_wayfinder_context_reports_frontier_and_fog()
     test_edit_code_owner_from_step_kinds()
     test_orchestrator_instruction_includes_task_record_discipline()
     test_instruction_includes_next_action_and_enter_the_loop()

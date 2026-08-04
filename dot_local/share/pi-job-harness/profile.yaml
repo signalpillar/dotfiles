@@ -264,6 +264,25 @@ step_kinds:
       - at-least-one-slice
       - slices-repo-scoped-and-atomic
     guidance: Prefer one slice per repository. Make each slice atomic - self-contained end to end - ordered by dependency. Add implement slices with `pi-job add-slice --kind implement`.
+  wayfinder:
+    key: wayfinder
+    title: Chart the fog
+    owner: orchestrator
+    validators:
+      - wayfinder-context-loaded
+      - decisions-or-fog-slices-recorded
+    skip_rule: skip when there is no fog to chart - the destination is already clear enough to plan slices directly
+    guidance: >-
+      Chart the foggy area named in this step's note with the wayfinder skill (installed separately),
+      using this pi-job task file as the wayfinder issue tracker. First run
+      `pi-job --task <this-file> wayfinder-context` to load the map: the destination, recorded
+      decisions, and the current frontier/fog of research and fog slices. Take those as given - do not
+      re-decide resolved areas. pi-job orchestrates, it does not execute, so spawn as many subagents as
+      needed to reduce uncertainty (research the world, prototype to see, grill the user). Record each
+      resolution as a decision with `add-decision`. Then create whatever slices the chart calls for with
+      `pi-job add-slice` and the appropriate depends_on: fog slices for areas still too foggy or
+      decidable only after other work is done, and implement/research/spike slices for work now clear
+      enough to schedule. The pi-job skill's Wayfinder section holds the full map-to-task-file mapping.
   create-plan:
     key: create-plan
     title: Create plan
@@ -459,9 +478,16 @@ slice_kinds:
       - explore-context
       - clarify-scope
       - grill
+      - wayfinder
       - select-toolbelt
       - plan-slices
       - pi-job-feedback
+    required_steps:
+      - explore-context
+      - clarify-scope
+      - grill
+      - select-toolbelt
+      - plan-slices
   implement:
     key: implement
     title: Implementation
@@ -505,6 +531,11 @@ slice_kinds:
       - capture-metrics
       - update-task-file
       - pi-job-feedback
+    required_steps:
+      - update-test-plan
+      - update-docs
+      - capture-metrics
+      - update-task-file
   research:
     key: research
     title: Research
@@ -536,6 +567,17 @@ slice_kinds:
       - edit-code
       - verify
       - update-task-file
+      - pi-job-feedback
+  fog:
+    key: fog
+    title: Fog / decision branch
+    description: A foggy sub-area charted later, after its dependencies are done. Records decisions and spawns the slices needed to resolve it. No code changes of its own.
+    policies:
+      no_code_changes: true
+    step_template:
+      - clarify-scope
+      - wayfinder
+      - plan-slices
       - pi-job-feedback
   follow-work:
     key: follow-work

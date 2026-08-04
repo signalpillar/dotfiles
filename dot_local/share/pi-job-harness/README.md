@@ -140,7 +140,7 @@ When every slice is done/skipped, next reports done.
 Typical slice layout for an end-to-end implementation task:
 
 ```text
-1. task-setup          [kind: setup]     explore → clarify → grill → select-toolbelt → plan-slices
+1. task-setup          [kind: setup]     explore → clarify → grill → wayfinder → select-toolbelt → plan-slices
 2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → wait-for-feedback
 3. fix-follow-up       [kind: implement] …
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
@@ -496,6 +496,21 @@ Sibling plan files are succinct constraint-and-behaviour contracts.
 Full wording (required sections, grill axes, task-store boundary, naming, skip exception) lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
 Do not restate that contract here.
 
+## Charting foggy work: wayfinder
+
+When a task is too big and foggy to plan in one setup pass, the `setup` slice's `wayfinder` step (and any `fog` slice) charts the way to the destination one decision at a time, instead of forcing implement slices up front.
+The map is the task file itself: `decisions` and slices, readable by any later session.
+
+- `pi-job --task <t> wayfinder-context` - print the map reconstructed from the task file at the slice level (no step noise): the `DESTINATION` (`plan.note`), recorded `DECISIONS`, `IN PROGRESS / DONE` slices, the `FRONTIER` (planned slices whose dependencies are satisfied), and the `FOG` (planned slices still blocked, with their unmet dependencies).
+  Read-only; reuses the same `is_actionable` logic as `next`.
+- The `wayfinder` step drives the wayfinder skill (installed separately), using this task file as its issue tracker; the pi-job skill's Wayfinder section holds the map-to-task-file mapping.
+  It loads the map with `wayfinder-context`, spawns as many subagents as needed to resolve unknowns (research the world, prototype to see, grill the user), records each resolution with `add-decision`, and grows the plan with `add-slice`.
+  It creates `fog` slices for areas still too foggy or decidable only after other work, and implement/research/spike slices for work now clear.
+- A `fog` slice (`clarify-scope → wayfinder → plan-slices`) is a deferred decision-branch, scheduled by `depends_on` so it is charted only once its prerequisites land.
+  Its `wayfinder` step recurses, so charting one area can spawn further fog slices for its sub-fog.
+- `grill` sharpens what the user already knows; `wayfinder` charts what nobody knows yet and schedules a resolver for each unknown.
+  Grill is one tool wayfinder dispatches, alongside research, prototype, and task.
+
 ## Syncing recorded state with reality: sync
 
 - `pi-job --task <t> sync [--status s1,s2]` - print a structured pipeline of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR; `--status` overrides the selection.
@@ -550,11 +565,12 @@ Task data from every backend passes through the documented Pydantic task contrac
 
 | Kind | Role |
 |---|---|
-| `setup` | Explore, clarify, grill scope, select toolbelt, plan implement slices - typically once, first |
+| `setup` | Explore, clarify, grill scope, chart the fog, select toolbelt, plan implement slices - typically once, first |
 | `implement` | One atomic repo-scoped change: plan, grill plan, build, verify, ship, wait for feedback |
 | `closing` | Cross-slice bookkeeping once implement slices are done - typically once, last |
 | `research` | Investigation without code changes |
 | `spike` | Time-boxed prototype; create-plan/grill-plan apply like implement |
+| `fog` | Deferred decision-branch charted later via `depends_on`; records decisions and spawns the slices to resolve a foggy sub-area (no code changes) |
 | `follow-work` | Observe a peer's Jira item until landing; capture understanding; spawn or decline follow-ups (no code changes) |
 
 Machine-readable templates and policies live under `slice_kinds` and `step_kinds` in `profile.yaml`.

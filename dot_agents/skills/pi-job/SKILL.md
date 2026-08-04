@@ -61,6 +61,36 @@ Token smell: if a step needs a huge dump to proceed, shrink the contract or the 
 Full wording lives in `plan_and_grill_guardrail` in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi source: `dot_local/share/pi-job-harness/profile.yaml`).
 `validate` / `status` warn on oversized notes (~2000 chars) and large task files (~100KB); they do not refuse `finish`.
 
+## Wayfinder: chart foggy work into the task file
+
+When work is too big and foggy to plan in one setup pass, use the wayfinder skill (installed separately) with this task file as its issue tracker.
+The map is the task file - do not keep a parallel map anywhere else.
+
+Load the map before charting:
+
+```bash
+pi-job --task <file> wayfinder-context
+```
+
+It prints the destination (`plan.note`), recorded decisions, in-progress/done slices, and the planned work split into FRONTIER (takeable now) vs FOG (blocked by unfinished dependencies).
+
+Map wayfinder's constructs onto pi-job:
+
+| Wayfinder | pi-job |
+|---|---|
+| the map | this task file (destination = `plan.note`) |
+| decisions so far | `decisions` via `add-decision` |
+| research / prototype / decision ticket | a slice: `add-slice --kind research` / `spike` / `fog` |
+| implementation ticket | `add-slice --kind implement` |
+| blocking relationship | `--depends-on` |
+| frontier vs fog | actionable slices vs dependency-blocked ones |
+| resolving a ticket | record a decision, then `finish` / `advance` |
+
+The `setup` slice's `wayfinder` step charts the first map.
+A `fog` slice defers a decision-branch via `depends_on` and recurses through its own `wayfinder` step, so charting one area can spawn further fog slices.
+Grill sharpens what the user already knows; wayfinder charts what nobody knows yet and picks a resolver (research, prototype, grill, or task) for each unknown.
+The task is never frozen - it grows as slices are discovered.
+
 ## Harness Python contributions
 
 From `dot_local/share/pi-job-harness/` (or the applied package dir):

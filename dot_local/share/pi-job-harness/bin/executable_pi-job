@@ -48,7 +48,7 @@ TASK_FILE_WARN_BYTES = 100_000
 NOTE_WARN_TOP_N = 5
 TaskStatus = Literal["planned", "in_progress", "blocked", "done", "skipped"]
 PullRequestStatus = Literal["open", "merged", "closed"]
-SliceKindKey = Literal["setup", "implement", "closing", "research", "spike", "follow-work"]
+SliceKindKey = Literal["setup", "implement", "closing", "research", "spike", "follow-work", "fog"]
 ExecutionOwner = Literal["orchestrator", "subagent", "external_tool"]
 TASK_STATUSES = ("planned", "in_progress", "blocked", "done", "skipped")
 PULL_REQUEST_STATUSES = ("open", "merged", "closed")
@@ -4485,6 +4485,77 @@ def cmd_plan(args: argparse.Namespace) -> None:
     print(build_plan(task_file, task))
 
 
+def build_wayfinder_context(task_file: Path, task: dict[str, Any]) -> str:
+    """Reconstruct the Wayfinder map from the task file at the slice level (no step
+    detail): the destination, recorded decisions, in-progress/done slice notes, and the
+    planned work split into frontier (takeable now) vs fog (blocked by unfinished deps).
+    This is the deterministic context the `wayfinder` step loads before charting."""
+    status_map = slice_status_map(task)
+    destination = (task.get("plan") or {}).get("note") or ""
+    decisions = task.get("decisions") or []
+
+    active: list[TaskSlice] = []
+    frontier: list[TaskSlice] = []
+    fog: list[TaskSlice] = []
+    for task_slice in task_slices(task):
+        if task_slice.status in STATUS_DONE or task_slice.status in ("in_progress", "blocked"):
+            active.append(task_slice)
+        elif dependency_satisfied(task_slice, status_map):
+            frontier.append(task_slice)
+        else:
+            fog.append(task_slice)
+
+    def slice_line(task_slice: TaskSlice, *, with_deps: bool = False) -> str:
+        note = task_slice.note or ""
+        suffix = f": {note}" if note else ""
+        deps = ""
+        if with_deps and task_slice.depends_on:
+            deps = f" depends_on={list(task_slice.depends_on)}"
+        return f"  - {task_slice.key} [{task_slice.kind or '?'}, {task_slice.status}]{deps}{suffix}"
+
+    lines = [
+        "PI-JOB WAYFINDER CONTEXT",
+        "",
+        f"Task file: {task_file}",
+        "",
+        "DESTINATION:",
+        f"  {destination}" if destination else "  <unset>",
+        "",
+        "DECISIONS:",
+    ]
+    if decisions:
+        for decision in decisions:
+            lines.append(f"  - {decision.get('date') or '?'}: {decision.get('note') or ''}")
+    else:
+        lines.append("  (none recorded)")
+
+    lines += ["", "IN PROGRESS / DONE:"]
+    lines += [slice_line(s) for s in active] if active else ["  (none)"]
+
+    lines += ["", "FRONTIER (takeable now):"]
+    lines += [slice_line(s, with_deps=True) for s in frontier] if frontier else ["  (none)"]
+
+    lines += ["", "FOG (blocked by unfinished decisions):"]
+    if fog:
+        for s in fog:
+            unmet = [d for d in s.depends_on if status_map.get(d) not in STATUS_DONE]
+            note = s.note or ""
+            suffix = f": {note}" if note else ""
+            lines.append(f"  - {s.key} [{s.kind or '?'}] blocked_by={unmet}{suffix}")
+    else:
+        lines.append("  (none)")
+
+    return "\n".join(lines)
+
+
+def cmd_wayfinder_context(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    store = open_task_store(task_file)
+    task = store.read()
+    require_initialized(task_file, task)
+    print(build_wayfinder_context(task_file, task))
+
+
 def cmd_sync(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
@@ -6251,6 +6322,12 @@ def main() -> None:
 
     plan = sub.add_parser("plan", help="print slice/step plan from the task file and step/slice-kind contract")
     plan.set_defaults(fn=cmd_plan)
+
+    wayfinder_context = sub.add_parser(
+        "wayfinder-context",
+        help="print the Wayfinder map from the task file (destination, decisions, and slices split into frontier vs fog) for the wayfinder step to load before charting",
+    )
+    wayfinder_context.set_defaults(fn=cmd_wayfinder_context)
 
     sync = sub.add_parser(
         "sync",
