@@ -1,0 +1,13 @@
+{
+  "name": "mermaid-validate",
+  "private": true,
+  "type": "module",
+  "description": "Parse-only Mermaid diagram validator used by the mermaid skill",
+  "bin": {
+    "mermaid-validate": "./validate.mjs"
+  },
+  "dependencies": {
+    "mermaid": "^11.4.0",
+    "jsdom": "^25.0.0"
+  }
+}

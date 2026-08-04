@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DIR="$HOME/.local/share/mermaid-validate"
+if [ ! -d "$DIR/node_modules" ]; then
+  npm install --prefix "$DIR" --silent --no-audit --no-fund >&2
+fi
+exec node "$DIR/validate.mjs" "$@"
