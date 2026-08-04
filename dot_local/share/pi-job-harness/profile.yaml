@@ -152,7 +152,7 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
   exist) - grill-plan is the per-slice equivalent.
   Exception: a genuinely trivial single-file edit may skip both steps (status:
   skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
-  If the sibling plan file already exists from a bootstrap/add-slice seed reminder,
+  If the sibling plan file already exists from a create/add-slice seed reminder,
   revise it with remaining detail rather than starting from a blank page.
 sync_pipeline_instructions: |-
   ACTION REQUIRED: this command only reads the task file - it never calls GitHub or Jira.
@@ -225,7 +225,7 @@ instruction_packets:
     If the task is done, stop.
   orchestrator: |-
     - Role: orchestrator (CLI-only for the store). Supersedes any default workspace role (e.g. Product Owner) while this task is active.
-    - Enter the orchestrator loop immediately after this packet (including right after bootstrap, scaffold+init, or instruction).
+    - Enter the orchestrator loop immediately after this packet (including right after create, or instruction).
     - Do not wait for the user to say "continue".
     - Loop: start → execute this step → finish with evidence → advance → instruction.
     - When a slice is exhausted: follow the pick-next packet (show → choose Ready → advance --slice/--step → instruction).
@@ -257,7 +257,7 @@ instruction_packets:
     - Use the session todo capability to track this task plan.
     - Create one todo per slice (or per step when helpful).
     - Mark the current/next slice/step in_progress; mark completed items done as evidence lands.
-    - Keep todos aligned with pi-job status/next; do not invent parallel plans outside the contract.
+    - Keep todos aligned with pi-job status/plan; do not invent parallel plans outside the contract.
   out_of_band_edit_warning: |-
     warning: task file semantic content does not match the last pi-job write digest.
     Prefer pi-job mutation commands over hand-edits (see pi-job --help; Writes in the task-record discipline packet).
@@ -265,12 +265,12 @@ instruction_packets:
     (appends the reason to the current cursor slice note and refreshes the digest; not a decision).
   missing_task_hint: |-
     task store not found: {task_file}
-    create one from the example shape with:
-      pi-job --task {task_file} scaffold
-    or write a bootstrap document and create+initialize in one transaction:
-      pi-job --task {task_file} bootstrap --from <bootstrap.yaml>
-    after scaffold, initialize orchestration:
-      pi-job --task {task_file} init [--kind setup|implement|...]
+    create and initialize one with:
+      pi-job --task {task_file} create --kind setup
+    or from an intent document:
+      pi-job --task {task_file} create --from <intent.yaml>
+    for an empty plan (add slices yourself, then re-run create):
+      pi-job --task {task_file} create --empty-plan
   seed_slice_plans: |-
     Create these plan files immediately from known task context, decisions, goals, and deps.
     Do not wait until each slice's create-plan cursor.

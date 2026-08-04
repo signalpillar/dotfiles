@@ -41,9 +41,7 @@ It does **not** run the agent session and does **not** spawn subagents.
 
 Given a YAML task file and package-local `profile.yaml`, it can:
 
-- `bootstrap` - create and initialize a task file from a bootstrap intent document in one atomic transaction (the fastest path from nothing to a working task)
-- `scaffold` - create a missing task file from the generic example shape; `--empty-plan` and `--initial-kind K` for targeted seeding
-- `init` - initialize `task.orchestration` and set the cursor; optionally seed the first slice from a slice kind template
+- `create` - create and initialize a task file (`--from` intent YAML, or `--kind`/`--empty-plan` skeleton; also finishes init on an existing uninitialized file)
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
@@ -121,7 +119,7 @@ TASK FILE (durable state)                    CONTRACT (profile.yaml)
 
 task.plan.slices[]                             slice_kinds: setup | implement | closing
   key, title, goal, status, note, execution      | research | spike
-  kind  ───────────────────────────────►         policies, step_template (for add-slice / init)
+  kind  ───────────────────────────────►         policies, step_template (for add-slice / create)
   depends_on[]  ◄── guard: skip until deps done
   steps[] + final_steps[]                      step_kinds: keyed catalog
     key, title, status, note, execution           owner, guidance, validators,
@@ -182,7 +180,7 @@ They appear in `instruction` and `plan` for orchestrator self-check.
   Prefer `pi-job` mutation commands over manual edits.
   pi-job stores `orchestration.content_digest` on writes and warns on read when semantic content no longer matches; run `acknowledge-edit --reason` after a legitimate hand-edit.
   `validate` does not fail on a stale digest.
-- The harness is deterministic and fail-closed: missing task → `scaffold`; missing orchestration → `init`; then `plan` / `instruction` / `advance`.
+- The harness is deterministic and fail-closed: missing or uninitialized task → `create`; then `plan` / `instruction` / `advance`.
 - `pi-job` emits instruction packets.
   It does not spawn agents.
   The orchestrator chooses models and launches subagents.
@@ -224,8 +222,7 @@ Short examples:
 1. Global hint: chezmoi [`AGENTS.md`](../../../AGENTS.md) points agents at `pi-job` for durable task orchestration.
 2. On PATH after chezmoi apply: `pi-job` -> `~/.local/bin/pi-job`.
 3. When a user names a task file, run `pi-job --task <file> status` first.
-4. If the file is missing, the preferred path is a single `bootstrap` transaction.
-   Alternatively, use `scaffold --empty-plan` (or `scaffold --initial-kind K` when appropriate), then `init [--kind setup]` to seed the first slice.
+4. If the file is missing (or uninitialized), use `create` (`--from` intent YAML, or `--kind setup`).
    In either case, use task mutation commands (`set-project`, `set-context`, `add-decision`, `set-plan-note`, `remove-slice`) to shape the task.
 5. Use `plan` to create session todos, `instruction` before acting, and `advance` only after evidence or a recorded blocker.
 6. Prefer this package README over inventing a parallel workflow.
@@ -280,16 +277,16 @@ Run from the repository that owns the task file.
 The current working directory is reported as the repository root in instruction packets.
 
 ```bash
-# The fastest path: bootstrap from an intent document (one transaction)
-pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml
+# From an intent document (create + initialize in one transaction)
+pi-job --task projects/example/tasks/task.yaml create --from task.intent.yaml
 
-# If the task file does not exist yet (scaffold then init):
-pi-job --task projects/example/tasks/task.yaml scaffold --empty-plan
-pi-job --task projects/example/tasks/task.yaml init --kind setup
+# Seed a kind and initialize in one shot
+pi-job --task projects/example/tasks/task.yaml create --kind setup
 
-# Alternative: scaffold with the initial slice already seeded
-pi-job --task projects/example/tasks/task.yaml scaffold --initial-kind setup
-pi-job --task projects/example/tasks/task.yaml init
+# Empty plan only (add slices, then re-run create to initialize)
+pi-job --task projects/example/tasks/task.yaml create --empty-plan
+# ... edit plan.slices ...
+pi-job --task projects/example/tasks/task.yaml create
 
 pi-job --task projects/example/tasks/task.yaml status
 pi-job --task projects/example/tasks/task.yaml validate
@@ -301,8 +298,8 @@ pi-job --task projects/example/tasks/task.yaml finish --note "Verification evide
 pi-job --task projects/example/tasks/task.yaml advance
 ```
 
-If `--task` points at a missing file, commands fail closed and tell the agent how to create one.
-A task without `task.orchestration` is not initialized; run `init` (or `bootstrap` which includes it) before `plan`, `show`, `advance`, or `instruction`.
+If `--task` points at a missing file, commands fail closed and tell the agent how to `create` one.
+A task without `task.orchestration` is not initialized; run `create` (with `--kind` if needed) before `plan`, `show`, `advance`, or `instruction`.
 
 ### validate
 
@@ -316,26 +313,30 @@ A task without `task.orchestration` is not initialized; run `init` (or `bootstra
 - Legacy CUE validation still exports through `task-schema.cue` before applying the same Pydantic task model.
 - `validate` and `status` warn (non-fatal) when slice or step notes exceed ~2000 characters or the task file exceeds ~100KB; keep long prose in slice plan files.
 
-### scaffold
+### create
 
-- `scaffold` creates a YAML task file from the generic example shape (one implement slice `do-the-change`).
-- `--empty-plan` scaffolds with `plan.slices: []` so the plan starts clean; pair with `init --kind setup`.
-- `--initial-kind K` scaffolds with a single slice of kind K (e.g. `setup-slice` with key `{kind}-slice`), immediately valid for `init` without `--kind`.
-- `--dry-run` prints the scaffold content without writing.
-- `--force` overwrites an existing file.
-
-### bootstrap
-
-`bootstrap` creates and initializes a task file from a bootstrap intent document in one atomic transaction.
-It is the fastest path from nothing to a working task: validates the intent, expands steps from the active profile, seeds the initial slice, initializes orchestration, writes atomically, reads back, and emits the deterministic instruction packet.
+`create` is the only way to bring a task file into existence and/or initialize orchestration.
 
 ```bash
-pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml
-pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml --dry-run  # unified diff, no write
-pi-job --task projects/example/tasks/task.yaml bootstrap --from task.bootstrap.yaml --force    # replace existing
+# Intent document
+pi-job --task projects/example/tasks/task.yaml create --from task.intent.yaml
+pi-job --task projects/example/tasks/task.yaml create --from task.intent.yaml --dry-run
+pi-job --task projects/example/tasks/task.yaml create --from task.intent.yaml --force
+
+# Skeleton + initialize in one shot
+pi-job --task projects/example/tasks/task.yaml create --kind setup
+pi-job --task projects/example/tasks/task.yaml create   # default implement example
+
+# Empty plan (no orchestration yet)
+pi-job --task projects/example/tasks/task.yaml create --empty-plan
+# ... add-slice ...
+pi-job --task projects/example/tasks/task.yaml create
+
+# Existing uninitialized file: finish init in place
+pi-job --task projects/example/tasks/task.yaml create [--kind setup]
 ```
 
-The bootstrap intent document describes the task shape holistically:
+Intent document shape (`--from`):
 
 ```yaml
 title: Add GCSE roadmap support resources
@@ -367,17 +368,14 @@ Safety guarantees:
 - Validates the prospective task before writing, including the Pydantic task contract.
 - Expands steps only from the active profile's step templates.
 - Verifies slice keys through `TaskDocument` and checks that all dependency references resolve.
-- `--dry-run` prints a unified diff without writing.
+- `--dry-run` prints the would-be YAML (or a unified diff for `--from`) without writing.
 - Writes through a temporary file and atomic rename.
 - Reads back and revalidates the written result; aborts on semantic mismatch.
 - Returns the initialized cursor and the full instruction packet for the orchestrator to act on.
-- Reports the active profile and schema version used.
-- When the bootstrap plan introduces implement or spike slices (kinds whose template includes `create-plan`), prints a trailing `SEED SLICE PLAN FILES NOW` reminder listing relative plan paths so agents can write plan files immediately.
+- When the plan introduces implement or spike slices (kinds whose template includes `create-plan`), prints a trailing `SEED SLICE PLAN FILES NOW` reminder.
 
-### init and add-slice
+### add-slice
 
-- `init [--kind K]` creates `task.orchestration` with cursor at the first actionable slice/step.
-  When `plan.slices` is empty and `--kind` is supplied, seeds one slice from `slice_kinds[K].step_template`.
 - `add-slice --kind K --key … --title … --goal …` is required for every new slice; steps are filled from the template.
 - After a successful non-dry-run `add-slice` for a qualifying kind, prints the same seed reminder for that slice only.
 
@@ -402,7 +400,7 @@ These commands write task metadata and durable state without editing the YAML by
 These commands do not require `--task`.
 
 - `pi-job profile [--json]` - show the active execution profile. Human output lists slice/step/toolbelt counts; `--json` dumps the full validated profile.
-- `pi-job schema [--json]` - show the task document and bootstrap input schemas. Human output summarizes model counts; `--json` dumps a complete JSON Schema object with `task` and `bootstrap` keys.
+- `pi-job schema [--json]` - show the task document and create-intent input schemas. Human output summarizes model counts; `--json` dumps a complete JSON Schema object with `task` and `create` keys.
 - `pi-job kinds list [--json]` - list all slice kinds with their step templates. `--json` dumps the full slice_kinds catalog.
 - `pi-job kinds show <kind> [--json]` - show one slice kind's details including expanded step entries (title, owner). `--json` adds resolved step metadata.
 
@@ -591,7 +589,7 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 All backends implement the same `TaskStore` protocol.
 Task data from every backend passes through the documented Pydantic task contract.
 
-`scaffold` supports YAML and legacy CUE task paths.
+`create` supports YAML and legacy CUE task paths.
 `migrate-task` remains a CUE-only schema-diagnosis command.
 
 ## Converting between backends: project
@@ -707,7 +705,7 @@ Profile models document configuration layering, artifact rules and gates, toolbe
 
 What `pi-job` cares about most:
 
-- `orchestration` - must exist after `init`; holds cursor, policy, and artifacts
+- `orchestration` - must exist after `create`; holds cursor, policy, and artifacts
 - `orchestration.cursor` - saved resume point `{slice, step}` only
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
 - `plan.slices[].steps` plus `final_steps` - what within-slice `advance` walks

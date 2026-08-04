@@ -4,7 +4,7 @@ description: >-
   Run durable multi-step work through the pi-job CLI task store (status, plan,
   instruction, start/finish/advance). Use when orchestrating agents against a
   pi-job task file, when tempted to open or hand-edit the task YAML/store, or
-  when bootstrapping/scaffolding a missing task.
+  when creating a missing task.
 ---
 
 # pi-job
@@ -38,7 +38,7 @@ restate them from this skill.
 pi-job --task TASK_FILE status
 ```
 
-If the file is missing, follow the scaffold/bootstrap hint from the CLI.
+If the file is missing, follow the create hint from the CLI (`create --kind` or `create --from`).
 Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
 Trust `Cursor` for the active step and `Ready` for candidates.
@@ -46,7 +46,7 @@ Array order of slices is not execution order.
 If the current slice has no unfinished steps (or instruction emits pick-next):
 run `show`, choose a Ready slice, `advance --slice KEY --step STEP`, then `instruction`.
 
-After bootstrap, scaffold+init, or any `instruction` packet: enter the orchestrator loop immediately.
+After create or any `instruction` packet: enter the orchestrator loop immediately.
 Do not wait for the user to say "continue".
 Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
 Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SLICE_KEY`;

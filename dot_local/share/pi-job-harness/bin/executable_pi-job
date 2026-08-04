@@ -374,7 +374,7 @@ class BootstrapDocument(StrictDocument):
         if self.initial_slice_key is not None and self.initial_slice_kind is None:
             raise ValueError("initial_slice_key requires initial_slice_kind")
         if not self.initial_slice_kind and not self.slices:
-            raise ValueError("bootstrap input must declare initial_slice_kind or at least one slice")
+            raise ValueError("create intent must declare initial_slice_kind or at least one slice")
         return self
 
 
@@ -2912,7 +2912,7 @@ def require_initialized(task_file: Path, task: dict[str, Any]) -> None:
     if not task.get("orchestration"):
         die(
             "task is not initialized for pi-job: missing task.orchestration\n"
-            f"run: pi-job --task {task_file} init [--kind setup|implement|...]"
+            f"run: pi-job --task {task_file} create [--kind setup|implement|...]"
         )
 
 
@@ -3028,7 +3028,7 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
     print(f"Contract: {PROFILE}")
     if not task.get("orchestration"):
         print("Initialization: required")
-        print(f"Next: initialize with pi-job --task {task_file_desc} init [--kind setup|implement|...]")
+        print(f"Next: initialize with pi-job --task {task_file_desc} create [--kind setup|implement|...]")
     else:
         print("Initialization: ok")
         structure_issues = slice_structure_issues(task)
@@ -5566,124 +5566,348 @@ def cmd_toolbelt(args: argparse.Namespace) -> None:
         print(f"  {key} [{status}] — {aid.get('title')}: {aid.get('purpose')}")
 
 
-def cmd_init(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task.resolve())
-    task = store.read()
-
-    kind: str | None = args.kind
-    if kind:
-        get_slice_kind(kind)
-        if not task.get("plan", {}).get("slices"):
-            store.add_slice(
-                key=f"{kind}-slice",
-                kind=kind,
-                title=get_slice_kind(kind).get("title", kind),
-                goal=f"Initial {kind} slice seeded by pi-job init",
-                extra_fields={},
-                steps=steps_from_kind_template(kind),
-                final_steps=[],
-                after=None,
-            )
-            task = store.read()
-
-    cursor = seed_cursor(task)
-    if cursor is None:
-        if all_slices_done(task):
-            die("task has no actionable slice/step; add slices with pi-job add-slice --kind ...")
-        else:
-            die("no slice is dependency-satisfied yet; check depends_on for a forward reference or cycle among the first slices")
-    if args.dry_run:
-        if isinstance(store, CueTaskStore):
-            print(orchestration_block(cursor))
-        else:
-            preview = {
-                "orchestration": {
-                    "cursor": {"slice": cursor.slice, "step": cursor.step},
-                    "policy": {"coding_execution": {
-                        "subagent_required": True,
-                        "lower_power_model_preferred": True,
-                        "orchestrator_reviews_subagent": True,
-                        "exceptions": [],
-                    }},
-                    "artifacts": {},
-                }
-            }
-            print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
-        return
-    store.init_orchestration(cursor)
-    print("initialized orchestration")
-    print(f"cursor: {cursor.label()}")
+def _default_coding_policy() -> dict[str, Any]:
+    return {
+        "subagent_required": True,
+        "lower_power_model_preferred": True,
+        "orchestrator_reviews_subagent": True,
+        "exceptions": [],
+    }
 
 
-def cmd_scaffold(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
-    suffix = task_file.suffix.lower()
+def _orchestration_for_cursor(cursor: Cursor) -> dict[str, Any]:
+    return {
+        "cursor": {"slice": cursor.slice, "step": cursor.step},
+        "policy": {"coding_execution": _default_coding_policy()},
+        "artifacts": {},
+    }
 
-    if args.empty_plan and args.initial_kind:
-        die("--empty-plan and --initial-kind are mutually exclusive")
-    if args.empty_plan:
-        mapping = {
-            "title": args.title,
+
+def _scaffold_task_mapping(
+    *,
+    title: str,
+    kind: str | None,
+    empty_plan: bool,
+) -> dict[str, Any]:
+    if empty_plan and kind:
+        die("--empty-plan and --kind are mutually exclusive")
+    if empty_plan:
+        return {
+            "title": title,
             "status": "planned",
             "source": {"jira": "", "discovered": "", "context": "Short discovery note for why this task exists."},
             "project": {"key": "", "name": "", "route": "", "context": ""},
             "context": "",
             "decisions": [],
-            "plan": {"note": "Add slices with pi-job add-slice or bootstrap.", "slices": []},
+            "plan": {"note": "Add slices with pi-job add-slice, then run create to initialize.", "slices": []},
         }
-    elif args.initial_kind:
-        get_slice_kind(args.initial_kind)
-        slice_key = f"{args.initial_kind}-slice"
-        kind_title = get_slice_kind(args.initial_kind).get("title", args.initial_kind)
-        mapping = {
-            "title": args.title,
+    if kind:
+        get_slice_kind(kind)
+        slice_key = f"{kind}-slice"
+        kind_title = get_slice_kind(kind).get("title", kind)
+        return {
+            "title": title,
             "status": "planned",
             "source": {"jira": "", "discovered": "", "context": "Short discovery note for why this task exists."},
             "project": {"key": "", "name": "", "route": "", "context": ""},
             "context": "",
             "decisions": [],
             "plan": {
-                "note": "Replace this scaffold plan with real slices using pi-job commands.",
+                "note": "Replace this plan with real slices using pi-job commands.",
                 "slices": [{
                     "key": slice_key,
-                    "kind": args.initial_kind,
+                    "kind": kind,
                     "title": kind_title,
-                    "goal": f"Initial {args.initial_kind} slice seeded by pi-job scaffold",
+                    "goal": f"Initial {kind} slice seeded by pi-job create",
                     "status": "planned",
                     "note": "",
                     "steps": [
                         {"key": key, "title": step_title, "status": "planned", "note": ""}
-                        for key, step_title in steps_from_kind_template(args.initial_kind)
+                        for key, step_title in steps_from_kind_template(kind)
                     ],
                     "final_steps": [],
                 }],
             },
         }
-    else:
-        mapping = example_task_mapping(title=args.title)
+    return example_task_mapping(title=title)
 
-    if suffix in {".yaml", ".yml"}:
+
+def _seed_kind_if_empty(store: TaskStore, task: dict[str, Any], kind: str | None) -> dict[str, Any]:
+    if not kind:
+        return task
+    get_slice_kind(kind)
+    if task.get("plan", {}).get("slices"):
+        return task
+    store.add_slice(
+        key=f"{kind}-slice",
+        kind=kind,
+        title=get_slice_kind(kind).get("title", kind),
+        goal=f"Initial {kind} slice seeded by pi-job create",
+        extra_fields={},
+        steps=steps_from_kind_template(kind),
+        final_steps=[],
+        after=None,
+    )
+    return store.read()
+
+
+def _require_seed_cursor(task: dict[str, Any], *, label: str) -> Cursor:
+    cursor = seed_cursor(task)
+    if cursor is not None:
+        return cursor
+    if all_slices_done(task):
+        die(f"{label}: task has no actionable slice/step; add slices with pi-job add-slice --kind ...")
+    die(
+        f"{label}: no slice is dependency-satisfied yet; "
+        "check depends_on for a forward reference or cycle among the first slices"
+    )
+
+
+def _create_from_intent(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="create")
+    if task_file.suffix.lower() not in {".yaml", ".yml"}:
+        die("create --from requires a YAML task file (.yaml or .yml)")
+    input_path = args.from_path
+    if not input_path.exists():
+        die(f"create intent not found: {input_path}")
+    if args.kind or args.empty_plan or args.title is not None:
+        die("create --from cannot be combined with --kind, --empty-plan, or --title")
+    raw = load_yaml_mapping(input_path, label="create intent")
+    try:
+        bootstrap = BootstrapDocument.model_validate(raw)
+    except ValidationError as exc:
+        die(f"create intent validation failed:\n{exc}")
+    kind = bootstrap.initial_slice_kind
+    if kind:
+        get_slice_kind(kind)
+    assembled_slices: list[dict[str, Any]] = []
+    if kind:
+        seed_key = bootstrap.initial_slice_key or f"task-{kind}"
+        kind_title = get_slice_kind(kind).get("title", kind)
+        assembled_slices.append({
+            "key": seed_key,
+            "kind": kind,
+            "title": kind_title,
+            "goal": f"Initial {kind} slice seeded by pi-job create",
+            "status": "planned",
+            "note": "",
+            "repos": [],
+            "depends_on": [],
+            "steps": [
+                {"key": key, "title": step_title, "status": "planned", "note": ""}
+                for key, step_title in steps_from_kind_template(kind)
+            ],
+            "final_steps": [],
+        })
+    for sl in bootstrap.slices:
+        get_slice_kind(sl.kind)
+        assembled_slices.append({
+            "key": sl.key,
+            "kind": sl.kind,
+            "title": sl.title,
+            "goal": sl.goal,
+            "status": "planned",
+            "note": "",
+            "repos": list(sl.repos),
+            "depends_on": list(sl.depends_on),
+            "steps": [
+                {"key": key, "title": step_title, "status": "planned", "note": ""}
+                for key, step_title in steps_from_kind_template(sl.kind)
+            ],
+            "final_steps": [],
+        })
+    prospective = {
+        "title": bootstrap.title,
+        "status": bootstrap.status,
+        "source": {
+            "jira": bootstrap.source.jira or "",
+            "discovered": bootstrap.source.discovered or "",
+            "context": bootstrap.source.context or "",
+        },
+        "project": {
+            "key": bootstrap.project.key or "",
+            "name": bootstrap.project.name or "",
+            "route": bootstrap.project.route or "",
+            "context": bootstrap.project.context or "",
+        },
+        "context": bootstrap.context or "",
+        "decisions": [
+            {"date": d.date, "note": d.note, "source": d.source}
+            for d in bootstrap.decisions
+        ],
+        "plan": {
+            "note": bootstrap.plan_note or "",
+            "slices": assembled_slices,
+        },
+    }
+    slice_keys = {sl["key"] for sl in assembled_slices}
+    missing_deps: list[str] = []
+    for sl in assembled_slices:
+        for dep in sl.get("depends_on", []):
+            if dep not in slice_keys:
+                missing_deps.append(f"  {sl['key']!r} depends on unknown slice key {dep!r}")
+    if missing_deps:
+        die("create: unresolved dependency references:\n" + "\n".join(missing_deps))
+    validate_task_mapping(prospective, source=str(input_path))
+    cursor = _require_seed_cursor(prospective, label="create")
+    prospective["orchestration"] = _orchestration_for_cursor(cursor)
+    full_task = canonical_task_mapping(prospective, source=str(input_path))
+    new_yaml = render_yaml_task(full_task, source=str(input_path))
+    if args.dry_run:
+        existing = task_file.read_text() if task_file.exists() else ""
+        diff = difflib.unified_diff(
+            existing.splitlines(keepends=True),
+            new_yaml.splitlines(keepends=True),
+            fromfile=str(task_file) if task_file.exists() else "/dev/null",
+            tofile=str(task_file),
+        )
+        sys.stdout.writelines(diff)
+        return
+    if task_file.exists() and not args.force:
+        die(f"destination YAML task already exists: {task_file}\npass --force to overwrite, or choose another --task path")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("create --from requires a YAML task file")
+    with store.exclusive():
+        store.replace(full_task)
+    canonical_repr = store.read()
+    if canonical_repr != full_task:
+        die("create: written task failed semantic equality verification; possible concurrent modification")
+    load_profile_contract()
+    print(f"created: {task_file}")
+    print(f"profile: {PROFILE}")
+    print(f"schema: Pydantic {TaskDocument.__name__}")
+    print(f"cursor: {cursor.label()}")
+    print()
+    print(build_instruction(task_file, canonical_repr, cursor))
+    seed_block = build_seed_slice_plans_block(task_file, canonical_repr, assembled_slices)
+    if seed_block:
+        print()
+        print(seed_block, end="")
+
+
+def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
+    """Initialize orchestration on an existing task that has no orchestration yet."""
+    store = open_task_store(task_file)
+    task = store.read()
+    if task.get("orchestration"):
+        die(
+            f"task already exists and is initialized: {task_file}\n"
+            "pass --force to recreate, or choose another --task path"
+        )
+    if args.dry_run:
+        task = dict(task)
+        # preview seed without writing
+        kind = args.kind
+        if kind and not task.get("plan", {}).get("slices"):
+            get_slice_kind(kind)
+            task.setdefault("plan", {})["slices"] = [{
+                "key": f"{kind}-slice",
+                "kind": kind,
+                "title": get_slice_kind(kind).get("title", kind),
+                "goal": f"Initial {kind} slice seeded by pi-job create",
+                "status": "planned",
+                "note": "",
+                "steps": [
+                    {"key": key, "title": step_title, "status": "planned", "note": ""}
+                    for key, step_title in steps_from_kind_template(kind)
+                ],
+                "final_steps": [],
+            }]
+        cursor = _require_seed_cursor(task, label="create")
+        preview = {"orchestration": _orchestration_for_cursor(cursor)}
+        print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
+        return
+    task = _seed_kind_if_empty(store, task, args.kind)
+    cursor = _require_seed_cursor(task, label="create")
+    store.init_orchestration(cursor)
+    task = store.read()
+    print(f"initialized: {task_file}")
+    print(f"cursor: {cursor.label()}")
+    print()
+    print(build_instruction(task_file, task, cursor))
+
+
+def cmd_create(args: argparse.Namespace) -> None:
+    """Create and initialize a task file (replaces scaffold + init + bootstrap)."""
+    if args.from_path is not None:
+        _create_from_intent(args)
+        return
+
+    task_file = require_task(args.task, cmd="create")
+    suffix = task_file.suffix.lower()
+
+    # Existing uninitialized file: finish init in place (unless --force recreates).
+    if task_file.exists() and not args.force:
+        _init_existing_task(args, task_file)
+        return
+
+    if suffix == ".cue" and (args.empty_plan or args.kind):
+        die("--empty-plan and --kind are only supported for YAML task files; migrate to YAML first")
+    if suffix not in {".yaml", ".yml", ".cue"}:
+        die("create requires a .yaml, .yml, or legacy .cue task path")
+
+    mapping = _scaffold_task_mapping(
+        title=args.title or "Example bounded change",
+        kind=args.kind,
+        empty_plan=bool(args.empty_plan),
+    )
+    if args.empty_plan:
+        # Empty plan cannot be initialized yet.
+        if suffix == ".cue":
+            die("--empty-plan requires a YAML task path")
         content = render_yaml_task(mapping, source=str(task_file))
-    elif suffix == ".cue":
-        if args.empty_plan or args.initial_kind:
-            die("--empty-plan and --initial-kind are only supported for YAML task files; migrate to YAML first")
-        content = example_task_cue(title=args.title)
+        if args.dry_run:
+            print(content, end="" if content.endswith("\n") else "\n")
+            return
+        task_file.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(task_file, content)
+        print(f"created empty plan: {task_file}")
+        print("next: add slices with pi-job add-slice, then run:")
+        print(f"  pi-job --task {task_file} create")
+        return
+
+    cursor = _require_seed_cursor(mapping, label="create")
+    mapping["orchestration"] = _orchestration_for_cursor(cursor)
+    if suffix in {".yaml", ".yml"}:
+        full_task = canonical_task_mapping(mapping, source=str(task_file))
+        content = render_yaml_task(full_task, source=str(task_file))
     else:
-        die("scaffold requires a .yaml, .yml, or legacy .cue task path")
+        # Legacy CUE scaffold path: write example then init separately via store.
+        content = example_task_cue(title=args.title or "Example bounded change")
+
     if args.dry_run:
         print(content, end="" if content.endswith("\n") else "\n")
         return
-    if task_file.exists() and not args.force:
-        die(f"task file already exists: {task_file}\npass --force to overwrite, or choose another --task path")
+
     task_file.parent.mkdir(parents=True, exist_ok=True)
     if suffix in {".yaml", ".yml"}:
         atomic_write_text(task_file, content)
-    else:
-        write_and_format(task_file, content)
-    print(f"scaffolded task file: {task_file}")
-    print("next: prefer pi-job commands to replace the example state, then run:")
-    print(f"  pi-job --task {task_file} init [--kind setup|implement|...]")
-    print(f"  pi-job --task {task_file} plan")
+        store = open_task_store(task_file)
+        task = store.read()
+        cursor = current_cursor(task) or _require_seed_cursor(task, label="create")
+        print(f"created: {task_file}")
+        print(f"cursor: {cursor.label()}")
+        print()
+        print(build_instruction(task_file, task, cursor))
+        seed_block = build_seed_slice_plans_block(
+            task_file, task, [dict(s) for s in (task.get("plan") or {}).get("slices") or []]
+        )
+        if seed_block:
+            print()
+            print(seed_block, end="")
+        return
+
+    write_and_format(task_file, content)
+    store = open_task_store(task_file)
+    task = store.read()
+    cursor = _require_seed_cursor(task, label="create")
+    store.init_orchestration(cursor)
+    task = store.read()
+    print(f"created: {task_file}")
+    print(f"cursor: {cursor.label()}")
+    print()
+    print(build_instruction(task_file, task, cursor))
 
 
 BASELINE_SLICE_FIELDS = {"key", "kind", "title", "goal", "status", "note", "steps", "final_steps"}
@@ -6176,143 +6400,6 @@ def require_task(task_arg: Path | None, *, cmd: str) -> Path:
     return task_arg.resolve()
 
 
-def cmd_bootstrap(args: argparse.Namespace) -> None:
-    task_file = require_task(args.task, cmd="bootstrap")
-    if task_file.suffix.lower() not in {".yaml", ".yml"}:
-        die("bootstrap requires a YAML task file (.yaml or .yml); migrate legacy CUE or directory stores first")
-    input_path = args.from_path
-    if not input_path:
-        die("--from <bootstrap.yaml> is required")
-    if not input_path.exists():
-        die(f"bootstrap input not found: {input_path}")
-    raw = load_yaml_mapping(input_path, label="bootstrap input")
-    try:
-        bootstrap = BootstrapDocument.model_validate(raw)
-    except ValidationError as exc:
-        die(f"bootstrap input validation failed:\n{exc}")
-    kind = bootstrap.initial_slice_kind
-    if kind:
-        get_slice_kind(kind)
-    assembled_slices: list[dict[str, Any]] = []
-    if kind:
-        seed_key = bootstrap.initial_slice_key or f"task-{kind}"
-        kind_title = get_slice_kind(kind).get("title", kind)
-        assembled_slices.append({
-            "key": seed_key,
-            "kind": kind,
-            "title": kind_title,
-            "goal": f"Initial {kind} slice seeded by pi-job bootstrap",
-            "status": "planned",
-            "note": "",
-            "repos": [],
-            "depends_on": [],
-            "steps": [
-                {"key": key, "title": step_title, "status": "planned", "note": ""}
-                for key, step_title in steps_from_kind_template(kind)
-            ],
-            "final_steps": [],
-        })
-    for sl in bootstrap.slices:
-        get_slice_kind(sl.kind)
-        assembled_slices.append({
-            "key": sl.key,
-            "kind": sl.kind,
-            "title": sl.title,
-            "goal": sl.goal,
-            "status": "planned",
-            "note": "",
-            "repos": list(sl.repos),
-            "depends_on": list(sl.depends_on),
-            "steps": [
-                {"key": key, "title": step_title, "status": "planned", "note": ""}
-                for key, step_title in steps_from_kind_template(sl.kind)
-            ],
-            "final_steps": [],
-        })
-    prospective = {
-        "title": bootstrap.title,
-        "status": bootstrap.status,
-        "source": {
-            "jira": bootstrap.source.jira or "",
-            "discovered": bootstrap.source.discovered or "",
-            "context": bootstrap.source.context or "",
-        },
-        "project": {
-            "key": bootstrap.project.key or "",
-            "name": bootstrap.project.name or "",
-            "route": bootstrap.project.route or "",
-            "context": bootstrap.project.context or "",
-        },
-        "context": bootstrap.context or "",
-        "decisions": [
-            {"date": d.date, "note": d.note, "source": d.source}
-            for d in bootstrap.decisions
-        ],
-        "plan": {
-            "note": bootstrap.plan_note or "",
-            "slices": assembled_slices,
-        },
-    }
-    slice_keys = {sl["key"] for sl in assembled_slices}
-    missing_deps: list[str] = []
-    for sl in assembled_slices:
-        for dep in sl.get("depends_on", []):
-            if dep not in slice_keys:
-                missing_deps.append(f"  {sl['key']!r} depends on unknown slice key {dep!r}")
-    if missing_deps:
-        die("bootstrap: unresolved dependency references:\n" + "\n".join(missing_deps))
-    validate_task_mapping(prospective, source=str(input_path))
-    cursor = seed_cursor(prospective)
-    if cursor is None:
-        if all_slices_done(prospective):
-            die("bootstrap: task has no actionable slice (all slices are done)")
-        die("bootstrap: no slice is dependency-satisfied; check depends_on for a forward reference or cycle")
-    orchestration = {
-        "cursor": {"slice": cursor.slice, "step": cursor.step},
-        "policy": {"coding_execution": {
-            "subagent_required": True,
-            "lower_power_model_preferred": True,
-            "orchestrator_reviews_subagent": True,
-            "exceptions": [],
-        }},
-        "artifacts": {},
-    }
-    prospective["orchestration"] = orchestration
-    full_task = canonical_task_mapping(prospective, source=str(input_path))
-    new_yaml = render_yaml_task(full_task, source=str(input_path))
-    if args.dry_run:
-        existing = task_file.read_text() if task_file.exists() else ""
-        diff = difflib.unified_diff(
-            existing.splitlines(keepends=True),
-            new_yaml.splitlines(keepends=True),
-            fromfile=str(task_file) if task_file.exists() else "/dev/null",
-            tofile=str(task_file),
-        )
-        sys.stdout.writelines(diff)
-        return
-    if task_file.exists() and not args.force:
-        die(f"destination YAML task already exists: {task_file}\npass --force to overwrite, or choose another --task path")
-    store = open_task_store(task_file)
-    if not isinstance(store, YamlTaskStore):
-        die("bootstrap requires a YAML task file")
-    with store.exclusive():
-        store.replace(full_task)
-    canonical_repr = store.read()
-    if canonical_repr != full_task:
-        die("bootstrap: written task failed semantic equality verification; possible concurrent modification")
-    load_profile_contract()
-    print(f"created: {task_file}")
-    print(f"profile: {PROFILE}")
-    print(f"schema: Pydantic {TaskDocument.__name__}")
-    print(f"cursor: {cursor.label()}")
-    print()
-    print(build_instruction(task_file, canonical_repr, cursor))
-    seed_block = build_seed_slice_plans_block(task_file, canonical_repr, assembled_slices)
-    if seed_block:
-        print()
-        print(seed_block, end="")
-
-
 def cmd_set_slice(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="set-slice")
     if args.title is None and args.goal is None:
@@ -6482,12 +6569,12 @@ def cmd_schema(args: argparse.Namespace) -> None:
     if args.json_output:
         schemas = {
             "task": TaskDocument.model_json_schema(),
-            "bootstrap": BootstrapDocument.model_json_schema(),
+            "create": BootstrapDocument.model_json_schema(),
         }
         print(json.dumps(schemas, indent=2))
         return
     print(f"Task document: Pydantic {TaskDocument.__name__} ({len(TaskDocument.model_fields)} fields)")
-    print(f"Bootstrap input: Pydantic {BootstrapDocument.__name__} ({len(BootstrapDocument.model_fields)} fields)")
+    print(f"Create intent: Pydantic {BootstrapDocument.__name__} ({len(BootstrapDocument.model_fields)} fields)")
     print(f"Profile: {PROFILE}")
     print(f"Legacy CUE schema: {TASK_SCHEMA}")
     print("Pass --json for a complete JSON Schema dump.")
@@ -6565,10 +6652,28 @@ def main() -> None:
     )
     validate.set_defaults(fn=cmd_validate)
 
-    init = sub.add_parser("init", help="initialize task orchestration (optional --kind seeds first slice from template)")
-    init.add_argument("--kind", choices=slice_kinds, help="seed an initial slice from slice_kinds[ kind ].step_template when plan.slices is empty")
-    init.add_argument("--dry-run", action="store_true")
-    init.set_defaults(fn=cmd_init)
+    create = sub.add_parser(
+        "create",
+        help=(
+            "create and initialize a task file "
+            "(--from intent YAML, or --kind/--empty-plan skeleton; also inits an existing uninitialized file)"
+        ),
+    )
+    create.add_argument("--from", dest="from_path", type=Path, help="create-intent YAML document")
+    create.add_argument("--title", default=None, help="task.title when not using --from (default: Example bounded change)")
+    create.add_argument(
+        "--kind",
+        choices=slice_kinds,
+        help="seed a single initial slice of this kind (and initialize); mutually exclusive with --empty-plan/--from",
+    )
+    create.add_argument(
+        "--empty-plan",
+        action="store_true",
+        help="write a task with no slices and no orchestration yet; add slices then re-run create",
+    )
+    create.add_argument("--force", action="store_true", help="overwrite an existing task file")
+    create.add_argument("--dry-run", action="store_true", help="print the would-be task (or intent diff) without writing")
+    create.set_defaults(fn=cmd_create)
 
     adv = sub.add_parser(
         "advance",
@@ -6719,17 +6824,6 @@ def main() -> None:
     )
     instruction.set_defaults(fn=cmd_instruction)
 
-    scaffold = sub.add_parser(
-        "scaffold",
-        help="create a task file from the generic example shape when one does not exist yet",
-    )
-    scaffold.add_argument("--title", default="Example bounded change", help="task.title for the scaffold")
-    scaffold.add_argument("--force", action="store_true", help="overwrite an existing task file")
-    scaffold.add_argument("--dry-run", action="store_true", help="print the scaffold without writing")
-    scaffold.add_argument("--empty-plan", action="store_true", help="scaffold with no slices (for init --kind setup)")
-    scaffold.add_argument("--initial-kind", choices=slice_kinds, help="seed a single slice of this kind instead of the default implement example")
-    scaffold.set_defaults(fn=cmd_scaffold)
-
     add_slice = sub.add_parser("add-slice", help="append a slice to plan.slices (--kind required; steps from slice_kinds template)")
     add_slice.add_argument("--key", required=True)
     add_slice.add_argument("--kind", required=True, choices=slice_kinds)
@@ -6740,15 +6834,6 @@ def main() -> None:
     add_slice.add_argument("--after", help="insert after this existing slice key; default: end of plan.slices")
     add_slice.add_argument("--dry-run", action="store_true")
     add_slice.set_defaults(fn=cmd_add_slice)
-
-    bootstrap_cmd = sub.add_parser(
-        "bootstrap",
-        help="create and initialize a task file from a bootstrap intent document in one transaction",
-    )
-    bootstrap_cmd.add_argument("--from", dest="from_path", type=Path, required=True, help="bootstrap intent YAML document")
-    bootstrap_cmd.add_argument("--dry-run", action="store_true", help="print unified diff without writing")
-    bootstrap_cmd.add_argument("--force", action="store_true", help="overwrite an existing task file")
-    bootstrap_cmd.set_defaults(fn=cmd_bootstrap)
 
     set_project = sub.add_parser("set-project", help="update task project fields (merge into existing)")
     set_project.add_argument("--key", help="project key")
