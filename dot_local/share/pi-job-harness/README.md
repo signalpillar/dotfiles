@@ -56,7 +56,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `advance` - walk unfinished steps within the current slice, or jump with `--slice`/`--step`; when the slice is exhausted, prints a pick-next packet instead of auto-picking
 - `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
 - `toolbelt` - list or register planning aids
-- `sync` - print a checklist of slices worth re-verifying
+- `sync` - print last-recorded slices to re-verify; orchestrator must run live checks (sync never calls gh/Jira)
 - `set-worktree` / `add-pr` - manage worktree paths and pull request records
 - YAML writes store a semantic `orchestration.content_digest`; hand-edits produce a loud warning until `acknowledge-edit --reason`
 
@@ -554,15 +554,17 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 ## Syncing recorded state with reality: sync
 
 - `pi-job --task <t> sync [--status s1,s2]` - print a structured pipeline of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR; `--status` overrides the selection.
-- `pi-job` never spawns agents - `sync` only enumerates and prints instructions.
-  The orchestrator dispatches subagents per listed slice, then runs the pipeline:
+- `sync` is a pure task-file read: it never calls GitHub or Jira.
+  The printed list is last-recorded state, not live remote status.
+  The orchestrator (or per-slice subagents) must immediately run the pipeline for each listed slice; do not treat the listing alone as current status:
   1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality
   2. verify - `gh pr view <url>` + optional `git merge-base --is-ancestor <sha> main`
   3. `add-pr --status merged|closed` if the PR state changed
   4. `finish --note '<append-style evidence>'` to record what was found
-  5. `advance` to move past the verified step
+  5. `advance` to move past the verified step when the current step is complete
   6. Jira ticket status update if applicable
-
+  Do not report the list to the user as current until step 2 has run for every open PR (and every listed in_progress/blocked slice has been checked).
+  Authoritative wording lives in `profile.yaml` `sync_pipeline_instructions` (emitted at the top of `sync` output).
 ## Repo work: worktrees and PRs
 
 - `pi-job --task <t> set-worktree --slice K --repo R --path P` - record/update the filesystem worktree path for a slice's repo work (upsert; not filesystem-validated).

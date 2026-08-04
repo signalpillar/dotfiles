@@ -457,7 +457,10 @@ class ProfileDocument(StrictDocument):
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
     sync_pipeline_instructions: str = Field(
-        description="Pipeline instructions for the sync command. Required profile text; Python must not duplicate a fallback body."
+        description=(
+            "Mandatory ACTION REQUIRED body for sync output: offline read-only checklist; "
+            "orchestrator must run live gh/Jira verification. Python must not duplicate a fallback body."
+        )
     )
     cli_help: CliHelpDocument = Field(
         description="CLI help snippets for channel-sensitive commands. Profile is the only body; Python must not hardcode them."
@@ -6629,7 +6632,10 @@ def main() -> None:
 
     sync = sub.add_parser(
         "sync",
-        help="print a checklist of slices worth re-verifying (in_progress/blocked, or carrying an open PR) for the orchestrator to dispatch subagents against",
+        help=(
+            "print last-recorded slices to re-verify (in_progress/blocked, or open PR); "
+            "never calls gh/Jira - orchestrator must run live checks before reporting status"
+        ),
     )
     sync.add_argument("--status", help="comma-separated slice statuses to check instead of the default in_progress/blocked-or-open-PR selection")
     sync.set_defaults(fn=cmd_sync)

@@ -155,13 +155,18 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
   If the sibling plan file already exists from a bootstrap/add-slice seed reminder,
   revise it with remaining detail rather than starting from a blank page.
 sync_pipeline_instructions: |-
-  For each slice below, run the pipeline:
+  ACTION REQUIRED: this command only reads the task file - it never calls GitHub or Jira.
+  The slice list below is LAST-RECORDED state, not live remote status.
+  Do not treat this listing as current truth, and do not stop after printing it.
+  For each listed slice, immediately run (orchestrator or per-slice subagent):
     1. checklist - verify PR/merge state and whether the recorded step/slice status still matches reality
     2. verify - gh pr view <url> + optional git merge-base --is-ancestor <sha> main
     3. add-pr --status merged|closed if the PR state changed
     4. finish --note '<append-style evidence>' to record what was found
-    5. advance to move past the verified step
+    5. advance to move past the verified step when the current step is complete
     6. Jira ticket status update if applicable
+  Do not report this list to the user as current status until step 2 has run for every open PR
+  (and every listed in_progress/blocked slice has been checked).
 cli_help:
   add_decision:
     command: append a product/scope decision (not step evidence; use finish --note)

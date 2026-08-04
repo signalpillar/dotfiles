@@ -3843,6 +3843,9 @@ def test_sync_default_selection_and_status_override() -> None:
         assert_contains(default_out, "active-slice")
         assert_contains(default_out, "blocked-slice")
         assert_contains(default_out, "done-with-open-pr")
+        assert_contains(default_out, "ACTION REQUIRED")
+        assert_contains(default_out, "never calls GitHub or Jira")
+        assert_contains(default_out, "LAST-RECORDED")
         if "planned-slice" in default_out:
             raise AssertionError(f"planned-slice (no PR, not in_progress/blocked) should be excluded by default:\n{default_out}")
 
