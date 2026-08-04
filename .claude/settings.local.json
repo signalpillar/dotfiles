@@ -14,7 +14,8 @@
       "Bash(chezmoi target-path *)",
       "Bash(chezmoi cat *)",
       "Bash(~/bin/tmux-cpu)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "WebSearch"
     ]
   }
 }

@@ -1,0 +1,2008 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Mind Map Viewer</title>
+
+    <!-- Component library: Jelly UI, dependency-free web components, one tag, no build step. -->
+    <script type="module" src="https://jelly-ui.com/package.js"></script>
+    <!-- Token set: Open Props. Every spacing, radius, shadow and easing below comes from it. -->
+    <link rel="stylesheet" href="https://unpkg.com/open-props">
+    <!-- Shared browser and Jelly fixes; prototype-specific layout and theme stay inline below. -->
+    <link rel="stylesheet" href="prototype-base.css">
+    <link rel="stylesheet" href="prototype-jelly.css">
+    <!-- Renderer: markmap, a Markdown-outline mind map built on real d3-zoom (touch pan and
+         pinch work out of the box, unlike the mouse-only libraries in this space). Pinned,
+         no build step. markmap-view draws the tree and owns pan/zoom; markmap-lib turns
+         Markdown text into that tree. Both merge their exports onto one window.markmap
+         global, so markmap-view loads first and markmap-lib augments it with Transformer. -->
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-view@0.18.12/dist/browser/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markmap-lib@0.18.12/dist/browser/index.iife.min.js"></script>
+
+    <style>
+      /* Layout only. Colours, fonts and every tunable number are injected from the
+         manifest at boot (see buildThemeStyles); everything else is an Open Props token. */
+
+      body { font-family: var(--font-text); background: var(--page-bg); color: var(--page-fg); }
+      button { cursor: pointer; }
+
+      .shell {
+        inline-size: min(78rem, 100%);
+        margin-inline: auto;
+        padding: max(var(--size-3), env(safe-area-inset-top)) var(--size-3) var(--size-8);
+        display: grid;
+        /* minmax(0,...) stops an intrinsically wide child (the tab bar, the map stage)
+           from widening the whole column and scrolling the page sideways. */
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--size-3);
+        color: var(--text);
+      }
+      .shell > *, .shell jelly-tab-panel { min-inline-size: 0; }
+      h1, h2, h3 { font-family: var(--font-display); letter-spacing: var(--font-letterspacing-0); }
+
+      .row { display: flex; gap: var(--size-2); flex-wrap: wrap; align-items: center; }
+      .row[hidden] { display: none; }
+      .push { margin-inline-start: auto; }
+      .grow { flex: 1 1 10rem; min-inline-size: 0; }
+      .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+
+      /* masthead */
+      .kicker { font-size: var(--font-size-0); font-weight: var(--font-weight-8); letter-spacing: var(--font-letterspacing-4); text-transform: uppercase; color: var(--accent); }
+      .masthead h1 { margin: 0; font-size: var(--font-size-4); }
+      .masthead p { margin: var(--size-1) 0 0; color: var(--text-muted); font-size: var(--font-size-0); max-inline-size: 44ch; }
+
+      .surface {
+        border: var(--border-size-1) solid var(--line);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+        box-shadow: var(--shadow-2);
+      }
+      .muted { color: var(--text-muted); font-size: var(--font-size-0); }
+      .mono { font-family: var(--font-mono); font-size: var(--font-size-0); }
+
+      /* ---- map panel ------------------------------------------------------
+         The toolbar sits above the stage on every width, not just wide: with the
+         stage now claiming most of the viewport, controls below it on a tall map
+         would sit out of reach until scrolling past the whole map to find them. */
+      .map-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "bar" "stage" "meta";
+        gap: var(--size-2);
+      }
+      .map-stage { grid-area: stage; }
+      .map-toolbar { grid-area: bar; }
+      .map-meta { grid-area: meta; }
+
+      /* markmap fits its content to this box by scaling, not by growing the box, so a
+         fixed height plus real pan/zoom is the right model here (unlike a plain document
+         view). Height still adapts to viewport size so a phone and a desktop both get a
+         sensible amount of room. */
+      .map-stage {
+        position: relative;
+        inline-size: 100%;
+        block-size: var(--stage-h);
+        overflow: hidden;
+        overscroll-behavior: contain;
+        border: var(--border-size-1) solid var(--line);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+      }
+      /* An <svg> defaults to display:inline, and an inline-level replaced element
+         does not reliably resolve a percentage block-size against its container;
+         it must be block-level for 100% height to mean what it says here. */
+      .map-stage svg.markmap { display: block; inline-size: 100%; block-size: 100%; cursor: grab; touch-action: none; }
+      .map-stage svg.markmap:active { cursor: grabbing; }
+
+      .map-empty {
+        position: absolute; inset: 0;
+        display: grid; place-content: center; justify-items: center;
+        gap: var(--size-3); padding: var(--size-4); text-align: center;
+      }
+      .map-empty h2 { margin: 0; font-size: var(--font-size-2); }
+      .map-empty p { margin: 0; color: var(--text-muted); font-size: var(--font-size-0); max-inline-size: 34ch; }
+
+      .map-meta { font-size: var(--font-size-0); color: var(--text-muted); }
+      .map-meta b { color: var(--text); font-weight: var(--font-weight-7); }
+
+      /* Outline fallback: readable structure when markmap cannot be fetched. */
+      .outline-fallback { position: absolute; inset: 0; overflow: auto; padding: var(--size-3); background: var(--surface); }
+      .outline-fallback ul { margin: 0; padding-inline-start: var(--size-4); list-style: none; }
+      .outline-fallback li { margin-block: var(--size-1); }
+      .outline-fallback details > summary { cursor: pointer; font-weight: var(--font-weight-6); }
+      .outline-fallback .leaf { padding-inline-start: var(--size-3); }
+
+      /* ---- library / history ---- */
+      .library { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--size-3); }
+      @media (min-width: 60rem) {
+        .library.has-side { grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); align-items: start; }
+        .side-detail { position: sticky; inset-block-start: var(--size-3); }
+      }
+      .hist-list { display: grid; gap: var(--size-2); }
+      .hist-row {
+        inline-size: 100%; text-align: start;
+        display: grid; gap: var(--size-1);
+        min-block-size: var(--touch-min);
+        padding: var(--size-2) var(--size-3);
+        border: var(--border-size-1) solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--surface); color: var(--text);
+        box-shadow: var(--shadow-1);
+      }
+      .hist-row[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 var(--border-size-2) var(--accent-soft); }
+      .hist-row .h-name { font-weight: var(--font-weight-6); overflow-wrap: anywhere; }
+      .hist-row .h-meta { display: flex; flex-wrap: wrap; gap: var(--size-1); align-items: center; font-size: var(--font-size-00); color: var(--text-muted); text-transform: uppercase; letter-spacing: var(--font-letterspacing-2); }
+      .hist-detail {
+        display: grid; gap: var(--size-2);
+        padding: var(--size-3);
+        border: var(--border-size-1) dashed var(--line-strong);
+        border-radius: var(--radius-2);
+        background: var(--muted-bg);
+      }
+      .hist-detail .d-actions { display: flex; flex-wrap: wrap; gap: var(--size-2); }
+      .hist-detail .d-primary { display: grid; gap: var(--size-2); }
+      .storage-warning { padding: var(--size-2) var(--size-3); border: var(--border-size-1) solid var(--warn); border-radius: var(--radius-2); background: var(--warn-soft); color: var(--text); font-size: var(--font-size-0); }
+      .empty { padding: var(--size-4); text-align: center; color: var(--text-muted); font-size: var(--font-size-0); }
+
+      /* ---- usage ---- */
+      .usage { display: grid; gap: var(--size-6); }
+      .usage-section { display: grid; gap: var(--size-2); }
+      .usage-section h2 { margin: 0; font-size: var(--font-size-2); }
+      .usage-section p { margin: 0; max-inline-size: 66ch; line-height: var(--font-lineheight-3); }
+      .usage-section code { font-family: var(--font-mono); font-size: 0.9em; background: var(--muted-bg); padding: 0 var(--size-1); border-radius: var(--radius-1); }
+      .code-wrap { overflow-x: auto; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-2); background: var(--muted-bg); }
+      pre.code { margin: 0; padding: var(--size-3); font-family: var(--font-mono); font-size: var(--font-size-0); line-height: var(--font-lineheight-2); tab-size: 2; white-space: pre-wrap; }
+      .table-wrap { overflow-x: auto; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-2); }
+      .table-wrap table { border-collapse: collapse; inline-size: 100%; font-size: var(--font-size-0); }
+      .table-wrap th, .table-wrap td { text-align: start; padding: var(--size-2) var(--size-3); border-block-end: var(--border-size-1) solid var(--line); vertical-align: top; }
+      .table-wrap th { font-family: var(--font-display); white-space: nowrap; }
+      .table-wrap tr:last-child td { border-block-end: 0; }
+      .link-row { display: grid; gap: var(--size-1); padding-block: var(--size-2); border-block-end: var(--border-size-1) solid var(--line); }
+      .link-row a { color: var(--accent); font-weight: var(--font-weight-6); }
+
+      /* ---- issues ---- */
+      .issue-list { display: grid; gap: var(--size-2); }
+      .issue-row {
+        display: grid; gap: var(--size-1);
+        padding: var(--size-2) var(--size-3);
+        border-inline-start: var(--border-size-3) solid var(--issue-color);
+        border-radius: var(--radius-2);
+        background: var(--muted-bg);
+        font-size: var(--font-size-0);
+      }
+      .issue-row[data-level="error"] { --issue-color: var(--danger); }
+      .issue-row[data-level="warning"] { --issue-color: var(--warn); }
+      .issue-row .i-head { display: flex; flex-wrap: wrap; gap: var(--size-1); align-items: baseline; }
+      .issue-row .i-path { font-family: var(--font-mono); font-size: var(--font-size-00); color: var(--text-muted); overflow-wrap: anywhere; }
+      .issue-row .i-hint { color: var(--text-muted); }
+
+      /* ---- load drawer + drop overlay ---- */
+      .sheet-body { display: grid; gap: var(--size-3); padding: var(--size-1); }
+      .sheet-body h2 { margin: 0; font-size: var(--font-size-2); }
+      .ctrl-group { display: grid; gap: var(--size-2); padding-block-end: var(--size-2); }
+      .ctrl-group > h3 { margin: 0; font-size: var(--font-size-0); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); color: var(--text-muted); }
+
+      .drop-overlay {
+        position: fixed; inset: 0; z-index: var(--layer-5);
+        display: grid; place-content: center;
+        background: var(--drop-veil); color: var(--text);
+        font-family: var(--font-display); font-size: var(--font-size-3);
+        pointer-events: none;
+      }
+
+      /* ---- plain-element fallbacks for a blocked CDN ----------------------
+         jelly-button / chip / badge / card render their light-DOM children, so
+         they degrade to readable controls. jelly-input and jelly-textarea are
+         pure shadow DOM and vanish, so the paste box swaps to a native one. */
+      textarea.plain, input.plain {
+        inline-size: 100%;
+        border: var(--border-size-1) solid var(--line-strong);
+        background: var(--muted-bg); color: var(--text);
+        border-radius: var(--radius-2);
+        padding: var(--size-2) var(--size-3);
+        font-size: var(--font-size-0);
+      }
+      textarea.plain { min-block-size: 8rem; resize: vertical; font-family: var(--font-mono); line-height: var(--font-lineheight-2); }
+      .btn-plain { min-block-size: var(--touch-min); padding-inline: var(--size-3); }
+      jelly-button, .btn-plain, jelly-chip { min-block-size: var(--touch-min); }
+      jelly-card:not(:defined) { display: block; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-4); background: var(--surface); padding: var(--size-4); }
+      jelly-button:not(:defined), jelly-chip:not(:defined), jelly-badge:not(:defined) { display: inline-block; border: var(--border-size-1) solid var(--line-strong); border-radius: var(--radius-2); padding: var(--size-1) var(--size-3); font-size: var(--font-size-0); font-weight: var(--font-weight-6); cursor: pointer; background: var(--surface); color: var(--text); }
+      jelly-badge:not(:defined) { cursor: default; }
+      jelly-drawer:not(:defined) { display: none; }
+      jelly-drawer:not(:defined)[open] {
+        display: block; position: fixed; z-index: var(--layer-4);
+        inset: auto 0 0 0; max-block-size: 85vh; overflow: auto;
+        background: var(--surface);
+        border-block-start: var(--border-size-1) solid var(--line);
+        border-radius: var(--radius-4) var(--radius-4) 0 0;
+        padding: var(--size-3) var(--size-3) max(var(--size-3), env(safe-area-inset-bottom));
+        box-shadow: var(--shadow-5);
+      }
+    </style>
+  </head>
+  <body>
+    <script type="application/json" id="manifest">
+{
+  "manifestVersion": 2,
+
+  "app": {
+    "id": "mindmap-viewer",
+    "kicker": "Outline in, mind map out",
+    "title": "Mind Map Viewer",
+    "tagline": "Paste a Markdown outline, drop a file, or pick a worked example. Nothing is edited, nothing leaves the browser, and every map you open is kept in a local library.",
+    "accent": "#2f6f4f",
+    "defaultTab": "map",
+    "tabSize": "small",
+    "touchMin": "2.75rem",
+    "storage": {
+      "history": "mindmap-viewer-history-v2",
+      "settings": "mindmap-viewer-settings-v2",
+      "schemaVersion": 2
+    },
+    "media": { "wide": "(min-width: 60rem)", "dark": "(prefers-color-scheme: dark)" },
+    "timing": {
+      "libraryTimeoutMs": 6000,
+      "resizeDebounceMs": 150,
+      "copyResetMs": 2500,
+      "dropOverlayHideMs": 120,
+      "deleteConfirmResetMs": 4000,
+      "revokeObjectUrlMs": 1000,
+      "fitDelayMs": 60
+    },
+    "file": {
+      "accept": ".md,.markdown,.json,text/markdown,application/json",
+      "markdown": { "mime": "text/markdown", "suffix": ".md" },
+      "json": { "mime": "application/json", "suffix": ".json" },
+      "svg": { "mime": "image/svg+xml", "suffix": ".svg" }
+    },
+    "tabs": [
+      { "id": "map", "label": "Map" },
+      { "id": "library", "label": "Library" },
+      { "id": "usage", "label": "Usage" }
+    ],
+    "style": {
+      "fonts": {
+        "display": "ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif",
+        "text": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+        "mono": "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Source Code Pro', monospace"
+      },
+      "palette": {
+        "light": {
+          "bg": "oklch(0.9922 0.0022 145)",
+          "surface": "oklch(1 0 0)",
+          "muted-bg": "oklch(0.9789 0.0055 145)",
+          "text": "oklch(0.2554 0.0208 160)",
+          "text-muted": "oklch(0.503 0.0186 160)",
+          "line": "oklch(0.9312 0.0075 150)",
+          "line-strong": "oklch(0.8624 0.0104 150)",
+          "accent-soft": "oklch(0.9138 0.0417 155)",
+          "danger": "oklch(0.5771 0.2152 27.33)",
+          "warn": "oklch(0.7686 0.1647 70.08)",
+          "warn-soft": "oklch(0.9686 0.0567 85)",
+          "drop-veil": "oklch(0.9922 0.0022 145 / 0.86)",
+          "shadow-color": "150 15% 20%",
+          "shadow-strength": "2%"
+        },
+        "dark": {
+          "bg": "oklch(0.2198 0.0091 165)",
+          "surface": "oklch(0.2606 0.0128 165)",
+          "muted-bg": "oklch(0.2957 0.0135 165)",
+          "text": "oklch(0.9645 0.0054 150)",
+          "text-muted": "oklch(0.7595 0.0173 155)",
+          "line": "oklch(0.3674 0.0155 165)",
+          "line-strong": "oklch(0.4707 0.0161 165)",
+          "accent-soft": "oklch(0.4023 0.0587 158)",
+          "danger": "oklch(0.6874 0.1889 27.33)",
+          "warn": "oklch(0.8203 0.1451 74)",
+          "warn-soft": "oklch(0.3579 0.0668 74)",
+          "drop-veil": "oklch(0.2198 0.0091 165 / 0.86)",
+          "shadow-color": "160 40% 2%",
+          "shadow-strength": "25%"
+        }
+      }
+    },
+
+    "copy": {
+      "loadButton": "Load outline",
+      "controlsButton": "Controls",
+      "zoomInButton": "Zoom in",
+      "zoomOutButton": "Zoom out",
+      "fitButton": "Fit",
+      "closeButton": "Close",
+      "emptyTitle": "No map open yet",
+      "emptyBody": "Paste a Markdown outline, drop a file anywhere on the page, or start from one of the worked examples in Usage.",
+      "emptyExampleButton": "Open an example",
+      "emptyUsageButton": "Read the format",
+      "loadSheetTitle": "Load a mind map",
+      "loadSheetBody": "Paste a Markdown outline below, or pick a .md or .json file. The viewer never edits or uploads what you give it.",
+      "pasteLabel": "Outline",
+      "pastePlaceholder": "# Root\n\n- First branch\n  - Detail\n- Second branch",
+      "pasteSubmit": "Render this",
+      "fileButton": "Pick a file",
+      "clearButton": "Clear",
+      "dropHint": "Drop a .md or .json file anywhere on this page.",
+      "dropOverlay": "Drop to render",
+      "controlsTitle": "Map controls",
+      "appearanceGroup": "Appearance",
+      "structureGroup": "Structure",
+      "exportGroup": "Export",
+      "lightButton": "Light",
+      "darkButton": "Dark",
+      "expandAllButton": "Expand all",
+      "collapseAllButton": "Collapse all",
+      "downloadSourceButton": "Download source",
+      "downloadSvgButton": "Download SVG",
+      "copyStructureButton": "Copy as JSON",
+      "libraryTitle": "Your library",
+      "libraryBody": "Every map you open is kept here in this browser only, newest first. Pin the ones you want to keep.",
+      "libraryEmpty": "Nothing here yet. Load a map and it will appear in this list.",
+      "samplesTitle": "Worked examples",
+      "openButton": "Open this map",
+      "pinButton": "Pin",
+      "unpinButton": "Unpin",
+      "renameButton": "Rename",
+      "renameLabel": "Map name",
+      "renameSave": "Save name",
+      "renameCancel": "Cancel",
+      "copySourceButton": "Copy source",
+      "deleteButton": "Delete",
+      "deleteConfirm": "Tap again to delete",
+      "loadExampleButton": "Load this example",
+      "copyButton": "Copy",
+      "copyPromptButton": "Copy this prompt",
+      "promptSize": "{lines} lines",
+      "copySuccess": "Copied.",
+      "copyFailure": "Could not copy automatically.",
+      "copyManualHint": "Selected the block instead, so you can copy it yourself.",
+      "usageLede": "A mind map here is a Markdown outline: headings and nested bullets, the same shape you already use for notes. There is a tiny JSON escape hatch too, for when something programmatic is building the map.",
+      "statsLine": "{nodes} nodes, {depth} levels deep, {bytes}, read as {format}.",
+      "pinnedFlag": "Pinned",
+      "untitledName": "Untitled map",
+      "rootPath": "root",
+      "pathChild": ".children[{index}]",
+      "relativeJustNow": "just now",
+      "dedupeNote": "You have opened this exact map before, so the existing library entry moved to the top instead of a duplicate being added.",
+      "tooBigToStore": "This map renders, but it is over {limit} so it was not added to the library.",
+      "historyFullPinned": "Every library slot is pinned, so this map was not saved. Unpin something to make room.",
+      "storageDegraded": "This browser refused to save the library, so it will not survive a reload. The map on screen is unaffected.",
+      "libraryBlockedTitle": "Renderer unavailable",
+      "libraryBlockedBody": "The mind map renderer could not be fetched from its CDN, so the map is shown as a plain outline instead. Everything else on this page still works.",
+      "sourceMarkdown": "Markdown",
+      "sourceJson": "JSON",
+      "sourcePaste": "pasted",
+      "sourceFile": "file",
+      "sourceExample": "example",
+      "errors": {
+        "EMPTY": { "title": "Nothing to read.", "hint": "Paste an outline, or pick a file." },
+        "TOO_LARGE": { "title": "That input is larger than {limit}.", "hint": "This is a viewer, not a data store. Trim the map or split it up." },
+        "BAD_NODE": { "title": "A node is not an object.", "hint": "Every entry in children must be an object with a topic." },
+        "MISSING_TOPIC": { "title": "A node has no topic.", "hint": "Give it one of: {aliases}" },
+        "BAD_CHILDREN": { "title": "The children of a node are not a list.", "hint": "children must be a JSON array, even for a single child." },
+        "TOO_MANY_NODES": { "title": "More than {limit} nodes.", "hint": "Past this size the map stops being readable. Show one branch at a time." },
+        "TOO_DEEP": { "title": "Nested more than {limit} levels deep.", "hint": "Flatten the deepest branches, or split them into their own map." },
+        "NEEDS_LIBRARY": { "title": "The renderer could not be fetched.", "hint": "The outline is still shown, as a plain nested list, until the CDN is reachable." },
+        "RENDER_FAILED": { "title": "The map could not be drawn.", "hint": "The outline is shown instead. The renderer said: {detail}" },
+        "UNKNOWN": { "title": "Something in this map could not be read.", "hint": "" }
+      }
+    }
+  },
+
+  "libraries": {
+    "markmap": {
+      "view": "0.18.12",
+      "lib": "0.18.12",
+      "d3": "7.9.0",
+      "licence": "MIT",
+      "home": "https://github.com/markmap/markmap"
+    },
+    "jelly": { "probeElement": "jelly-button" }
+  },
+
+  "viewer": {
+    "stage": {
+      "minHeight": "16rem",
+      "compactReserve": "21rem",
+      "compactMax": "48rem",
+      "wideReserve": "17rem",
+      "wideMax": "64rem"
+    },
+    "options": {
+      "initialExpandLevel": 3,
+      "duration": 350,
+      "fitRatio": 0.92,
+      "maxInitialScale": 1.6,
+      "spacingHorizontal": 80,
+      "spacingVertical": 8,
+      "paddingX": 12,
+      "nodeMinHeight": 18,
+      "maxWidth": 260,
+      "zoom": true,
+      "pan": true,
+      "scrollForPan": false
+    },
+    "zoomStep": 1.3,
+    "darkClass": "markmap-dark"
+  },
+
+  "normalise": {
+    "topicAliases": ["content", "topic", "label", "name", "title", "text"],
+    "childrenAliases": ["children", "nodes", "items"],
+    "limits": {
+      "maxInputBytes": 1000000,
+      "maxNodes": 2000,
+      "maxDepth": 16,
+      "maxTopicChars": 240,
+      "maxNameChars": 80
+    }
+  },
+
+  "history": {
+    "maxEntries": 12,
+    "maxStoredBytes": 400000,
+    "quotaRetries": 3,
+    "sources": [
+      { "id": "paste", "labelKey": "sourcePaste" },
+      { "id": "file", "labelKey": "sourceFile" },
+      { "id": "example", "labelKey": "sourceExample" }
+    ],
+    "relativeTime": [
+      { "maxSeconds": 60, "divisor": 1, "template": null },
+      { "maxSeconds": 3600, "divisor": 60, "template": "{n} min ago" },
+      { "maxSeconds": 86400, "divisor": 3600, "template": "{n} h ago" },
+      { "maxSeconds": 604800, "divisor": 86400, "template": "{n} d ago" },
+      { "maxSeconds": null, "divisor": 604800, "template": "{n} wk ago" }
+    ]
+  },
+
+  "usage": {
+    "sections": [
+      {
+        "id": "idea",
+        "type": "prose",
+        "heading": "The whole idea: it's just an outline",
+        "paragraphs": [
+          "A mind map here is a Markdown outline. A heading is the centre; a nested bullet list is the branches under it. That is the entire format, and it is not something this page invented: it is the outline shape you already use for notes, README files and meeting agendas.",
+          "There is no bespoke JSON schema to learn for the normal case. If you already have a nested list of headings and bullets, it renders as a mind map exactly as written."
+        ]
+      },
+      {
+        "id": "friendly",
+        "type": "example",
+        "heading": "Start here: a heading and some bullets",
+        "exampleId": "minimal",
+        "paragraphs": [
+          "One heading for the centre, then a bullet list. Indentation is what creates the branches: two spaces per level is the safest choice, and most editors do this automatically."
+        ]
+      },
+      {
+        "id": "fields",
+        "type": "fields",
+        "heading": "How structure is read",
+        "paragraphs": [
+          "There is no configuration here, just Markdown's own rules for headings and lists."
+        ],
+        "columns": ["Markdown", "Becomes"],
+        "rows": [
+          ["# Heading", "The centre of the map."],
+          ["- item", "A branch under whatever heading or list item contains it."],
+          ["  - item (indented)", "A child of the bullet above it. Two-space indents are safest."],
+          ["**bold**, *italic*, `code`, [links](url)", "Rendered inside the node, exactly like normal Markdown."]
+        ]
+      },
+      {
+        "id": "agent",
+        "type": "prompt",
+        "heading": "Have an agent write the outline",
+        "promptId": "author",
+        "paragraphs": [
+          "The usual situation is that something else already knows the subject, a language model, an agent, a script over your notes, and the only missing piece is knowing this page wants Markdown. This prompt says so, plus a few shape rules that keep a map readable at any size.",
+          "Because the target format is plain Markdown, almost any model already produces something usable without needing the detailed rules at all; they mainly guard against overly deep nesting and walls of text in a single node."
+        ]
+      },
+      {
+        "id": "rich",
+        "type": "example",
+        "heading": "Rich text inside a node",
+        "exampleId": "styled",
+        "paragraphs": [
+          "Standard Markdown formatting works inside a node: bold, italics, inline code, and links. There is no per-node background colour the way some mind-map tools offer; branch colour is assigned automatically so you never have to think about it."
+        ]
+      },
+      {
+        "id": "collapse",
+        "type": "example",
+        "heading": "Big outlines: collapsing branches",
+        "exampleId": "deep",
+        "paragraphs": [
+          "Deep branches start collapsed automatically, three levels in by default, and tapping the small circle on any node folds or unfolds just that branch. The Controls sheet also has Expand all and Collapse all for the whole map at once.",
+          "There is no left/right placement to configure: branches are laid out and coloured automatically so the outline structure is the only thing you are ever deciding."
+        ]
+      },
+      {
+        "id": "json",
+        "type": "example",
+        "heading": "The JSON escape hatch",
+        "exampleId": "json",
+        "paragraphs": [
+          "If something is generating the map programmatically, plain objects work too: a topic (or content, label, name, title or text) and a children array (or nodes or items). This is not a format invented for this page; it is markmap's own minimal node shape, so it stays this small on purpose.",
+          "Text here is always treated as plain text, never as Markdown or HTML, so it is safe to put arbitrary user data in a topic."
+        ]
+      },
+      {
+        "id": "limits",
+        "type": "prose",
+        "heading": "Limits and privacy",
+        "paragraphs": [
+          "Nothing you paste is sent anywhere. The page has no backend, no analytics and no authentication. Only the renderer itself comes from a CDN, and if that is blocked the map degrades to a plain nested outline instead of failing.",
+          "Input is capped at 1 MB, 2000 nodes and 16 levels of nesting, because past those an outline has stopped being a way to read anything. Your library keeps the twelve most recent maps in localStorage; pinned maps are never evicted, and anything over 400 KB renders but is not stored."
+        ]
+      },
+      {
+        "id": "links",
+        "type": "links",
+        "heading": "Going further"
+      }
+    ]
+  },
+
+  "prompts": [
+    {
+      "id": "author",
+      "label": "Write a mind map as Markdown",
+      "note": "Paste this into an agent, replace the last line, and load what it returns.",
+      "source": [
+        "Produce a mind map as a Markdown outline for a viewer that renders headings and",
+        "nested bullet lists as a mind map. Return only the Markdown. No prose outside",
+        "it, no explanation, no surrounding code fence.",
+        "",
+        "## Shape",
+        "",
+        "- Start with a single top-level heading (# Title). That heading becomes the",
+        "  centre of the map and its text becomes the map's title.",
+        "- Under it, use a nested bullet list for everything else. Two-space indents",
+        "  per level.",
+        "- Do not use lower heading levels (##, ###) for branches; keep the whole",
+        "  structure below the root as one bullet list, since nesting bullets is more",
+        "  reliable across editors than nesting heading levels.",
+        "- Three to seven top-level bullets. Two to six bullets under each of those.",
+        "- At most three levels of bullets below the root heading. A branch that",
+        "  needs more depth is really a separate map: say so instead of nesting",
+        "  further.",
+        "- Keep each bullet's own text short, under about 60 characters and without a",
+        "  trailing period; put elaboration in a child bullet instead of a long",
+        "  sentence.",
+        "- Order bullets from most to least important, not alphabetically. Each",
+        "  bullet should be a distinct facet of its parent, not a restatement of a",
+        "  sibling. Prefer specific nouns over generic labels like \"Other\".",
+        "- Bold, italics, inline code and links are fine inside a bullet if they",
+        "  genuinely help. Do not use images, tables or code blocks; they do not",
+        "  render usefully at map scale.",
+        "",
+        "## Worked example of the expected output",
+        "",
+        "# Choosing a database",
+        "",
+        "- Access shape",
+        "  - Read heavy",
+        "  - Write heavy",
+        "  - Analytical scans",
+        "- Consistency needs",
+        "  - Multi-row transactions",
+        "  - Eventual is acceptable",
+        "- Operational cost",
+        "  - Backup and restore",
+        "  - Failover story",
+        "  - Version upgrades",
+        "  - Who can operate it",
+        "- Escape hatch",
+        "  - Cost of moving off",
+        "  - Proprietary features used",
+        "",
+        "## The subject",
+        "",
+        "Build the map for the following subject. If source material is given, map",
+        "what it actually says rather than what you already know about the topic.",
+        "",
+        "<<< replace this line with your subject, or paste your source material >>>"
+      ]
+    }
+  ],
+
+  "examples": [
+    {
+      "id": "minimal",
+      "label": "Minimal outline",
+      "note": "One heading, one bullet list, two levels.",
+      "format": "markdown",
+      "source": [
+        "# Trip to Japan",
+        "",
+        "- Flights",
+        "- Cities",
+        "  - Tokyo",
+        "  - Kyoto",
+        "  - Osaka",
+        "- Food"
+      ]
+    },
+    {
+      "id": "styled",
+      "label": "Rich text in nodes",
+      "note": "Bold, links and inline code, same as any Markdown.",
+      "format": "markdown",
+      "source": [
+        "# Release 2.0",
+        "",
+        "- **Ship blockers**",
+        "  - SSO login",
+        "  - Schema migration, see `migrations/0007`",
+        "- Nice to have",
+        "  - Dark mode",
+        "- Cut from scope",
+        "  - *Considered, not this release*",
+        "  - Tracked in [the backlog](https://example.com/backlog)"
+      ]
+    },
+    {
+      "id": "deep",
+      "label": "Deep outline with collapsed branches",
+      "note": "Four levels; branches past level three start folded automatically.",
+      "format": "markdown",
+      "source": [
+        "# Learning web development",
+        "",
+        "- Languages",
+        "  - HTML",
+        "    - Semantic elements",
+        "    - Forms and validation",
+        "  - CSS",
+        "    - Grid and flexbox",
+        "    - Cascade and specificity",
+        "    - Custom properties",
+        "  - JavaScript",
+        "    - DOM and events",
+        "    - Promises and async",
+        "    - Modules",
+        "- The platform",
+        "  - Accessibility",
+        "    - Roles and ARIA",
+        "    - Keyboard order",
+        "  - Performance",
+        "  - Storage and caching",
+        "- Tooling",
+        "  - Version control",
+        "  - Browser devtools",
+        "  - Testing",
+        "    - Unit tests",
+        "    - End to end",
+        "- Practice",
+        "  - Clone a page you like",
+        "  - Ship one small thing",
+        "  - Read other people's code"
+      ]
+    },
+    {
+      "id": "json",
+      "label": "JSON escape hatch",
+      "note": "For programmatic use: topic and children, nothing else.",
+      "format": "json",
+      "source": [
+        "{",
+        "  \"topic\": \"Team structure\",",
+        "  \"children\": [",
+        "    {",
+        "      \"topic\": \"Engineering\",",
+        "      \"children\": [",
+        "        { \"topic\": \"Web\" },",
+        "        { \"topic\": \"Mobile\" },",
+        "        { \"topic\": \"Platform\" }",
+        "      ]",
+        "    },",
+        "    {",
+        "      \"topic\": \"Design\",",
+        "      \"children\": [",
+        "        { \"topic\": \"Research\" },",
+        "        { \"topic\": \"Design system\" }",
+        "      ]",
+        "    },",
+        "    { \"topic\": \"Product\" }",
+        "  ]",
+        "}"
+      ]
+    }
+  ],
+
+  "links": [
+    { "label": "markmap on GitHub", "url": "https://github.com/markmap/markmap", "note": "The renderer this page uses. Actively maintained, MIT licensed, built on d3." },
+    { "label": "markmap-lib docs", "url": "https://markmap.js.org/docs/packages--markmap-lib", "note": "The Markdown-to-tree transform used here, including front matter options this page does not expose." },
+    { "label": "jsMind", "url": "https://github.com/hizzgdev/jsmind", "note": "A JSON-first alternative if you specifically need a documented JSON schema rather than Markdown, though its pan and zoom are mouse-only." },
+    { "label": "Mind Elixir", "url": "https://github.com/ssshooter/mind-elixir-core", "note": "The main alternative if you want editing rather than viewing, with real touch and pinch support of its own." }
+  ]
+}
+    </script>
+
+    <jelly-theme mode="light" id="theme">
+      <div class="shell" id="shell"></div>
+    </jelly-theme>
+
+    <script type="module">
+      /* Logic only. Every constant, colour, label and example comes from the manifest. */
+
+      const M = JSON.parse(document.getElementById("manifest").textContent);
+      const APP = M.app;
+      const COPY = APP.copy;
+      const VIEWER = M.viewer;
+      const NORM = M.normalise;
+      const HIST = M.history;
+      const LIB = M.libraries;
+
+      const EXAMPLES = new Map(M.examples.map((ex) => [ex.id, ex]));
+      const PROMPTS = new Map(M.prompts.map((p) => [p.id, p]));
+      const SOURCE_IDS = new Set(HIST.sources.map((s) => s.id));
+      const SOURCE_LABEL = new Map(HIST.sources.map((s) => [s.id, COPY[s.labelKey]]));
+      const FORMAT_LABEL = { markdown: COPY.sourceMarkdown, json: COPY.sourceJson };
+      const exampleText = (ex) => ex.source.join("\n");
+      const promptText = (prompt) => prompt.source.join("\n");
+
+      function make(tag, props = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props)) {
+          if (value === undefined || value === null || value === false) continue;
+          if (key === "class") node.className = value;
+          else if (key === "text") node.textContent = value;
+          else if (key === "style") Object.assign(node.style, value);
+          else if (key === "on") for (const [evt, handler] of Object.entries(value)) node.addEventListener(evt, handler);
+          else node.setAttribute(key, value === true ? "" : String(value));
+        }
+        children.filter(Boolean).forEach((child) => node.append(child));
+        return node;
+      }
+
+      const fill = (template, vars = {}) =>
+        String(template).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : "{" + k + "}"));
+
+      function debounce(fn, ms) {
+        let timer = null;
+        return (...args) => {
+          window.clearTimeout(timer);
+          timer = window.setTimeout(() => fn(...args), ms);
+        };
+      }
+
+      function makeId(prefix) {
+        return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+      }
+
+      /* FNV-1a, 32 bit. Only used to spot the same map being opened twice. */
+      function hashText(text) {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < text.length; i += 1) {
+          h ^= text.charCodeAt(i);
+          h = Math.imul(h, 0x01000193);
+        }
+        return (h >>> 0).toString(16);
+      }
+
+      const byteLength = (text) => new TextEncoder().encode(text).length;
+
+      function bytesLabel(bytes) {
+        const units = ["B", "kB", "MB"];
+        let value = bytes;
+        let unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+          value /= 1024;
+          unit += 1;
+        }
+        return (unit === 0 ? value : value.toFixed(1)) + " " + units[unit];
+      }
+
+      function relativeTime(iso) {
+        const then = Date.parse(iso);
+        if (!Number.isFinite(then)) return "";
+        const seconds = Math.max(0, (Date.now() - then) / 1000);
+        for (const bucket of HIST.relativeTime) {
+          if (bucket.maxSeconds !== null && seconds >= bucket.maxSeconds) continue;
+          if (!bucket.template) return COPY.relativeJustNow;
+          return fill(bucket.template, { n: Math.max(1, Math.floor(seconds / bucket.divisor)) });
+        }
+        return "";
+      }
+
+      /* The component library loads from a CDN. Wait for it, but never hang: if it
+         cannot be fetched the page falls back to plain elements. */
+      const jellyOk = await Promise.race([
+        customElements.whenDefined(LIB.jelly.probeElement).then(() => true),
+        new Promise((resolve) => setTimeout(() => resolve(false), APP.timing.libraryTimeoutMs))
+      ]);
+
+      /* markmap-view and markmap-lib are classic non-async scripts, so by now they have
+         either both run and merged onto window.markmap, or the CDN failed outright. */
+      const markmapOk = Boolean(
+        window.markmap &&
+        typeof window.markmap.Markmap === "function" &&
+        typeof window.markmap.Transformer === "function"
+      );
+      const transformer = markmapOk ? new window.markmap.Transformer() : null;
+
+      /* ---------------- theme, injected from the manifest ---------------- */
+
+      /* The stage claims most of the viewport height rather than a flat rem value,
+         so a genuinely large map gets real room instead of a small window it has
+         to be scrolled and zoomed inside. clamp() keeps a floor so it is never
+         unusably small and a ceiling so it does not become absurd on a tall
+         desktop monitor; "reserve" is a rough estimate of the header, tabs and
+         toolbar around it, not a pixel-exact measurement. */
+      function stageHeight(reserve, max) {
+        return fill("clamp({min}, calc(100dvh - {reserve}), {max})", { min: VIEWER.stage.minHeight, reserve, max });
+      }
+
+      function buildThemeStyles() {
+        const rules = [
+          ":root{" +
+            "--font-display:" + APP.style.fonts.display + ";" +
+            "--font-text:" + APP.style.fonts.text + ";" +
+            "--font-mono:" + APP.style.fonts.mono + ";" +
+            "--accent:" + APP.accent + ";" +
+            "--touch-min:" + APP.touchMin + ";" +
+            "--stage-h:" + stageHeight(VIEWER.stage.compactReserve, VIEWER.stage.compactMax) + ";" +
+          "}",
+          "@media " + APP.media.wide + "{:root{--stage-h:" + stageHeight(VIEWER.stage.wideReserve, VIEWER.stage.wideMax) + ";}}"
+        ];
+        for (const [mode, tokens] of Object.entries(APP.style.palette)) {
+          const decls = Object.entries(tokens).map(([k, v]) => "--" + k + ":" + v).join(";");
+          rules.push('.shell[data-mode="' + mode + '"]{' + decls + ";--page-bg:" + tokens.bg + ";--page-fg:" + tokens.text + ";}");
+          rules.push('body[data-mode="' + mode + '"]{' + decls +
+            ";--page-bg:" + tokens.bg + ";--page-fg:" + tokens.text +
+            ";--shadow-color:" + tokens["shadow-color"] + ";--shadow-strength:" + tokens["shadow-strength"] + ";}");
+        }
+        document.head.append(make("style", { text: rules.join("\n") }));
+      }
+
+      const themeHost = document.getElementById("theme");
+      const shell = document.getElementById("shell");
+      const wideQuery = window.matchMedia(APP.media.wide);
+      const darkQuery = window.matchMedia(APP.media.dark);
+
+      function applyMode() {
+        const mode = themeHost && themeHost.resolvedMode ? themeHost.resolvedMode : themeHost.getAttribute("mode");
+        const resolved = mode === "dark" ? "dark" : "light";
+        shell.dataset.mode = resolved;
+        document.body.dataset.mode = resolved;
+        /* markmap ships its own dark palette behind this exact class name on any
+           ancestor of the rendered SVG; that is its documented theming hook, so no
+           custom CSS-variable overrides are needed to keep it in sync. */
+        if (refs.stage) refs.stage.classList.toggle(VIEWER.darkClass, resolved === "dark");
+      }
+
+      /* ---------------- component wrappers ---------------- */
+
+      function button(text, opts = {}) {
+        const node = make(jellyOk ? "jelly-button" : "button", {
+          text,
+          size: opts.size || "small",
+          shape: jellyOk ? "square" : undefined,
+          block: opts.block && jellyOk,
+          class: jellyOk ? undefined : "btn-plain",
+          type: jellyOk ? undefined : "button",
+          "aria-label": opts.ariaLabel,
+          on: opts.onClick ? { click: opts.onClick } : undefined
+        });
+        if (opts.variant && jellyOk) node.setAttribute("variant", opts.variant);
+        if (opts.selected && jellyOk) node.setAttribute("selected", "");
+        if (opts.selected && !jellyOk) node.style.borderColor = APP.accent;
+        if (opts.block && !jellyOk) node.style.inlineSize = "100%";
+        return node;
+      }
+
+      function badge(text, opts = {}) {
+        return make(jellyOk ? "jelly-badge" : "span", { text, size: opts.size || "small" });
+      }
+
+      function textField(kind, opts = {}) {
+        const tag = jellyOk ? (kind === "textarea" ? "jelly-textarea" : "jelly-input") : kind;
+        const node = make(tag, {
+          label: opts.label,
+          placeholder: opts.placeholder,
+          rows: opts.rows,
+          class: jellyOk ? undefined : "plain",
+          "no-autofill": jellyOk,
+          on: opts.onInput ? { input: (e) => opts.onInput(e.target.value) } : undefined
+        });
+        if (jellyOk) {
+          if (opts.value) node.setAttribute("value", opts.value);
+        } else {
+          node.value = opts.value || "";
+          if (kind === "input") node.type = "text";
+        }
+        return node;
+      }
+
+      const fieldValue = (node) => (node && typeof node.value === "string" ? node.value : "");
+
+      function setFieldValue(node, value) {
+        if (!node) return;
+        node.value = value;
+        if (jellyOk) node.setAttribute("value", value);
+      }
+
+      function drawer(label, body) {
+        return make(jellyOk ? "jelly-drawer" : "div", {
+          label,
+          side: wideQuery.matches ? "end" : "bottom"
+        }, [body]);
+      }
+
+      /* Jelly boolean state is property-driven; the fallback needs the attribute
+         so both paths agree about what "open" means. */
+      function setDrawerOpen(node, open) {
+        if (!node) return;
+        if (jellyOk) node.open = open;
+        if (open) node.setAttribute("open", "");
+        else node.removeAttribute("open");
+      }
+
+      /* ---------------- issues ---------------- */
+
+      function issue(level, code, path, vars = {}) {
+        const spec = COPY.errors[code] || COPY.errors.UNKNOWN;
+        return {
+          level,
+          code,
+          path: path || "",
+          message: fill(spec.title, vars),
+          hint: spec.hint ? fill(spec.hint, vars) : ""
+        };
+      }
+
+      function issueRow(item) {
+        return make("div", { class: "issue-row", "data-level": item.level, "data-code": item.code }, [
+          make("div", { class: "i-head" }, [
+            badge(item.level),
+            make("span", { text: item.message })
+          ]),
+          item.path ? make("span", { class: "i-path", text: item.path }) : null,
+          item.hint ? make("span", { class: "i-hint", text: item.hint }) : null
+        ]);
+      }
+
+      function renderIssues(host, issues) {
+        host.replaceChildren();
+        issues.forEach((item) => host.append(issueRow(item)));
+      }
+
+      /* ---------------- normaliser ----------------
+         Every input path funnels through normaliseInput and always produces an
+         IPureNode tree: { content, children }. That is markmap's own minimal shape,
+         not one invented for this page, and it needs no ids, no per-node style
+         allowlist and no direction bookkeeping the way a JSON-first format would. */
+
+      function pickTopic(node) {
+        for (const key of NORM.topicAliases) {
+          if (!(key in node)) continue;
+          const value = node[key];
+          if (value === null || value === undefined || typeof value === "object") continue;
+          const text = String(value).trim();
+          if (text) return text.slice(0, NORM.limits.maxTopicChars);
+        }
+        return "";
+      }
+
+      function pickChildren(node, path, issues) {
+        for (const key of NORM.childrenAliases) {
+          if (!(key in node)) continue;
+          const value = node[key];
+          if (value === null || value === undefined) continue;
+          if (!Array.isArray(value)) {
+            issues.push(issue("error", "BAD_CHILDREN", path));
+            return null;
+          }
+          return value;
+        }
+        return null;
+      }
+
+      /* Builds an IPureNode tree from a bare JSON object. content here is always a
+         plain string a caller wrote, never markdown or HTML, so it is rendered as
+         plain text with no escaping decisions to get right: see the trust-boundary
+         note on stripHtml for the one place HTML is legitimately involved. */
+      function jsonToTree(input, depth, path, ctx, issues) {
+        if (ctx.aborted) return null;
+        if (!input || typeof input !== "object" || Array.isArray(input)) {
+          issues.push(issue("error", "BAD_NODE", path));
+          return null;
+        }
+        ctx.count += 1;
+        if (ctx.count > NORM.limits.maxNodes) {
+          issues.push(issue("error", "TOO_MANY_NODES", path, { limit: NORM.limits.maxNodes }));
+          ctx.aborted = true;
+          return null;
+        }
+        if (depth > NORM.limits.maxDepth) {
+          issues.push(issue("error", "TOO_DEEP", path, { limit: NORM.limits.maxDepth }));
+          ctx.aborted = true;
+          return null;
+        }
+
+        const content = pickTopic(input);
+        if (!content) {
+          issues.push(issue("error", "MISSING_TOPIC", path, { aliases: NORM.topicAliases.join(", ") }));
+          return null;
+        }
+
+        const kids = pickChildren(input, path, issues);
+        const children = Array.isArray(kids)
+          ? kids.map((kid, index) => jsonToTree(kid, depth + 1, path + fill(COPY.pathChild, { index }), ctx, issues)).filter(Boolean)
+          : [];
+        return { content, children };
+      }
+
+      /* The one place this page treats a string as HTML rather than text. transform()
+         is markmap-lib's own markdown-it based pipeline, the same one that renders
+         every visible node on the map; trusting its output here for a plain-text
+         title is no larger a trust boundary than trusting it to paint the tree at
+         all. Nothing pasted by a user is ever passed to this function directly. */
+      function stripHtml(html) {
+        const scratch = document.createElement("div");
+        scratch.innerHTML = html;
+        return scratch.textContent.trim();
+      }
+
+      function treeStats(tree) {
+        let nodes = 0;
+        let depth = 0;
+        const walk = (node, level) => {
+          nodes += 1;
+          depth = Math.max(depth, level);
+          (node.children || []).forEach((kid) => walk(kid, level + 1));
+        };
+        if (tree) walk(tree, 1);
+        return { nodes, depth };
+      }
+
+      function mapName(tree, isHtml) {
+        if (!tree || !tree.content) return COPY.untitledName;
+        const text = isHtml ? stripHtml(tree.content) : String(tree.content).trim();
+        return (text || COPY.untitledName).slice(0, NORM.limits.maxNameChars);
+      }
+
+      function normaliseInput(rawText) {
+        const issues = [];
+        const trimmed = String(rawText === null || rawText === undefined ? "" : rawText).trim();
+        const bytes = byteLength(trimmed);
+        const fail = () => ({ ok: false, tree: null, isHtml: false, stats: null, name: "", issues });
+
+        if (!trimmed) {
+          issues.push(issue("error", "EMPTY"));
+          return fail();
+        }
+        if (bytes > NORM.limits.maxInputBytes) {
+          issues.push(issue("error", "TOO_LARGE", "", { limit: bytesLabel(NORM.limits.maxInputBytes) }));
+          return fail();
+        }
+
+        /* JSON is the escape hatch: if it parses as an object or array, take that
+           path; anything else, including every real outline, is Markdown. */
+        let parsed;
+        let isJson = true;
+        try {
+          parsed = JSON.parse(trimmed);
+          if (!parsed || typeof parsed !== "object") isJson = false;
+        } catch {
+          isJson = false;
+        }
+
+        let tree;
+        let isHtml;
+        if (isJson) {
+          const ctx = { count: 0, aborted: false };
+          tree = jsonToTree(parsed, 0, COPY.rootPath, ctx, issues);
+          if (!tree || issues.some((i) => i.level === "error")) return fail();
+          isHtml = false;
+        } else {
+          if (!markmapOk) {
+            issues.push(issue("error", "NEEDS_LIBRARY"));
+            return fail();
+          }
+          tree = transformer.transform(trimmed).root;
+          isHtml = true;
+          const stats = treeStats(tree);
+          if (stats.nodes > NORM.limits.maxNodes) {
+            issues.push(issue("error", "TOO_MANY_NODES", "", { limit: NORM.limits.maxNodes }));
+            return fail();
+          }
+          if (stats.depth > NORM.limits.maxDepth) {
+            issues.push(issue("error", "TOO_DEEP", "", { limit: NORM.limits.maxDepth }));
+            return fail();
+          }
+        }
+
+        const stats = treeStats(tree);
+        return {
+          ok: true,
+          tree,
+          isHtml,
+          stats: { nodes: stats.nodes, depth: stats.depth, bytes, format: isJson ? "json" : "markdown" },
+          name: mapName(tree, isHtml),
+          issues
+        };
+      }
+
+      /* ---------------- state ---------------- */
+
+      let history = loadHistory();
+      let settings = loadSettings();
+      let view = settings.tab;
+      let current = null;
+      let mm = null;
+      let historyDegraded = false;
+      let expandedEntryId = null;
+      let renamingId = null;
+      let pendingDeleteId = null;
+      let deleteTimer = null;
+      const refs = {};
+
+      function sanitiseSettings(input) {
+        const source = input && typeof input === "object" ? input : {};
+        const tabIds = APP.tabs.map((t) => t.id);
+        return {
+          tab: tabIds.includes(source.tab) ? source.tab : APP.defaultTab,
+          lastEntryId: typeof source.lastEntryId === "string" ? source.lastEntryId : null
+        };
+      }
+
+      function loadSettings() {
+        try {
+          const raw = localStorage.getItem(APP.storage.settings);
+          if (!raw) return sanitiseSettings(null);
+          const parsed = JSON.parse(raw);
+          return sanitiseSettings(parsed && parsed.settings ? parsed.settings : parsed);
+        } catch (err) {
+          console.warn("Could not read saved settings", err);
+          return sanitiseSettings(null);
+        }
+      }
+
+      function saveSettings() {
+        try {
+          localStorage.setItem(APP.storage.settings, JSON.stringify({
+            version: APP.storage.schemaVersion,
+            app: APP.id,
+            updatedAt: new Date().toISOString(),
+            settings
+          }));
+        } catch (err) {
+          console.warn("Could not save settings", err);
+        }
+      }
+
+      /* The manifest is the schema, so anything read back from storage is checked
+         against it rather than trusted. */
+      function sanitiseHistory(input) {
+        const rows = Array.isArray(input) ? input : [];
+        const out = [];
+        for (const row of rows) {
+          if (!row || typeof row !== "object") continue;
+          if (typeof row.raw !== "string" || !row.raw.trim()) continue;
+          if (byteLength(row.raw) > HIST.maxStoredBytes) continue;
+          if (!SOURCE_IDS.has(row.source)) continue;
+          if (row.format !== "markdown" && row.format !== "json") continue;
+          out.push({
+            id: typeof row.id === "string" && row.id ? row.id : makeId("m"),
+            name: (typeof row.name === "string" && row.name.trim() ? row.name.trim() : COPY.untitledName).slice(0, NORM.limits.maxNameChars),
+            hash: typeof row.hash === "string" ? row.hash : hashText(row.raw.trim()),
+            format: row.format,
+            source: row.source,
+            fileName: typeof row.fileName === "string" ? row.fileName.slice(0, NORM.limits.maxNameChars) : null,
+            savedAt: typeof row.savedAt === "string" ? row.savedAt : new Date().toISOString(),
+            openedAt: typeof row.openedAt === "string" ? row.openedAt : new Date().toISOString(),
+            bytes: Number.isFinite(row.bytes) ? row.bytes : byteLength(row.raw),
+            nodes: Number.isFinite(row.nodes) ? row.nodes : 0,
+            depth: Number.isFinite(row.depth) ? row.depth : 0,
+            pinned: row.pinned === true,
+            raw: row.raw
+          });
+        }
+        return out.slice(0, HIST.maxEntries);
+      }
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(APP.storage.history);
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          return sanitiseHistory(Array.isArray(parsed) ? parsed : parsed && parsed.entries);
+        } catch (err) {
+          console.warn("Could not read saved library", err);
+          return [];
+        }
+      }
+
+      /* Quota failures drop the oldest unpinned entry and retry. If storage stays
+         hostile the in-memory list is kept, so the map on screen never disappears. */
+      function saveHistory() {
+        for (let attempt = 0; attempt <= HIST.quotaRetries; attempt += 1) {
+          try {
+            localStorage.setItem(APP.storage.history, JSON.stringify({
+              version: APP.storage.schemaVersion,
+              app: APP.id,
+              updatedAt: new Date().toISOString(),
+              entries: history
+            }));
+            historyDegraded = false;
+            return true;
+          } catch (err) {
+            const victim = oldestUnpinned();
+            if (!victim) {
+              console.warn("Could not save library", err);
+              historyDegraded = true;
+              return false;
+            }
+            history = history.filter((entry) => entry !== victim);
+          }
+        }
+        historyDegraded = true;
+        return false;
+      }
+
+      function oldestUnpinned() {
+        return history
+          .filter((entry) => !entry.pinned)
+          .sort((a, b) => Date.parse(a.openedAt) - Date.parse(b.openedAt))[0] || null;
+      }
+
+      function evictHistory() {
+        while (history.length > HIST.maxEntries) {
+          const victim = oldestUnpinned();
+          if (!victim) return false;
+          history = history.filter((entry) => entry !== victim);
+        }
+        return true;
+      }
+
+      function rememberMap(record) {
+        const now = new Date().toISOString();
+        const hash = hashText(record.raw);
+        const existing = history.find((entry) => entry.hash === hash);
+        if (existing) {
+          existing.openedAt = now;
+          existing.savedAt = now;
+          existing.nodes = record.stats.nodes;
+          existing.depth = record.stats.depth;
+          history = [existing, ...history.filter((entry) => entry !== existing)];
+          settings.lastEntryId = existing.id;
+          saveHistory();
+          saveSettings();
+          return { entry: existing, note: COPY.dedupeNote };
+        }
+        if (record.bytes > HIST.maxStoredBytes) {
+          return { entry: null, note: fill(COPY.tooBigToStore, { limit: bytesLabel(HIST.maxStoredBytes) }) };
+        }
+        const entry = {
+          id: makeId("m"),
+          name: record.name,
+          hash,
+          format: record.stats.format,
+          source: record.source,
+          fileName: record.fileName || null,
+          savedAt: now,
+          openedAt: now,
+          bytes: record.bytes,
+          nodes: record.stats.nodes,
+          depth: record.stats.depth,
+          pinned: false,
+          raw: record.raw
+        };
+        history = [entry, ...history];
+        if (!evictHistory()) {
+          history = history.filter((row) => row !== entry);
+          return { entry: null, note: COPY.historyFullPinned };
+        }
+        settings.lastEntryId = entry.id;
+        saveHistory();
+        saveSettings();
+        return { entry, note: null };
+      }
+
+      /* ---------------- viewer ---------------- */
+
+      /* document.createElement always uses the document's HTML namespace, even when
+         given the tag name "svg": the element it returns is not a real SVG element,
+         so every SVG presentation attribute markmap sets on it and its children
+         (transform, d, stroke) is inert and nothing paints. A real SVG root needs
+         the SVG namespace explicitly. */
+      function mountViewer() {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("class", "markmap");
+        refs.stage.replaceChildren(svg);
+        svg.classList.toggle(VIEWER.darkClass, shell.dataset.mode === "dark");
+        mm = window.markmap.Markmap.create(svg, VIEWER.options);
+        return mm;
+      }
+
+      function showCurrent() {
+        if (!current || !markmapOk) return;
+        try {
+          if (!mm) mountViewer();
+          mm.setData(current.tree);
+          window.setTimeout(() => mm.fit(), APP.timing.fitDelayMs);
+        } catch (err) {
+          console.warn("markmap failed to draw, falling back to the outline", err);
+          mm = null;
+          renderOutlineFallback();
+          renderIssues(refs.mapIssues, [issue("error", "RENDER_FAILED", "", { detail: err.message })]);
+        }
+        renderMapMeta();
+      }
+
+      function zoomBy(factor) {
+        if (mm && typeof mm.rescale === "function") mm.rescale(factor);
+      }
+
+      function fitViewer() {
+        if (mm && typeof mm.fit === "function") mm.fit();
+      }
+
+      /* Walks the live tree, setting fold on every node (or every non-root node),
+         then re-renders. markmap has no separate "expand to depth" API, so this is
+         the direct equivalent of the old expand_all/collapse_all pair; per-node
+         folding by clicking a node's own circle keeps working independently. */
+      function setFoldAll(folded) {
+        if (!mm || !current || !current.tree) return;
+        const walk = (node, isRoot) => {
+          node.payload = node.payload || {};
+          node.payload.fold = folded && !isRoot ? 1 : 0;
+          (node.children || []).forEach((kid) => walk(kid, false));
+        };
+        walk(current.tree, true);
+        mm.setData(current.tree);
+      }
+
+      /* Readable structure when markmap cannot be fetched. Nested details keeps the
+         hierarchy explorable without a layout engine. content may be HTML (from a
+         real Markdown parse) or plain text (from the JSON path); either way this
+         reads it back out as text only, matching the trust boundary in stripHtml. */
+      function outlineList(node, isHtml) {
+        const kids = node.children || [];
+        const label = isHtml ? stripHtml(node.content) : node.content;
+        if (!kids.length) return make("li", { class: "leaf", text: label });
+        const list = make("ul", {});
+        kids.forEach((kid) => list.append(outlineList(kid, isHtml)));
+        const folded = node.payload && node.payload.fold;
+        return make("li", {}, [
+          make("details", { open: !folded }, [make("summary", { text: label }), list])
+        ]);
+      }
+
+      function renderOutlineFallback() {
+        refs.stage.replaceChildren();
+        if (!current || !current.tree) return;
+        const list = make("ul", {}, [outlineList(current.tree, current.isHtml)]);
+        refs.stage.append(make("div", { class: "outline-fallback" }, [list]));
+      }
+
+      /* ---------------- loading ---------------- */
+
+      function loadRaw(rawText, source, extra = {}) {
+        const raw = String(rawText === null || rawText === undefined ? "" : rawText).trim();
+        const result = normaliseInput(raw);
+        renderIssues(refs.loadIssues, result.issues);
+        if (!result.ok) {
+          refs.loadNote.textContent = "";
+          return false;
+        }
+
+        current = {
+          raw,
+          tree: result.tree,
+          isHtml: result.isHtml,
+          stats: result.stats,
+          name: result.name,
+          source,
+          fileName: extra.fileName || null,
+          bytes: result.stats.bytes,
+          entryId: extra.entryId || null
+        };
+
+        if (extra.entryId) {
+          const entry = history.find((row) => row.id === extra.entryId);
+          if (entry) {
+            entry.openedAt = new Date().toISOString();
+            history = [entry, ...history.filter((row) => row !== entry)];
+            current.name = entry.name;
+            settings.lastEntryId = entry.id;
+            saveHistory();
+            saveSettings();
+          }
+          refs.loadNote.textContent = "";
+        } else {
+          const remembered = rememberMap(current);
+          if (remembered.entry) current.entryId = remembered.entry.id;
+          refs.loadNote.textContent = remembered.note || "";
+        }
+
+        setDrawerOpen(refs.loadSheet, false);
+        setView("map");
+        if (markmapOk) showCurrent();
+        else {
+          renderOutlineFallback();
+          renderMapMeta();
+        }
+        renderLibrary();
+        return true;
+      }
+
+      function loadExample(id) {
+        const example = EXAMPLES.get(id);
+        if (!example) return;
+        loadRaw(exampleText(example), "example", { fileName: example.label });
+      }
+
+      function handleFile(file) {
+        const reader = new FileReader();
+        reader.onload = () => loadRaw(String(reader.result || ""), "file", { fileName: file.name });
+        reader.readAsText(file);
+      }
+
+      function installDropTarget() {
+        let overlay = null;
+        const hide = debounce(() => {
+          if (overlay) {
+            overlay.remove();
+            overlay = null;
+          }
+        }, APP.timing.dropOverlayHideMs);
+
+        window.addEventListener("dragover", (e) => {
+          if (!e.dataTransfer || ![...e.dataTransfer.types].includes("Files")) return;
+          e.preventDefault();
+          if (!overlay) {
+            overlay = make("div", { class: "drop-overlay", text: COPY.dropOverlay });
+            document.body.append(overlay);
+          }
+          hide();
+        });
+        window.addEventListener("dragleave", hide);
+        window.addEventListener("drop", (e) => {
+          if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+          e.preventDefault();
+          hide();
+          handleFile(e.dataTransfer.files[0]);
+        });
+      }
+
+      /* ---------------- export ---------------- */
+
+      function downloadText(text, fileName, mime) {
+        const url = URL.createObjectURL(new Blob([text], { type: mime }));
+        make("a", { href: url, download: fileName }).click();
+        window.setTimeout(() => URL.revokeObjectURL(url), APP.timing.revokeObjectUrlMs);
+      }
+
+      const safeFileName = (name) => name.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+
+      function downloadSource() {
+        if (!current) return;
+        const spec = current.stats.format === "json" ? APP.file.json : APP.file.markdown;
+        downloadText(current.raw, safeFileName(current.name) + spec.suffix, spec.mime);
+      }
+
+      /* SVG is already the map's native format, so exporting it is exact serialisation,
+         not a rasterisation step through a third library the way a PNG export would be. */
+      function downloadSvg() {
+        if (!current || !refs.stage) return;
+        const svg = refs.stage.querySelector("svg.markmap");
+        if (!svg) return;
+        const clone = svg.cloneNode(true);
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        const text = new XMLSerializer().serializeToString(clone);
+        downloadText(text, safeFileName(current.name) + APP.file.svg.suffix, APP.file.svg.mime);
+      }
+
+      function structureJson() {
+        if (!current || !current.tree) return "";
+        /* Re-derive plain-text topics regardless of source format, so the exported
+           JSON is always safe to feed back through the JSON escape hatch. */
+        const strip = (node) => ({
+          topic: current.isHtml ? stripHtml(node.content) : node.content,
+          children: (node.children || []).map(strip)
+        });
+        const plain = strip(current.tree);
+        if (!plain.children.length) delete plain.children;
+        return JSON.stringify(plain, null, 2);
+      }
+
+      function copyText(text, resultNode, blockNode) {
+        const reset = () => window.setTimeout(() => { resultNode.textContent = ""; }, APP.timing.copyResetMs);
+        const manual = () => {
+          resultNode.textContent = COPY.copyFailure + " " + COPY.copyManualHint;
+          if (blockNode) {
+            const range = document.createRange();
+            range.selectNodeContents(blockNode);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          reset();
+        };
+        if (!navigator.clipboard || !navigator.clipboard.writeText) {
+          manual();
+          return;
+        }
+        navigator.clipboard.writeText(text).then(() => {
+          resultNode.textContent = COPY.copySuccess;
+          reset();
+        }, manual);
+      }
+
+      /* ---------------- page chrome ---------------- */
+
+      function buildChrome() {
+        shell.replaceChildren();
+
+        shell.append(make("header", { class: "masthead" }, [
+          make("span", { class: "kicker", text: APP.kicker }),
+          make("h1", { text: APP.title }),
+          make("p", { text: APP.tagline })
+        ]));
+
+        refs.panels = {};
+        const tabs = make(jellyOk ? "jelly-tabs" : "div", { id: "tabs", size: APP.tabSize });
+        APP.tabs.forEach((tab) => {
+          const content = make("div", { style: { marginBlockStart: "var(--size-3)" } });
+          refs.panels[tab.id] = content;
+          tabs.append(make(jellyOk ? "jelly-tab-panel" : "section", {
+            label: tab.label,
+            value: tab.id,
+            active: tab.id === view
+          }, [content]));
+        });
+        tabs.addEventListener("change", (e) => setView((e.target && e.target.value) || APP.defaultTab));
+        refs.tabs = tabs;
+
+        /* Without the library there is no tab bar, so supply a plain one and switch
+           the panels by hand. Otherwise only the first tab is reachable. */
+        if (!jellyOk) {
+          refs.fallbackTabs = make("div", { class: "row" }, APP.tabs.map((tab) =>
+            button(tab.label, { onClick: () => setView(tab.id) })
+          ));
+          shell.append(refs.fallbackTabs);
+        }
+        shell.append(tabs);
+
+        buildMapPanel(refs.panels.map);
+        buildLibraryPanel(refs.panels.library);
+        buildUsagePanel(refs.panels.usage);
+        buildOverlays();
+      }
+
+      function buildMapPanel(host) {
+        refs.stage = make("div", { class: "map-stage", id: "stage" });
+        refs.mapMeta = make("div", { class: "map-meta" });
+        refs.mapIssues = make("div", { class: "issue-list", role: "alert", "aria-live": "polite" });
+
+        const bar = make("div", { class: "map-toolbar row" }, [
+          button(COPY.loadButton, { variant: "mint", onClick: () => openLoadSheet() }),
+          button("-", { ariaLabel: COPY.zoomOutButton, onClick: () => zoomBy(1 / VIEWER.zoomStep) }),
+          button("+", { ariaLabel: COPY.zoomInButton, onClick: () => zoomBy(VIEWER.zoomStep) }),
+          button(COPY.fitButton, { onClick: fitViewer }),
+          button(COPY.controlsButton, { variant: "azure", onClick: () => setDrawerOpen(refs.controlsSheet, true) })
+        ]);
+
+        host.append(make("div", { class: "map-panel" }, [refs.stage, bar, refs.mapMeta]), refs.mapIssues);
+        renderEmptyStage();
+      }
+
+      function renderEmptyStage() {
+        refs.stage.replaceChildren(make("div", { class: "map-empty" }, [
+          make("h2", { text: COPY.emptyTitle }),
+          make("p", { text: COPY.emptyBody }),
+          make("div", { class: "row" }, [
+            button(COPY.emptyExampleButton, { variant: "mint", onClick: () => loadExample(M.examples[0].id) }),
+            button(COPY.emptyUsageButton, { onClick: () => setView("usage") })
+          ])
+        ]));
+      }
+
+      function renderMapMeta() {
+        if (!current) {
+          refs.mapMeta.textContent = "";
+          return;
+        }
+        refs.mapMeta.replaceChildren(
+          make("b", { text: current.name }),
+          document.createTextNode(" " + fill(COPY.statsLine, {
+            nodes: current.stats.nodes,
+            depth: current.stats.depth,
+            bytes: bytesLabel(current.stats.bytes),
+            format: FORMAT_LABEL[current.stats.format]
+          }))
+        );
+        if (!markmapOk) {
+          refs.mapMeta.append(make("div", { class: "storage-warning" }, [
+            make("b", { text: COPY.libraryBlockedTitle }),
+            document.createTextNode(" " + COPY.libraryBlockedBody)
+          ]));
+        }
+      }
+
+      function buildLibraryPanel(host) {
+        refs.storageWarning = make("div", { class: "storage-warning", text: COPY.storageDegraded, hidden: true });
+        refs.histList = make("div", { class: "hist-list" });
+        refs.sideDetail = make("div", { class: "side-detail" });
+        refs.sampleList = make("div", { class: "row" });
+
+        refs.library = make("div", { class: "library" }, [
+          make("div", {}, [
+            make("h2", { text: COPY.libraryTitle }),
+            make("p", { class: "muted", text: COPY.libraryBody }),
+            refs.storageWarning,
+            refs.histList,
+            make("h2", { text: COPY.samplesTitle, style: { marginBlockStart: "var(--size-5)" } }),
+            refs.sampleList
+          ]),
+          refs.sideDetail
+        ]);
+        host.append(refs.library);
+
+        M.examples.forEach((example) => {
+          refs.sampleList.append(button(example.label, { onClick: () => loadExample(example.id) }));
+        });
+        renderLibrary();
+      }
+
+      function historyRow(entry) {
+        const isOpen = expandedEntryId === entry.id;
+        return make("button", {
+          class: "hist-row",
+          type: "button",
+          "aria-expanded": String(isOpen),
+          on: { click: () => { expandedEntryId = isOpen ? null : entry.id; renamingId = null; resetDeleteConfirm(); renderLibrary(); } }
+        }, [
+          make("span", { class: "h-name", text: entry.name }),
+          make("span", { class: "h-meta" }, [
+            make("span", { text: FORMAT_LABEL[entry.format] }),
+            make("span", { text: SOURCE_LABEL.get(entry.source) || entry.source }),
+            make("span", { text: relativeTime(entry.openedAt) }),
+            make("span", { text: bytesLabel(entry.bytes) }),
+            entry.nodes ? badge(String(entry.nodes)) : null,
+            entry.pinned ? make("span", { text: COPY.pinnedFlag }) : null
+          ])
+        ]);
+      }
+
+      function historyDetail(entry) {
+        const copyResult = make("span", { class: "muted", role: "status" });
+        const actions = make("div", { class: "d-actions" }, [
+          button(entry.pinned ? COPY.unpinButton : COPY.pinButton, {
+            onClick: () => {
+              entry.pinned = !entry.pinned;
+              saveHistory();
+              renderLibrary();
+            }
+          }),
+          button(COPY.renameButton, { onClick: () => { renamingId = entry.id; renderLibrary(); } }),
+          button(COPY.copySourceButton, { onClick: () => copyText(entry.raw, copyResult) }),
+          button(pendingDeleteId === entry.id ? COPY.deleteConfirm : COPY.deleteButton, {
+            variant: "rose",
+            onClick: () => {
+              if (pendingDeleteId === entry.id) {
+                resetDeleteConfirm();
+                history = history.filter((row) => row !== entry);
+                expandedEntryId = null;
+                saveHistory();
+                renderLibrary();
+                return;
+              }
+              pendingDeleteId = entry.id;
+              window.clearTimeout(deleteTimer);
+              deleteTimer = window.setTimeout(() => { pendingDeleteId = null; renderLibrary(); }, APP.timing.deleteConfirmResetMs);
+              renderLibrary();
+            }
+          })
+        ]);
+
+        let renameBox = null;
+        if (renamingId === entry.id) {
+          const field = textField("input", { label: COPY.renameLabel, value: entry.name });
+          renameBox = make("div", { class: "d-primary" }, [
+            field,
+            make("div", { class: "d-actions" }, [
+              button(COPY.renameSave, {
+                variant: "mint",
+                onClick: () => {
+                  const next = fieldValue(field).trim();
+                  if (next) entry.name = next.slice(0, NORM.limits.maxNameChars);
+                  renamingId = null;
+                  saveHistory();
+                  if (current && current.entryId === entry.id) {
+                    current.name = entry.name;
+                    renderMapMeta();
+                  }
+                  renderLibrary();
+                }
+              }),
+              button(COPY.renameCancel, { onClick: () => { renamingId = null; renderLibrary(); } })
+            ])
+          ]);
+        }
+
+        /* Open is the primary read after selecting, so it sits last, in the lower
+           third of the detail where a thumb already is. */
+        return make("div", { class: "hist-detail" }, [
+          make("span", { class: "muted mono", text: entry.fileName || entry.hash }),
+          renameBox,
+          actions,
+          copyResult,
+          make("div", { class: "d-primary" }, [
+            button(COPY.openButton, { variant: "mint", block: true, onClick: () => loadRaw(entry.raw, entry.source, { entryId: entry.id, fileName: entry.fileName }) })
+          ])
+        ]);
+      }
+
+      function resetDeleteConfirm() {
+        window.clearTimeout(deleteTimer);
+        pendingDeleteId = null;
+      }
+
+      function renderLibrary() {
+        if (!refs.histList) return;
+        refs.storageWarning.hidden = !historyDegraded;
+        refs.histList.replaceChildren();
+        refs.sideDetail.replaceChildren();
+
+        if (!history.length) {
+          refs.histList.append(make("div", { class: "empty", text: COPY.libraryEmpty }));
+          refs.library.classList.remove("has-side");
+          return;
+        }
+
+        const entry = history.find((row) => row.id === expandedEntryId) || null;
+        refs.detailNode = entry ? historyDetail(entry) : null;
+        history.forEach((row) => {
+          refs.histList.append(historyRow(row));
+          if (entry && row === entry && !wideQuery.matches) refs.histList.append(refs.detailNode);
+        });
+        placeDetail();
+      }
+
+      /* One detail node, two homes: inline under the selected row on compact, a
+         sticky side pane on wide. Re-run on resize so a rotation does not strand it. */
+      function placeDetail() {
+        if (!refs.library) return;
+        const wide = wideQuery.matches;
+        refs.library.classList.toggle("has-side", wide && Boolean(refs.detailNode));
+        if (!refs.detailNode) return;
+        if (wide) refs.sideDetail.replaceChildren(refs.detailNode);
+        else if (!refs.detailNode.isConnected) {
+          const entry = history.find((row) => row.id === expandedEntryId);
+          const index = entry ? history.indexOf(entry) : -1;
+          const rows = [...refs.histList.children];
+          if (index >= 0 && rows[index]) rows[index].after(refs.detailNode);
+        }
+      }
+
+      /* ---------------- usage ---------------- */
+
+      function codeBlock(text) {
+        const pre = make("pre", { class: "code" }, [make("code", { text })]);
+        const wrap = make("div", { class: "code-wrap" }, [pre]);
+        return { wrap, pre };
+      }
+
+      const SECTION_RENDERERS = {
+        prose: (section) => (section.paragraphs || []).map((text) => make("p", { text })),
+
+        fields: (section) => {
+          const head = make("tr", {}, section.columns.map((label) => make("th", { text: label, scope: "col" })));
+          const body = section.rows.map((cells) => make("tr", {}, cells.map((cell, index) =>
+            make("td", {}, [index === 0 ? make("code", { text: cell }) : document.createTextNode(cell)])
+          )));
+          return [
+            ...(section.paragraphs || []).map((text) => make("p", { text })),
+            make("div", { class: "table-wrap" }, [
+              make("table", {}, [make("thead", {}, [head]), make("tbody", {}, body)])
+            ])
+          ];
+        },
+
+        example: (section) => {
+          const example = EXAMPLES.get(section.exampleId);
+          if (!example) return [make("p", { text: COPY.errors.UNKNOWN.title })];
+          const text = exampleText(example);
+          const { wrap, pre } = codeBlock(text);
+          const result = make("span", { class: "muted", role: "status" });
+          return [
+            ...(section.paragraphs || []).map((p) => make("p", { text: p })),
+            make("p", { class: "muted", text: example.note }),
+            wrap,
+            make("div", { class: "row" }, [
+              button(COPY.loadExampleButton, { variant: "mint", onClick: () => loadExample(example.id) }),
+              button(COPY.copyButton, { onClick: () => copyText(text, result, pre) }),
+              result
+            ])
+          ];
+        },
+
+        /* A prompt is copy-only: there is nothing to render until an agent has
+           answered it, so it gets a prominent copy button and no load button. */
+        prompt: (section) => {
+          const prompt = PROMPTS.get(section.promptId);
+          if (!prompt) return [make("p", { text: COPY.errors.UNKNOWN.title })];
+          const text = promptText(prompt);
+          const { wrap, pre } = codeBlock(text);
+          const result = make("span", { class: "muted", role: "status" });
+          return [
+            ...(section.paragraphs || []).map((p) => make("p", { text: p })),
+            make("div", { class: "row" }, [
+              button(COPY.copyPromptButton, { variant: "mint", onClick: () => copyText(text, result, pre) }),
+              badge(fill(COPY.promptSize, { lines: prompt.source.length })),
+              result
+            ]),
+            make("p", { class: "muted", text: prompt.note }),
+            wrap
+          ];
+        },
+
+        links: () => M.links.map((link) => make("div", { class: "link-row" }, [
+          make("a", { href: link.url, target: "_blank", rel: "noreferrer noopener", text: link.label }),
+          make("span", { class: "muted", text: link.note })
+        ]))
+      };
+
+      function buildUsagePanel(host) {
+        const wrap = make("div", { class: "usage" }, [make("p", { class: "muted", text: COPY.usageLede })]);
+        M.usage.sections.forEach((section) => {
+          const renderer = SECTION_RENDERERS[section.type];
+          if (!renderer) {
+            console.warn("No renderer for usage section type", section.type);
+            return;
+          }
+          wrap.append(make("section", { class: "usage-section", id: "usage-" + section.id }, [
+            section.heading ? make("h2", { text: section.heading }) : null,
+            ...renderer(section)
+          ]));
+        });
+        host.append(wrap);
+      }
+
+      /* ---------------- overlays ---------------- */
+
+      function buildOverlays() {
+        refs.loadIssues = make("div", { class: "issue-list", role: "alert", "aria-live": "assertive" });
+        refs.loadNote = make("p", { class: "muted", role: "status" });
+        refs.pasteField = textField("textarea", { label: COPY.pasteLabel, placeholder: COPY.pastePlaceholder, rows: 8 });
+        refs.fileInput = make("input", {
+          type: "file",
+          accept: APP.file.accept,
+          class: "sr",
+          on: {
+            change: (e) => {
+              const file = e.target.files && e.target.files[0];
+              if (file) handleFile(file);
+              e.target.value = "";
+            }
+          }
+        });
+
+        refs.loadSheet = drawer(COPY.loadSheetTitle, make("div", { class: "sheet-body" }, [
+          make("h2", { text: COPY.loadSheetTitle }),
+          make("p", { class: "muted", text: COPY.loadSheetBody }),
+          refs.pasteField,
+          make("div", { class: "row" }, [
+            button(COPY.pasteSubmit, { variant: "mint", onClick: () => loadRaw(fieldValue(refs.pasteField), "paste") }),
+            button(COPY.fileButton, { variant: "azure", onClick: () => refs.fileInput.click() }),
+            button(COPY.clearButton, { onClick: () => { setFieldValue(refs.pasteField, ""); renderIssues(refs.loadIssues, []); refs.loadNote.textContent = ""; } }),
+            button(COPY.closeButton, { onClick: () => setDrawerOpen(refs.loadSheet, false) })
+          ]),
+          make("p", { class: "muted", text: COPY.dropHint }),
+          refs.fileInput,
+          refs.loadIssues,
+          refs.loadNote
+        ]));
+
+        refs.controlsBody = make("div", { class: "sheet-body" });
+        refs.controlsSheet = drawer(COPY.controlsTitle, refs.controlsBody);
+        themeHost.append(refs.loadSheet, refs.controlsSheet);
+        renderControls();
+      }
+
+      function renderControls() {
+        if (!refs.controlsBody) return;
+        const isDark = shell.dataset.mode === "dark";
+        const exportResult = make("span", { class: "muted", role: "status" });
+
+        const groups = [
+          make("div", { class: "ctrl-group" }, [
+            make("h3", { text: COPY.appearanceGroup }),
+            make("div", { class: "row" }, [
+              button(COPY.lightButton, { selected: !isDark, onClick: () => setMode("light") }),
+              button(COPY.darkButton, { selected: isDark, onClick: () => setMode("dark") })
+            ])
+          ]),
+          make("div", { class: "ctrl-group" }, [
+            make("h3", { text: COPY.structureGroup }),
+            make("div", { class: "row" }, [
+              button(COPY.expandAllButton, { onClick: () => setFoldAll(false) }),
+              button(COPY.collapseAllButton, { onClick: () => setFoldAll(true) })
+            ])
+          ]),
+          make("div", { class: "ctrl-group" }, [
+            make("h3", { text: COPY.exportGroup }),
+            make("div", { class: "row" }, [
+              button(COPY.downloadSourceButton, { onClick: downloadSource }),
+              markmapOk ? button(COPY.downloadSvgButton, { onClick: downloadSvg }) : null,
+              button(COPY.copyStructureButton, { onClick: () => copyText(structureJson(), exportResult) })
+            ]),
+            exportResult
+          ])
+        ];
+
+        refs.controlsBody.replaceChildren(
+          make("h2", { text: COPY.controlsTitle }),
+          ...groups,
+          make("div", { class: "row" }, [button(COPY.closeButton, { onClick: () => setDrawerOpen(refs.controlsSheet, false) })])
+        );
+      }
+
+      function setMode(mode) {
+        themeHost.setAttribute("mode", mode);
+        applyMode();
+        renderControls();
+      }
+
+      function openLoadSheet() {
+        renderIssues(refs.loadIssues, []);
+        refs.loadNote.textContent = "";
+        setDrawerOpen(refs.loadSheet, true);
+      }
+
+      function setView(next) {
+        const known = APP.tabs.some((tab) => tab.id === next);
+        view = known ? next : APP.defaultTab;
+        settings.tab = view;
+        saveSettings();
+        if (jellyOk && refs.tabs && refs.tabs.value !== view) refs.tabs.value = view;
+        if (!jellyOk) {
+          APP.tabs.forEach((tab) => {
+            const panel = refs.panels[tab.id].parentElement;
+            if (panel) panel.hidden = tab.id !== view;
+          });
+        }
+        if (view === "map" && mm) window.setTimeout(fitViewer, APP.timing.fitDelayMs);
+        placeDetail();
+      }
+
+      /* ---------------- boot ---------------- */
+
+      buildThemeStyles();
+      buildChrome();
+      applyMode();
+      installDropTarget();
+      setView(view);
+
+      if (settings.lastEntryId) {
+        const entry = history.find((row) => row.id === settings.lastEntryId);
+        if (entry) loadRaw(entry.raw, entry.source, { entryId: entry.id, fileName: entry.fileName });
+      }
+
+      window.addEventListener("resize", debounce(() => {
+        const side = wideQuery.matches ? "end" : "bottom";
+        [refs.loadSheet, refs.controlsSheet].forEach((sheet) => sheet && sheet.setAttribute("side", side));
+        placeDetail();
+        if (view === "map") fitViewer();
+      }, APP.timing.resizeDebounceMs));
+
+      darkQuery.addEventListener("change", () => {
+        if (themeHost.getAttribute("mode") === "auto") applyMode();
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        setDrawerOpen(refs.loadSheet, false);
+        setDrawerOpen(refs.controlsSheet, false);
+      });
+    </script>
+  </body>
+</html>
