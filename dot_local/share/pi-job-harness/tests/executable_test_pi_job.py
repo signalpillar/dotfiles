@@ -660,16 +660,20 @@ def test_profiled_task() -> None:
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Initialization: ok")
         assert_contains(status, "Cursor: old-slice / old-step")
-        assert_contains(status, "Next: second-slice / s2")
-
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "second-slice / s2", nxt
+        assert_contains(status, "Ready: second-slice")
+        assert_contains(status, "cursor slice missing")
 
         dry = run(str(PI_JOB), "--task", str(task), "advance", "--dry-run").stdout
+        assert_contains(dry, "PI-JOB PICK NEXT SLICE")
+        assert_contains(dry, "Ready slices")
         assert_contains(dry, "second-slice")
-        assert_contains(dry, "s2")
 
-        run(str(PI_JOB), "--task", str(task), "advance")
+        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if pick_next.returncode != 0:
+            raise AssertionError(f"bare advance should exit 0 with pick-next packet:\n{pick_next.stderr}")
+        assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
+
+        run(str(PI_JOB), "--task", str(task), "advance", "--slice", "second-slice", "--step", "s2")
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(advanced, "Cursor: second-slice / s2")
         assert_not_contains(advanced, "Next:")
@@ -677,15 +681,12 @@ def test_profiled_task() -> None:
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "PI-JOB EXECUTION INSTRUCTION")
         assert_contains(instruction, "Owner: orchestrator")
+        assert_contains(instruction, "Role: orchestrator")
+        assert_contains(instruction, "Supersedes any default workspace role")
         assert_contains(instruction, "Slice: second-slice [implement]")
         assert_contains(instruction, "Slice goal: Find next planned step")
         assert_contains(instruction, "Step: s2 — Next")
         assert_contains(instruction, "Execute this step in the main orchestration session.")
-
-        plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
-        assert_contains(plan, "PI-JOB TASK PLAN")
-        assert_contains(plan, "second-slice [kind:implement/in_progress]")
-        assert_contains(plan, "Use the session todo capability to track this task plan.")
 
         assert_contains(instruction, "Todo tracking:")
         assert_contains(instruction, "Keep session todos aligned with `pi-job plan`")
@@ -706,10 +707,10 @@ def test_uninitialized_task_requires_orchestration() -> None:
         assert_contains(status, "Initialization: required")
         assert_contains(status, "init [--kind setup|implement|...]")
 
-        nxt = run(str(PI_JOB), "--task", str(task), "next", check=False)
-        if nxt.returncode == 0:
-            raise AssertionError("next unexpectedly succeeded for uninitialized task")
-        assert_contains(nxt.stderr, "missing task.orchestration")
+        advance = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if advance.returncode == 0:
+            raise AssertionError("advance unexpectedly succeeded for uninitialized task")
+        assert_contains(advance.stderr, "missing task.orchestration")
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if instruction.returncode == 0:
@@ -1068,6 +1069,7 @@ def test_instruction_includes_next_action_and_enter_the_loop() -> None:
         assert_contains(instruction, "NEXT ACTION")
         assert_contains(instruction, "Do not wait for another user prompt")
         assert_contains(instruction, "Enter the orchestrator loop immediately")
+        assert_contains(instruction, "Role: orchestrator")
         assert_contains(instruction, "Do not wait for the user to say \"continue\"")
         assert_contains(instruction, "Task file:")
         assert_contains(instruction, str(task))  # header still names the real path
@@ -1135,43 +1137,56 @@ def test_plan_output_omits_task_record_discipline() -> None:
         assert_not_contains(plan, "Task record discipline:")
 
 
-def test_next_walks_to_closing_slice_after_implement_done() -> None:
+def test_advance_pick_next_then_jump_to_closing_slice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "all-implement-done.yaml"
         write_task_yaml(task, closing_slice_mapping())
 
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "closing / update-test-plan", nxt
-
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(status, "Next: closing / update-test-plan")
+        assert_contains(status, "Ready: closing")
+        assert_contains(status, "no unfinished steps")
+        assert_not_contains(status, "Next:")
 
-        run(str(PI_JOB), "--task", str(task), "advance")
+        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if pick_next.returncode != 0:
+            raise AssertionError(f"bare advance should exit 0 with pick-next:\n{pick_next.stderr}")
+        assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next.stdout, "closing")
+
+        run(
+            str(PI_JOB), "--task", str(task), "advance",
+            "--slice", "closing", "--step", "update-test-plan",
+        )
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(advanced, "Cursor: closing / update-test-plan")
         assert_not_contains(advanced, "Next:")
 
 
-def test_status_omits_next_when_cursor_matches_computed() -> None:
+def test_status_shows_cursor_and_ready_without_next_line() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "aligned-cursor.yaml"
         write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Cursor: second-slice / s2")
+        assert_contains(status, "Ready: second-slice")
         assert_not_contains(status, "Next:")
+        assert_not_contains(status, "pick-next")
 
 
-def test_next_done_when_all_slices_finished() -> None:
+def test_pick_next_reports_all_slices_done() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "all-slices-done.yaml"
         write_task_yaml(task, all_done_mapping())
 
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "done", nxt
+        pick_next = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(pick_next, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next, "all slices done")
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(status, "Next: done")
+        assert_contains(status, "Task: all slices done")
+        assert_contains(status, "Ready: none")
+        assert_not_contains(status, "Next:")
 
 
 def test_advance_blocked_on_incomplete_current_step() -> None:
@@ -1262,15 +1277,15 @@ def test_advance_resync_without_jump_fails_on_same_unfinished_step() -> None:
         assert_contains(res.stderr, "--slice/--step")
 
 
-def test_advance_resync_without_jump_succeeds_when_cursor_is_stale() -> None:
-    """Resync realigns a stale cursor to computed next without skipping steps."""
+def test_advance_resync_without_jump_succeeds_when_cursor_on_finished_step() -> None:
+    """Resync realigns a cursor on a finished step to the next unfinished step in the slice."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "resync-stale.yaml"
-        write_task_yaml(task, standard_fixture_mapping())
+        task = Path(tmp) / "resync-finished-step.yaml"
+        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s1")))
 
         out = run(
             str(PI_JOB), "--task", str(task), "advance",
-            "--resync", "--reason", "cursor drifted from computed next",
+            "--resync", "--reason", "cursor drifted to finished step",
         ).stdout
         assert_contains(out, "advanced cursor: second-slice / s2")
 
@@ -2010,11 +2025,11 @@ def test_scaffold_includes_create_plan_and_grill_plan_before_edit_code() -> None
             raise AssertionError(f"steps order wrong: create-plan={i_plan} grill-plan={i_grill} edit-code={i_edit}")
 
 
-def test_next_walks_create_plan_then_grill_plan_before_edit_code() -> None:
-    """pi-job's existing step-ordering gate, applied to the new convention: next must
-    report create-plan first, then grill-plan once create-plan is done, then edit-code
-    only once both are done - proving the guardrail is actually enforced, not just
-    documented."""
+def test_advance_walks_create_plan_then_grill_plan_before_edit_code() -> None:
+    """pi-job's existing step-ordering gate, applied to the new convention: within-slice
+    advance must land on create-plan first, then grill-plan once create-plan is done,
+    then edit-code only once both are done - proving the guardrail is actually enforced,
+    not just documented."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "task.yaml"
         write_task_yaml(task, {
@@ -2043,49 +2058,56 @@ def test_next_walks_create_plan_then_grill_plan_before_edit_code() -> None:
             },
         })
 
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert_contains(nxt, "create-plan")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(instruction, "Step: create-plan")
 
         mutate_step_status(task, "only-slice", "create-plan", "done")
+        advanced = run(str(PI_JOB), "--task", str(task), "advance").stdout
+        assert_contains(advanced, "grill-plan")
 
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert_contains(nxt, "grill-plan")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(instruction, "Step: grill-plan")
 
         mutate_step_status(task, "only-slice", "grill-plan", "done")
+        advanced = run(str(PI_JOB), "--task", str(task), "advance").stdout
+        assert_contains(advanced, "edit-code")
 
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert_contains(nxt, "edit-code")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(instruction, "Step: edit-code")
 
 
-def test_next_skips_unready_head_of_array() -> None:
+def test_status_ready_skips_unready_head_of_array() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "skips_unready_head_of_array.yaml"
         write_task_yaml(task, fixture_with_dependencies_mapping(title="Dependency test", cursor=('only-slice', 'create-plan')))
 
-        # blocked-dependent is first but has unmet dep; ready-dependent should be next
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        assert nxt == "ready-dependent", nxt
+        # blocked-dependent is first but has unmet dep; ready-dependent should be Ready
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Ready: ready-dependent")
+        assert_not_contains(status, "Ready: blocked-dependent")
 
 
-def test_next_all_lists_only_ready_slices() -> None:
+def test_show_ready_tag_lists_only_ready_slices() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "all_lists_only_ready_slices.yaml"
         write_task_yaml(task, fixture_with_dependencies_mapping(title="Dependency test all", cursor=('only-slice', 'create-plan')))
 
-        # next --all should only include ready-dependent (deps satisfied), not blocked-dependent or blocked-status-slice
-        result = run(str(PI_JOB), "--task", str(task), "next", "--all").stdout
-        # Should have exactly one ready slice
-        if "ready-dependent" not in result:
-            raise AssertionError(f"expected ready-dependent in output:\n{result}")
-        if "blocked-dependent" in result:
-            raise AssertionError(f"blocked-dependent should not appear in next --all:\n{result}")
-        if "blocked-status-slice" in result:
-            raise AssertionError(f"blocked-status-slice should not appear in next --all:\n{result}")
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        ready_line = next(
+            (line for line in show.splitlines() if "ready-dependent" in line),
+            "",
+        )
+        if " ready" not in ready_line:
+            raise AssertionError(f"expected ready tag on ready-dependent line in show:\n{show}")
+        if any("blocked-dependent" in line and " ready" in line for line in show.splitlines()):
+            raise AssertionError(f"blocked-dependent should not be marked ready in show:\n{show}")
+        if any("blocked-status-slice" in line and " ready" in line for line in show.splitlines()):
+            raise AssertionError(f"blocked-status-slice should not be marked ready in show:\n{show}")
 
 
-def test_status_ready_line_matches_next_all() -> None:
+def test_status_ready_line_matches_ready_slices() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "ready_line_matches_next_all.yaml"
+        task = Path(tmp) / "ready_line_matches_ready_slices.yaml"
         write_task_yaml(task, fixture_with_dependencies_mapping(title="Status ready line test", cursor=('only-slice', 'create-plan')))
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
@@ -2122,14 +2144,21 @@ def test_blocked_status_slice_is_skipped() -> None:
             },
         })
 
-        # A blocked slice should not appear in next (no unfinished work to do)
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        # Should print "done" or something indicating no ready slices
-        if "only-blocked" in nxt:
-            raise AssertionError(f"blocked slice should not be in next cursor:\n{nxt}")
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Ready: none")
+
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        if "only-blocked ready" in show:
+            raise AssertionError(f"blocked slice should not be marked ready in show:\n{show}")
+
+        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if pick_next.returncode != 0:
+            raise AssertionError(f"advance should exit 0 with pick-next when Ready is empty:\n{pick_next.stderr}")
+        assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next.stdout, "Ready slices: none")
 
 
-def test_next_returns_blocked_when_nothing_ready() -> None:
+def test_advance_pick_next_when_nothing_ready() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "nothing-ready.yaml"
         write_task_yaml(task, {
@@ -2156,39 +2185,59 @@ def test_next_returns_blocked_when_nothing_ready() -> None:
             },
         })
 
-        # next should print "blocked: ..." (not "done")
-        nxt = run(str(PI_JOB), "--task", str(task), "next").stdout.strip()
-        if "done" in nxt:
-            raise AssertionError(f"should not say done when slices are blocked:\n{nxt}")
-
-        # advance should die with clear message
-        adv = run(str(PI_JOB), "--task", str(task), "advance", check=False)
-        if adv.returncode == 0:
-            raise AssertionError("advance should fail when nothing is ready")
-        if "no dependency-satisfied slice is ready" not in adv.stderr:
-            raise AssertionError(f"expected clear error message in:\n{adv.stderr}")
-
-
-def test_status_warns_on_stale_cursor() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "warns_on_stale_cursor.yaml"
-        write_task_yaml(task, fixture_with_dependencies_mapping(title="Stale cursor test", cursor=('blocked-dependent', None)))
-
-        # Cursor points to blocked-dependent (unmet deps), but ready-dependent is actually next
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        if "stale cursor" not in status.lower() and "⚠" not in status:
-            raise AssertionError(f"expected stale cursor warning in:\n{status}")
+        assert_contains(status, "Ready: none")
+
+        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if pick_next.returncode != 0:
+            raise AssertionError(f"advance should exit 0 with pick-next when nothing is ready:\n{pick_next.stderr}")
+        assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next.stdout, "Ready slices: none")
+        assert_not_contains(pick_next.stdout, "all slices done")
 
 
-def test_status_no_warning_when_consistent() -> None:
+def test_status_warns_when_cursor_slice_not_ready() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "no_warning_when_consistent.yaml"
+        task = Path(tmp) / "warns_when_cursor_slice_not_ready.yaml"
+        write_task_yaml(task, fixture_with_dependencies_mapping(title="Not-ready cursor test", cursor=('blocked-dependent', None)))
+
+        # Cursor points to blocked-dependent (unmet deps), but ready-dependent is Ready
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Ready: ready-dependent")
+        if "not Ready" not in status and "⚠" not in status:
+            raise AssertionError(f"expected not-Ready cursor warning in:\n{status}")
+
+
+def test_status_no_warning_when_cursor_slice_is_ready() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "no_warning_when_cursor_slice_is_ready.yaml"
         write_task_yaml(task, fixture_with_dependencies_mapping(title="Consistent cursor test", cursor=('ready-dependent', None)))
 
-        # Cursor points to ready-dependent, which is actually next (deps are met)
+        # Cursor points to ready-dependent, which is Ready (deps are met)
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        if "stale" in status.lower():
-            raise AssertionError(f"should not warn about stale cursor when consistent:\n{status}")
+        assert_contains(status, "Ready: ready-dependent")
+        if "not Ready" in status:
+            raise AssertionError(f"should not warn about not-Ready cursor when slice is Ready:\n{status}")
+        if "cursor slice missing" in status:
+            raise AssertionError(f"should not warn about missing slice when cursor is valid:\n{status}")
+
+
+def test_advance_within_slice_then_pick_next_on_exhausted_slice() -> None:
+    """Within-slice advance walks unfinished steps; when the slice is exhausted, emit pick-next."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "within-slice-pick-next.yaml"
+        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
+
+        mutate_step_status(task, "second-slice", "s2", "done")
+        within = run(str(PI_JOB), "--task", str(task), "advance").stdout
+        assert_contains(within, "advanced cursor: second-slice / finish")
+
+        mutate_step_status(task, "second-slice", "finish", "done")
+        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if pick_next.returncode != 0:
+            raise AssertionError(f"advance should exit 0 with pick-next when slice is exhausted:\n{pick_next.stderr}")
+        assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next.stdout, "second-slice")
 
 
 def test_status_warns_on_unknown_dependency_key() -> None:
@@ -4446,6 +4495,18 @@ def test_profile_requires_next_action_packet() -> None:
         raise AssertionError("profile accepted instruction_packets without required next_action")
 
 
+def test_profile_requires_pick_next_slice_packet() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["instruction_packets"]["pick_next_slice"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "pick_next_slice")
+    else:
+        raise AssertionError("profile accepted instruction_packets without required pick_next_slice")
+
+
 def test_warn_if_content_dirty_uses_profile_packet() -> None:
     module = load_pi_job_module()
     packets = module.load_profile_contract()["instruction_packets"]
@@ -6098,14 +6159,14 @@ def main() -> None:
     test_create_plan_instruction_defines_constraint_and_behaviour_contract()
     test_grill_plan_instruction_defines_constraint_and_behaviour_contract()
     test_profile_yaml_aliases_shared_guidance_strings()
-    test_next_walks_to_closing_slice_after_implement_done()
-    test_status_omits_next_when_cursor_matches_computed()
-    test_next_done_when_all_slices_finished()
+    test_advance_pick_next_then_jump_to_closing_slice()
+    test_status_shows_cursor_and_ready_without_next_line()
+    test_pick_next_reports_all_slices_done()
     test_advance_blocked_on_incomplete_current_step()
     test_advance_resync_rejects_force_and_missing_reason()
     test_advance_resync_explicit_jump_does_not_skip_previous_step()
     test_advance_resync_without_jump_fails_on_same_unfinished_step()
-    test_advance_resync_without_jump_succeeds_when_cursor_is_stale()
+    test_advance_resync_without_jump_succeeds_when_cursor_on_finished_step()
     test_advance_force_still_skips_incomplete_step()
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
@@ -6128,14 +6189,15 @@ def main() -> None:
     test_show_slice_multiline_note_indents_continuation()
     test_scaffold_mirrors_implement_template()
     test_scaffold_includes_create_plan_and_grill_plan_before_edit_code()
-    test_next_walks_create_plan_then_grill_plan_before_edit_code()
-    test_next_skips_unready_head_of_array()
-    test_next_all_lists_only_ready_slices()
-    test_status_ready_line_matches_next_all()
+    test_advance_walks_create_plan_then_grill_plan_before_edit_code()
+    test_status_ready_skips_unready_head_of_array()
+    test_show_ready_tag_lists_only_ready_slices()
+    test_status_ready_line_matches_ready_slices()
     test_blocked_status_slice_is_skipped()
-    test_next_returns_blocked_when_nothing_ready()
-    test_status_warns_on_stale_cursor()
-    test_status_no_warning_when_consistent()
+    test_advance_pick_next_when_nothing_ready()
+    test_status_warns_when_cursor_slice_not_ready()
+    test_status_no_warning_when_cursor_slice_is_ready()
+    test_advance_within_slice_then_pick_next_on_exhausted_slice()
     test_status_warns_on_unknown_dependency_key()
     test_show_renders_deps_with_mixed_statuses()
     test_show_omits_deps_line_when_absent()
@@ -6219,6 +6281,7 @@ def main() -> None:
     test_profile_requires_task_record_discipline_packet()
     test_profile_requires_out_of_band_edit_warning_packet()
     test_profile_requires_next_action_packet()
+    test_profile_requires_pick_next_slice_packet()
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
     test_profile_requires_cli_help()

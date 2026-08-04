@@ -182,7 +182,7 @@ instruction_packets:
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
-    Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction [--current].
+    Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction.
     Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
     Channels (which write for which fact):
     DECISION (add-decision) = product, scope, architecture, or policy agreement that
@@ -206,12 +206,24 @@ instruction_packets:
     1. If the current slice has no execution metadata: `pi-job --task TASK_FILE start --slice-only --model <orchestrator-model-id>`
     2. `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`
     3. Execute cursor {cursor} per this packet
-    4. `pi-job --task TASK_FILE finish` with evidence, then `pi-job --task TASK_FILE advance`, then `pi-job --task TASK_FILE instruction --current`
+    4. `pi-job --task TASK_FILE finish` with evidence, then `pi-job --task TASK_FILE advance`, then `pi-job --task TASK_FILE instruction`
+    5. If advance/instruction emits a pick-next packet: run `pi-job show`, choose a Ready slice, `advance --slice KEY --step STEP`, then `instruction`
     Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
+  pick_next_slice: |-
+    The current slice has no unfinished steps (or the cursor is not on actionable work).
+    Array order of plan.slices is not execution order - you choose among Ready slices.
+    1. Run `pi-job --task TASK_FILE show` and inspect Ready-marked slices
+    2. Choose one Ready slice (deps satisfied; unfinished)
+    3. `pi-job --task TASK_FILE advance --slice KEY --step STEP` (first unfinished step of that slice)
+    4. `pi-job --task TASK_FILE instruction`
+    Do not wait for the user. If Ready is empty and the task is not done, record a blocker or fix depends_on.
+    If the task is done, stop.
   orchestrator: |-
+    - Role: orchestrator (CLI-only for the store). Supersedes any default workspace role (e.g. Product Owner) while this task is active.
     - Enter the orchestrator loop immediately after this packet (including right after bootstrap, scaffold+init, or instruction).
     - Do not wait for the user to say "continue".
-    - Loop: start → execute this step → finish with evidence → advance → instruction --current.
+    - Loop: start → execute this step → finish with evidence → advance → instruction.
+    - When a slice is exhausted: follow the pick-next packet (show → choose Ready → advance --slice/--step → instruction).
     - Pause only when the step requires a user decision, grill/clarify answers, or a recorded blocker.
     - Execute this step in the main orchestration session.
     - Do not skip required artifacts or validators from the task contract.

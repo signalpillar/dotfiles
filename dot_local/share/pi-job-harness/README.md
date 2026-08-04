@@ -3,7 +3,7 @@
 Portable deterministic job harness for machine-owned YAML task files.
 
 `pi-job` keeps durable task state in exactly one `TaskStore` backend, with YAML as the default.
-It validates task state and the package-local `profile.yaml` through documented Pydantic models, computes the next unfinished slice or step, updates the orchestration cursor, and emits deterministic instruction packets.
+It validates task state and the package-local `profile.yaml` through documented Pydantic models, walks unfinished steps within the current slice (or jumps with an explicit cursor), and emits deterministic instruction packets.
 Legacy CUE files remain readable and writable during migration, but every CUE invocation prints the exact `project --to <task>.yaml` migration command.
 
 ## Contents
@@ -47,37 +47,41 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
-- `status` / `next` / `plan` - report where the work is and what slices/steps remain
+- `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
-- `show` / `show --slice KEY` / `show --full` / `show --short` - tree view (compact by default), optional models, collapsed consecutive done names, or a slice-local detail view (goal, notes, steps, repo_work)
+- `show` / `show --slice KEY` / `show --full` / `show --short` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
-- `instruction` - emit a deterministic packet for the current or next cursor (owner, validators, gates, todo reminders, task-record discipline)
+- `instruction` - emit a deterministic packet for the saved cursor (or pick-next when the slice is exhausted)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
-- `advance` - write the next cursor back into the task file after evidence lands; fails closed if the current step is not `done`/`skipped` unless `--force --reason '<why>'` is given
+- `advance` - walk unfinished steps within the current slice, or jump with `--slice`/`--step`; when the slice is exhausted, prints a pick-next packet instead of auto-picking
 - `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
 - `toolbelt` - list or register planning aids
 - `sync` - print a checklist of slices worth re-verifying
 - `set-worktree` / `add-pr` - manage worktree paths and pull request records
 - YAML writes store a semantic `orchestration.content_digest`; hand-edits produce a loud warning until `acknowledge-edit --reason`
 
-Same task state should yield the same next action and instruction, independent of which model is orchestrating.
+Same task state should yield the same instruction for the same saved cursor, independent of which model is orchestrating.
 
 ## Orchestrator loop
 
 Assumption: a smart orchestrator model keeps calling `pi-job` instead of freelancing from chat memory.
 
-1. `pi-job --task <file> status` (and usually `plan`)
-2. `pi-job --task <file> instruction` (current or next)
+**Role:** while a task file is active, the agent is the **orchestrator** (CLI-only for the store; pause on grill/clarify).
+This supersedes any default workspace role such as Product Owner.
+
+1. `pi-job --task <file> status` (and usually `plan` / `show`)
+2. `pi-job --task <file> instruction` (saved cursor, or pick-next when the slice is exhausted)
 3. `pi-job --task <file> start --model <provider/model>`
 4. Do that step in the orchestrator session, or launch a subagent when the packet says so
 5. Record evidence / decisions / blockers, then run `finish [--note ...]`
-6. `pi-job --task <file> advance`
-7. Repeat until `next` is `done`
+6. `pi-job --task <file> advance` (within-slice) or, after pick-next: `show` → choose Ready → `advance --slice/--step`
+7. Repeat until pick-next / status reports all slices done
 
 During every step, capture discovered future work, revisitable issues, technical debt, and unresolved doubts as explicit bounded slices with the appropriate kind and dependencies.
 Do not leave actionable follow-up work only in notes.
 
-`pi-job` only answers "what next?" and "how should this step run?" when asked.
+`pi-job` answers "what is the saved cursor?" and "how should this step run?" when asked.
+Across slices it lists Ready candidates; the orchestrator chooses.
 The orchestrator owns model choice, tool use, and whether to keep consulting the harness.
 
 ## Picture
@@ -94,7 +98,7 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
      pi-job  ---- loads ----> profile.yaml
         |                     (step_kinds, slice_kinds, toolbelt, artifact_rules)
         |
-        +-- status / plan / next
+        +-- status / plan / show
         |
         +-- instruction ----> orchestrator agent
                                    |
@@ -129,12 +133,14 @@ task.orchestration.cursor                      toolbelt: aids keyed by suits: [s
 
 WALK ORDER
 ══════════
-next / advance walk task.plan.slices in array order.
-Within each slice: steps[], then final_steps[].
-Skip slices that are done/skipped, blocked, or have unsatisfied depends_on.
-First unfinished step wins.
-Closing work is a closing slice at the end of the plan, not a post-slice phase tail.
-When every slice is done/skipped, next reports done.
+Within a slice: advance walks steps[], then final_steps[] (linear).
+Across slices: the orchestrator picks among Ready slices (depends_on satisfied,
+unfinished, not blocked) via `pi-job show`, then `advance --slice/--step`.
+Array order of plan.slices is not execution order.
+When the current slice has no unfinished steps, advance/instruction inject a
+pick-next packet instead of inventing a Next cursor.
+Closing work is a closing slice in the plan, not a post-slice phase tail.
+When every slice is done/skipped, pick-next reports done.
 ```
 
 Typical slice layout for an end-to-end implementation task:
@@ -160,7 +166,7 @@ Add a contract entry when a step key should carry shared enforcement text.
 **Guards** are code paths that can refuse a command:
 
 1. `blocking_incomplete_step()` - `advance` cannot move past an incomplete current step unless `--force --reason`
-2. `dependency_satisfied()` / `is_actionable()` - `next` skips slices whose `depends_on` are not done/skipped
+2. `dependency_satisfied()` / `is_actionable()` - Ready frontier skips slices whose `depends_on` are not done/skipped; cross-slice moves require explicit `--slice/--step`
 3. `enforce_owner_policy()` - dies when owner is subagent but slice-kind coding policy forbids it without a recorded exception
 4. `blocking_execution_policy()` - enforces user-decision and distinct-model policies declared by the current step kind
 
@@ -288,15 +294,15 @@ pi-job --task projects/example/tasks/task.yaml init
 pi-job --task projects/example/tasks/task.yaml status
 pi-job --task projects/example/tasks/task.yaml validate
 pi-job --task projects/example/tasks/task.yaml plan
-pi-job --task projects/example/tasks/task.yaml next
-pi-job --task projects/example/tasks/task.yaml instruction --current
+pi-job --task projects/example/tasks/task.yaml show
+pi-job --task projects/example/tasks/task.yaml instruction
 pi-job --task projects/example/tasks/task.yaml start --model openai/gpt-5.6-sol
 pi-job --task projects/example/tasks/task.yaml finish --note "Verification evidence recorded."
 pi-job --task projects/example/tasks/task.yaml advance
 ```
 
 If `--task` points at a missing file, commands fail closed and tell the agent how to create one.
-A task without `task.orchestration` is not initialized; run `init` (or `bootstrap` which includes it) before `plan`, `next`, `advance`, or `instruction`.
+A task without `task.orchestration` is not initialized; run `init` (or `bootstrap` which includes it) before `plan`, `show`, `advance`, or `instruction`.
 
 ### validate
 
@@ -402,11 +408,13 @@ These commands do not require `--task`.
 
 ### advance
 
-- Fails closed when the saved cursor's step is not `done`/`skipped`.
-- `--force --reason '<why>'` marks the current step skipped before advancing.
-- `--resync --reason '<why>'` realigns the cursor without changing step status; mutually exclusive with `--force`.
-  Without `--slice/--step`, bypasses the unfinished-current guard and moves to computed `next`; fails closed when that would stay on the same unfinished step (pass explicit `--slice/--step` instead).
-- Use `--slice` and `--step` to jump explicitly, or omit both to advance to computed next.
+- Fails closed when the saved cursor's step is not `done`/`skipped` (unless jumping with `--slice`/`--step`).
+- `--force --reason '<why>'` marks the current step skipped before advancing within the slice.
+- `--resync --reason '<why>'` realigns the cursor within the current slice without changing step status; mutually exclusive with `--force`.
+  Fails closed when that would stay on the same unfinished step (pass explicit `--slice`/`--step` instead).
+- Omit `--slice`/`--step` to walk to the next unfinished step in the current slice.
+  When the slice is exhausted, prints a pick-next packet (orchestrator chooses via `show`).
+- Use `--slice` and `--step` to jump to a Ready slice explicitly.
 
 ### Execution lifecycle
 
@@ -534,7 +542,7 @@ When a task is too big and foggy to plan in one setup pass, the `setup` slice's 
 The map is the task file itself: `decisions` and slices, readable by any later session.
 
 - `pi-job --task <t> wayfinder-context` - print the map reconstructed from the task file at the slice level (no step noise): the `DESTINATION` (`plan.note`), recorded `DECISIONS`, `IN PROGRESS / DONE` slices, the `FRONTIER` (planned slices whose dependencies are satisfied), and the `FOG` (planned slices still blocked, with their unmet dependencies).
-  Read-only; reuses the same `is_actionable` logic as `next`.
+  Read-only; reuses the same `is_actionable` logic as the Ready frontier.
 - The `wayfinder` step drives the wayfinder skill (installed separately), using this task file as its issue tracker; the pi-job skill's Wayfinder section holds the map-to-task-file mapping.
   It loads the map with `wayfinder-context`, spawns as many subagents as needed to resolve unknowns (research the world, prototype to see, grill the user), records scope/architecture resolutions with `add-decision` (not PR/e2e/deploy chatter), and grows the plan with `add-slice`.
   It creates `fog` slices for areas still too foggy or decidable only after other work, and implement/research/spike slices for work now clear.
@@ -700,7 +708,7 @@ What `pi-job` cares about most:
 - `orchestration` - must exist after `init`; holds cursor, policy, and artifacts
 - `orchestration.cursor` - saved resume point `{slice, step}` only
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
-- `plan.slices[].steps` plus `final_steps` - what `next` and `advance` walk
+- `plan.slices[].steps` plus `final_steps` - what within-slice `advance` walks
 - `decisions` and `orchestration.artifacts` - durable notes and artifact gates
 
 ## Test

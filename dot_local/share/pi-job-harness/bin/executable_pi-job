@@ -415,6 +415,13 @@ class InstructionPacketsDocument(StrictDocument):
             "Use literal TASK_FILE command hints (not interpolated paths). Supports {cursor}."
         )
     )
+    pick_next_slice: str = Field(
+        description=(
+            "Instruction packet body when the current slice has no unfinished steps. "
+            "Orchestrator must pick from Ready via show + advance --slice/--step. "
+            "Use literal TASK_FILE command hints. Supports {cursor}."
+        )
+    )
     orchestrator: str = Field(description="Orchestrator-owned step execution guidance.")
     subagent_orchestrator: str = Field(
         description=(
@@ -2900,16 +2907,6 @@ def require_initialized(task_file: Path, task: dict[str, Any]) -> None:
         )
 
 
-def next_cursor(task: dict[str, Any]) -> Cursor | None:
-    """Compute the next actionable cursor by walking plan.slices in array order."""
-    status_map = slice_status_map(task)
-    for task_slice in task_slices(task):
-        if not is_actionable(task_slice, status_map):
-            continue
-        return slice_cursor(task_slice)
-    return None
-
-
 def slice_status_map(task: dict[str, Any]) -> dict[str, str]:
     """Return {slice_key: status_value} for all slices in the task."""
     return {task_slice.key: task_slice.status for task_slice in task_slices(task)}
@@ -2940,7 +2937,7 @@ def unknown_dependency_keys(task: dict[str, Any], status_map: dict[str, str]) ->
 
 
 def ready_slices(task: dict[str, Any]) -> list[TaskSlice]:
-    """Return list of slices where is_actionable() is true, in array order."""
+    """Return dependency-satisfied unfinished slices (frontier). Array order is listing only."""
     status_map = slice_status_map(task)
     return [task_slice for task_slice in task_slices(task) if is_actionable(task_slice, status_map)]
 
@@ -2961,6 +2958,44 @@ def slice_cursor(task_slice: TaskSlice) -> Cursor:
             return Cursor(slice=task_slice.key, step=step.key)
 
     return Cursor(slice=task_slice.key)
+
+
+def within_slice_cursor(task: dict[str, Any], slice_key: str) -> Cursor | None:
+    """First unfinished step in slice, or None if the slice is missing or has no unfinished steps.
+
+    Empty-step actionable slices return a slice-only cursor so init/seed can land somewhere.
+    """
+    task_slice = find_slice(task, slice_key)
+    if task_slice is None:
+        return None
+    if task_slice.status in STATUS_DONE or task_slice.status == "blocked":
+        return None
+    for step in task_slice.steps:
+        if step.status not in STATUS_DONE:
+            return Cursor(slice=task_slice.key, step=step.key)
+    for step in task_slice.final_steps:
+        if step.status not in STATUS_DONE:
+            return Cursor(slice=task_slice.key, step=step.key)
+    if not task_slice.steps and not task_slice.final_steps:
+        return Cursor(slice=task_slice.key)
+    return None
+
+
+def seed_cursor(task: dict[str, Any]) -> Cursor | None:
+    """Init/bootstrap seed only: first unfinished step of the first ready slice.
+
+    Not a mid-run schedule - array order among Ready is a convenience seed, not execution order.
+    """
+    for task_slice in ready_slices(task):
+        cursor = within_slice_cursor(task, task_slice.key)
+        if cursor is not None:
+            return cursor
+    return None
+
+
+def slice_has_unfinished_steps(task: dict[str, Any], slice_key: str) -> bool:
+    """True when the slice exists and still has an unfinished step (or is empty-step actionable)."""
+    return within_slice_cursor(task, slice_key) is not None
 
 
 def slice_kind_policy(task_slice: TaskSlice) -> dict[str, Any]:
@@ -2999,31 +3034,47 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
             print("Structure: ok")
         cursor = current_cursor(task)
         print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
-        nxt = next_cursor(task)
-        # Omit Next when it matches Cursor (the common mid-step case).
-        # Always show terminal/blocked outcomes, and when next diverges (stale cursor).
-        if nxt is None:
-            if all_slices_done(task):
-                print("Next: done")
-            else:
-                print("Next: blocked (no dependency-satisfied slice ready)")
-        elif cursor is None or cursor != nxt:
-            print(f"Next: {nxt.label()}")
-
-        # Stale cursor warning
-        if cursor is not None and nxt is not None and cursor != nxt:
-            print(
-                f"⚠ stored cursor is stale - cursor: {cursor.label()} vs computed next: {nxt.label()}; "
-                "run `pi-job advance` to resync"
-            )
-
-        # Ready slices line
         ready = ready_slices(task)
         if ready:
             ready_keys = [task_slice.key for task_slice in ready]
             print(f"Ready: {', '.join(ready_keys)}")
         else:
             print("Ready: none")
+
+        if all_slices_done(task):
+            print("Task: all slices done")
+        elif cursor is not None:
+            status_map = slice_status_map(task)
+            cur_slice = find_slice(task, cursor.slice)
+            if cur_slice is None:
+                print(
+                    "⚠ cursor slice missing; run `pi-job show`, pick a Ready slice, "
+                    "then `advance --slice KEY --step STEP`"
+                )
+            elif not slice_has_unfinished_steps(task, cursor.slice):
+                if ready:
+                    print(
+                        "⚠ current slice has no unfinished steps; run `pi-job show`, "
+                        "pick a Ready slice, then `advance --slice KEY --step STEP` "
+                        "(or `instruction` for the pick-next packet)"
+                    )
+                else:
+                    print(
+                        "⚠ current slice has no unfinished steps and Ready is empty "
+                        "(blocked on depends_on or all remaining slices blocked)"
+                    )
+            else:
+                step = find_current_step(cur_slice, cursor) if cursor.step else None
+                if step is not None and step.status in STATUS_DONE:
+                    print(
+                        "⚠ cursor sits on a finished step; run `pi-job advance` "
+                        "to walk within the slice"
+                    )
+                elif cur_slice.status == "blocked" or not is_actionable(cur_slice, status_map):
+                    print(
+                        "⚠ cursor slice is not Ready; run `pi-job show`, pick a Ready slice, "
+                        "then `advance --slice KEY --step STEP`"
+                    )
 
         # Unknown dependency key warnings
         status_map = slice_status_map(task)
@@ -4102,17 +4153,18 @@ def enforce_owner_policy(
 
 def build_plan(task_file: Path, task: dict[str, Any]) -> str:
     cursor = current_cursor(task)
-    nxt = next_cursor(task)
+    ready = ready_slices(task)
     profile = load_profile_contract()
     packets = profile["instruction_packets"]
 
+    ready_label = ", ".join(s.key for s in ready) if ready else "none"
     lines = [
         "PI-JOB TASK PLAN",
         "",
         f"Task file: {task_file}",
         f"Contract: {PROFILE}",
         f"Task cursor: {cursor.label() if cursor else '<unset>'}",
-        f"Next slice step: {nxt.label() if nxt else 'done'}",
+        f"Ready slices: {ready_label}",
         "",
         "Plan slices:",
     ]
@@ -4123,8 +4175,8 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
         marker = ""
         if cursor and cursor.slice == slice_key:
             marker = "  <-- current slice"
-        elif nxt and nxt.slice == slice_key:
-            marker = "  <-- next slice"
+        elif any(s.key == slice_key for s in ready):
+            marker = "  <-- ready"
         kind_entry = get_slice_kind(kind) if kind in valid_slice_kinds() else {}
         lines.append(f"{index:2}. {slice_key} [kind:{kind}/{st}] {task_slice.title}{marker}")
         if kind_entry.get("description"):
@@ -4135,8 +4187,6 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
             step_marker = ""
             if cursor and cursor.slice == slice_key and cursor.step == step_key:
                 step_marker = "  <-- current step"
-            elif nxt and nxt.slice == slice_key and nxt.step == step_key:
-                step_marker = "  <-- next step"
             step_kinds = contract_step_kinds()
             owner = step_kinds.get(step_key, {}).get("owner", "?")
             lines.append(f"    - {step_key} [{owner}/{step_st}] {step.title}{step_marker}")
@@ -4144,7 +4194,7 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
     lines.extend(render_packet_lines(packets["plan_todo"], defaults={}))
     lines += [
         "",
-        "Note: next/advance walk task.plan.slices in array order; closing work is just another slice.",
+        "Note: within-slice advance walks steps linearly; across slices the orchestrator picks from Ready (array order is not schedule).",
     ]
     lines += toolbelt_block(task)
     return "\n".join(lines)
@@ -4235,6 +4285,55 @@ def render_packet_lines(text: str, *, defaults: dict[str, str]) -> list[str]:
     return lines
 
 
+def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:
+    """Packet when the current slice has no unfinished steps - orchestrator picks via show."""
+    require_initialized(task_file, task)
+    cursor = current_cursor(task)
+    ready = ready_slices(task)
+    profile = load_profile_contract()
+    packets = profile["instruction_packets"]
+    packet_defaults = {
+        "cursor": cursor.label() if cursor else "<unset>",
+        "task_file": str(task_file),
+        "slice_key": cursor.slice if cursor else "<unknown>",
+    }
+    lines = [
+        "PI-JOB PICK NEXT SLICE",
+        "",
+        f"Task file: {task_file}",
+        f"Repository root: {ROOT}",
+        f"Contract: {PROFILE}",
+        f"Current cursor: {cursor.label() if cursor else '<unset>'}",
+        (
+            "Role: orchestrator; CLI-only for the store; pause on grill/clarify/"
+            "requires_user_decision. Supersedes any default workspace role "
+            "(e.g. Product Owner) while this task is active."
+        ),
+        "",
+    ]
+    if all_slices_done(task):
+        lines += ["Status: all slices done", "", "Stop - the task has no remaining work."]
+        return "\n".join(lines)
+
+    if ready:
+        lines.append("Ready slices (deps satisfied; choose one - array order is not schedule):")
+        for task_slice in ready:
+            step_cursor = within_slice_cursor(task, task_slice.key)
+            step_label = step_cursor.label() if step_cursor else task_slice.key
+            goal = f" - {task_slice.goal}" if task_slice.goal else ""
+            lines.append(f"- {task_slice.key} [{task_slice.kind}] first step: {step_label}{goal}")
+    else:
+        lines.append("Ready slices: none")
+        lines.append("Blocked or waiting on depends_on - fix deps or unblock a slice before picking.")
+    lines.append("")
+    lines.append("NEXT ACTION")
+    lines.extend(render_packet_lines(packets["pick_next_slice"], defaults=packet_defaults))
+    lines.append("")
+    lines.append("Orchestrator instruction:")
+    lines.extend(render_packet_lines(packets["orchestrator"], defaults=packet_defaults))
+    return "\n".join(lines)
+
+
 def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
     require_initialized(task_file, task)
     task_slice = find_current_slice(task, cursor)
@@ -4270,6 +4369,17 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
         f"Owner: {owner}",
+        (
+            "Role: orchestrator; CLI-only for the store; pause on grill/clarify/"
+            "requires_user_decision. Supersedes any default workspace role "
+            "(e.g. Product Owner) while this task is active."
+            if owner == "orchestrator"
+            else (
+                "Role: orchestrator (dispatching); step owner is subagent. "
+                "Supersedes any default workspace role (e.g. Product Owner) "
+                "while this task is active."
+            )
+        ),
         "",
         "NEXT ACTION",
     ]
@@ -4389,32 +4499,6 @@ def cmd_status(args: argparse.Namespace) -> None:
     print_status(str(task_file), store.read(), task_path=task_file)
 
 
-def cmd_next(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task.resolve())
-    task = store.read()
-    require_initialized(args.task.resolve(), task)
-    if args.all:
-        ready = ready_slices(task)
-        if ready:
-            for s in ready:
-                cursor = slice_cursor(s)
-                print(cursor.label())
-        else:
-            if all_slices_done(task):
-                print("done")
-            else:
-                print("blocked: no dependency-satisfied slice ready")
-    else:
-        cursor = next_cursor(task)
-        if cursor is None:
-            if all_slices_done(task):
-                print("done")
-            else:
-                print("blocked: no dependency-satisfied slice ready")
-            return
-        print(cursor.label())
-
-
 def cmd_advance(args: argparse.Namespace) -> None:
     store = open_task_store(args.task.resolve())
     task_file = args.task.resolve()
@@ -4438,49 +4522,58 @@ def cmd_advance(args: argparse.Namespace) -> None:
                         "do not force-skip a policy-governed step; use "
                         "finish --skip --model <id> --reason '<decision>'"
                     )
-                block_reason = blocking_incomplete_step(task, current_for_guard)
-                if block_reason and not args.force:
-                    die(
-                        f"{block_reason}\n"
-                        "mark the step done/skipped in the task file, or re-run with "
-                        "--force --reason '<why>' to record an explicit skip"
-                    )
-                if args.force and not args.reason:
-                    die("--force requires --reason '<why>' to record why the step is being skipped")
-                policy_reason = blocking_execution_policy(task, current_for_guard)
-                if policy_reason:
-                    die(policy_reason)
+                # Explicit cross-slice jumps skip the incomplete-step guard on the old cursor.
+                if not args.slice:
+                    block_reason = blocking_incomplete_step(task, current_for_guard)
+                    if block_reason and not args.force:
+                        die(
+                            f"{block_reason}\n"
+                            "mark the step done/skipped in the task file, or re-run with "
+                            "--force --reason '<why>' to record an explicit skip"
+                        )
+                    if args.force and not args.reason:
+                        die("--force requires --reason '<why>' to record why the step is being skipped")
+                    policy_reason = blocking_execution_policy(task, current_for_guard)
+                    if policy_reason:
+                        die(policy_reason)
 
         if args.slice:
-            if not args.step:
-                die("--slice requires --step when jumping explicitly")
-            cursor = Cursor(slice=args.slice, step=args.step)
-        elif args.resync:
-            current = current_cursor(task)
-            cursor = next_cursor(task)
-            if cursor is None:
-                if all_slices_done(task):
-                    die("task has no next cursor (all slices are done)")
-                die("no dependency-satisfied slice is ready; use --slice/--step to jump explicitly")
-            if (
-                not args.dry_run
-                and current is not None
-                and cursor == current
-                and blocking_incomplete_step(task, current)
-            ):
+            target = find_slice(task, args.slice)
+            if target is None:
+                die(f"slice not found: {args.slice!r}; known slice keys: {known_slice_keys(task)}")
+            status_map = slice_status_map(task)
+            if not is_actionable(target, status_map) and not args.force and not args.resync:
                 die(
-                    "resync would keep cursor on the same unfinished step "
-                    f"{current.label()}; pass explicit --slice/--step to jump elsewhere"
+                    f"slice {args.slice!r} is not Ready (status={target.status}, "
+                    f"depends_on={list(target.depends_on)}); pick from Ready via `pi-job show` "
+                    "or pass --resync/--force with --reason"
                 )
+            if args.step:
+                if find_step(target, args.step) is None:
+                    die(f"step {args.step!r} not found in slice {args.slice!r}")
+                cursor = Cursor(slice=args.slice, step=args.step)
+            else:
+                cursor = within_slice_cursor(task, args.slice)
+                if cursor is None:
+                    die(
+                        f"slice {args.slice!r} has no unfinished steps; "
+                        "pass --step explicitly or pick another Ready slice"
+                    )
+                if cursor.step is not None:
+                    die("--slice requires --step when the target slice has unfinished steps")
         else:
-            # --force without an explicit jump marks the incomplete current step skipped
-            # so next_cursor can move past it instead of returning the same step.
             current = current_cursor(task)
+            if current is None:
+                die(
+                    "no saved cursor; pick a Ready slice with "
+                    "`advance --slice KEY --step STEP` (see `pi-job show`)"
+                )
+            # --force without an explicit jump marks the incomplete current step skipped
+            # so within_slice_cursor can move past it.
             if (
                 not args.dry_run
                 and args.force
                 and args.reason
-                and current is not None
                 and current.step
                 and blocking_incomplete_step(task, current)
             ):
@@ -4491,11 +4584,26 @@ def cmd_advance(args: argparse.Namespace) -> None:
                     note=args.reason,
                 )
                 task = store.read()
-            cursor = next_cursor(task)
-        if cursor is None:
-            if all_slices_done(task):
-                die("task has no next cursor (all slices are done)")
-            die("no dependency-satisfied slice is ready; use --slice/--step to jump explicitly")
+            cursor = within_slice_cursor(task, current.slice)
+            if cursor is None:
+                # Slice exhausted - inject pick-next packet; do not auto-jump.
+                if args.dry_run:
+                    print(build_pick_next_instruction(task_file, task))
+                    return
+                if args.resync and args.reason:
+                    print(f"resynced cursor (reason: {args.reason})")
+                print(build_pick_next_instruction(task_file, task))
+                return
+            if (
+                args.resync
+                and not args.dry_run
+                and cursor == current
+                and blocking_incomplete_step(task, current)
+            ):
+                die(
+                    "resync would keep cursor on the same unfinished step "
+                    f"{current.label()}; pass explicit --slice/--step to jump elsewhere"
+                )
         if args.dry_run:
             print(cursor_block(cursor))
             return
@@ -4512,9 +4620,26 @@ def cmd_instruction(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
-    cursor = current_cursor(task) if args.current else next_cursor(task)
+    cursor = current_cursor(task)
     if cursor is None:
-        die("task has no cursor for instruction")
+        die(
+            "task has no saved cursor for instruction; "
+            "run `pi-job show`, then `advance --slice KEY --step STEP`"
+        )
+    # Soft within-slice recovery: cursor on a finished step but slice still has work.
+    task_slice = find_slice(task, cursor.slice)
+    step = find_current_step(task_slice, cursor) if task_slice and cursor.step else None
+    within = within_slice_cursor(task, cursor.slice)
+    if within is None:
+        print(build_pick_next_instruction(task_file, task))
+        return
+    if step is not None and step.status in STATUS_DONE and within != cursor:
+        print(
+            "⚠ cursor sits on a finished step; using next unfinished step in this slice. "
+            "Run `pi-job advance` to resync the stored cursor.",
+            file=sys.stderr,
+        )
+        cursor = within
     print(build_instruction(task_file, task, cursor))
 
 
@@ -5261,6 +5386,8 @@ def cmd_show(args: argparse.Namespace) -> None:
 
         d, t = slice_counts(task_slice)
         is_current = bool(cursor and cursor.slice == task_slice.key)
+        status_map_ready = status_map
+        is_ready = is_actionable(task_slice, status_map_ready)
         glyph_status = "in_progress" if is_current else st
         glyph = paint_glyph(GLYPH.get(glyph_status, "○"), glyph_status, color=color)
         repos = ", ".join(task_slice.repos)
@@ -5271,7 +5398,8 @@ def cmd_show(args: argparse.Namespace) -> None:
             if include_model and task_slice.execution and task_slice.execution.model
             else ""
         )
-        header = f"{glyph} {task_slice.key:<{key_width}}{kind_counts}"
+        ready_tag = " ready" if is_ready and not is_current else ""
+        header = f"{glyph} {task_slice.key:<{key_width}}{kind_counts}{ready_tag}"
         if repos:
             header += f" {repos}"
         header += execution_suffix
@@ -5373,7 +5501,7 @@ def cmd_init(args: argparse.Namespace) -> None:
             )
             task = store.read()
 
-    cursor = next_cursor(task)
+    cursor = seed_cursor(task)
     if cursor is None:
         if all_slices_done(task):
             die("task has no actionable slice/step; add slices with pi-job add-slice --kind ...")
@@ -6049,7 +6177,7 @@ def cmd_bootstrap(args: argparse.Namespace) -> None:
     if missing_deps:
         die("bootstrap: unresolved dependency references:\n" + "\n".join(missing_deps))
     validate_task_mapping(prospective, source=str(input_path))
-    cursor = next_cursor(prospective)
+    cursor = seed_cursor(prospective)
     if cursor is None:
         if all_slices_done(prospective):
             die("bootstrap: task has no actionable slice (all slices are done)")
@@ -6332,7 +6460,7 @@ def main() -> None:
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    status = sub.add_parser("status", help="show task status, saved cursor, and next cursor")
+    status = sub.add_parser("status", help="show task status, saved cursor, and Ready frontier")
     status.set_defaults(fn=cmd_status)
 
     validate = sub.add_parser(
@@ -6350,11 +6478,10 @@ def main() -> None:
     init.add_argument("--dry-run", action="store_true")
     init.set_defaults(fn=cmd_init)
 
-    nxt = sub.add_parser("next", help="print the next unfinished slice/step")
-    nxt.add_argument("--all", action="store_true", help="list all dependency-satisfied slices")
-    nxt.set_defaults(fn=cmd_next)
-
-    adv = sub.add_parser("advance", help="set cursor to the next unfinished step or an explicit cursor")
+    adv = sub.add_parser(
+        "advance",
+        help="walk to the next unfinished step in the current slice, or jump with --slice/--step",
+    )
     adv.add_argument("--slice", help="explicit slice key (requires --step)")
     adv.add_argument("--step", help="explicit step key")
     adv.add_argument("--dry-run", action="store_true")
@@ -6478,8 +6605,15 @@ def main() -> None:
     )
     markdown.set_defaults(fn=cmd_markdown)
 
-    instruction = sub.add_parser("instruction", help="emit deterministic instructions for the current or next cursor")
-    instruction.add_argument("--current", action="store_true", help="use saved cursor instead of computed next")
+    instruction = sub.add_parser(
+        "instruction",
+        help="emit deterministic instructions for the saved cursor (or pick-next when the slice is exhausted)",
+    )
+    instruction.add_argument(
+        "--current",
+        action="store_true",
+        help="deprecated no-op; instruction always uses the saved cursor",
+    )
     instruction.set_defaults(fn=cmd_instruction)
 
     scaffold = sub.add_parser(

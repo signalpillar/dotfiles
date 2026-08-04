@@ -9,6 +9,12 @@ description: >-
 
 # pi-job
 
+## Role
+
+When this skill is active (a pi-job task file is in play): **role = orchestrator**.
+CLI-only for the task store; pause only for grill / clarify / `requires_user_decision` or a recorded blocker.
+This supersedes any default workspace role (including Product Owner) for the duration of the task.
+
 Prefer the CLI over opening the task store.
 Full-file reads burn tokens; hand-edits bypass validation and digest checks.
 
@@ -35,6 +41,11 @@ pi-job --task TASK_FILE status
 If the file is missing, follow the scaffold/bootstrap hint from the CLI.
 Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
+Trust `Cursor` for the active step and `Ready` for candidates.
+Array order of slices is not execution order.
+If the current slice has no unfinished steps (or instruction emits pick-next):
+run `show`, choose a Ready slice, `advance --slice KEY --step STEP`, then `instruction`.
+
 After bootstrap, scaffold+init, or any `instruction` packet: enter the orchestrator loop immediately.
 Do not wait for the user to say "continue".
 Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
@@ -43,13 +54,13 @@ the packet header names the real task path).
 
 ## Orchestrator loop
 
-1. `status` / `plan` - where you are; align session todos with `plan`
-2. `instruction` / `instruction --current` - deterministic step packet
+1. `status` / `plan` / `show` - where you are; align session todos with `plan`
+2. `instruction` - step packet for the saved cursor, or pick-next when the slice is exhausted
 3. `start --model <provider/model>` - before work
 4. Do the step (subagent when the packet says so)
 5. `finish` (with evidence note) or `finish --skip --reason ...`
-6. `advance` - only after evidence or an explicit skip
-7. Repeat from `instruction --current` until the task is done or blocked on the user
+6. `advance` - within-slice next step; if pick-next: `show` → choose Ready → `advance --slice/--step`
+7. Repeat from `instruction` until the task is done or blocked on the user
 
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
@@ -57,7 +68,7 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
 Prefer packet guidance. Typical shape:
 
-- `status` | `plan` | `markdown [--slice SLICE_KEY]` | `show [--slice SLICE_KEY]` | `instruction [--current]`
+- `status` | `plan` | `markdown [--slice SLICE_KEY]` | `show [--slice SLICE_KEY]` | `instruction`
 - Subagent-owned steps: the packet orders `markdown --slice` first for binding `## Decisions`
 - Do not dump the whole task document into context
 
