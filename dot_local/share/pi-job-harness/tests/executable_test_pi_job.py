@@ -1506,6 +1506,108 @@ def test_show_renders_tree_and_footer() -> None:
         assert_contains(footer, "docs/api.http")
 
 
+def test_show_work_first_puts_open_before_done_newest_completed_last_block() -> None:
+    """--work-first: unfinished on top; done/skipped at bottom newest-completed first."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "work-first.yaml"
+        write_task_yaml(task, {
+            "title": "Work first",
+            "status": "in_progress",
+            "orchestration": {
+                "cursor": {"slice": "active", "step": "edit-code"},
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [
+                    {
+                        "key": "old-done",
+                        "kind": "implement",
+                        "title": "Old done",
+                        "goal": "finished earlier",
+                        "status": "done",
+                        "note": "",
+                        "execution": {
+                            "model": "test/model",
+                            "started": "2026-01-01T10:00:00Z",
+                            "ended": "2026-01-01T11:00:00Z",
+                        },
+                        "steps": [],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "new-done",
+                        "kind": "implement",
+                        "title": "New done",
+                        "goal": "finished later",
+                        "status": "done",
+                        "note": "",
+                        "execution": {
+                            "model": "test/model",
+                            "started": "2026-02-01T10:00:00Z",
+                            "ended": "2026-02-01T12:00:00Z",
+                        },
+                        "steps": [],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "waiting",
+                        "kind": "implement",
+                        "title": "Waiting",
+                        "goal": "deps unmet",
+                        "status": "planned",
+                        "note": "",
+                        "depends_on": ["missing-dep"],
+                        "steps": [{"key": "create-plan", "title": "Plan", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "ready-open",
+                        "kind": "implement",
+                        "title": "Ready open",
+                        "goal": "can start",
+                        "status": "planned",
+                        "note": "",
+                        "execution": {
+                            "model": "test/model",
+                            "started": "2026-03-01T09:00:00Z",
+                            "ended": None,
+                        },
+                        "steps": [{"key": "create-plan", "title": "Plan", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "active",
+                        "kind": "implement",
+                        "title": "Active",
+                        "goal": "cursor slice",
+                        "status": "in_progress",
+                        "note": "",
+                        "execution": {
+                            "model": "test/model",
+                            "started": "2026-03-02T09:00:00Z",
+                            "ended": None,
+                        },
+                        "steps": [{"key": "edit-code", "title": "Edit", "status": "in_progress", "note": ""}],
+                        "final_steps": [],
+                    },
+                ],
+            },
+        })
+
+        default = run(str(PI_JOB), "--task", str(task), "show").stdout
+        # Plan order unchanged without the flag.
+        assert default.index("old-done") < default.index("new-done") < default.index("waiting")
+
+        out = run(str(PI_JOB), "--task", str(task), "show", "--work-first").stdout
+        # Cursor/active before ready before waiting before finished block.
+        assert out.index("active") < out.index("ready-open") < out.index("waiting")
+        assert out.index("waiting") < out.index("new-done")
+        assert out.index("waiting") < out.index("old-done")
+        # Finished block: newest-completed first.
+        assert out.index("new-done") < out.index("old-done")
+
+
 def test_show_aligns_kind_counts_after_longest_key() -> None:
     """Unfinished slice headers align [kind/N/M] just after the longest key (one space)."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -6177,6 +6279,7 @@ def main() -> None:
     test_select_toolbelt_step_and_instruction()
     test_toolbelt_block_in_plan()
     test_show_renders_tree_and_footer()
+    test_show_work_first_puts_open_before_done_newest_completed_last_block()
     test_show_aligns_kind_counts_after_longest_key()
     test_show_omits_kind_counts_and_models_for_done_by_default()
     test_show_short_collapses_consecutive_done_slices()

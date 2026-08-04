@@ -49,7 +49,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
 - `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
-- `show` / `show --slice KEY` / `show --full` / `show --short` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, or a slice-local detail view (goal, notes, steps, repo_work)
+- `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `instruction` - emit a deterministic packet for the saved cursor (or pick-next when the slice is exhausted)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)

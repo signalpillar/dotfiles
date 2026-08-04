@@ -5000,6 +5000,82 @@ def slice_earliest_change(task_slice: TaskSlice) -> str | None:
     return min(timestamps) if timestamps else None
 
 
+def slice_latest_change(task_slice: TaskSlice) -> str | None:
+    timestamps: list[str] = []
+    timestamps.extend(collect_execution_timestamps(task_slice.execution))
+    for step in task_slice.all_steps:
+        timestamps.extend(collect_execution_timestamps(step.execution))
+    return max(timestamps) if timestamps else None
+
+
+def work_first_open_rank(
+    task_slice: TaskSlice,
+    status_map: Mapping[str, str],
+    cursor: Cursor | None,
+) -> int:
+    """Lower ranks surface first among unfinished slices."""
+    if cursor is not None and cursor.slice == task_slice.key:
+        return 0
+    if task_slice.status == "in_progress":
+        return 1
+    if is_actionable(task_slice, status_map):
+        return 2
+    if task_slice.status == "blocked":
+        return 3
+    return 4
+
+
+def _newest_first_indexed(items: list[tuple[int, TaskSlice]]) -> list[tuple[int, TaskSlice]]:
+    """Newest latest-change first; undated last; plan index ascending on ties."""
+    dated: list[tuple[int, TaskSlice, str]] = []
+    undated: list[tuple[int, TaskSlice]] = []
+    for plan_index, task_slice in items:
+        latest = slice_latest_change(task_slice)
+        if latest is None:
+            undated.append((plan_index, task_slice))
+        else:
+            dated.append((plan_index, task_slice, latest))
+    # reverse on (time, -plan_index): newest first; equal time -> smaller plan_index first
+    dated.sort(key=lambda item: (item[2], -item[0]), reverse=True)
+    undated.sort(key=lambda item: item[0])
+    return [(plan_index, task_slice) for plan_index, task_slice, _ in dated] + undated
+
+
+def ordered_slices_for_show(
+    task: Mapping[str, Any],
+    *,
+    cursor: Cursor | None,
+    work_first: bool,
+) -> list[TaskSlice]:
+    """Plan order by default; --work-first puts open work on top (newest first), finished last."""
+    indexed = list(enumerate(task_slices(task)))
+    if not work_first:
+        return [task_slice for _, task_slice in indexed]
+
+    status_map = slice_status_map(task)
+    open_items = [
+        (plan_index, task_slice)
+        for plan_index, task_slice in indexed
+        if task_slice.status not in STATUS_DONE
+    ]
+    finished_items = [
+        (plan_index, task_slice)
+        for plan_index, task_slice in indexed
+        if task_slice.status in STATUS_DONE
+    ]
+
+    ordered: list[TaskSlice] = []
+    for rank in range(5):
+        group = [
+            item
+            for item in open_items
+            if work_first_open_rank(item[1], status_map, cursor) == rank
+        ]
+        ordered.extend(task_slice for _, task_slice in _newest_first_indexed(group))
+    ordered.extend(task_slice for _, task_slice in _newest_first_indexed(finished_items))
+    return ordered
+
+
 def ordered_slices_for_markdown(
     task: Mapping[str, Any],
     *,
@@ -5348,7 +5424,7 @@ def cmd_show(args: argparse.Namespace) -> None:
         lines.append(f"cursor → {cursor.slice} / {cursor.step or '-'}")
     lines.append("")
 
-    slices = task_slices(task)
+    slices = ordered_slices_for_show(task, cursor=cursor, work_first=bool(args.work_first))
     status_map = slice_status_map(task)
     visible_slices = [
         s for s in slices
@@ -6582,6 +6658,14 @@ def main() -> None:
         "--short",
         action="store_true",
         help="collapse consecutive done slices onto one line (names only); ignored with --all or --slice",
+    )
+    show.add_argument(
+        "--work-first",
+        action="store_true",
+        help=(
+            "reorder tree: unfinished slices first (cursor/in_progress, then Ready, then blocked), "
+            "newest-touched first within each group; done/skipped last, newest-completed first"
+        ),
     )
     show.add_argument("--status", help="comma-separated slice statuses to include")
     show.add_argument(
