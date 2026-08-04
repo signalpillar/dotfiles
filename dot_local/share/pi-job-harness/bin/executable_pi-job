@@ -1099,7 +1099,7 @@ class TaskStore(Protocol):
         ...
 
     def acknowledge_edit(self, *, reason: str) -> None:
-        """Refresh content digest after a legitimate out-of-band edit."""
+        """Refresh content digest and append the reason to the current cursor slice note."""
         ...
 
 
@@ -1577,12 +1577,18 @@ class YamlTaskStore:
             self._write_validated(task)
 
     def acknowledge_edit(self, *, reason: str) -> None:
+        """Refresh content digest and append the reason to the current cursor slice note."""
+
         def mutation(task: dict[str, Any]) -> None:
-            task.setdefault("decisions", []).append({
-                "date": utc_now()[:10],
-                "note": f"Acknowledged out-of-band edit: {reason}",
-                "source": "pi-job acknowledge-edit",
-            })
+            cursor = current_cursor(task)
+            if cursor is None:
+                die(
+                    "acknowledge-edit needs a saved cursor so the reason can go on the current "
+                    "slice note; run init or advance --slice/--step first"
+                )
+            task_slice = self._slice(task, cursor.slice)
+            entry = f"Hand-edit acknowledged: {reason}"
+            task_slice["note"] = merge_note(str(task_slice.get("note") or ""), entry, replace=False)
 
         self._mutate(mutation, refresh_digest=True)
 
@@ -6336,8 +6342,15 @@ def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     if not isinstance(store, YamlTaskStore):
         die("acknowledge-edit requires a YAML task file")
+    task = store.read()
+    cursor = current_cursor(task)
+    slice_key = cursor.slice if cursor else "<unset>"
     store.acknowledge_edit(reason=reason)
-    print(f"acknowledged out-of-band edit: {reason[:60]}" + ("..." if len(reason) > 60 else ""))
+    print(
+        f"acknowledged out-of-band edit on slice {slice_key}: "
+        + reason[:60]
+        + ("..." if len(reason) > 60 else "")
+    )
 
 
 def cmd_remove_slice(args: argparse.Namespace) -> None:
@@ -6678,9 +6691,16 @@ def main() -> None:
 
     acknowledge_edit = sub.add_parser(
         "acknowledge-edit",
-        help="refresh content digest after a legitimate hand-edit to the task file",
+        help=(
+            "refresh content digest after a legitimate hand-edit; "
+            "appends --reason to the current cursor slice note"
+        ),
     )
-    acknowledge_edit.add_argument("--reason", required=True, help="why the out-of-band edit was made")
+    acknowledge_edit.add_argument(
+        "--reason",
+        required=True,
+        help="why the out-of-band edit was made (appended to the current slice note)",
+    )
     acknowledge_edit.set_defaults(fn=cmd_acknowledge_edit)
 
     remove_slice = sub.add_parser("remove-slice", help="remove a slice from the plan (refuses when other slices depend on it)")

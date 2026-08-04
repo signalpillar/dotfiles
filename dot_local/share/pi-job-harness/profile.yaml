@@ -257,6 +257,7 @@ instruction_packets:
     warning: task file semantic content does not match the last pi-job write digest.
     Prefer pi-job mutation commands over hand-edits (see pi-job --help; Writes in the task-record discipline packet).
     For a legitimate hand-edit run: pi-job --task {task_file} acknowledge-edit --reason '<why>'
+    (appends the reason to the current cursor slice note and refreshes the digest; not a decision).
   missing_task_hint: |-
     task store not found: {task_file}
     create one from the example shape with:

@@ -5550,7 +5550,7 @@ def test_acknowledge_edit_clears_warning() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         task_path = Path(tmp) / "ack-edit.yaml"
-        write_task_yaml(task_path, standard_fixture_mapping())
+        write_task_yaml(task_path, standard_fixture_mapping(cursor=("second-slice", "s2")))
         run(str(PI_JOB), "--task", str(task_path), "set-plan-note", "--note", "before hand edit")
         raw = yaml.safe_load(task_path.read_text())
         raw["context"] = "edited outside pi-job"
@@ -5562,12 +5562,14 @@ def test_acknowledge_edit_clears_warning() -> None:
         status = run(str(PI_JOB), "--task", str(task_path), "status")
         assert_not_contains(status.stderr, "does not match the last pi-job write digest")
         task = module.YamlTaskStore(task_path).read()
-        decisions = task["decisions"]
-        if not decisions:
-            raise AssertionError("expected acknowledge-edit decision")
-        last = decisions[-1]
-        assert_contains(last["note"], "Acknowledged out-of-band edit: fixed context typo by hand")
-        assert last["source"] == "pi-job acknowledge-edit"
+        note = next(s["note"] for s in task["plan"]["slices"] if s["key"] == "second-slice")
+        assert_contains(note, "Hand-edit acknowledged: fixed context typo by hand")
+        # Must not pollute the decisions channel.
+        for decision in task.get("decisions") or []:
+            if "acknowledge-edit" in str(decision.get("source") or "") or "Hand-edit" in str(
+                decision.get("note") or ""
+            ):
+                raise AssertionError(f"acknowledge-edit must not write a decision: {decision}")
 
 
 def test_finish_while_dirty_does_not_clear_digest() -> None:

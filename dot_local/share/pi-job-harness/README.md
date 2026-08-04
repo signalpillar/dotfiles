@@ -389,7 +389,7 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note`; date defaults to today UTC; source defaults to `pi-job add-decision`).
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
-- `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and record a decision (YAML only).
+- `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and append the reason to the current cursor slice note (YAML only; not a decision).
 - `pi-job --task <t> set-slice --key K [--title T] [--goal G]` - update slice metadata (at least one of `--title` or `--goal` required; YAML only; refuses `done`/`skipped` slices).
 - `pi-job --task <t> block-slice --key K --reason R` - mark a slice `blocked` and append the reason to its note (YAML only; refuses `done`/`skipped`; re-block appends again).
 - `pi-job --task <t> unblock-slice --key K` - restore a `blocked` slice to `planned` without changing its note (YAML only).
