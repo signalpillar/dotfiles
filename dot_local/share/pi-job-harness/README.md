@@ -190,21 +190,12 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 
 ## Channels
 
-Hard rules for which write API to use (same contract in profile packets, CLI help, and skill):
+Authoritative channel rules live in `profile.yaml`
+(`instruction_packets.task_record_discipline`).
+CLI help for `add-decision` / `finish --note` lives in `profile.yaml` `cli_help`
+(loaded into `--help`; do not hardcode those strings in Python).
 
-- **DECISION (`add-decision`)** = product, scope, architecture, or policy agreement that later sessions must honor without re-grilling.
-  Must still be true if the PR never merged.
-  Prefer one sentence + rationale.
-  Not a journal.
-- **STEP NOTE (`finish --note`)** = evidence that THIS step happened or failed: commands, e2e results, scan findings, "gap recorded", skip reasons.
-- **SLICE NOTE** = cross-step narrative for the slice (blocker story, handoff).
-  Prefer `finish --slice-only`; not `add-decision`.
-- **PLAN FILE (`*.plans/<slice-key>.md`)** = constraint-and-behaviour contract.
-  Long prose lives here.
-- **PLAN NOTE (`set-plan-note`)** = destination / high-level map.
-  Not a progress log.
-- **PR / REPO (`add-pr`, `set-worktree`)** = delivery lifecycle.
-  Sync uses `finish --note` for verify evidence - keep it there.
+Short examples:
 
 **Good `add-decision`**
 

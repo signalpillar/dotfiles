@@ -378,6 +378,26 @@ class BootstrapDocument(StrictDocument):
         return self
 
 
+class CliHelpAddDecisionDocument(StrictDocument):
+    """Argparse help for add-decision (profile is the only body)."""
+
+    command: str = Field(description="Subparser help/description for add-decision.")
+    note: str = Field(description="Help text for add-decision --note.")
+
+
+class CliHelpFinishDocument(StrictDocument):
+    """Argparse help for finish channel-related flags (profile is the only body)."""
+
+    note: str = Field(description="Help text for finish --note.")
+
+
+class CliHelpDocument(StrictDocument):
+    """CLI help snippets owned by the profile. Python must not hardcode these strings."""
+
+    add_decision: CliHelpAddDecisionDocument = Field(description="Help for add-decision.")
+    finish: CliHelpFinishDocument = Field(description="Help for finish channel-related flags.")
+
+
 class InstructionPacketsDocument(StrictDocument):
     """Required instruction text blocks. Profile is the single source of truth; no Python fallbacks."""
 
@@ -431,6 +451,9 @@ class ProfileDocument(StrictDocument):
     plan_and_grill_guardrail: str = Field(description="Shared create-plan and grill-plan execution guidance.")
     sync_pipeline_instructions: str = Field(
         description="Pipeline instructions for the sync command. Required profile text; Python must not duplicate a fallback body."
+    )
+    cli_help: CliHelpDocument = Field(
+        description="CLI help snippets for channel-sensitive commands. Profile is the only body; Python must not hardcode them."
     )
     instruction_packets: InstructionPacketsDocument = Field(
         description="Required instruction text blocks. All packet bodies live here; Python must not duplicate them."
@@ -6296,6 +6319,10 @@ def cmd_kinds(args: argparse.Namespace) -> None:
 
 def main() -> None:
     slice_kinds = sorted(valid_slice_kinds())
+    cli_help = load_profile_contract()["cli_help"]
+    add_decision_help = str(cli_help["add_decision"]["command"])
+    add_decision_note_help = str(cli_help["add_decision"]["note"])
+    finish_note_help = str(cli_help["finish"]["note"])
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--task",
@@ -6359,9 +6386,7 @@ def main() -> None:
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
     finish.add_argument(
         "--note",
-        help="append completion/evidence for this step (not product decisions; use add-decision); "
-        "Markdown preferred; rendered formatted in `pi-job markdown`; omitted preserves the "
-        "existing note; when supplied appends with a blank line; --replace overwrites instead",
+        help=finish_note_help,
     )
     finish.add_argument(
         "--replace",
@@ -6505,14 +6530,14 @@ def main() -> None:
 
     add_decision = sub.add_parser(
         "add-decision",
-        help="append a product/scope decision (not step evidence; use finish --note)",
-        description="append a product/scope decision (not step evidence; use finish --note)",
+        help=add_decision_help,
+        description=add_decision_help,
     )
     add_decision.add_argument("--date", default="", help="decision date (default: today UTC)")
     add_decision.add_argument(
         "--note",
         required=True,
-        help="decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`",
+        help=add_decision_note_help,
     )
     add_decision.add_argument("--source", default="", help="decision origin (default: pi-job add-decision)")
     add_decision.set_defaults(fn=cmd_add_decision_cli)

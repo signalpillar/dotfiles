@@ -11,22 +11,35 @@ description: >-
 
 Prefer the CLI over opening the task store.
 Full-file reads burn tokens; hand-edits bypass validation and digest checks.
-Developer experience and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
+
+## Discover commands (do not memorize encyclopedias here)
+
+```bash
+pi-job --help
+pi-job <command> --help
+pi-job profile          # kinds + where the contract lives
+pi-job profile --json   # full validated profile (packets, cli_help, …)
+```
+
+Channel rules (decision vs `finish --note` vs plan file), packet wording, and CLI help
+snippets live in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi:
+`dot_local/share/pi-job-harness/profile.yaml`). Read them via help/profile - do not
+restate them from this skill.
 
 ## Cold start
 
 ```bash
-pi-job --task <file> status
+pi-job --task TASK_FILE status
 ```
 
 If the file is missing, follow the scaffold/bootstrap hint from the CLI.
-Deep reference: `~/.local/share/pi-job-harness/README.md` (chezmoi source: `dot_local/share/pi-job-harness/README.md`).
-Install: see that README's agent self-install section (uv + harness files only).
+Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
 After bootstrap, scaffold+init, or any `instruction` packet: enter the orchestrator loop immediately.
 Do not wait for the user to say "continue".
 Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
-Follow the packet's `NEXT ACTION` checklist.
+Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SLICE_KEY`;
+the packet header names the real task path).
 
 ## Orchestrator loop
 
@@ -42,80 +55,25 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
 ## Reads (do not open the store)
 
-- `status`, `plan`, `markdown [--slice KEY]`, `show`, `show --slice KEY`, `instruction [--current]`
-- Subagent-owned steps: run `pi-job --task TASK_FILE markdown --slice SLICE_KEY` first
-  (TASK_FILE / SLICE_KEY are command hints - use the real `--task` path and current slice from the packet header)
-- That loads binding `## Decisions` plus that slice
-- Use `show --slice SLICE_KEY` for sibling-step evidence after decisions are loaded
-- Do not dump or browse the whole task document into context
+Prefer packet guidance. Typical shape:
 
-## Channels
+- `status` | `plan` | `markdown [--slice SLICE_KEY]` | `show [--slice SLICE_KEY]` | `instruction [--current]`
+- Subagent-owned steps: the packet orders `markdown --slice` first for binding `## Decisions`
+- Do not dump the whole task document into context
 
-Hard rules for which write API to use:
+Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
+Slice plans: `<task-stem>.plans/<slice-key>.md` (constraint contracts; see profile
+`plan_and_grill_guardrail`).
 
-- **DECISION (`add-decision`)** = product, scope, architecture, or policy agreement that later sessions must honor without re-grilling.
-  Must still be true if the PR never merged.
-  Not a journal.
-- **STEP NOTE (`finish --note`)** = evidence that THIS step happened or failed: commands, e2e, scan findings, skip reasons.
-- **SLICE NOTE** = cross-step narrative; prefer `finish --slice-only`, not `add-decision`.
-- **PLAN FILE** (`<task-stem>.plans/<slice-key>.md`) = constraint-and-behaviour contract.
-- **PLAN NOTE (`set-plan-note`)** = destination / high-level map, not a progress log.
-- **PR / REPO (`add-pr`, `set-worktree`)** = delivery lifecycle; sync verify evidence stays in `finish --note`.
+## Wayfinder
 
-Anti-patterns (do not use `add-decision` for these):
-
-- PR merge/deploy status (`PR #3420 MERGED + deployed`)
-- e2e or verify results (`e2e passed for assetUrl`)
-- progress markers (`RESOLVED: folded mapping into SHEMED-2329`)
-
-Good `add-decision`: scope agreements like "assets resolve via ProgrammeDefinition.defaultPartnerId; no static maps".
-Good `finish --note`: "Ran graphius e2e on dev-uk; assetUrl returns CDN path".
-
-## Writes (mutation commands only)
-
-- Lifecycle: `start`, `finish` (default `--note` appends with a blank line; `--replace` overwrites), `advance`
-- Shape: `add-slice`, `add-step`, `set-slice`, `block-slice`, `unblock-slice`, `remove-slice`, `set-worktree`, `add-pr`
-- Metadata: `set-project`, `set-context`, `add-decision`, `set-plan-note`
-- Out-of-band hand-edit: `acknowledge-edit --reason '<why>'` (clears the digest warning; do not silent-ignore it)
-- See `pi-job --help` for the rest
-
-Put slice plans in `<task-stem>.plans/<slice-key>.md`, not in endless notes.
-Those files are succinct constraint-and-behaviour contracts.
-Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
-Step evidence belongs in `finish --note`, not `add-decision`.
-Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice.
-Full wording lives in `plan_and_grill_guardrail` in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi source: `dot_local/share/pi-job-harness/profile.yaml`).
-`validate` / `status` warn on oversized notes (~2000 chars) and large task files (~100KB); they do not refuse `finish`.
-
-## Wayfinder: chart foggy work into the task file
-
-When work is too big and foggy to plan in one setup pass, use the wayfinder skill (installed separately) with this task file as its issue tracker.
-The map is the task file - do not keep a parallel map anywhere else.
-
-Load the map before charting:
+Foggy work: use the wayfinder skill with this task file as the map.
 
 ```bash
-pi-job --task <file> wayfinder-context
+pi-job --task TASK_FILE wayfinder-context
 ```
 
-It prints the destination (`plan.note`), recorded decisions, in-progress/done slices, and the planned work split into FRONTIER (takeable now) vs FOG (blocked by unfinished dependencies).
-
-Map wayfinder's constructs onto pi-job:
-
-| Wayfinder | pi-job |
-|---|---|
-| the map | this task file (destination = `plan.note`) |
-| decisions so far | `decisions` via `add-decision` (product/scope only; not PR/e2e/deploy chatter) |
-| research / prototype / decision ticket | a slice: `add-slice --kind research` / `spike` / `fog` |
-| implementation ticket | `add-slice --kind implement` |
-| blocking relationship | `--depends-on` |
-| frontier vs fog | actionable slices vs dependency-blocked ones |
-| resolving a ticket | record a decision, then `finish` / `advance` |
-
-The `setup` slice's `wayfinder` step charts the first map.
-A `fog` slice defers a decision-branch via `depends_on` and recurses through its own `wayfinder` step, so charting one area can spawn further fog slices.
-Grill sharpens what the user already knows; wayfinder charts what nobody knows yet and picks a resolver (research, prototype, grill, or task) for each unknown.
-The task is never frozen - it grows as slices are discovered.
+Details and kind mapping: `pi-job wayfinder-context --help` and the harness README.
 
 ## Harness Python contributions
 

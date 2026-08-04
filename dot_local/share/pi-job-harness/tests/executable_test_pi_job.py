@@ -907,13 +907,13 @@ def test_subagent_orchestrator_directs_markdown_slice_without_decisions_dump() -
 
 
 def test_add_decision_and_finish_help_describe_channels() -> None:
-    add_help = run(str(PI_JOB), "add-decision", "--help").stdout
-    finish_help = run(str(PI_JOB), "finish", "--help").stdout
-    assert_contains(add_help, "product/scope decision")
-    assert_contains(add_help, "not step evidence")
-    assert_contains(add_help, "finish --note")
-    assert_contains(finish_help, "not product")
-    assert_contains(finish_help, "add-decision")
+    module = load_pi_job_module()
+    cli_help = module.load_profile_contract()["cli_help"]
+    add_help = " ".join(run(str(PI_JOB), "add-decision", "--help").stdout.split())
+    finish_help = " ".join(run(str(PI_JOB), "finish", "--help").stdout.split())
+    assert_contains(add_help, str(cli_help["add_decision"]["command"]))
+    assert_contains(add_help, " ".join(str(cli_help["add_decision"]["note"]).split()))
+    assert_contains(finish_help, " ".join(str(cli_help["finish"]["note"]).split()))
 
 
 def test_decision_document_schema_describes_channels_contract() -> None:
@@ -4169,7 +4169,8 @@ def test_persisted_models_document_every_field() -> None:
         "BootstrapSliceDocument", "BootstrapDocument",
         "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
-        "SliceKindDocument", "InstructionPacketsDocument", "ProfileDocument",
+        "SliceKindDocument", "InstructionPacketsDocument", "CliHelpDocument",
+        "CliHelpAddDecisionDocument", "CliHelpFinishDocument", "ProfileDocument",
     )
     missing = [
         f"{model_name}.{field_name}"
@@ -4466,6 +4467,18 @@ def test_profile_requires_sync_pipeline_instructions() -> None:
         assert_contains(str(exc), "sync_pipeline_instructions")
     else:
         raise AssertionError("profile accepted missing sync_pipeline_instructions")
+
+
+def test_profile_requires_cli_help() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["cli_help"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "cli_help")
+    else:
+        raise AssertionError("profile accepted missing cli_help")
 
 
 def test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics() -> None:
@@ -6208,6 +6221,7 @@ def main() -> None:
     test_profile_requires_next_action_packet()
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
+    test_profile_requires_cli_help()
     test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics()
     test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently()
     test_lifecycle_records_model_and_timestamps()

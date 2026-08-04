@@ -162,6 +162,15 @@ sync_pipeline_instructions: |-
     4. finish --note '<append-style evidence>' to record what was found
     5. advance to move past the verified step
     6. Jira ticket status update if applicable
+cli_help:
+  add_decision:
+    command: append a product/scope decision (not step evidence; use finish --note)
+    note: decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`
+  finish:
+    note: >-
+      append completion/evidence for this step (not product decisions; use add-decision);
+      Markdown preferred; rendered formatted in `pi-job markdown`; omitted preserves the
+      existing note; when supplied appends with a blank line; --replace overwrites instead
 instruction_packets:
   todo_tracking: |-
     - Keep session todos aligned with `pi-job plan` for this task.
