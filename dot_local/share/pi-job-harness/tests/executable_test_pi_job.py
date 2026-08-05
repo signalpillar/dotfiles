@@ -2401,6 +2401,93 @@ def test_show_omits_deps_line_when_absent() -> None:
             raise AssertionError(f"should not show deps: line when no depends_on:\n{show}")
 
 
+def test_show_graph_emits_mermaid_dependency_flowchart() -> None:
+    """--graph prints Mermaid for termaid stdin: classDefs, nodes, dep→dependent edges."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-graph.yaml"
+        write_task_yaml(
+            task,
+            fixture_with_dependencies_mapping(
+                title="Show graph test",
+                cursor=("ready-dependent", "create-plan"),
+            ),
+        )
+
+        out = run(str(PI_JOB), "--task", str(task), "show", "--graph").stdout
+        assert_contains(out, "flowchart TD")
+        assert_contains(out, "classDef done fill:")
+        assert_contains(out, "classDef in_progress fill:")
+        assert_contains(out, 'base["base"]:::done')
+        # Cursor on a non-done slice paints as in_progress (blue), matching show glyphs.
+        assert_contains(out, 'ready_dependent["ready-dependent"]:::in_progress')
+        assert_contains(out, 'blocked_dependent["blocked-dependent"]:::planned')
+        assert_contains(out, "base --> ready_dependent")
+        assert_contains(out, "not_yet_done --> blocked_dependent")
+        # Clean pipe: no tree chrome.
+        assert_not_contains(out, "toolbelt")
+        assert_not_contains(out, "cursor →")
+
+
+def test_show_graph_status_filter_drops_nonmatching_nodes() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-graph-filter.yaml"
+        write_task_yaml(task, fixture_with_dependencies_mapping(title="Graph filter"))
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "show", "--graph", "--status", "done"
+        ).stdout
+        assert_contains(out, 'base["base"]:::done')
+        assert_not_contains(out, "ready-dependent")
+        assert_not_contains(out, "blocked-dependent")
+        # Edge to a filtered-out dependent is omitted (no invented missing node for in-plan keys).
+        assert_not_contains(out, "base -->")
+
+
+def test_show_graph_unknown_depends_on_emits_missing_node() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-graph-missing.yaml"
+        write_task_yaml(task, {
+            "title": "Missing dep graph",
+            "status": "in_progress",
+            "project": {"name": "Fixture"},
+            "orchestration": {
+                "cursor": {"slice": "orphan", "step": "s1"},
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "orphan",
+                    "kind": "implement",
+                    "title": "Orphan",
+                    "goal": "Depends on missing",
+                    "status": "planned",
+                    "note": "",
+                    "depends_on": ["no-such-slice"],
+                    "steps": [{"key": "s1", "title": "S1", "status": "planned", "note": ""}],
+                    "final_steps": [],
+                }],
+            },
+        })
+
+        out = run(str(PI_JOB), "--task", str(task), "show", "--graph").stdout
+        assert_contains(out, 'no_such_slice["no-such-slice"]:::missing')
+        assert_contains(out, "no_such_slice --> orphan")
+
+
+def test_show_graph_rejects_slice_flag() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "show-graph-slice.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        res = run(
+            str(PI_JOB), "--task", str(task), "show", "--graph", "--slice", "first",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("expected --graph --slice to fail")
+        assert_contains(res.stderr, "omit --slice")
+
+
 def test_init_rejects_forward_reference_dependency() -> None:
     """Regression test: cmd_init() must use slice_work_contract_phase() not hardcoded 'implement'."""
     with tempfile.TemporaryDirectory() as tmp:

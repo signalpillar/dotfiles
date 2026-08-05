@@ -47,7 +47,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
 - `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
-- `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), or a slice-local detail view (goal, notes, steps, repo_work)
+- `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `instruction` - emit a deterministic packet for the saved cursor (or pick-next when the slice is exhausted)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
@@ -500,6 +500,10 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   `--all` expands every slice including finished ones.
   `--status` filters which slices are listed.
   `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
+- `pi-job --task <t> show --graph [--status s1,s2]` - emit a Mermaid `flowchart TD` of slice `depends_on` edges on stdout (no tree chrome).
+  Intended for terminal viewers via stdin, e.g. `pi-job --task <t> show --graph | uvx termaid`.
+  `classDef` colors: green `done`, blue `in_progress` (and the non-done cursor slice), gray `planned`, red `blocked`, yellow `skipped`; unknown dep keys are orange `missing`.
+  Mutually exclusive with `--slice`; tree flags are ignored.
 - `pi-job --task <t> show --slice KEY` - render one slice in full: goal, slice note, every step (key, status, model, note), and repo_work.
   Does not dump task-level context, plan note, or decisions.
   Tree flags (`--all`, `--started`, `--status`, `--full`) are ignored when `--slice` is set.
@@ -710,6 +714,17 @@ What `pi-job` cares about most:
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
 - `plan.slices[].steps` plus `final_steps` - what within-slice `advance` walks
 - `decisions` and `orchestration.artifacts` - durable notes and artifact gates
+
+## Agent dev notes
+
+Notes for agents (and humans) changing the harness Python, not for orchestrating tasks.
+
+- Run `uvx ruff@latest check .` from this package directory after Python edits (see Test below).
+- Prefer a named class as the boundary for a coherent feature surface (formatting, export, layout, policy).
+  Keep free functions for thin wiring (`cmd_*`, argparse, TaskStore I/O).
+  Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
+  Do not scatter matching helpers (`node_id`, `classDef`, edge assembly) beside unrelated `show` tree code.
+  Follow the same pattern when adding similar exporters or viewers.
 
 ## Test
 

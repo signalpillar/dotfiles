@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal, NoReturn, Protocol
+from typing import Any, ClassVar, Literal, NoReturn, Protocol
 from uuid import uuid4
 
 import yaml
@@ -5395,6 +5395,110 @@ def cmd_markdown(args: argparse.Namespace) -> None:
     )
 
 
+class SliceDependencyMermaid:
+    """Mermaid flowchart export of slice `depends_on` for termaid/stdin viewers.
+
+    Boundary: only this type formats Mermaid. Callers (e.g. `show --graph`) pass
+    task state in and print `render()`; they do not assemble classDef/nodes/edges.
+    Edges run dependency → dependent (delivery order, top-down). Unknown
+    depends_on targets appear as orange `missing` nodes so broken refs stay visible.
+    """
+
+    # Green = delivered, blue = in progress (including the saved cursor slice).
+    CLASS_DEFS: ClassVar[tuple[str, ...]] = (
+        "classDef done fill:#22c55e,color:#ffffff,stroke:#16a34a",
+        "classDef in_progress fill:#3b82f6,color:#ffffff,stroke:#2563eb",
+        "classDef planned fill:#6b7280,color:#ffffff,stroke:#4b5563",
+        "classDef blocked fill:#ef4444,color:#ffffff,stroke:#dc2626",
+        "classDef skipped fill:#eab308,color:#000000,stroke:#ca8a04",
+        "classDef missing fill:#f97316,color:#000000,stroke:#ea580c",
+    )
+
+    def __init__(
+        self,
+        *,
+        cursor: Cursor | None = None,
+        status_filter: set[str] | None = None,
+    ) -> None:
+        self._cursor = cursor
+        self._status_filter = status_filter
+        self._node_ids: dict[str, str] = {}
+        self._used_ids: set[str] = set()
+
+    @staticmethod
+    def node_id(key: str) -> str:
+        """Stable Mermaid node id from a slice key (hyphens/punctuation → underscores)."""
+        cleaned = re.sub(r"[^A-Za-z0-9_]", "_", key)
+        if not cleaned or not cleaned[0].isalpha():
+            cleaned = f"n_{cleaned}"
+        return cleaned
+
+    @staticmethod
+    def node_label(text: str) -> str:
+        """Escape a slice key for use inside a Mermaid quoted node label."""
+        return text.replace("\\", "\\\\").replace('"', "#quot;")
+
+    def style_status(self, task_slice: TaskSlice) -> str:
+        """Status class for graph coloring; cursor slice paints as in_progress like show glyphs."""
+        if (
+            self._cursor is not None
+            and self._cursor.slice == task_slice.key
+            and task_slice.status not in STATUS_DONE
+        ):
+            return "in_progress"
+        if task_slice.status in {"done", "skipped", "in_progress", "blocked", "planned"}:
+            return task_slice.status
+        return "planned"
+
+    def _allocate_id(self, key: str) -> str:
+        if key in self._node_ids:
+            return self._node_ids[key]
+        base = self.node_id(key)
+        candidate = base
+        n = 2
+        while candidate in self._used_ids:
+            candidate = f"{base}_{n}"
+            n += 1
+        self._used_ids.add(candidate)
+        self._node_ids[key] = candidate
+        return candidate
+
+    def render(self, task: Mapping[str, Any]) -> str:
+        """Return a Mermaid flowchart document (trailing newline) for this task."""
+        slices = list(task_slices(task))
+        if self._status_filter is not None:
+            slices = [s for s in slices if s.status in self._status_filter]
+        known_keys = {s.key for s in slices}
+        # Prefer edges among visible nodes only; unknown keys (never in plan) still
+        # get a missing node. Deps filtered out of this view (still in plan) skip the edge.
+        all_plan_keys = {s.key for s in task_slices(task)}
+
+        lines: list[str] = ["flowchart TD", *self.CLASS_DEFS]
+        for task_slice in slices:
+            nid = self._allocate_id(task_slice.key)
+            label = self.node_label(task_slice.key)
+            style = self.style_status(task_slice)
+            lines.append(f'  {nid}["{label}"]:::{style}')
+
+        emitted_missing: set[str] = set()
+        for task_slice in slices:
+            dependent_id = self._allocate_id(task_slice.key)
+            for dep_key in task_slice.depends_on:
+                if dep_key in known_keys:
+                    lines.append(f"  {self._allocate_id(dep_key)} --> {dependent_id}")
+                    continue
+                if dep_key in all_plan_keys:
+                    continue
+                if dep_key not in emitted_missing:
+                    mid = self._allocate_id(dep_key)
+                    label = self.node_label(dep_key)
+                    lines.append(f'  {mid}["{label}"]:::missing')
+                    emitted_missing.add(dep_key)
+                lines.append(f"  {self._allocate_id(dep_key)} --> {dependent_id}")
+
+        return "\n".join(lines) + "\n"
+
+
 def cmd_show(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
@@ -5402,6 +5506,20 @@ def cmd_show(args: argparse.Namespace) -> None:
     require_initialized(task_file, task)
     cursor = current_cursor(task)
     color = color_enabled(args.color)
+
+    if args.graph and args.slice:
+        die("show --graph is whole-task; omit --slice (use --status to filter nodes)")
+
+    if args.graph:
+        status_filter = set(args.status.split(",")) if args.status else None
+        print(
+            SliceDependencyMermaid(
+                cursor=cursor,
+                status_filter=status_filter,
+            ).render(task),
+            end="",
+        )
+        return
 
     if args.slice:
         task_slice = find_slice(task, args.slice)
@@ -6776,6 +6894,15 @@ def main() -> None:
         help=(
             "reorder tree: unfinished slices first (cursor/in_progress, then Ready, then blocked), "
             "newest-touched first within each group; done/skipped last, newest-completed first"
+        ),
+    )
+    show.add_argument(
+        "--graph",
+        action="store_true",
+        help=(
+            "emit a Mermaid flowchart of slice depends_on (stdout only; pipe to termaid). "
+            "classDef colors: green done, blue in_progress/cursor, gray planned, red blocked, yellow skipped. "
+            "Ignores tree flags; mutually exclusive with --slice"
         ),
     )
     show.add_argument("--status", help="comma-separated slice statuses to include")

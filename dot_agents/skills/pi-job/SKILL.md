@@ -93,3 +93,6 @@ From `dot_local/share/pi-job-harness/` (or the applied package dir):
 ```bash
 uvx ruff@latest check .
 ```
+
+Follow README **Agent dev notes**: put a coherent feature surface (e.g. Mermaid export) behind a named class boundary; keep `cmd_*` as thin wiring.
+Example in-tree: `SliceDependencyMermaid` for `show --graph`.
