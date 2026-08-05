@@ -446,6 +446,32 @@ class InstructionPacketsDocument(StrictDocument):
         )
     )
     seed_slice_plans: str = Field(description="Preamble for SEED SLICE PLAN FILES NOW blocks after add-slice/bootstrap.")
+    slice_plan_stub: str = Field(
+        description=(
+            "Markdown body written when add-slice auto-creates a missing plan file. "
+            "Supports {key}, {goal}, {depends_on}. Profile is the only body."
+        )
+    )
+    findings_file_header: str = Field(
+        description=(
+            "Preamble written once when YamlTaskStore.create/append creates the "
+            "layout findings file (`<stem>.plans/_findings.md`). Profile is the only "
+            "body; path ownership is YamlTaskLayout / YamlTaskStore."
+        )
+    )
+    status_interrupt_hint: str = Field(
+        description=(
+            "One-line status coaching when the saved cursor sits on an interrupt-park "
+            "step (see ProfileDocument.interrupt_park_steps). Profile is the only body."
+        )
+    )
+    investigate_interrupt: str = Field(
+        description=(
+            "Body printed by `pi-job investigate`. Supports {task_file}, {cursor_label}, "
+            "{topic}, {pointer}, {source}, {finding_status}. Profile is the only body; "
+            "Python must not hardcode the packet."
+        )
+    )
 
 
 class ProfileDocument(StrictDocument):
@@ -468,6 +494,13 @@ class ProfileDocument(StrictDocument):
     instruction_packets: InstructionPacketsDocument = Field(
         description="Required instruction text blocks. All packet bodies live here; Python must not duplicate them."
     )
+    interrupt_park_steps: list[str] = Field(
+        description=(
+            "Step keys that park the cursor for user decision (grill/clarify). "
+            "status prints instruction_packets.status_interrupt_hint when the "
+            "saved cursor step is in this list. Each entry must exist in step_kinds."
+        )
+    )
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
     slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
@@ -485,6 +518,12 @@ class ProfileDocument(StrictDocument):
                 raise ValueError(f"{catalog_name} entries whose key field does not match: {', '.join(mismatches)}")
 
         known_steps = set(self.step_kinds)
+        unknown_park = [step for step in self.interrupt_park_steps if step not in known_steps]
+        if unknown_park:
+            raise ValueError(
+                "interrupt_park_steps references unknown step kinds: "
+                + ", ".join(unknown_park)
+            )
         for key, kind in self.slice_kinds.items():
             unknown = [step for step in [*kind.step_template, *(kind.required_steps or [])] if step not in known_steps]
             if unknown:
@@ -1498,6 +1537,40 @@ class CueTaskStore:
         write_and_format(self.path, new_text)
 
 
+class YamlTaskLayout:
+    """Sibling filesystem layout for a YAML task file.
+
+    Owns paths under `<task-stem>.plans/` (slice plans, findings, decision spills).
+    YamlTaskStore owns all I/O against these paths.
+    """
+
+    FINDINGS_NAME = "_findings.md"
+
+    def __init__(self, task_path: Path) -> None:
+        self.task_path = task_path
+
+    @property
+    def plans_dir(self) -> Path:
+        return self.task_path.parent / f"{self.task_path.stem}.plans"
+
+    def findings_file(self) -> Path:
+        return self.plans_dir / self.FINDINGS_NAME
+
+    def findings_pointer(self) -> str:
+        """Task-dir-relative pointer for CLI tips and packets."""
+        return f"{self.task_path.stem}.plans/{self.FINDINGS_NAME}"
+
+    def slice_plan_file(self, slice_key: str) -> Path:
+        return self.plans_dir / f"{slice_key}.md"
+
+    def slice_plan_pointer(self, slice_key: str) -> str:
+        return f"Plan file: {self.task_path.stem}.plans/{slice_key}.md"
+
+    def decision_spill_file(self, *, date: str, stamp: str) -> Path:
+        """Pure path for a spilled decision body. Caller supplies stamp (no clock here)."""
+        return self.plans_dir / f"_decision-{date}-{stamp}.md"
+
+
 class YamlTaskStore:
     """Preferred TaskStore implementation using one machine-owned YAML document."""
 
@@ -1506,6 +1579,10 @@ class YamlTaskStore:
         self.create_only = create_only
         self._lock_depth = 0
         self._digest_warn_suppressed = 0
+
+    @property
+    def layout(self) -> YamlTaskLayout:
+        return YamlTaskLayout(self.path)
 
     def describe(self) -> str:
         return f"YAML task file {self.path}"
@@ -1658,13 +1735,6 @@ class YamlTaskStore:
 
     def set_plan_note(self, note: str) -> None:
         self._mutate(lambda task: task.setdefault("plan", {}).update({"note": note}))
-
-    def add_decision(self, *, date: str, note: str, source: str) -> None:
-        self._mutate(
-            lambda task: task.setdefault("decisions", []).append(
-                {"date": date, "note": note, "source": source}
-            )
-        )
 
     def add_slice(
         self,
@@ -1870,6 +1940,142 @@ class YamlTaskStore:
 
         self._mutate(mutation)
 
+    def block_slice(
+        self, *, slice_key: str, reason: str, gate: str | None = None
+    ) -> bool:
+        """Block a slice (append reason) and optionally wire depends_on in one mutation.
+
+        Returns True when gate was newly appended to depends_on.
+        Task advisory lock also serializes sibling .plans/ writes for this store.
+        """
+        gate_added = False
+
+        def mutation(task: dict[str, Any]) -> None:
+            nonlocal gate_added
+            task_slice = self._slice(task, slice_key)
+            existing = str(task_slice.get("note") or "")
+            task_slice["status"] = "blocked"
+            task_slice["note"] = merge_note(existing, reason, replace=False)
+            if gate:
+                deps = task_slice.setdefault("depends_on", [])
+                if gate not in deps:
+                    deps.append(gate)
+                    gate_added = True
+
+        self._mutate(mutation)
+        return gate_added
+
+    def append_slice_depends_on(self, *, slice_key: str, dep_key: str) -> bool:
+        """Append dep_key to slice depends_on if missing. Returns True when added."""
+        added = False
+
+        def mutation(task: dict[str, Any]) -> None:
+            nonlocal added
+            task_slice = self._slice(task, slice_key)
+            deps = task_slice.setdefault("depends_on", [])
+            if dep_key not in deps:
+                deps.append(dep_key)
+                added = True
+
+        self._mutate(mutation)
+        return added
+
+    def ensure_slice_plan_stub(
+        self,
+        *,
+        key: str,
+        kind: str,
+        goal: str,
+        depends_on: list[str] | None = None,
+    ) -> Path | None:
+        """Create a missing plan stub from the profile template. None if skipped."""
+        if not slice_kind_requires_plan_file(kind):
+            return None
+        path = self.layout.slice_plan_file(key)
+        body = render_slice_plan_stub(
+            key=key,
+            goal=goal,
+            depends_on=depends_on or [],
+        )
+        with self.exclusive():
+            if path.exists():
+                return None
+            # Task lock serializes .plans/ writers; atomic replace avoids partial stubs.
+            atomic_write_text(path, body)
+        return path
+
+    def add_decision(
+        self,
+        *,
+        date: str,
+        note: str,
+        source: str,
+        spill_body: str | None = None,
+        spill_path: Path | None = None,
+    ) -> Path | None:
+        """Append a decision. Optional spill_body writes long prose via layout then stores a pointer.
+
+        Returns the spill path when a body was spilled; otherwise None.
+        """
+        written: Path | None = None
+        yaml_note = note
+        if spill_body is not None:
+            path = spill_path
+            if path is None:
+                stamp = utc_now().replace(":", "").replace("-", "")[:15]
+                path = self.layout.decision_spill_file(date=date, stamp=stamp)
+            spill_text = (
+                f"# Decision {date}\n\nSource: {source}\n\n{spill_body.rstrip()}\n"
+            )
+            try:
+                rel = path.relative_to(self.path.parent)
+            except ValueError:
+                rel = path
+            yaml_note = f"Plan file: {rel}"
+            with self.exclusive():
+                atomic_write_text(path, spill_text)
+
+                def mutation(task: dict[str, Any]) -> None:
+                    task.setdefault("decisions", []).append(
+                        {"date": date, "note": yaml_note, "source": source}
+                    )
+
+                # Nested exclusive reuses the outer lock.
+                self._mutate(mutation)
+            written = path
+            return written
+
+        def mutation(task: dict[str, Any]) -> None:
+            task.setdefault("decisions", []).append(
+                {"date": date, "note": yaml_note, "source": source}
+            )
+
+        self._mutate(mutation)
+        return None
+
+    def add_finding(self, *, note: str, source: str = "") -> Path:
+        """Append RCA/evidence to the layout findings file (not the task YAML).
+
+        Uses the task advisory lock so all `.plans/` writers for this task serialize.
+        """
+        if not note:
+            die("add_finding: note is required")
+        path = self.layout.findings_file()
+        stamp = utc_now()
+        block = render_finding_entry(note=note, source=source, stamp=stamp)
+        with self.exclusive():
+            if path.exists():
+                existing = path.read_text(encoding="utf-8")
+                if not existing.endswith("\n"):
+                    existing += "\n"
+                atomic_write_text(path, existing + block)
+            else:
+                preamble = str(
+                    load_profile_contract()["instruction_packets"]["findings_file_header"]
+                ).rstrip()
+                atomic_write_text(path, f"{preamble}\n\n{block}")
+        return path
+
 
 _PREFIX_WIDTH = 4
 _PREFIX_GAP = 10
@@ -1940,6 +2146,10 @@ class TaskLayout:
 
     def decision_source_file(self, decision_dir: Path) -> Path:
         return decision_dir / "source"
+
+    def findings_file(self) -> Path:
+        """Append-only RCA/evidence log for directory-backed tasks."""
+        return self.base / "findings.md"
 
     # ---- plan ----
     def plan_note_file(self) -> Path: return self.base / "plan" / "note"
@@ -3021,6 +3231,39 @@ def merged_coding_policy(task: dict[str, Any], task_slice: TaskSlice | None) -> 
     return merged
 
 
+def short_block_reason(note: str, *, limit: int = 72) -> str:
+    """First line of a blocked-slice note, collapsed and truncated for status."""
+    first = ""
+    for line in (note or "").splitlines():
+        collapsed = " ".join(line.split())
+        if collapsed:
+            first = collapsed
+            break
+    if len(first) > limit:
+        return first[: limit - 3].rstrip() + "..."
+    return first
+
+
+def interrupt_park_steps() -> frozenset[str]:
+    """Step keys from the profile that park the cursor for interrupt-friendly status."""
+    return frozenset(str(s) for s in load_profile_contract()["interrupt_park_steps"])
+
+
+def cursor_on_user_decision(task: Mapping[str, Any], cursor: Cursor | None) -> bool:
+    """True when the saved cursor sits on grill/clarify (or requires_user_decision)."""
+    if cursor is None or not cursor.step:
+        return False
+    if cursor.step in interrupt_park_steps():
+        return True
+    cur_slice = find_slice(task, cursor.slice)
+    if cur_slice is None:
+        return False
+    step = find_current_step(cur_slice, cursor)
+    if step is None:
+        return False
+    return bool(step_execution_policy(step).get("requires_user_decision"))
+
+
 def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | None = None) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
     print(f"File: {task_file_desc}")
@@ -3043,12 +3286,25 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
             print("Structure: ok")
         cursor = current_cursor(task)
         print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
+        if cursor_on_user_decision(task, cursor):
+            hint = str(
+                load_profile_contract()["instruction_packets"]["status_interrupt_hint"]
+            ).strip()
+            if hint:
+                print(hint)
         ready = ready_slices(task)
         if ready:
             ready_keys = [task_slice.key for task_slice in ready]
             print(f"Ready: {', '.join(ready_keys)}")
         else:
             print("Ready: none")
+        blocked = [s for s in task_slices(task) if s.status == "blocked"]
+        if blocked:
+            parts: list[str] = []
+            for task_slice in blocked:
+                reason = short_block_reason(task_slice.note)
+                parts.append(f"{task_slice.key} ({reason})" if reason else task_slice.key)
+            print(f"Blocked: {', '.join(parts)}")
 
         if all_slices_done(task):
             print("Task: all slices done")
@@ -4210,22 +4466,43 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
 
 
 def slice_plan_file(task_file: Path, slice_key: str) -> Path:
-    """Sibling Markdown plan for a slice: <task-stem>.plans/<slice-key>.md."""
-    return task_file.parent / f"{task_file.stem}.plans" / f"{slice_key}.md"
-
-
-slice_plan_path = slice_plan_file
+    """Sibling Markdown plan path via YamlTaskLayout (pure)."""
+    return YamlTaskLayout(task_file).slice_plan_file(slice_key)
 
 
 def slice_plan_note_pointer(task_file: Path, slice_key: str) -> str:
     """create-plan step note value: path relative to the task file's directory."""
-    return f"Plan file: {task_file.stem}.plans/{slice_key}.md"
+    return YamlTaskLayout(task_file).slice_plan_pointer(slice_key)
 
 
 def slice_kind_requires_plan_file(kind: str) -> bool:
     """True when the slice kind's step_template includes create-plan."""
     template = get_slice_kind(kind).get("step_template") or []
     return "create-plan" in template
+
+
+def render_slice_plan_stub(
+    *,
+    key: str,
+    goal: str,
+    depends_on: list[str],
+) -> str:
+    """Pure: interpolate the profile plan-stub template."""
+    template = str(load_profile_contract()["instruction_packets"]["slice_plan_stub"])
+    body = template.format(
+        key=key,
+        goal=goal.strip() or "(fill)",
+        depends_on=", ".join(depends_on) or "(none)",
+    )
+    return body if body.endswith("\n") else body + "\n"
+
+
+def render_finding_entry(*, note: str, source: str, stamp: str) -> str:
+    """Pure: one dated findings entry block."""
+    header = f"## {stamp}"
+    if source:
+        header += f" ({source})"
+    return f"{header}\n\n{note.rstrip()}\n\n"
 
 
 def _truncate_seed_text(text: str, limit: int = 240) -> str:
@@ -5232,6 +5509,8 @@ def render_slice_markdown(
     *,
     cursor: Cursor | None,
     summary: bool = False,
+    plan_body: str | None = None,
+    plan_label: str | None = None,
 ) -> list[str]:
     is_current_slice = bool(cursor and cursor.slice == task_slice.key)
     current_step = cursor.step if is_current_slice and cursor else None
@@ -5299,6 +5578,16 @@ def render_slice_markdown(
                 render_step_markdown(step, current_step=current_step, terminal=True)
             )
             lines.append("")
+    if plan_body is not None:
+        lines.append("#### Plan file")
+        lines.append("")
+        if plan_label:
+            lines.append(f"`{plan_label}`")
+            lines.append("")
+        stripped = plan_body.rstrip()
+        if stripped:
+            lines.append(stripped)
+            lines.append("")
     while lines and lines[-1] == "":
         lines.pop()
     return lines
@@ -5310,21 +5599,34 @@ def render_task_markdown(
     chronological: bool = False,
     summary: bool = False,
     slice_key: str | None = None,
+    with_decisions: bool = False,
+    with_preamble: bool = False,
+    plan_bodies: Mapping[str, str] | None = None,
+    plan_labels: Mapping[str, str] | None = None,
 ) -> str:
     cursor = current_cursor(dict(task))
     title = escape_md_inline(str(task.get("title") or "<untitled>"))
     status = str(task.get("status") or "")
     lines = [f"# {title}", "", f"**Status:** {status}", ""]
 
-    project_lines = render_project_markdown(task)
-    if project_lines:
-        lines.extend(project_lines)
+    # Lean --slice: omit decisions/preamble unless opted in. Full/summary keep them.
+    lean_slice = bool(slice_key) and not summary
+    include_decisions = (not lean_slice) or with_decisions
+    include_preamble = (not lean_slice) or with_preamble
+    bodies = plan_bodies or {}
+    labels = plan_labels or {}
+
+    if include_preamble:
+        project_lines = render_project_markdown(task)
+        if project_lines:
+            lines.extend(project_lines)
+            lines.append("")
+
+    if include_decisions:
+        lines.extend(render_decisions_markdown(task))
         lines.append("")
 
-    lines.extend(render_decisions_markdown(task))
-    lines.append("")
-
-    if not summary:
+    if include_preamble and not summary:
         context = str(task.get("context") or "")
         if context:
             lines.append("## Context")
@@ -5358,17 +5660,22 @@ def render_task_markdown(
         slice_items = matched
 
     if slice_items:
-        toc_lines = render_slices_toc(slice_items, cursor=cursor)
-        lines.extend(toc_lines)
-        lines.append("")
+        if not lean_slice:
+            toc_lines = render_slices_toc(slice_items, cursor=cursor)
+            lines.extend(toc_lines)
+            lines.append("")
         lines.append("## Slices")
         lines.append("")
         for index, task_slice in enumerate(slice_items):
+            body = bodies.get(task_slice.key) if lean_slice else None
+            label = labels.get(task_slice.key) if body is not None else None
             lines.extend(
                 render_slice_markdown(
                     task_slice,
                     cursor=cursor,
                     summary=summary,
+                    plan_body=body,
+                    plan_label=label,
                 )
             )
             if index + 1 < len(slice_items):
@@ -5382,14 +5689,30 @@ def render_task_markdown(
 def cmd_markdown(args: argparse.Namespace) -> None:
     if args.summary and args.slice:
         die("markdown: --summary and --slice are mutually exclusive")
-    store = open_task_store(args.task.resolve())
+    if (args.with_decisions or args.with_preamble) and not args.slice:
+        die("markdown: --with-decisions / --with-preamble require --slice")
+    task_file = args.task.resolve()
+    store = open_task_store(task_file)
     task = store.read()
+    plan_bodies: dict[str, str] = {}
+    plan_labels: dict[str, str] = {}
+    # Disk read at the edge: render stays pure over task + optional plan bodies.
+    if args.slice:
+        layout = YamlTaskLayout(task_file)
+        plan_path = layout.slice_plan_file(args.slice)
+        if plan_path.is_file():
+            plan_bodies[args.slice] = plan_path.read_text(encoding="utf-8")
+            plan_labels[args.slice] = f"{task_file.stem}.plans/{args.slice}.md"
     print(
         render_task_markdown(
             task,
             chronological=bool(args.chronological),
             summary=bool(args.summary),
             slice_key=args.slice,
+            with_decisions=bool(args.with_decisions),
+            with_preamble=bool(args.with_preamble),
+            plan_bodies=plan_bodies,
+            plan_labels=plan_labels,
         ),
         end="",
     )
@@ -6105,6 +6428,16 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
         extra_fields=extra_fields, steps=steps, final_steps=final_steps, after=args.after,
     )
     print(f"added slice: {args.key}")
+    stub: Path | None = None
+    if isinstance(store, YamlTaskStore):
+        stub = store.ensure_slice_plan_stub(
+            key=args.key,
+            kind=args.kind,
+            goal=args.goal,
+            depends_on=list(extra_fields.get("depends_on") or []),
+        )
+    if stub is not None:
+        print(f"created plan stub: {task_file.stem}.plans/{args.key}.md")
     updated = store.read()
     new_slice = next(
         (sl for sl in updated.get("plan", {}).get("slices", []) if sl.get("key") == args.key),
@@ -6553,10 +6886,19 @@ def cmd_block_slice(args: argparse.Namespace) -> None:
         die(f"slice not found: {key!r}")
     if status_map[key] in STATUS_DONE:
         die(f"cannot block completed slice: {key} [{status_map[key]}]")
-    existing_note = task_slices_map(task)[key].note
-    new_note = merge_note(existing_note, args.reason, replace=False)
-    store.set_slice_status(slice_key=key, status="blocked", note=new_note)
+    gate = (getattr(args, "gate", None) or "").strip() or None
+    if gate:
+        if gate not in status_map:
+            die(f"--gate slice not found: {gate!r}")
+        if gate == key:
+            die("cannot --gate a slice on itself")
+    gate_added = store.block_slice(slice_key=key, reason=args.reason, gate=gate)
     print(f"blocked slice: {key}")
+    if gate:
+        if gate_added:
+            print(f"depends_on += {gate}")
+        else:
+            print(f"depends_on already includes {gate}")
 
 
 def cmd_unblock_slice(args: argparse.Namespace) -> None:
@@ -6612,10 +6954,115 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
         die("--note is required")
     date = args.date or utc_now()[:10]
     source = args.source or "pi-job add-decision"
+    plan_file_arg = getattr(args, "plan_file", None)
+    soft_limit_hit = len(note) > NOTE_WARN_CHARS or (
+        task_file.is_file() and task_file.stat().st_size > TASK_FILE_WARN_BYTES
+    )
+    spill = plan_file_arg is not None or soft_limit_hit
+    spill_path: Path | None = None
+    if plan_file_arg is not None:
+        spill_path = Path(plan_file_arg)
+        if not spill_path.is_absolute():
+            spill_path = (task_file.parent / spill_path).resolve()
     store = open_task_store(task_file)
-    store.add_decision(date=date, note=note, source=source)
-    print(f"added decision ({date}): {note[:60]}" + ("..." if len(note) > 60 else ""))
-    print("tip: prefer Markdown in --note; `pi-job markdown` renders decisions as blockquotes")
+    written: Path | None = None
+    if spill:
+        if not isinstance(store, YamlTaskStore):
+            die("add-decision spill (--plan-file / soft limit) requires a YAML task file")
+        written = store.add_decision(
+            date=date,
+            note=note,
+            source=source,
+            spill_body=note,
+            spill_path=spill_path,
+        )
+        # Re-read the pointer note the store wrote for the CLI summary.
+        decisions = store.read().get("decisions") or []
+        yaml_note = str((decisions[-1] or {}).get("note") or "")
+    else:
+        store.add_decision(date=date, note=note, source=source)
+        yaml_note = note
+    print(
+        f"added decision ({date}): {yaml_note[:60]}"
+        + ("..." if len(yaml_note) > 60 else "")
+    )
+    if written is not None:
+        print(f"spilled decision body: {written}")
+    else:
+        print(
+            "tip: prefer Markdown in --note; "
+            "`pi-job markdown` renders decisions as blockquotes"
+        )
+
+
+def cmd_add_finding(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="add-finding")
+    note = args.note
+    if not note:
+        die("--note is required")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("add-finding requires a YAML task file")
+    source = args.source or "pi-job add-finding"
+    path = store.add_finding(note=note, source=source)
+    print(f"appended finding: {store.layout.findings_pointer()}")
+    print(f"path: {path}")
+
+
+def render_investigate_interrupt(
+    *,
+    task_file: Path,
+    cursor_label: str,
+    topic: str,
+    pointer: str,
+    source: str,
+    finding_status: str,
+) -> str:
+    """Pure: interpolate the profile investigate packet."""
+    template = str(load_profile_contract()["instruction_packets"]["investigate_interrupt"])
+    body = template.format(
+        task_file=str(task_file),
+        cursor_label=cursor_label,
+        topic=topic,
+        pointer=pointer,
+        source=source,
+        finding_status=finding_status,
+    )
+    return body if body.endswith("\n") else body + "\n"
+
+
+def cmd_investigate(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="investigate")
+    topic = (args.topic or "").strip()
+    if not topic:
+        die("--topic is required")
+    note = (args.note or "").strip()
+    source = args.source or f"investigate:{topic}"
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("investigate requires a YAML task file")
+    task = store.read()
+    cursor = current_cursor(task)
+    cursor_label = cursor.label() if cursor else "<unset>"
+    finding_path: Path | None = None
+    if note:
+        finding_path = store.add_finding(note=note, source=source)
+    pointer = store.layout.findings_pointer()
+    if finding_path is not None:
+        finding_status = f"Recorded finding: {finding_path}"
+    else:
+        finding_status = "No --note given; add-finding when you have evidence."
+    print(
+        render_investigate_interrupt(
+            task_file=task_file,
+            cursor_label=cursor_label,
+            topic=topic,
+            pointer=pointer,
+            source=source,
+            finding_status=finding_status,
+        ),
+        end="",
+    )
 
 
 def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
@@ -6936,7 +7383,21 @@ def main() -> None:
     markdown.add_argument(
         "--slice",
         metavar="KEY",
-        help="preview one slice in full (keeps title/project/Decisions); mutually exclusive with --summary",
+        help=(
+            "slice-scoped preview (header + steps + plan file); "
+            "omit full Decisions/preamble unless --with-decisions/--with-preamble; "
+            "mutually exclusive with --summary"
+        ),
+    )
+    markdown.add_argument(
+        "--with-decisions",
+        action="store_true",
+        help="with --slice: include the full ## Decisions block",
+    )
+    markdown.add_argument(
+        "--with-preamble",
+        action="store_true",
+        help="with --slice: include project/context/source/plan note/artifacts",
     )
     markdown.set_defaults(fn=cmd_markdown)
 
@@ -6989,7 +7450,41 @@ def main() -> None:
         help=add_decision_note_help,
     )
     add_decision.add_argument("--source", default="", help="decision origin (default: pi-job add-decision)")
+    add_decision.add_argument(
+        "--plan-file",
+        type=Path,
+        default=None,
+        help=(
+            "write the long note body to this path (relative to the task dir OK); "
+            "YAML stores a Plan file: pointer. Auto-spills under .plans/ when note "
+            f"or task file exceeds soft limits ({NOTE_WARN_CHARS} chars / {TASK_FILE_WARN_BYTES} bytes)."
+        ),
+    )
     add_decision.set_defaults(fn=cmd_add_decision_cli)
+
+    add_finding = sub.add_parser(
+        "add-finding",
+        help="append RCA/evidence to <task-stem>.plans/_findings.md (not the task YAML)",
+    )
+    add_finding.add_argument("--note", required=True, help="finding body (Markdown OK)")
+    add_finding.add_argument("--source", default="", help="origin label (default: pi-job add-finding)")
+    add_finding.set_defaults(fn=cmd_add_finding)
+
+    investigate = sub.add_parser(
+        "investigate",
+        help=(
+            "interrupt/RCA packet against a task without moving the saved cursor; "
+            "optional --note appends via add-finding"
+        ),
+    )
+    investigate.add_argument("--topic", required=True, help="short investigation topic")
+    investigate.add_argument(
+        "--note",
+        default="",
+        help="optional finding body to append immediately to .plans/_findings.md",
+    )
+    investigate.add_argument("--source", default="", help="finding source label")
+    investigate.set_defaults(fn=cmd_investigate)
 
     acknowledge_edit = sub.add_parser(
         "acknowledge-edit",
@@ -7026,6 +7521,11 @@ def main() -> None:
     block_slice = sub.add_parser("block-slice", help="mark a slice blocked and append a reason to its note")
     block_slice.add_argument("--key", required=True, help="slice key to block")
     block_slice.add_argument("--reason", required=True, help="blocker reason appended to the slice note")
+    block_slice.add_argument(
+        "--gate",
+        default="",
+        help="optional slice key to append to this slice's depends_on (hard gate)",
+    )
     block_slice.set_defaults(fn=cmd_block_slice)
 
     unblock_slice = sub.add_parser("unblock-slice", help="restore a blocked slice to planned without changing its note")

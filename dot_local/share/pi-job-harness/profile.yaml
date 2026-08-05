@@ -237,18 +237,19 @@ instruction_packets:
     - Choose an appropriate lower-cost model using judgement.
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
-    - Tell the subagent to run first: pi-job --task TASK_FILE markdown --slice SLICE_KEY
-    - Do not paste a decisions dump into the subagent prompt; the markdown --slice read loads binding decisions.
+    - Tell the subagent to run first: pi-job --task TASK_FILE markdown --slice SLICE_KEY --with-decisions
+    - Do not paste a decisions dump into the subagent prompt; the markdown --slice --with-decisions read loads binding decisions.
     - Review the subagent result before running pi-job advance.
     - After review, continue the orchestrator loop (finish → advance → instruction); do not wait for "continue".
   subagent_prompt: |-
     This packet is your execution context; do not inspect the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
-    Before any other work, run: pi-job --task TASK_FILE markdown --slice SLICE_KEY
+    Before any other work, run: pi-job --task TASK_FILE markdown --slice SLICE_KEY --with-decisions
     Treat every ## Decisions entry as binding. If SUPERSEDED/RESOLVED, follow the superseding entry.
     On conflict or a blocking decision, STOP and report - do not re-litigate.
     New product/scope/architecture/policy decisions only via add-decision.
     Step evidence (e2e, PR/merge/deploy, WIP/RESOLVED progress) via finish --note / add-pr / plan file - never add-decision.
+    RCA / interrupt evidence via add-finding (appends to .plans/_findings.md), not add-decision.
     For sibling-step evidence in this slice after decisions are loaded, run: pi-job --task TASK_FILE show --slice SLICE_KEY
     Execute only cursor {cursor}.
     Return changed files, commands run, verification evidence, and unresolved risks.
@@ -276,6 +277,55 @@ instruction_packets:
     Do not wait until each slice's create-plan cursor.
     Later create-plan revises the same path; note stays: Plan file: <task-stem>.plans/<key>.md
     Work against task <TASK>.
+  slice_plan_stub: |-
+    # {key}
+
+    ## Goal
+    {goal}
+
+    ## Depends on
+    {depends_on}
+
+    ## Open questions
+    -
+
+    ## Evidence
+    -
+
+    ## Decisions
+    - (slice-local; product decisions go via add-decision)
+  findings_file_header: |-
+    # Findings
+
+    Append-only RCA / evidence log for this task.
+    Do not put long findings in the task YAML.
+  status_interrupt_hint: >-
+    Cursor parked (user-decision); interrupt work OK via investigate / add-finding / add-slice / block-slice
+  investigate_interrupt: |-
+    PI-JOB INVESTIGATE (interrupt)
+
+    Task file: {task_file}
+    Saved cursor: {cursor_label} (do not advance / finish / claim it)
+    Topic: {topic}
+
+    Rules:
+    - This is side work against the task; the parked cursor stays parked.
+    - Do not run advance/finish/start on the saved cursor for this investigation.
+    - Record RCA/evidence with: pi-job --task {task_file} add-finding --note '...'
+      (appends to {pointer}; never long YAML).
+    - Product/scope agreements still use add-decision (prefer short / --plan-file).
+    - When the fix is clear: add-slice and/or block-slice --gate <fix-slice>.
+
+    {finding_status}
+
+    Suggested follow-ups (manual):
+      pi-job --task {task_file} add-finding --note '<evidence>' --source '{source}'
+      pi-job --task {task_file} add-slice --kind fog|implement --key <key> ...
+      pi-job --task {task_file} block-slice --key <closing> --reason '...' --gate <fix-key>
+interrupt_park_steps:
+  - grill
+  - grill-plan
+  - clarify-scope
 step_kinds:
   explore-context:
     key: explore-context

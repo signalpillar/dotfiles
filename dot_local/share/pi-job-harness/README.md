@@ -719,12 +719,59 @@ What `pi-job` cares about most:
 
 Notes for agents (and humans) changing the harness Python, not for orchestrating tasks.
 
-- Run `uvx ruff@latest check .` from this package directory after Python edits (see Test below).
-- Prefer a named class as the boundary for a coherent feature surface (formatting, export, layout, policy).
-  Keep free functions for thin wiring (`cmd_*`, argparse, TaskStore I/O).
-  Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
-  Do not scatter matching helpers (`node_id`, `classDef`, edge assembly) beside unrelated `show` tree code.
-  Follow the same pattern when adding similar exporters or viewers.
+Prefer this shape when extending interrupt / sidecar / render behaviour.
+Put side effects on the edge; keep the middle pure.
+
+### Shape
+
+| Layer | Owns | Does not |
+|---|---|---|
+| `YamlTaskLayout` / `TaskLayout` | Pure path arithmetic under `<stem>.plans/` and task siblings | Clock, I/O, profile text |
+| `YamlTaskStore` (and other stores) | Task YAML + sibling `.plans/` reads/writes under `exclusive()`; atomic replace | Hardcoded instruction/packet bodies |
+| `render_*` / packet helpers | Pure strings from task mappings, injected plan bodies, and profile templates | Disk reads, mutations |
+| `cmd_*` | Argparse, validate-at-edge, open store, load bytes for render, print | Business mutation logic duplicated outside the store |
+
+### Sibling `.plans/` (YAML)
+
+| Concern | Store / layout API | Notes |
+|---|---|---|
+| Slice plan stub | `ensure_slice_plan_stub` | Profile `slice_plan_stub`; create-plan kinds only; atomic write under lock |
+| Findings log | `add_finding` → `layout.findings_file()` (`_findings.md`) | Append-only; header from `findings_file_header` |
+| Long decision spill | `add_decision(..., spill_body=, spill_path=)` | Soft-limit or `--plan-file`; layout path needs caller `stamp` |
+| Block + optional gate | `block_slice(..., gate=)` | One mutation (status/note + `depends_on`) |
+
+CLI must not `write_text` these sidecars directly.
+Clocks (`utc_now`) and path stamps live in the store/cmd edge, not in layout.
+
+### Profile vs Python
+
+Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `cli_help`, `interrupt_park_steps`).
+Python loads and formats them; it must not hardcode parallel copy.
+Examples: `status_interrupt_hint`, `investigate_interrupt`, `slice_plan_stub`, `findings_file_header`.
+
+### Render
+
+`markdown --slice` is lean by default (slice body + optional injected plan file).
+Opt in with `--with-decisions` / `--with-preamble`.
+`cmd_markdown` reads plan file bytes at the edge and passes `plan_bodies` / `plan_labels` into pure `render_task_markdown`.
+
+### Class boundaries
+
+Prefer a named class as the boundary for a coherent feature surface (formatting, export, layout, policy).
+Keep free functions for thin wiring (`cmd_*`, argparse, store open/close).
+Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
+Do not scatter matching helpers (`node_id`, `classDef`, edge assembly) beside unrelated `show` tree code.
+Follow the same pattern when adding similar exporters or viewers.
+
+### Residual (acceptable)
+
+- `load_profile_contract()` inside packet/`render_*` helpers (cached; same pattern as the rest of the harness).
+- Findings append is read-modify-write under the task lock (required for append-only markdown).
+- Nested `exclusive()` reuses `_lock_depth` (spill write + YAML mutate in one outer lock).
+
+### Check
+
+Run `uvx ruff@latest check .` from this package directory after Python edits (see Test below).
 
 ## Test
 

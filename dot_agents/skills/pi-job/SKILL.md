@@ -68,8 +68,9 @@ Start the slice with `start --slice-only --model <orchestrator>` when needed.
 
 Prefer packet guidance. Typical shape:
 
-- `status` | `plan` | `markdown [--slice SLICE_KEY]` | `show [--slice SLICE_KEY]` | `instruction`
-- Subagent-owned steps: the packet orders `markdown --slice` first for binding `## Decisions`
+- `status` | `plan` | `markdown [--slice SLICE_KEY] [--with-decisions]` | `show [--slice SLICE_KEY]` | `instruction`
+- Subagent-owned steps: the packet orders `markdown --slice --with-decisions` first for binding `## Decisions`
+- Interrupt/RCA while cursor is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not advance the saved cursor
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).

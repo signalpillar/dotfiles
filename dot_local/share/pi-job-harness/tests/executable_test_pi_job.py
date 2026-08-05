@@ -6251,13 +6251,25 @@ def test_markdown_slice_scopes_to_one_slice() -> None:
         write_task_yaml(task, _markdown_representative_mapping())
 
         out = run(str(PI_JOB), "--task", str(task), "markdown", "--slice", "active-slice").stdout
-        assert_contains(out, "## Decisions")
-        assert_contains(out, "](#slice-active-slice)")
+        assert_not_contains(out, "## Decisions")
+        assert_not_contains(out, "## Context")
+        assert_not_contains(out, "## Contents")
         assert_contains(out, "### active-slice (current)")
         assert_contains(out, "#### Steps")
         assert_contains(out, "**edit-code** (current)")
         assert_not_contains(out, "### done-slice")
-        assert_not_contains(out, "](#slice-done-slice)")
+
+        with_dec = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "markdown",
+            "--slice",
+            "active-slice",
+            "--with-decisions",
+        ).stdout
+        assert_contains(with_dec, "## Decisions")
+        assert_contains(with_dec, "### active-slice (current)")
 
         missing = run(str(PI_JOB), "--task", str(task), "markdown", "--slice", "nope", check=False)
         if missing.returncode == 0:
@@ -6324,6 +6336,251 @@ def test_markdown_read_only() -> None:
         after = hashlib.sha256(task.read_bytes()).hexdigest()
         if before != after:
             raise AssertionError("markdown preview must not mutate the task file")
+
+
+def test_block_slice_gate_appends_depends_on() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "block-gate.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"].append(
+            {
+                "key": "fix-slice",
+                "kind": "implement",
+                "title": "Fix",
+                "goal": "Unblock",
+                "status": "planned",
+                "note": "",
+                "steps": [],
+                "final_steps": [],
+            }
+        )
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "block-slice",
+            "--key",
+            "implementation",
+            "--reason",
+            "Needs fix",
+            "--gate",
+            "fix-slice",
+        )
+        module = load_pi_job_module()
+        blocked = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        assert blocked["status"] == "blocked"
+        assert "fix-slice" in blocked.get("depends_on", [])
+
+
+def test_add_finding_appends_sidecar_not_yaml() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "findings.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        before = task.read_text(encoding="utf-8")
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-finding",
+            "--note",
+            "Root cause: status Active too early",
+            "--source",
+            "test",
+        )
+        after = task.read_text(encoding="utf-8")
+        assert before == after
+        module = load_pi_job_module()
+        store = module.YamlTaskStore(task)
+        findings = store.layout.findings_file()
+        assert findings == Path(tmp) / "findings.plans" / "_findings.md"
+        assert findings.is_file()
+        body = findings.read_text(encoding="utf-8")
+        assert_contains(body, "Root cause: status Active too early")
+        assert_contains(body, "(test)")
+        assert store.layout.findings_pointer() == "findings.plans/_findings.md"
+
+
+def test_yaml_task_layout_owns_plans_paths() -> None:
+    module = load_pi_job_module()
+    task = Path("/tmp/demo/my-task.yaml")
+    layout = module.YamlTaskLayout(task)
+    assert layout.plans_dir == Path("/tmp/demo/my-task.plans")
+    assert layout.findings_file() == Path("/tmp/demo/my-task.plans/_findings.md")
+    assert layout.slice_plan_file("alpha") == Path("/tmp/demo/my-task.plans/alpha.md")
+    assert layout.findings_pointer() == "my-task.plans/_findings.md"
+
+
+def test_add_decision_spills_long_note_to_plan_file() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "spill.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        long_note = "x" * 2500
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-decision",
+            "--note",
+            long_note,
+            "--source",
+            "spill-test",
+        )
+        module = load_pi_job_module()
+        decisions = module.YamlTaskStore(task).read().get("decisions") or []
+        assert decisions
+        yaml_note = decisions[-1]["note"]
+        assert yaml_note.startswith("Plan file:")
+        assert long_note not in yaml_note
+        rel = yaml_note.removeprefix("Plan file: ").strip()
+        spilled = (task.parent / rel).resolve()
+        assert spilled.is_file()
+        assert long_note in spilled.read_text(encoding="utf-8")
+
+
+def test_add_slice_creates_plan_stub() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "stub.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-slice",
+            "--key",
+            "new-impl",
+            "--kind",
+            "implement",
+            "--title",
+            "New",
+            "--goal",
+            "Ship a stub",
+            "--repos",
+            "chezmoi",
+        )
+        stub = Path(tmp) / "stub.plans" / "new-impl.md"
+        assert stub.is_file()
+        body = stub.read_text(encoding="utf-8")
+        module = load_pi_job_module()
+        template = module.load_profile_contract()["instruction_packets"]["slice_plan_stub"]
+        # Stub body must come from the profile template, not a Python hardcode.
+        assert_contains(template, "## Open questions")
+        assert_contains(body, "## Open questions")
+        assert_contains(body, "## Goal")
+        assert_contains(body, "Ship a stub")
+        assert_contains(body, "# new-impl")
+
+
+def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
+    module = load_pi_job_module()
+    packets = module.load_profile_contract()["instruction_packets"]
+    assert_contains(packets["slice_plan_stub"], "{key}")
+    assert_contains(packets["slice_plan_stub"], "{goal}")
+    assert_contains(packets["slice_plan_stub"], "{depends_on}")
+    assert_contains(packets["findings_file_header"], "# Findings")
+    assert_contains(packets["status_interrupt_hint"], "investigate")
+    assert_contains(packets["investigate_interrupt"], "{topic}")
+    assert_contains(packets["investigate_interrupt"], "{finding_status}")
+    park = module.load_profile_contract()["interrupt_park_steps"]
+    assert "grill-plan" in park
+    assert "clarify-scope" in park
+    for field in (
+        "slice_plan_stub",
+        "findings_file_header",
+        "status_interrupt_hint",
+        "investigate_interrupt",
+    ):
+        profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+        del profile["instruction_packets"][field]
+        try:
+            module.ProfileDocument.model_validate(profile)
+        except module.ValidationError as exc:
+            assert_contains(str(exc), field)
+        else:
+            raise AssertionError(
+                f"profile accepted instruction_packets without required {field}"
+            )
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["interrupt_park_steps"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "interrupt_park_steps")
+    else:
+        raise AssertionError("profile accepted without required interrupt_park_steps")
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    profile["interrupt_park_steps"] = ["grill-plan", "not-a-real-step"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "not-a-real-step")
+    else:
+        raise AssertionError("profile accepted unknown interrupt_park_steps entry")
+
+
+def test_status_shows_blocked_and_interrupt_hint() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "status-ux.yaml"
+        mapping = lifecycle_mapping()
+        mapping["orchestration"]["cursor"] = {"slice": "implementation", "step": "grill-plan"}
+        mapping["plan"]["slices"][0]["steps"] = [
+            {"key": "grill-plan", "title": "Grill", "status": "planned", "note": ""},
+        ]
+        mapping["plan"]["slices"][0]["status"] = "blocked"
+        mapping["plan"]["slices"][0]["note"] = "GP PIN fails after treatment-change"
+        # grill-plan requires user decision; but slice is blocked - still show hint from step kind
+        # Use a second slice as cursor host that is not blocked
+        mapping["plan"]["slices"].append(
+            {
+                "key": "other",
+                "kind": "implement",
+                "title": "Other",
+                "goal": "Parked grill",
+                "status": "in_progress",
+                "note": "",
+                "steps": [
+                    {"key": "grill-plan", "title": "Grill plan", "status": "planned", "note": ""},
+                ],
+                "final_steps": [],
+            }
+        )
+        mapping["orchestration"]["cursor"] = {"slice": "other", "step": "grill-plan"}
+        write_task_yaml(task, mapping)
+        out = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(out, "Blocked:")
+        assert_contains(out, "implementation")
+        assert_contains(out, "Cursor parked")
+        assert_contains(out, "investigate")
+
+
+def test_investigate_does_not_move_cursor() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "investigate.yaml"
+        mapping = lifecycle_mapping()
+        mapping["orchestration"]["cursor"] = {
+            "slice": "implementation",
+            "step": "vulnerability-scan",
+        }
+        write_task_yaml(task, mapping)
+        out = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "investigate",
+            "--topic",
+            "already-active",
+            "--note",
+            "Evidence chain complete",
+        ).stdout
+        assert_contains(out, "PI-JOB INVESTIGATE")
+        assert_contains(out, "do not advance")
+        module = load_pi_job_module()
+        cursor = module.YamlTaskStore(task).read()["orchestration"]["cursor"]
+        assert cursor["slice"] == "implementation"
+        assert cursor["step"] == "vulnerability-scan"
+        findings = Path(tmp) / "investigate.plans" / "_findings.md"
+        assert findings.is_file()
+        assert_contains(findings.read_text(encoding="utf-8"), "Evidence chain complete")
 
 
 def main() -> None:
@@ -6552,6 +6809,14 @@ def main() -> None:
     test_markdown_summary_and_slice_are_mutually_exclusive()
     test_markdown_validation_failure()
     test_markdown_read_only()
+    test_block_slice_gate_appends_depends_on()
+    test_add_finding_appends_sidecar_not_yaml()
+    test_yaml_task_layout_owns_plans_paths()
+    test_add_decision_spills_long_note_to_plan_file()
+    test_add_slice_creates_plan_stub()
+    test_profile_requires_slice_plan_stub_and_findings_header()
+    test_status_shows_blocked_and_interrupt_hint()
+    test_investigate_does_not_move_cursor()
     print("pi-job tests passed")
 
 
