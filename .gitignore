@@ -2,3 +2,6 @@
 
 # Local pi-job task stores (machine-owned; do not commit)
 /pi-job-markdown-preview.task.yaml
+
+# FogLAMP scan lock (editToken is secret)
+.foglamp/

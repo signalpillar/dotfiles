@@ -1,0 +1,1354 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>FogLAMP Scan Viewer</title>
+    <script type="module" src="https://jelly-ui.com/package.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/open-props">
+    <link rel="stylesheet" href="prototype-base.css">
+    <link rel="stylesheet" href="prototype-jelly.css">
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <style>
+      body {
+        font-family: var(--font-sans, system-ui, sans-serif);
+        background: var(--gray-1, #f8fafc);
+        color: var(--gray-9, #0f172a);
+      }
+
+      .shell {
+        inline-size: min(88rem, 100%);
+        margin-inline: auto;
+        padding: max(var(--size-3), env(safe-area-inset-top)) var(--size-3)
+          max(var(--size-8), env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--size-3);
+      }
+
+      .masthead h1 {
+        margin: 0;
+        font-size: clamp(1.6rem, 5vw, 2.4rem);
+        letter-spacing: -0.04em;
+        line-height: 1.1;
+      }
+
+      .kicker {
+        display: block;
+        margin-block-end: var(--size-1);
+        color: var(--gray-6, #64748b);
+        font-size: var(--font-size-0);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .masthead p {
+        margin: var(--size-2) 0 0;
+        color: var(--gray-7, #475569);
+        max-inline-size: 42rem;
+        line-height: 1.45;
+      }
+
+      jelly-tabs::part(tabs) { max-inline-size: 100%; }
+
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-2);
+        align-items: center;
+      }
+
+      .map-panel {
+        display: grid;
+        gap: var(--size-2);
+      }
+
+      .map-stage {
+        position: relative;
+        block-size: min(70vh, 40rem);
+        min-block-size: 18rem;
+        border: 1px solid var(--gray-4, #cbd5e1);
+        border-radius: var(--radius-2);
+        background:
+          radial-gradient(circle at 12% 0%, rgba(37, 99, 235, 0.08), transparent 18rem),
+          radial-gradient(circle at 90% 10%, rgba(219, 39, 119, 0.07), transparent 16rem),
+          #fff;
+        overflow: clip;
+      }
+
+      .map-empty {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: var(--size-2);
+        padding: var(--size-4);
+        text-align: center;
+        color: var(--gray-7, #475569);
+      }
+
+      .map-empty h2 { margin: 0; color: var(--gray-9, #0f172a); }
+
+      .map-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-2);
+        color: var(--gray-7, #475569);
+        font-size: var(--font-size-0);
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.55rem;
+        border-radius: var(--radius-2);
+        background: var(--gray-2, #e2e8f0);
+      }
+
+      .swatch {
+        inline-size: 0.65rem;
+        block-size: 0.65rem;
+        border-radius: 999px;
+      }
+
+      .detail-card {
+        display: grid;
+        gap: var(--size-2);
+        padding: var(--size-3);
+        border: 1px solid var(--gray-4, #cbd5e1);
+        border-radius: var(--radius-2);
+        background: #fff;
+      }
+
+      .detail-card h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .detail-card p {
+        margin: 0;
+        line-height: 1.45;
+        color: var(--gray-8, #1e293b);
+      }
+
+      .muted { color: var(--gray-6, #64748b); font-size: var(--font-size-0); }
+
+      .prompt-panel {
+        display: grid;
+        gap: var(--size-3);
+      }
+
+      .prompt-toolbar {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 1;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-2);
+        align-items: center;
+        padding-block: var(--size-2);
+        background: color-mix(in oklab, var(--gray-1, #f8fafc) 88%, transparent);
+        backdrop-filter: blur(6px);
+      }
+
+      .prompt-pre {
+        margin: 0;
+        padding: var(--size-3);
+        border: 1px solid var(--gray-4, #cbd5e1);
+        border-radius: var(--radius-2);
+        background: #0b1220;
+        color: #e2e8f0;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+        font-size: 0.85rem;
+        line-height: 1.45;
+        max-block-size: min(70vh, 42rem);
+      }
+
+      .copy-result {
+        min-block-size: 1.25rem;
+        color: var(--gray-7, #475569);
+        font-size: var(--font-size-0);
+      }
+
+      .load-area {
+        display: grid;
+        gap: var(--size-2);
+      }
+
+      .load-area textarea {
+        inline-size: 100%;
+        min-block-size: 12rem;
+        padding: var(--size-3);
+        border: 1px solid var(--gray-4, #cbd5e1);
+        border-radius: var(--radius-2);
+        background: #fff;
+        resize: vertical;
+        font-family: var(--font-mono, ui-monospace, monospace);
+        font-size: 0.85rem;
+      }
+
+      .issue {
+        color: #b91c1c;
+        font-size: var(--font-size-0);
+      }
+
+      .fallback-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-2);
+      }
+
+      @media (min-width: 64rem) {
+        .map-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+          gap: var(--size-3);
+          align-items: start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <jelly-theme mode="light">
+      <div class="shell" id="shell"></div>
+    </jelly-theme>
+
+    <script type="application/json" id="manifest">
+{
+  "title": "FogLAMP Scan Viewer",
+  "kicker": "Codebase map",
+  "tagline": "Pan a scan graph locally. Copy the fixed agent prompt for the next run.",
+  "defaultTab": "map",
+  "tabs": [
+    {
+      "id": "map",
+      "label": "Map"
+    },
+    {
+      "id": "prompt",
+      "label": "Prompt"
+    }
+  ],
+  "storageKey": "foglamp-scan-viewer:v1",
+  "tabSize": "small",
+  "timing": {
+    "copyResetMs": 2000,
+    "fitDelayMs": 80
+  },
+  "kinds": {
+    "entry": {
+      "color": "#2563eb",
+      "label": "Entry"
+    },
+    "cron": {
+      "color": "#7c3aed",
+      "label": "Cron"
+    },
+    "agent": {
+      "color": "#db2777",
+      "label": "Agent"
+    },
+    "model": {
+      "color": "#ea580c",
+      "label": "Model"
+    },
+    "tool": {
+      "color": "#0891b2",
+      "label": "Tool"
+    },
+    "service": {
+      "color": "#4f46e5",
+      "label": "Service"
+    },
+    "store": {
+      "color": "#059669",
+      "label": "Store"
+    },
+    "external": {
+      "color": "#64748b",
+      "label": "External"
+    }
+  },
+  "edgeKinds": {
+    "calls": "#334155",
+    "reads": "#0f766e",
+    "writes": "#b45309",
+    "triggers": "#7c3aed"
+  },
+  "copy": {
+    "loadButton": "Load JSON",
+    "resetButton": "Sample scan",
+    "fitButton": "Fit",
+    "copyPrompt": "Copy prompt",
+    "copySuccess": "Copied.",
+    "copyFailure": "Copy failed.",
+    "copyManualHint": "Select the text and copy manually.",
+    "emptyTitle": "No scan loaded",
+    "emptyBody": "Load a scan.json, or use the sample from this repo.",
+    "promptHint": "Paste this into an agent session against the target repo. It only asks for .foglamp/scan.json (or a paste into this viewer). No upload or public link.",
+    "loadTitle": "Load scan JSON",
+    "loadApply": "Apply",
+    "loadClose": "Close",
+    "invalidJson": "Could not parse JSON.",
+    "invalidScan": "JSON must include graph.nodes and graph.edges.",
+    "detailEmpty": "Click a node for detail."
+  },
+  "prompt": "Analyze THIS repository and produce a \"codebase scan\" -\na map of how the codebase works and how it uses AI. You produce only the data\n(a small JSON object); a fixed renderer draws the scan. Write no HTML or CSS.\n\n## Steps\n1. Investigate the repo and build the JSON below.\n2. Write the JSON to `.foglamp/scan.json`, or paste it into the FogLAMP scan viewer prototype (Map tab → Load JSON).\n\n## How to investigate\n- Find where AI runs: generateText / streamText / generateObject / streamObject,\n  @ai-sdk/* providers, agent loops, tool definitions (tool({...})).\n- Identify the models and their provider (OpenAI, Anthropic, Google, …).\n- Identify tools models can call (Exa, Firecrawl, Parallel, DB queries, internal\n  functions) and external integrations/services.\n- Map the business logic too: the internal services/pipelines the product is\n  built from (billing, ingestion, background workers, domain services) - these\n  become \"service\" nodes, and the interesting sentence goes on the edge\n  (e.g. \"charges Stripe on trial end\").\n- Map the main flows: entry points (routes, webhooks, pages, CLIs), scheduled jobs\n  (crons/queues/workers), the agents, the models/tools they use, and the\n  datastores/services they read and write.\n\n## Output contract - write EXACTLY this shape\n{\n  \"version\": 1,\n  \"project\": {\n    \"name\": \"string (<=48)\",\n    \"slug\": \"lowercase-dashed (<=48)\",\n    \"tagline\": \"one line (<=80, optional)\",\n    \"iconDomain\": \"favicon domain for the project, e.g. acme.com (optional)\",\n    \"date\": \"YYYY-MM-DD\"\n  },\n  \"stats\": { \"agents\": 0, \"models\": 0, \"tools\": 0, \"integrations\": 0 },\n  \"topModels\":       [ { \"id\": \"gpt-4o\", \"label\": \"GPT-4o\", \"domain\": \"openai.com\" } ],\n  \"topTools\":        [ { \"id\": \"exa\", \"label\": \"Exa\", \"domain\": \"exa.ai\" } ],\n  \"topIntegrations\": [ { \"id\": \"stripe\", \"label\": \"Stripe\", \"domain\": \"stripe.com\" } ],\n  \"graph\": {\n    \"nodes\": [\n      { \"id\": \"chat\", \"label\": \"Dashboard chat\", \"kind\": \"entry\", \"sub\": \"/api/chat\" },\n      { \"id\": \"agent\", \"label\": \"Support agent\", \"kind\": \"agent\", \"sub\": \"streamText\",\n        \"sourceRef\": \"src/agents/support.ts:42\",\n        \"detail\": \"Answers tickets with order lookups (<=200, optional)\" },\n      { \"id\": \"gpt4o\", \"label\": \"GPT-4o\", \"kind\": \"model\", \"domain\": \"openai.com\" },\n      { \"id\": \"billing\", \"label\": \"Billing service\", \"kind\": \"service\",\n        \"sourceRef\": \"src/services/billing.ts\" },\n      { \"id\": \"pg\", \"label\": \"Postgres\", \"kind\": \"store\", \"domain\": \"postgresql.org\" }\n    ],\n    \"edges\": [\n      { \"from\": \"chat\", \"to\": \"agent\", \"kind\": \"triggers\" },\n      { \"from\": \"agent\", \"to\": \"gpt4o\", \"kind\": \"calls\" },\n      { \"from\": \"billing\", \"to\": \"pg\", \"kind\": \"writes\", \"label\": \"charges on trial end\" }\n    ]\n  }\n}\n\n## Rules (these keep every scan consistent - do not break them)\n- Caps: topModels <= 3, topTools <= 10, topIntegrations <= 10, graph.nodes <= 60,\n  graph.edges <= 120. One map holds everything - AI flows AND business logic.\n  Big maps are welcome (the viewer pans); aim for 20-40 nodes on a substantial\n  codebase. Rich, not sparse - but every node must earn its place.\n- Give every distinct agent its OWN node when there are <= 10 agents; only\n  merge agents into one node when they are numerous and near-identical (then\n  say so in sub, e.g. \"12 near-identical scrapers\"). Chain agents with\n  agent->agent edges when one feeds the next.\n- group (optional, <=24): tag related nodes with a shared group name - those\n  nodes render as one labeled vertical stack. Group by feature/domain the way a\n  team would say it (\"Billing\", \"Ingestion\", \"Setup pipeline\"), not by file\n  layout. Use 2-3 groups of 3-6 nodes; leave hub-and-spoke nodes ungrouped.\n- Node labels <= 28 chars, sub <= 40, edge labels <= 24.\n- kind is one of: entry (trigger/route/page/CLI), cron (scheduled job), agent,\n  model, tool, service (internal business-logic module/pipeline the project\n  owns), store (DB/cache/index), external (3rd-party API).\n- Edge kind (optional): \"calls\" | \"reads\" | \"writes\" | \"triggers\" - what the\n  connection does. Prefer setting it; it's shown quietly (revealed when a flow\n  is traced). Add a label only when a specific phrase says more (e.g. \"charges\n  on trial end\" - put the business logic on edges); labels are always visible.\n- domain is a favicon domain with no scheme (openai.com, anthropic.com, exa.ai,\n  clickhouse.com). Add it to anything a recognizable company/product owns; omit it\n  for purely internal nodes (entries, crons, services, internal tools). Use the\n  product domain for models (gemini.google.com for Gemini, claude.ai for Claude).\n- detail (optional, <=200) is shown when a node is clicked - one sentence of\n  what it does. sourceRef (optional, <=120) is the repo path (plus :line) where\n  the node lives, e.g. \"src/agents/support.ts:42\" - add it to internal nodes so\n  teammates can jump to code.\n- Every edge's from/to must reference an existing node id; ids unique.\n- Use today's date for project.date.\n",
+  "sampleScan": {
+    "version": 1,
+    "project": {
+      "name": "signalpillar/dotfiles",
+      "slug": "signalpillar-dotfiles",
+      "tagline": "Chezmoi dotfiles with durable AI job orchestration",
+      "iconDomain": "chezmoi.io",
+      "date": "2026-08-06"
+    },
+    "stats": {
+      "agents": 3,
+      "models": 3,
+      "tools": 7,
+      "integrations": 8
+    },
+    "topModels": [
+      {
+        "id": "gpt-5",
+        "label": "GPT-5",
+        "domain": "openai.com"
+      },
+      {
+        "id": "claude",
+        "label": "Claude",
+        "domain": "claude.ai"
+      },
+      {
+        "id": "gemini",
+        "label": "Gemini",
+        "domain": "gemini.google.com"
+      }
+    ],
+    "topTools": [
+      {
+        "id": "pi-job",
+        "label": "pi-job CLI",
+        "domain": "github.com"
+      },
+      {
+        "id": "grill-me",
+        "label": "grill-me"
+      },
+      {
+        "id": "share-with-team",
+        "label": "share-with-team"
+      },
+      {
+        "id": "mermaid-validate",
+        "label": "mermaid-validate",
+        "domain": "mermaid.js.org"
+      },
+      {
+        "id": "wayfinder",
+        "label": "wayfinder"
+      },
+      {
+        "id": "decision-deck",
+        "label": "decision-review-deck"
+      },
+      {
+        "id": "volod-style",
+        "label": "volod-style"
+      }
+    ],
+    "topIntegrations": [
+      {
+        "id": "github",
+        "label": "GitHub",
+        "domain": "github.com"
+      },
+      {
+        "id": "jira",
+        "label": "Jira",
+        "domain": "atlassian.com"
+      },
+      {
+        "id": "chezmoi",
+        "label": "chezmoi",
+        "domain": "chezmoi.io"
+      },
+      {
+        "id": "cursor",
+        "label": "Cursor",
+        "domain": "cursor.com"
+      },
+      {
+        "id": "claude-code",
+        "label": "Claude Code",
+        "domain": "claude.ai"
+      },
+      {
+        "id": "opencode",
+        "label": "OpenCode",
+        "domain": "opencode.ai"
+      },
+      {
+        "id": "homebrew",
+        "label": "Homebrew",
+        "domain": "brew.sh"
+      },
+      {
+        "id": "uv",
+        "label": "uv",
+        "domain": "astral.sh"
+      }
+    ],
+    "graph": {
+      "nodes": [
+        {
+          "id": "chezmoi-apply",
+          "label": "chezmoi apply",
+          "kind": "entry",
+          "sub": "dotfiles deploy",
+          "sourceRef": "README.md",
+          "detail": "Applies Brewfile, shells, agent skills, and pi-job harness onto a machine."
+        },
+        {
+          "id": "box-setup",
+          "label": "Box setup scripts",
+          "kind": "service",
+          "sub": "run_onchange_*.tmpl",
+          "sourceRef": "run_onchange_setup_box.sh.tmpl",
+          "detail": "Idempotent OS bootstrap after chezmoi apply for macOS and Linux boxes."
+        },
+        {
+          "id": "brewfile",
+          "label": "Brewfile",
+          "kind": "service",
+          "sub": "packages + AI CLIs",
+          "sourceRef": "Brewfile",
+          "detail": "Pins CLI and cask deps including gemini-cli, gh, cue, and Claude Code."
+        },
+        {
+          "id": "homebrew",
+          "label": "Homebrew",
+          "kind": "external",
+          "domain": "brew.sh"
+        },
+        {
+          "id": "agents-md",
+          "label": "AGENTS.md",
+          "kind": "entry",
+          "sub": "global agent rules",
+          "sourceRef": "AGENTS.md",
+          "detail": "Tells every coding agent to drive durable work through pi-job, not chat memory."
+        },
+        {
+          "id": "cursor-agent",
+          "label": "Cursor agent",
+          "kind": "entry",
+          "sub": "cursor-agent CLI",
+          "sourceRef": "functions.sh:637",
+          "detail": "Shell helper that launches Cursor's agent CLI as a host for the orchestrator loop."
+        },
+        {
+          "id": "claude-code",
+          "label": "Claude Code",
+          "kind": "entry",
+          "sub": "cask claude-code",
+          "sourceRef": "Brewfile:80",
+          "domain": "claude.ai",
+          "detail": "Installed Anthropic coding agent that loads AGENTS.md and pi-job skills."
+        },
+        {
+          "id": "opencode",
+          "label": "OpenCode",
+          "kind": "entry",
+          "sub": "opencode.ai install",
+          "sourceRef": "install_opencode.sh",
+          "domain": "opencode.ai",
+          "detail": "Optional OpenCode host with mirrored skills under dot_config/opencode."
+        },
+        {
+          "id": "gemini-cli",
+          "label": "Gemini CLI",
+          "kind": "entry",
+          "sub": "brew gemini-cli",
+          "sourceRef": "functions.sh:625",
+          "domain": "gemini.google.com",
+          "detail": "Google Gemini coding CLI available via Brewfile and a local shell wrapper."
+        },
+        {
+          "id": "pi-job-cli",
+          "label": "pi-job CLI",
+          "kind": "entry",
+          "sub": "status/instruction/advance",
+          "group": "pi-job harness",
+          "sourceRef": "dot_local/share/pi-job-harness/bin/executable_pi-job",
+          "detail": "Deterministic task CLI: validates state, emits instruction packets, never spawns agents."
+        },
+        {
+          "id": "profile",
+          "label": "profile.yaml",
+          "kind": "store",
+          "sub": "step + slice kinds",
+          "group": "pi-job harness",
+          "sourceRef": "dot_local/share/pi-job-harness/profile.yaml",
+          "detail": "Live contract for owners, guidance, validators, toolbelt, and slice templates."
+        },
+        {
+          "id": "task-store",
+          "label": "YAML TaskStore",
+          "kind": "service",
+          "sub": "machine-owned state",
+          "group": "pi-job harness",
+          "sourceRef": "dot_local/share/pi-job-harness/bin/executable_pi-job:1574",
+          "detail": "Atomic YAML task backend with content digests; CUE store kept for migration."
+        },
+        {
+          "id": "task-yaml",
+          "label": "Task YAML files",
+          "kind": "store",
+          "sub": "slices + cursor",
+          "group": "pi-job harness",
+          "detail": "Durable plan, decisions, evidence, PR records, and saved cursor per job."
+        },
+        {
+          "id": "plan-files",
+          "label": "Sibling plan files",
+          "kind": "store",
+          "sub": "<task>.plans/*.md",
+          "group": "pi-job harness",
+          "detail": "Per-slice constraint contracts written by create-plan, grilled before code."
+        },
+        {
+          "id": "packets",
+          "label": "Instruction packets",
+          "kind": "service",
+          "sub": "deterministic prompts",
+          "group": "pi-job harness",
+          "sourceRef": "dot_local/share/pi-job-harness/profile.yaml:179",
+          "detail": "Emits orchestrator and subagent packets with owners, validators, and next actions."
+        },
+        {
+          "id": "orchestrator",
+          "label": "Orchestrator agent",
+          "kind": "agent",
+          "sub": "CLI-only store owner",
+          "group": "Agent loop",
+          "sourceRef": "dot_agents/skills/pi-job/SKILL.md",
+          "detail": "Smart host model that loops status → instruction → start → work → finish → advance."
+        },
+        {
+          "id": "coding-sub",
+          "label": "Coding subagent",
+          "kind": "agent",
+          "sub": "create-plan + edit-code",
+          "group": "Agent loop",
+          "sourceRef": "dot_local/share/pi-job-harness/profile.yaml:404",
+          "detail": "Lower-power subagent for planning and edits; orchestrator reviews before advance."
+        },
+        {
+          "id": "vuln-scan",
+          "label": "Vuln scan agent",
+          "kind": "agent",
+          "sub": "distinct model required",
+          "group": "Agent loop",
+          "sourceRef": "dot_local/share/pi-job-harness/profile.yaml:425",
+          "detail": "Optional independent vulnerability reviewer whose model must differ from edit-code."
+        },
+        {
+          "id": "gpt5",
+          "label": "GPT-5",
+          "kind": "model",
+          "domain": "openai.com",
+          "detail": "Recorded orchestrator model id in sample tasks (openai/gpt-5.6-sol)."
+        },
+        {
+          "id": "claude-model",
+          "label": "Claude",
+          "kind": "model",
+          "domain": "claude.ai"
+        },
+        {
+          "id": "gemini-model",
+          "label": "Gemini",
+          "kind": "model",
+          "domain": "gemini.google.com"
+        },
+        {
+          "id": "grill-me",
+          "label": "grill-me skill",
+          "kind": "tool",
+          "sub": "decision-tree interview",
+          "group": "Agent loop",
+          "sourceRef": "dot_agents/skills/grill-me/SKILL.md",
+          "detail": "Relentless one-question-at-a-time grilling of scope or per-slice plans."
+        },
+        {
+          "id": "share-skill",
+          "label": "share-with-team",
+          "kind": "tool",
+          "sub": "ticket + PR",
+          "group": "Agent loop",
+          "sourceRef": "dot_agents/skills/share-with-team/SKILL.md",
+          "detail": "Opens/updates Jira tickets and GitHub PRs from completed implement slices."
+        },
+        {
+          "id": "wayfinder",
+          "label": "wayfinder skill",
+          "kind": "tool",
+          "sub": "chart the fog",
+          "sourceRef": "dot_local/share/pi-job-harness/profile.yaml:368",
+          "detail": "Maps unknowns into decisions and fog/implement/research slices via wayfinder-context."
+        },
+        {
+          "id": "mermaid-tool",
+          "label": "mermaid-validate",
+          "kind": "tool",
+          "sub": "parser check CLI",
+          "sourceRef": "dot_local/bin/executable_mermaid-validate",
+          "domain": "mermaid.js.org",
+          "detail": "Runs Mermaid's real parser before diagrams are shown to humans."
+        },
+        {
+          "id": "decision-deck",
+          "label": "decision-review-deck",
+          "kind": "tool",
+          "sub": "2-min async deck",
+          "sourceRef": "dot_agents/skills/decision-review-deck/SKILL.md",
+          "detail": "Turns durable task decisions into a skim-friendly ASCII review deck."
+        },
+        {
+          "id": "toolbelt",
+          "label": "Planning toolbelt",
+          "kind": "tool",
+          "sub": "httpyac, matrices…",
+          "sourceRef": "dot_local/share/pi-job-harness/profile.yaml:64",
+          "detail": "Catalog of planning aids (API specs, flag matrices, data sketches) selected during setup."
+        },
+        {
+          "id": "github",
+          "label": "GitHub",
+          "kind": "external",
+          "domain": "github.com",
+          "detail": "PRs via gh, Pages for prototypes, and raw self-install of the harness."
+        },
+        {
+          "id": "jira",
+          "label": "Jira",
+          "kind": "external",
+          "domain": "atlassian.com",
+          "detail": "Ticket tracking from share-with-team and OpenCode jira-planning skill."
+        },
+        {
+          "id": "uv",
+          "label": "uv",
+          "kind": "external",
+          "domain": "astral.sh",
+          "detail": "Runs pi-job via PEP 723 script metadata with pinned Python 3.12."
+        },
+        {
+          "id": "proto-kit",
+          "label": "Prototype kit",
+          "kind": "service",
+          "sub": "one-file HTML apps",
+          "group": "Prototypes",
+          "sourceRef": "prototypes/AGENTS.md",
+          "detail": "Manifest-driven static prototypes with Jelly UI, Open Props, and Playwright tests."
+        },
+        {
+          "id": "gh-pages",
+          "label": "GitHub Pages",
+          "kind": "entry",
+          "sub": "static publish",
+          "group": "Prototypes",
+          "domain": "github.com",
+          "detail": "Serves throwaway HTML prototypes from the repo without a build step."
+        },
+        {
+          "id": "webllm",
+          "label": "WebLLM chat",
+          "kind": "external",
+          "sub": "in-browser model",
+          "group": "Prototypes",
+          "sourceRef": "prototypes/browser-llm-chat.html",
+          "domain": "webllm.mlc.ai",
+          "detail": "Prototype loads a small WebLLM model in-browser via WebGPU."
+        },
+        {
+          "id": "playwright",
+          "label": "Playwright tests",
+          "kind": "service",
+          "sub": "prototype.tests/*",
+          "group": "Prototypes",
+          "sourceRef": "prototype.tests/AGENTS.md",
+          "domain": "playwright.dev",
+          "detail": "Chromium e2e checks for prototype layout, manifests, and CDN fallbacks."
+        }
+      ],
+      "edges": [
+        {
+          "from": "chezmoi-apply",
+          "to": "box-setup",
+          "kind": "triggers"
+        },
+        {
+          "from": "chezmoi-apply",
+          "to": "brewfile",
+          "kind": "triggers"
+        },
+        {
+          "from": "chezmoi-apply",
+          "to": "pi-job-cli",
+          "kind": "writes",
+          "label": "installs harness"
+        },
+        {
+          "from": "chezmoi-apply",
+          "to": "agents-md",
+          "kind": "writes"
+        },
+        {
+          "from": "brewfile",
+          "to": "homebrew",
+          "kind": "calls"
+        },
+        {
+          "from": "brewfile",
+          "to": "claude-code",
+          "kind": "writes",
+          "label": "cask install"
+        },
+        {
+          "from": "brewfile",
+          "to": "gemini-cli",
+          "kind": "writes"
+        },
+        {
+          "from": "agents-md",
+          "to": "orchestrator",
+          "kind": "triggers",
+          "label": "role = orchestrator"
+        },
+        {
+          "from": "cursor-agent",
+          "to": "orchestrator",
+          "kind": "triggers"
+        },
+        {
+          "from": "claude-code",
+          "to": "orchestrator",
+          "kind": "triggers"
+        },
+        {
+          "from": "claude-code",
+          "to": "claude-model",
+          "kind": "calls"
+        },
+        {
+          "from": "opencode",
+          "to": "orchestrator",
+          "kind": "triggers"
+        },
+        {
+          "from": "gemini-cli",
+          "to": "gemini-model",
+          "kind": "calls"
+        },
+        {
+          "from": "gemini-cli",
+          "to": "orchestrator",
+          "kind": "triggers"
+        },
+        {
+          "from": "orchestrator",
+          "to": "pi-job-cli",
+          "kind": "calls",
+          "label": "status/instruction"
+        },
+        {
+          "from": "orchestrator",
+          "to": "gpt5",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "claude-model",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "coding-sub",
+          "kind": "triggers",
+          "label": "dispatch subagent"
+        },
+        {
+          "from": "orchestrator",
+          "to": "vuln-scan",
+          "kind": "triggers",
+          "label": "if user accepts"
+        },
+        {
+          "from": "orchestrator",
+          "to": "grill-me",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "wayfinder",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "share-skill",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "decision-deck",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "mermaid-tool",
+          "kind": "calls"
+        },
+        {
+          "from": "orchestrator",
+          "to": "toolbelt",
+          "kind": "reads"
+        },
+        {
+          "from": "coding-sub",
+          "to": "gpt5",
+          "kind": "calls"
+        },
+        {
+          "from": "coding-sub",
+          "to": "plan-files",
+          "kind": "writes",
+          "label": "create-plan"
+        },
+        {
+          "from": "vuln-scan",
+          "to": "claude-model",
+          "kind": "calls",
+          "label": "≠ edit-code model"
+        },
+        {
+          "from": "pi-job-cli",
+          "to": "profile",
+          "kind": "reads"
+        },
+        {
+          "from": "pi-job-cli",
+          "to": "task-store",
+          "kind": "calls"
+        },
+        {
+          "from": "pi-job-cli",
+          "to": "packets",
+          "kind": "writes",
+          "label": "emits packet"
+        },
+        {
+          "from": "pi-job-cli",
+          "to": "uv",
+          "kind": "calls"
+        },
+        {
+          "from": "task-store",
+          "to": "task-yaml",
+          "kind": "writes"
+        },
+        {
+          "from": "packets",
+          "to": "orchestrator",
+          "kind": "triggers"
+        },
+        {
+          "from": "packets",
+          "to": "coding-sub",
+          "kind": "triggers"
+        },
+        {
+          "from": "grill-me",
+          "to": "plan-files",
+          "kind": "reads"
+        },
+        {
+          "from": "share-skill",
+          "to": "github",
+          "kind": "writes",
+          "label": "opens PR"
+        },
+        {
+          "from": "share-skill",
+          "to": "jira",
+          "kind": "writes",
+          "label": "opens ticket"
+        },
+        {
+          "from": "wayfinder",
+          "to": "task-store",
+          "kind": "writes",
+          "label": "add-slice fog"
+        },
+        {
+          "from": "gh-pages",
+          "to": "proto-kit",
+          "kind": "triggers"
+        },
+        {
+          "from": "proto-kit",
+          "to": "webllm",
+          "kind": "calls"
+        },
+        {
+          "from": "proto-kit",
+          "to": "github",
+          "kind": "writes"
+        },
+        {
+          "from": "playwright",
+          "to": "proto-kit",
+          "kind": "reads"
+        }
+      ]
+    }
+  }
+}
+    </script>
+
+    <script type="module">
+      const MANIFEST = JSON.parse(document.getElementById("manifest").textContent);
+      const COPY = MANIFEST.copy;
+      const shell = document.getElementById("shell");
+      const refs = {};
+      let jellyOk = false;
+      let view = MANIFEST.defaultTab;
+      let scan = null;
+      let cy = null;
+
+      const make = (tag, attrs = {}, kids = []) => {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs || {})) {
+          if (k === "text") el.textContent = v;
+          else if (k === "html") el.innerHTML = v;
+          else if (k === "style" && v && typeof v === "object") Object.assign(el.style, v);
+          else if (k === "onClick") el.addEventListener("click", v);
+          else if (v === true) el.setAttribute(k, "");
+          else if (v !== false && v != null) el.setAttribute(k, v);
+        }
+        for (const kid of kids) if (kid) el.append(kid);
+        return el;
+      };
+
+      const button = (label, opts = {}) => {
+        if (jellyOk) {
+          const b = make("jelly-button", {
+            size: "small",
+            ...(opts.variant ? { variant: opts.variant } : {}),
+            ...(opts.ariaLabel ? { "aria-label": opts.ariaLabel } : {})
+          }, [document.createTextNode(label)]);
+          if (opts.onClick) b.addEventListener("click", opts.onClick);
+          return b;
+        }
+        return make("button", {
+          type: "button",
+          text: label,
+          ...(opts.ariaLabel ? { "aria-label": opts.ariaLabel } : {}),
+          onClick: opts.onClick
+        });
+      };
+
+      async function detectJelly() {
+        try {
+          await Promise.race([
+            customElements.whenDefined("jelly-button"),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 1200))
+          ]);
+          jellyOk = true;
+        } catch {
+          jellyOk = false;
+        }
+      }
+
+      function loadStored() {
+        try {
+          const raw = localStorage.getItem(MANIFEST.storageKey);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      }
+
+      function persist(next) {
+        try {
+          localStorage.setItem(MANIFEST.storageKey, JSON.stringify(next));
+        } catch {
+          /* ignore quota */
+        }
+      }
+
+      function validateScan(data) {
+        if (!data || typeof data !== "object") return COPY.invalidScan;
+        if (!data.graph || !Array.isArray(data.graph.nodes) || !Array.isArray(data.graph.edges)) {
+          return COPY.invalidScan;
+        }
+        return null;
+      }
+
+      function setScan(next, { store = true } = {}) {
+        const err = validateScan(next);
+        if (err) {
+          if (refs.loadIssue) refs.loadIssue.textContent = err;
+          return false;
+        }
+        scan = next;
+        if (store) persist(next);
+        if (refs.loadIssue) refs.loadIssue.textContent = "";
+        renderMeta();
+        renderGraph();
+        renderDetail(null);
+        return true;
+      }
+
+      function kindColor(kind) {
+        return (MANIFEST.kinds[kind] && MANIFEST.kinds[kind].color) || "#64748b";
+      }
+
+      function toElements(data) {
+        const nodes = data.graph.nodes.map((n) => ({
+          data: {
+            id: n.id,
+            label: n.label,
+            sub: n.sub || "",
+            kind: n.kind,
+            detail: n.detail || "",
+            sourceRef: n.sourceRef || "",
+            domain: n.domain || "",
+            group: n.group || "",
+            color: kindColor(n.kind)
+          }
+        }));
+        const edges = data.graph.edges.map((e, i) => ({
+          data: {
+            id: `e${i}-${e.from}-${e.to}`,
+            source: e.from,
+            target: e.to,
+            label: e.label || "",
+            kind: e.kind || "",
+            lineColor: MANIFEST.edgeKinds[e.kind] || "#94a3b8"
+          }
+        }));
+        return [...nodes, ...edges];
+      }
+
+      function renderGraph() {
+        if (!refs.stage) return;
+        refs.stage.replaceChildren();
+        if (!scan) {
+          refs.stage.append(make("div", { class: "map-empty" }, [
+            make("h2", { text: COPY.emptyTitle }),
+            make("p", { text: COPY.emptyBody })
+          ]));
+          return;
+        }
+        const cyFactory = window.cytoscape;
+        if (typeof cyFactory !== "function") {
+          refs.stage.append(make("div", { class: "map-empty" }, [
+            make("h2", { text: "Cytoscape failed to load" }),
+            make("p", { text: "Check the CDN and reload." })
+          ]));
+          return;
+        }
+        cy = cyFactory({
+          container: refs.stage,
+          elements: toElements(scan),
+          style: [
+            {
+              selector: "node",
+              style: {
+                "background-color": "data(color)",
+                "label": "data(label)",
+                "color": "#0f172a",
+                "text-valign": "center",
+                "text-halign": "center",
+                "font-size": 10,
+                "font-weight": 600,
+                "text-wrap": "wrap",
+                "text-max-width": 88,
+                "width": 96,
+                "height": 42,
+                "shape": "round-rectangle",
+                "border-width": 1,
+                "border-color": "#ffffff",
+                "overlay-padding": 4
+              }
+            },
+            {
+              selector: "node:selected",
+              style: {
+                "border-width": 3,
+                "border-color": "#0f172a"
+              }
+            },
+            {
+              selector: "edge",
+              style: {
+                "width": 1.5,
+                "line-color": "data(lineColor)",
+                "target-arrow-color": "data(lineColor)",
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier",
+                "label": "data(label)",
+                "font-size": 8,
+                "color": "#475569",
+                "text-rotation": "autorotate",
+                "text-margin-y": -8,
+                "arrow-scale": 0.8
+              }
+            }
+          ],
+          layout: {
+            name: "cose",
+            animate: false,
+            padding: 24,
+            nodeRepulsion: 8000,
+            idealEdgeLength: 110,
+            nestingFactor: 1.2
+          },
+          wheelSensitivity: 0.2,
+          minZoom: 0.2,
+          maxZoom: 2.8
+        });
+        cy.on("tap", "node", (evt) => renderDetail(evt.target.data()));
+        cy.on("tap", (evt) => {
+          if (evt.target === cy) renderDetail(null);
+        });
+        window.setTimeout(() => cy.fit(undefined, 32), MANIFEST.timing.fitDelayMs);
+      }
+
+      function renderMeta() {
+        if (!refs.mapMeta) return;
+        refs.mapMeta.replaceChildren();
+        if (!scan) return;
+        const p = scan.project || {};
+        const s = scan.stats || {};
+        refs.mapMeta.append(
+          make("span", { class: "chip", text: p.name || p.slug || "scan" }),
+          make("span", { class: "chip", text: p.date || "" }),
+          make("span", { class: "chip", text: `${(scan.graph.nodes || []).length} nodes` }),
+          make("span", { class: "chip", text: `${(scan.graph.edges || []).length} edges` }),
+          make("span", { class: "chip", text: `${s.agents || 0} agents · ${s.models || 0} models` })
+        );
+        const legend = make("div", { class: "row" });
+        for (const [kind, meta] of Object.entries(MANIFEST.kinds)) {
+          legend.append(make("span", { class: "chip" }, [
+            make("span", { class: "swatch", style: { background: meta.color } }),
+            document.createTextNode(meta.label)
+          ]));
+        }
+        refs.mapMeta.append(legend);
+      }
+
+      function renderDetail(data) {
+        if (!refs.detail) return;
+        refs.detail.replaceChildren();
+        if (!data) {
+          refs.detail.append(make("p", { class: "muted", text: COPY.detailEmpty }));
+          return;
+        }
+        refs.detail.append(
+          make("h2", { text: data.label }),
+          make("p", { class: "muted", text: [data.kind, data.sub, data.domain].filter(Boolean).join(" · ") }),
+          data.detail ? make("p", { text: data.detail }) : null,
+          data.sourceRef ? make("p", { class: "muted", text: data.sourceRef }) : null,
+          data.group ? make("p", { class: "muted", text: `group: ${data.group}` }) : null
+        );
+      }
+
+      function copyText(text, resultNode, blockNode) {
+        const reset = () => window.setTimeout(() => { resultNode.textContent = ""; }, MANIFEST.timing.copyResetMs);
+        const manual = () => {
+          resultNode.textContent = COPY.copyFailure + " " + COPY.copyManualHint;
+          if (blockNode) {
+            const range = document.createRange();
+            range.selectNodeContents(blockNode);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          reset();
+        };
+        if (!navigator.clipboard || !navigator.clipboard.writeText) {
+          manual();
+          return;
+        }
+        navigator.clipboard.writeText(text).then(() => {
+          resultNode.textContent = COPY.copySuccess;
+          reset();
+        }, manual);
+      }
+
+      function setView(next) {
+        view = next || MANIFEST.defaultTab;
+        if (jellyOk && refs.tabs) {
+          refs.tabs.value = view;
+          for (const panel of refs.tabs.querySelectorAll("jelly-tab-panel")) {
+            if (panel.getAttribute("value") === view) panel.setAttribute("active", "");
+            else panel.removeAttribute("active");
+          }
+        } else if (refs.panels) {
+          for (const [id, panel] of Object.entries(refs.panels)) {
+            panel.hidden = id !== view;
+          }
+        }
+        if (view === "map" && cy) window.setTimeout(() => cy.resize(), 30);
+      }
+
+      function openLoadSheet() {
+        if (!refs.loadDrawer) return;
+        if (refs.loadText) refs.loadText.value = scan ? JSON.stringify(scan, null, 2) : "";
+        if (jellyOk) {
+          refs.loadDrawer.open = true;
+          refs.loadDrawer.setAttribute("open", "");
+        } else {
+          refs.loadDrawer.hidden = false;
+        }
+      }
+
+      function closeLoadSheet() {
+        if (!refs.loadDrawer) return;
+        if (jellyOk) {
+          refs.loadDrawer.open = false;
+          refs.loadDrawer.removeAttribute("open");
+        } else {
+          refs.loadDrawer.hidden = true;
+        }
+      }
+
+      function applyLoad() {
+        try {
+          const data = JSON.parse(refs.loadText.value);
+          if (setScan(data)) closeLoadSheet();
+        } catch {
+          refs.loadIssue.textContent = COPY.invalidJson;
+        }
+      }
+
+      function buildMapPanel(host) {
+        refs.stage = make("div", { class: "map-stage", id: "stage" });
+        refs.mapMeta = make("div", { class: "map-meta" });
+        refs.detail = make("div", { class: "detail-card" });
+        const bar = make("div", { class: "row" }, [
+          button(COPY.loadButton, { variant: "mint", onClick: openLoadSheet }),
+          button(COPY.resetButton, { onClick: () => setScan(MANIFEST.sampleScan) }),
+          button(COPY.fitButton, { onClick: () => cy && cy.fit(undefined, 32) })
+        ]);
+        const layout = make("div", { class: "map-layout" }, [
+          make("div", { class: "map-panel" }, [refs.stage, bar, refs.mapMeta]),
+          refs.detail
+        ]);
+        host.append(layout);
+        renderDetail(null);
+      }
+
+      function buildPromptPanel(host) {
+        refs.copyResult = make("div", { class: "copy-result", "aria-live": "polite" });
+        refs.promptPre = make("pre", { class: "prompt-pre", text: MANIFEST.prompt });
+        const toolbar = make("div", { class: "prompt-toolbar" }, [
+          button(COPY.copyPrompt, {
+            variant: "mint",
+            onClick: () => copyText(MANIFEST.prompt, refs.copyResult, refs.promptPre)
+          }),
+          refs.copyResult
+        ]);
+        host.append(make("div", { class: "prompt-panel" }, [
+          make("p", { class: "muted", text: COPY.promptHint }),
+          toolbar,
+          refs.promptPre
+        ]));
+      }
+
+      function buildOverlays() {
+        const body = make("div", { class: "load-area" }, [
+          make("p", { class: "muted", text: "Paste a FogLAMP scan.json object." }),
+          refs.loadText = make("textarea", {
+            spellcheck: "false",
+            "aria-label": "scan JSON"
+          }),
+          refs.loadIssue = make("div", { class: "issue", role: "alert" }),
+          make("div", { class: "row" }, [
+            button(COPY.loadApply, { variant: "mint", onClick: applyLoad }),
+            button(COPY.loadClose, { onClick: closeLoadSheet })
+          ])
+        ]);
+        if (jellyOk) {
+          refs.loadDrawer = make("jelly-drawer", {
+            id: "load-drawer",
+            label: COPY.loadTitle,
+            side: "bottom"
+          }, [body]);
+        } else {
+          refs.loadDrawer = make("section", {
+            class: "detail-card",
+            hidden: true
+          }, [
+            make("h2", { text: COPY.loadTitle }),
+            body
+          ]);
+        }
+        shell.append(refs.loadDrawer);
+      }
+
+      function buildChrome() {
+        shell.replaceChildren();
+        shell.append(make("header", { class: "masthead" }, [
+          make("span", { class: "kicker", text: MANIFEST.kicker }),
+          make("h1", { text: MANIFEST.title }),
+          make("p", { text: MANIFEST.tagline })
+        ]));
+
+        refs.panels = {};
+        const tabs = make(jellyOk ? "jelly-tabs" : "div", { id: "tabs", size: MANIFEST.tabSize });
+        for (const tab of MANIFEST.tabs) {
+          const content = make("div", { style: { marginBlockStart: "var(--size-3)" } });
+          refs.panels[tab.id] = content;
+          tabs.append(make(jellyOk ? "jelly-tab-panel" : "section", {
+            label: tab.label,
+            value: tab.id,
+            active: tab.id === view
+          }, [content]));
+        }
+        tabs.addEventListener("change", (e) => setView((e.target && e.target.value) || MANIFEST.defaultTab));
+        refs.tabs = tabs;
+
+        if (!jellyOk) {
+          shell.append(make("div", { class: "fallback-tabs row" }, MANIFEST.tabs.map((tab) =>
+            button(tab.label, { onClick: () => setView(tab.id) })
+          )));
+        }
+        shell.append(tabs);
+        buildMapPanel(refs.panels.map);
+        buildPromptPanel(refs.panels.prompt);
+        buildOverlays();
+        setView(view);
+      }
+
+      async function boot() {
+        await detectJelly();
+        buildChrome();
+        const stored = loadStored();
+        if (stored && !validateScan(stored)) setScan(stored, { store: false });
+        else setScan(MANIFEST.sampleScan, { store: false });
+      }
+
+      boot();
+    </script>
+  </body>
+</html>
