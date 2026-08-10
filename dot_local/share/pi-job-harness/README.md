@@ -383,7 +383,7 @@ Safety guarantees:
 
 These commands write task metadata and durable state without editing the YAML by hand:
 
-- `pi-job --task <t> set-project --key K --name N --route R --context C` - merge into `task.project` (at least one flag required).
+- `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note`; date defaults to today UTC; source defaults to `pi-job add-decision`).
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
@@ -434,6 +434,7 @@ execution:
 - `finish --note '<evidence>'` appends completion evidence with a blank line when a note already exists; omitted preserves the existing note.
 - `finish --replace --note '<evidence>'` overwrites the existing note instead of appending (`--replace` requires `--note` and cannot combine with `--skip`).
 - `finish --reconcile --model <id> --note '<evidence>'` records completion for an `in_progress` target that was never started via pi-job; refuses `planned`/`done`/`skipped`.
+- When more than one unfinished step exists anywhere in the task, finishing a step requires explicit `--slice` and `--step` (bare cursor finish is allowed only when exactly one unfinished step remains).
 - Normal `finish` without `--reconcile` still requires a prior `start` (unless `--skip`).
 - `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice` first for slice-level blocks.
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.

@@ -1118,6 +1118,10 @@ class TaskStore(Protocol):
         """Update task.project fields (merge, not replace)."""
         ...
 
+    def set_title(self, title: str) -> None:
+        """Replace task.title."""
+        ...
+
     def set_context(self, context: str) -> None:
         """Replace task.context."""
         ...
@@ -1228,6 +1232,9 @@ class CueTaskStore:
         write_and_validate(self.path, original_text, "".join(lines))
 
     def set_project(self, fields: Mapping[str, str]) -> None:
+        raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
+
+    def set_title(self, title: str) -> None:
         raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def set_context(self, context: str) -> None:
@@ -1903,6 +1910,12 @@ class YamlTaskStore:
 
     def set_project(self, fields: Mapping[str, str]) -> None:
         self._mutate(lambda task: task.setdefault("project", {}).update(fields))
+
+    def set_title(self, title: str) -> None:
+        cleaned = title.strip()
+        if not cleaned:
+            die("title must be non-empty")
+        self._mutate(lambda task: task.update({"title": cleaned}))
 
     def set_context(self, context: str) -> None:
         self._mutate(lambda task: task.update({"context": context}))
@@ -2772,6 +2785,12 @@ class FsTaskStore:
         existing = self._read_record(L.project_file())
         existing.update(fields)
         self._write_record(L.project_file(), existing)
+
+    def set_title(self, title: str) -> None:
+        cleaned = title.strip()
+        if not cleaned:
+            die("title must be non-empty")
+        self._write_text(self.layout.title_file(), cleaned)
 
     def set_context(self, context: str) -> None:
         self._write_text(self.layout.context_file(), context)
@@ -4074,10 +4093,16 @@ def is_fully_qualified_model(model: str) -> bool:
     return "/" in model and not model.startswith("/") and not model.endswith("/")
 
 
+MODEL_ID_EXAMPLE = "openai/gpt-5.6-sol"
+MODEL_ID_QUALIFICATION_HINT = (
+    f"model ID must be fully qualified as provider/model (for example {MODEL_ID_EXAMPLE})"
+)
+
+
 def require_fully_qualified_model(model: str) -> str:
     normalized = model.strip()
     if not is_fully_qualified_model(normalized):
-        die("model ID must be fully qualified as provider/model")
+        die(MODEL_ID_QUALIFICATION_HINT)
     return normalized
 
 
@@ -4128,7 +4153,7 @@ def execution_issues(task: dict[str, Any]) -> list[str]:
             if not model:
                 issues.append(f"{label}: execution.model is empty")
             elif not is_fully_qualified_model(model):
-                issues.append(f"{label}: execution.model is not fully qualified as provider/model")
+                issues.append(f"{label}: execution.model is not fully qualified as provider/model (for example {MODEL_ID_EXAMPLE})")
             if started is None:
                 issues.append(f"{label}: execution.started is not a UTC ISO 8601 timestamp")
             if status in STATUS_DONE and ended is None:
@@ -4138,6 +4163,41 @@ def execution_issues(task: dict[str, Any]) -> list[str]:
             if started is not None and ended is not None and ended < started:
                 issues.append(f"{label}: execution.ended precedes execution.started")
     return issues
+
+
+def unfinished_step_labels(task: dict[str, Any]) -> list[str]:
+    """Return `slice/step` labels for every step not done/skipped, across the task."""
+    labels: list[str] = []
+    for task_slice in task_slices(task):
+        for step in task_slice.all_steps:
+            if step.status not in STATUS_DONE:
+                labels.append(f"{task_slice.key}/{step.key}")
+    return labels
+
+
+def enforce_finish_step_explicitness(
+    task: dict[str, Any], args: argparse.Namespace, *, step_key: str | None
+) -> None:
+    """Fail closed when bare finish could attach evidence to the wrong step.
+
+    Grill rule: when more than one unfinished step exists anywhere, finishing a
+    step requires explicit --slice and --step. Bare finish (cursor defaults) is
+    allowed only when exactly one unfinished step remains. Slice-only finishes
+    are exempt (they already refuse unfinished steps inside the target slice).
+    """
+    if step_key is None:
+        return
+    if args.slice and args.step:
+        return
+    unfinished = unfinished_step_labels(task)
+    if len(unfinished) <= 1:
+        return
+    sample = ", ".join(unfinished[:5])
+    extra = "" if len(unfinished) <= 5 else f" (+{len(unfinished) - 5} more)"
+    die(
+        f"finish target ambiguous: {len(unfinished)} unfinished steps "
+        f"({sample}{extra}); pass --slice KEY --step KEY"
+    )
 
 
 def resolve_lifecycle_target(
@@ -4195,7 +4255,7 @@ def step_policy_issue(
     if not author_model:
         return f"{source_step_key} has no recorded execution.model; record the code-author model before scanning"
     if not is_fully_qualified_model(author_model):
-        return f"{source_step_key} execution.model is not fully qualified as provider/model"
+        return f"{source_step_key} execution.model is not fully qualified as provider/model (for example {MODEL_ID_EXAMPLE})"
     if model == author_model:
         return (
             f"{step_key} model must differ from {source_step_key} model "
@@ -4215,7 +4275,7 @@ def completed_step_policy_issue(task_slice: TaskSlice, step: TaskStep) -> str | 
     if not execution or not model or not execution.started or not execution.ended:
         return f"{step.key} requires model, started, and ended execution metadata"
     if not is_fully_qualified_model(model):
-        return f"{step.key} execution.model must be fully qualified as provider/model"
+        return f"{step.key} execution.model must be fully qualified as provider/model (for example {MODEL_ID_EXAMPLE})"
     started = parse_utc_timestamp(execution.started)
     ended = parse_utc_timestamp(execution.ended)
     if started is None or ended is None:
@@ -4284,6 +4344,7 @@ def cmd_finish(args: argparse.Namespace) -> None:
         task = store.read()
         require_initialized(task_file, task)
         task_slice, item, step_key = resolve_lifecycle_target(task, args)
+        enforce_finish_step_explicitness(task, args, step_key=step_key)
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
         target_status = "skipped" if args.skip else "done"
         existing = item.execution
@@ -6924,11 +6985,20 @@ def cmd_set_project(args: argparse.Namespace) -> None:
         value = getattr(args, attr, None)
         if value is not None:
             fields[attr] = value
-    if not fields:
-        die("at least one project field is required (--key, --name, --route, --context)")
+    title = getattr(args, "title", None)
+    if title is not None and not str(title).strip():
+        die("title must be non-empty")
+    if not fields and title is None:
+        die("at least one field is required (--title, --key, --name, --route, --context)")
     store = open_task_store(task_file)
-    store.set_project(fields)
-    print(f"updated project: {', '.join(f'{k}={v}' for k, v in fields.items())}")
+    updated: list[str] = []
+    if title is not None:
+        store.set_title(str(title).strip())
+        updated.append(f"title={str(title).strip()}")
+    if fields:
+        store.set_project(fields)
+        updated.extend(f"{k}={v}" for k, v in fields.items())
+    print(f"updated: {', '.join(updated)}")
 
 
 def cmd_set_context(args: argparse.Namespace) -> None:
@@ -7423,7 +7493,8 @@ def main() -> None:
     add_slice.add_argument("--dry-run", action="store_true")
     add_slice.set_defaults(fn=cmd_add_slice)
 
-    set_project = sub.add_parser("set-project", help="update task project fields (merge into existing)")
+    set_project = sub.add_parser("set-project", help="update task title and/or project fields (merge into existing project)")
+    set_project.add_argument("--title", help="task.title (non-empty)")
     set_project.add_argument("--key", help="project key")
     set_project.add_argument("--name", help="project name")
     set_project.add_argument("--route", help="project route path")

@@ -114,6 +114,10 @@ pr_template_guardrail: &pr_template_guidance |-
   PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
   Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
   case.
+  After opening the PR, record it:
+    pi-job --task TASK_FILE add-pr --slice SLICE_KEY --repo REPO --url URL --status open
+  Prefer `gh pr create --head <branch>` right after the first push of a new branch
+  (avoids the "must first push" abort).
 plan_and_grill_guardrail: &plan_and_grill_guidance |-
   Before any other step in an implement/spike slice starts, that slice's steps must
   begin with exactly two leading steps, in order:
@@ -170,12 +174,18 @@ sync_pipeline_instructions: |-
 cli_help:
   add_decision:
     command: append a product/scope decision (not step evidence; use finish --note)
-    note: decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`
+    note: >-
+      decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`.
+      Shell-safe: pass --note with single quotes or a HEREDOC; bare backticks in double-quoted
+      shell args are command-substituted (example: --note 'Keep expiresAt as-is').
   finish:
     note: >-
       append completion/evidence for this step (not product decisions; use add-decision);
       Markdown preferred; rendered formatted in `pi-job markdown`; omitted preserves the
-      existing note; when supplied appends with a blank line; --replace overwrites instead
+      existing note; when supplied appends with a blank line; --replace overwrites instead.
+      Shell-safe: pass --note with single quotes or a HEREDOC so backticks/paths are not
+      executed by the shell (example: finish --note 'Ran yarn test in worktree').
+      When more than one unfinished step exists, pass --slice KEY --step KEY.
 instruction_packets:
   todo_tracking: |-
     - Keep session todos aligned with `pi-job plan` for this task.
@@ -478,7 +488,12 @@ step_kinds:
     owner: orchestrator
     validators:
       - feedback-window-recorded
-    guidance: Not terminal until the PR merges or is explicitly abandoned. Re-check via `pi-job sync`.
+    guidance: |-
+      Not terminal until the PR merges or is explicitly abandoned.
+      Re-check via `pi-job sync` (store-side) then live `gh pr view`.
+      When the user reports a merge (or gh shows MERGED), record it before finish:
+        pi-job --task TASK_FILE add-pr --slice SLICE_KEY --repo REPO --url URL --status merged
+      Then finish --note with the merge evidence and advance.
   update-task-file:
     key: update-task-file
     title: Update this task file
