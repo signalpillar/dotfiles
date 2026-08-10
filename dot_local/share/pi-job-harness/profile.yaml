@@ -422,6 +422,25 @@ step_kinds:
     owner: orchestrator
     validators:
       - evidence-or-gap-recorded
+    skip_rule: skip when e2e/acceptance evidence is not needed for this slice (record why)
+    guidance: |-
+      After the PR has merged (or equivalent landing), capture e2e/acceptance evidence
+      on the deployed or otherwise exercised path, or record an explicit gap/skip reason.
+      Prefer ticket comments and finish --note over add-decision.
+      This step is skippable when unit/integration coverage is enough or live e2e is blocked.
+  ready-for-release:
+    key: ready-for-release
+    title: Mark the ticket Ready for Release
+    owner: orchestrator
+    validators:
+      - ticket-ready-for-release-or-not-applicable
+    skip_rule: skip when this slice has no Jira ticket, or the ticket is already Ready for Release / Done
+    guidance: |-
+      After wait-for-feedback (merge) and e2e-evidence (or an explicit e2e skip), transition
+      the slice's Jira ticket to Ready for Release.
+      Leave a short testing/landing note on the ticket when useful.
+      Record the transition (or not-applicable/skip reason) in finish --note.
+      Do not mark the slice done until this gate is finished or skipped with reason.
   vulnerability-scan:
     key: vulnerability-scan
     title: Run an independent vulnerability scan
@@ -607,18 +626,18 @@ slice_kinds:
       - grill-plan
       - edit-code
       - verify
-      - e2e-evidence
       - vulnerability-scan
       - share-with-team
       - update-task-file
       - wait-for-feedback
+      - e2e-evidence
+      - ready-for-release
       - pi-job-feedback
     required_steps:
       - create-plan
       - grill-plan
       - edit-code
       - verify
-      - e2e-evidence
       - share-with-team
       - update-task-file
       - wait-for-feedback

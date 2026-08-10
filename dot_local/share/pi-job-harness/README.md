@@ -145,7 +145,7 @@ Typical slice layout for an end-to-end implementation task:
 
 ```text
 1. task-setup          [kind: setup]     explore → clarify → grill → wayfinder → select-toolbelt → plan-slices
-2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → wait-for-feedback
+2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → wait-for-feedback → e2e-evidence → ready-for-release
 3. fix-follow-up       [kind: implement] …
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
 ```
@@ -441,7 +441,8 @@ execution:
 
 ### Independent vulnerability scan
 
-Every new implement slice includes `vulnerability-scan` after acceptance evidence and before sharing.
+Every new implement slice includes `vulnerability-scan` after verify and before sharing.
+Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
 2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`.
