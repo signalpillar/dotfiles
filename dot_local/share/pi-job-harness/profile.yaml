@@ -236,34 +236,22 @@ cli_help:
       When more than one unfinished step exists, pass --slice KEY --step KEY.
 instruction_packets:
   todo_tracking: |-
-    - Keep session todos aligned with `pi-job plan` for this task.
-    - Set the todo for cursor {cursor} to in_progress before executing.
-    - Mark that todo completed only after validators/artifact gates for the step are satisfied or a skip reason is recorded.
+    - Align session todos with `pi-job plan`; set cursor {cursor} in_progress until step gates pass or skip is recorded.
   future_work: |-
-    - Create a new task slice for future work, an issue worth revisiting, technical debt, or an unresolved doubt discovered while executing.
-    - Give the slice a bounded goal, the appropriate kind, and dependencies; do not bury actionable follow-up work only in notes.
+    - Spawn a new slice for follow-up work; do not bury actionable items in notes only.
+  record_results_intro: |-
+    Task record is machine-owned; use pi-job commands only (TASK_FILE / SLICE_KEY in header).
+    Channels: pi-job channels. This step:
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
     Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction.
     Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
-    Channels (which write for which fact):
-    DECISION (add-decision) = product, scope, architecture, or policy agreement that
-      later sessions must honor without re-grilling. Must still be true if the PR
-      never merged. Prefer one sentence + rationale. Not a journal.
-    STEP NOTE (finish --note) = evidence that THIS step happened or failed:
-      commands, e2e results, scan findings, "gap recorded", skip reasons.
-    SLICE NOTE = cross-step narrative for the slice (blocker story, handoff).
-      Prefer finish --slice-only; not add-decision.
-    PLAN FILE (*.plans/<slice-key>.md) = constraint-and-behaviour contract.
-      Long prose lives here.
-    PLAN NOTE (set-plan-note) = destination / high-level map. Not a progress log.
-    PR / REPO (add-pr, set-worktree) = delivery lifecycle. Sync uses finish --note
-      for verify evidence - keep it there.
     Write notes and decisions as Markdown so `pi-job markdown` can render them formatted (decisions as blockquotes; context/notes as Markdown prose or quotes).
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
     Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
     DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
+    Full channel map: pi-job channels (or pi-job channels --step KEY for one step).
   next_action: |-
     Do not wait for another user prompt.
     1. If the current slice has no execution metadata: `pi-job --task TASK_FILE start --slice-only --model <orchestrator-model-id>`
@@ -409,11 +397,47 @@ interrupt_park_steps:
   - grill
   - grill-plan
   - clarify-scope
+record_channels:
+  catalog: |-
+    Task-record write channels (which command for which fact):
+
+    decision (add-decision) — product, scope, architecture, or policy agreement that
+      later sessions must honor without re-grilling. Must still be true if the PR
+      never merged. Prefer one sentence + rationale. Not a journal.
+
+    step_note (finish --note) — evidence that THIS step happened or failed:
+      commands, e2e results, scan findings, "gap recorded", skip reasons.
+
+    slice_note (finish --slice-only) — cross-step narrative for the slice (blocker story, handoff).
+      Not add-decision.
+
+    plan_file (*.plans/<slice-key>.md) — constraint-and-behaviour contract. Long prose lives here.
+
+    plan_note (set-plan-note) — destination / high-level map. Not a progress log.
+
+    pull_request (add-pr) — delivery lifecycle PR links and status.
+
+    repo_work (set-worktree) — recorded filesystem worktree path for a slice's repo.
+
+    finding (add-finding) — RCA / interrupt evidence in .plans/_findings.md.
+
+    Per-step packets list only the channels relevant to that step.
+    Run `pi-job channels --step KEY` for one step's blurbs.
+  blurbs:
+    decision: DECISION (add-decision) = product, scope, architecture, or policy agreement that later sessions must honor without re-grilling. Not a journal.
+    step_note: STEP NOTE (finish --note) = evidence that THIS step happened or failed (commands, e2e, scan findings, skip reasons).
+    slice_note: SLICE NOTE (finish --slice-only) = cross-step narrative for the slice (blocker story, handoff). Not add-decision.
+    plan_file: PLAN FILE (*.plans/<slice-key>.md) = constraint-and-behaviour contract; long prose lives here.
+    plan_note: PLAN NOTE (set-plan-note) = destination / high-level map. Not a progress log.
+    pull_request: PR (add-pr) = delivery lifecycle PR links and status. Sync verify evidence stays in finish --note.
+    repo_work: REPO (set-worktree) = recorded worktree path for this slice's repo work.
+    finding: FINDING (add-finding) = RCA / interrupt evidence in .plans/_findings.md, not long YAML.
 step_kinds:
   explore-context:
     key: explore-context
     title: Explore context
     owner: orchestrator
+    record_channels: [step_note, slice_note]
     validators:
       - repos-or-explicitly-not-applicable
     guidance: Read the adjacent code/docs needed to act. Record known repos and adjacent context - or explicitly note none apply.
@@ -421,6 +445,7 @@ step_kinds:
     key: clarify-scope
     title: Clarify scope
     owner: orchestrator
+    record_channels: [decision, step_note, slice_note]
     validators:
       - blocking-ambiguity-resolved
     skip_rule: skip when exploration answers the implementation-relevant questions
@@ -429,6 +454,7 @@ step_kinds:
     key: grill
     title: Grill overall scope
     owner: orchestrator
+    record_channels: [decision, step_note, slice_note]
     validators:
       - grill-done-or-user-declined
     skip_rule: only when user explicitly declines
@@ -437,6 +463,7 @@ step_kinds:
     key: select-toolbelt
     title: Select planning aids from the toolbelt
     owner: orchestrator
+    record_channels: [step_note, slice_note]
     validators:
       - toolbelt-selection-recorded
     guidance: From the aids whose suits includes a relevant slice kind (see `pi-job toolbelt`), select the subset that will help write the plan. Register each with `pi-job toolbelt add <key> --status planned` plus a one-line why. Do not produce the aid files yet - they are written during plan-slices and flipped to done when the file exists.
@@ -444,6 +471,7 @@ step_kinds:
     key: plan-slices
     title: Plan slices
     owner: orchestrator
+    record_channels: [step_note, slice_note, plan_note]
     validators:
       - at-least-one-slice
       - slices-repo-scoped-and-atomic
@@ -452,6 +480,7 @@ step_kinds:
     key: wayfinder
     title: Chart the fog
     owner: orchestrator
+    record_channels: [decision, step_note, slice_note, plan_note]
     validators:
       - wayfinder-context-loaded
       - decisions-or-fog-slices-recorded
@@ -472,6 +501,7 @@ step_kinds:
     key: create-plan
     title: Create plan
     owner: subagent
+    record_channels: [step_note, plan_file]
     validators:
       - plan-recorded
       - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
@@ -480,6 +510,7 @@ step_kinds:
     key: grill-plan
     title: Grill the plan file
     owner: orchestrator
+    record_channels: [decision, step_note, plan_file]
     validators:
       - grill-done-or-user-declined
       - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
@@ -488,6 +519,7 @@ step_kinds:
     key: edit-code
     title: Edit code
     owner: subagent
+    record_channels: [step_note, repo_work]
     validators:
       - coding-policy-recorded
       - worktree-used-when-repo-editing
@@ -496,6 +528,7 @@ step_kinds:
     key: verify
     title: Verify
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - relevant-tests-or-gap-recorded
     guidance: Run the relevant tests/checks for what changed, or record the gap.
@@ -503,6 +536,7 @@ step_kinds:
     key: e2e-evidence
     title: Provide e2e/acceptance evidence or record the gap
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - evidence-or-gap-recorded
     skip_rule: skip when e2e/acceptance evidence is not needed for this slice (record why)
@@ -515,6 +549,7 @@ step_kinds:
     key: ready-for-release
     title: Mark the ticket Ready for Release
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - ticket-ready-for-release-or-not-applicable
     skip_rule: skip when this slice has no Jira ticket, or the ticket is already Ready for Release / Done
@@ -528,6 +563,7 @@ step_kinds:
     key: vulnerability-scan
     title: Run an independent vulnerability scan
     owner: orchestrator
+    record_channels: [decision, step_note]
     requires_user_decision: true
     different_model_from_step: edit-code
     validators:
@@ -554,6 +590,7 @@ step_kinds:
     key: share-with-team
     title: 'Share with team: ticket + PR for this slice''s repo'
     owner: orchestrator
+    record_channels: [step_note, pull_request]
     validators:
       - pr-template-checked
       - share-with-team-template-used
@@ -573,6 +610,7 @@ step_kinds:
     key: wait-for-feedback
     title: 'Wait for team feedback: loop on PR review until merged'
     owner: orchestrator
+    record_channels: [step_note, pull_request]
     validators:
       - feedback-window-recorded
     guidance: |-
@@ -585,6 +623,7 @@ step_kinds:
     key: update-task-file
     title: Update this task file
     owner: orchestrator
+    record_channels: [decision, step_note, slice_note, plan_note]
     validators:
       - task-file-current
     guidance: Keep the task record current via pi-job mutation commands only (add-slice, add-step, add-decision, set-plan-note, finish, advance; see pi-job --help). Do not edit the task store directly. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes.
@@ -592,6 +631,7 @@ step_kinds:
     key: investigate
     title: Investigate
     owner: orchestrator
+    record_channels: [step_note, finding]
     validators:
       - evidence-backed-findings
     guidance: Gather evidence-backed findings for the research question.
@@ -599,6 +639,7 @@ step_kinds:
     key: synthesize
     title: Synthesize
     owner: orchestrator
+    record_channels: [step_note, slice_note]
     validators:
       - open-questions-called-out
     guidance: Produce the answer or doc; call out open questions.
@@ -606,6 +647,7 @@ step_kinds:
     key: collect-references
     title: Collect references
     owner: orchestrator
+    record_channels: [step_note, plan_file, pull_request]
     validators:
       - jira-ticket-or-explicit-no-ticket-exception
       - pr-links-optional-at-collect
@@ -619,6 +661,7 @@ step_kinds:
     key: wait-for-landing
     title: Wait for landing
     owner: orchestrator
+    record_channels: [step_note, pull_request]
     validators:
       - landed-or-abandoned-with-reason
       - pr-links-updated-if-discovered
@@ -632,6 +675,7 @@ step_kinds:
     key: review-capture
     title: Review and capture understanding
     owner: orchestrator
+    record_channels: [step_note, plan_file]
     validators:
       - peer-capture-outline-complete-or-thin-on-abandon
     guidance: |-
@@ -654,6 +698,7 @@ step_kinds:
     key: follow-up-gate
     title: Follow-up gate
     owner: orchestrator
+    record_channels: [step_note, slice_note]
     validators:
       - follow-up-slices-spawned-or-explicit-none
     guidance: |-
@@ -664,6 +709,7 @@ step_kinds:
     key: update-test-plan
     title: Update the test plan
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - test-plan-reconciled-or-not-applicable
     guidance: Reconcile the PRD/plan's test-case table against what actually shipped across all slices.
@@ -671,6 +717,7 @@ step_kinds:
     key: update-docs
     title: Update documentation
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - docs-updated-or-not-applicable
     guidance: Update FACT_MAP / workflow docs / README that the shipped slices affect, or record not applicable.
@@ -678,6 +725,7 @@ step_kinds:
     key: capture-metrics
     title: Capture metrics to watch
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - metrics-recorded-or-not-applicable
     guidance: Record which dashboards/alerts to watch post-ship, or that none apply.
@@ -685,6 +733,7 @@ step_kinds:
     key: pi-job-feedback
     title: Record pi-job feedback
     owner: orchestrator
+    record_channels: [step_note]
     validators:
       - feedback-recorded
     guidance: |-

@@ -682,17 +682,19 @@ def test_profiled_task() -> None:
         assert_contains(instruction, "PI-JOB EXECUTION INSTRUCTION")
         assert_contains(instruction, "Owner: orchestrator")
         assert_contains(instruction, "Role: orchestrator")
-        assert_contains(instruction, "Supersedes any default workspace role")
+        assert_contains(instruction, "CLI-only store")
         assert_contains(instruction, "Slice: second-slice [implement]")
         assert_contains(instruction, "Slice goal: Find next planned step")
         assert_contains(instruction, "Step: s2 — Next")
-        assert_contains(instruction, "Execute this step in the main orchestration session.")
+        assert_contains(instruction, "NEXT ACTION")
+        assert_contains(instruction, "STEP")
+        assert_contains(instruction, "RECORD RESULTS")
+        assert_contains(instruction, "Do not wait for another user prompt")
 
         assert_contains(instruction, "Todo tracking:")
-        assert_contains(instruction, "Keep session todos aligned with `pi-job plan`")
+        assert_contains(instruction, "Align session todos")
         assert_contains(instruction, "Future-work capture:")
-        assert_contains(instruction, "technical debt")
-        assert_contains(instruction, "do not bury actionable follow-up work only in notes")
+        assert_contains(instruction, "Spawn a new slice")
 
 
 def test_uninitialized_task_requires_orchestration() -> None:
@@ -842,8 +844,9 @@ def test_edit_code_owner_from_step_kinds() -> None:
         })
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "Owner: subagent")
+        assert_contains(instruction, "Role: orchestrator dispatching subagent")
         assert_contains(instruction, "Step kind: edit-code")
-        assert_contains(instruction, "Run this step in a subagent.")
+        assert_contains(instruction, "Subagent prompt:")
 
 
 def test_subagent_instruction_prohibits_direct_task_store_inspection() -> None:
@@ -889,22 +892,21 @@ def test_orchestrator_instruction_has_no_subagent_prompt() -> None:
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_not_contains(instruction, "Subagent prompt:")
         assert_not_contains(instruction, "Read the task file")
-        # Reads list may mention markdown/show --slice as command hints; Subagent prompt must not appear.
-        assert_contains(instruction, "markdown [--slice SLICE_KEY]")
+        assert_contains(instruction, "Channels: pi-job channels")
 
 
-def test_subagent_orchestrator_directs_markdown_slice_without_decisions_dump() -> None:
+def test_subagent_orchestrator_prompt_is_separate_from_execution_body() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "subagent-orchestrator-markdown.yaml"
         task.write_text(subagent_instruction_yaml_task(slice_key="target-slice"), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        assert_contains(instruction, "Orchestrator instruction:")
-        assert_contains(instruction, "markdown --slice SLICE_KEY")
-        assert_contains(instruction, "Do not paste a decisions dump")
+        assert_not_contains(instruction, "Orchestrator instruction:")
+        assert_contains(instruction, "Subagent prompt:")
+        assert_contains(instruction, "markdown --slice SLICE_KEY --with-decisions")
         assert_not_contains(instruction, "markdown --slice target-slice")
-        orch_idx = instruction.index("Orchestrator instruction:")
+        record_idx = instruction.index("RECORD RESULTS")
         prompt_idx = instruction.index("Subagent prompt:")
-        assert orch_idx < prompt_idx, "Orchestrator instruction must precede Subagent prompt"
+        assert record_idx < prompt_idx, "RECORD RESULTS must precede Subagent prompt"
 
 
 def test_add_decision_and_finish_help_describe_channels() -> None:
@@ -1037,58 +1039,55 @@ def test_profile_yaml_aliases_shared_guidance_strings() -> None:
         raise AssertionError("share-with-team guidance must alias pr_template_guardrail")
 
 
-def _assert_task_record_discipline_block(instruction: str) -> None:
-    assert_contains(instruction, "Task record discipline:")
+def _assert_record_results_block(instruction: str, *, expected_channel_snippets: list[str] | None = None) -> None:
+    assert_contains(instruction, "RECORD RESULTS")
     assert_contains(instruction, "machine-owned")
-    assert_contains(instruction, "do not open or edit the task store directly")
-    assert_contains(instruction, "Reads:")
-    assert_contains(instruction, "Writes:")
-    assert_contains(instruction, "Why:")
-    assert_contains(instruction, "token cost")
-    assert_contains(instruction, "Token smell:")
-    assert_contains(instruction, "DX and agent experience share the same constructs")
-    assert_contains(instruction, "status")
-    assert_contains(instruction, "plan")
-    assert_contains(instruction, "show")
-    assert_contains(instruction, "markdown")
-    assert_contains(instruction, "Channels (which write for which fact):")
-    assert_contains(instruction, "DECISION (add-decision)")
-    assert_contains(instruction, "STEP NOTE (finish --note)")
-    assert_contains(instruction, "instruction")
-    assert_contains(instruction, "add-slice")
-    assert_contains(instruction, "validation")
-    discipline_idx = instruction.index("Task record discipline:")
+    assert_contains(instruction, "pi-job commands")
+    assert_contains(instruction, "Channels: pi-job channels")
+    assert_contains(instruction, "TASK_FILE")
+    assert_contains(instruction, "SLICE_KEY")
+    assert_contains(instruction, "Channels: pi-job channels")
+    assert_not_contains(instruction, "Channels (which write for which fact):")
+    if expected_channel_snippets:
+        for snippet in expected_channel_snippets:
+            assert_contains(instruction, snippet)
+    record_idx = instruction.index("RECORD RESULTS")
     todo_idx = instruction.index("Todo tracking:")
-    assert discipline_idx < todo_idx, "Task record discipline must appear before Todo tracking"
+    assert record_idx < todo_idx, "RECORD RESULTS must appear before Todo tracking"
 
 
-def test_orchestrator_instruction_includes_task_record_discipline() -> None:
+def test_orchestrator_instruction_includes_record_results() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "orchestrator-discipline.yaml"
         task.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        _assert_task_record_discipline_block(instruction)
+        _assert_record_results_block(
+            instruction,
+            expected_channel_snippets=["STEP NOTE (finish --note)", "SLICE NOTE (finish --slice-only)"],
+        )
 
 
-def test_instruction_includes_next_action_and_enter_the_loop() -> None:
+def test_instruction_includes_next_action_and_step_first_layout() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "next-action.yaml"
         task.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "NEXT ACTION")
         assert_contains(instruction, "Do not wait for another user prompt")
-        assert_contains(instruction, "Enter the orchestrator loop immediately")
         assert_contains(instruction, "Role: orchestrator")
-        assert_contains(instruction, "Do not wait for the user to say \"continue\"")
         assert_contains(instruction, "Task file:")
         assert_contains(instruction, str(task))  # header still names the real path
         assert_contains(instruction, "TASK_FILE")  # command hints use the token
         assert_not_contains(instruction, f"--task {task}")
         assert_not_contains(instruction, "{task_file}")
         assert_not_contains(instruction, "{cursor}")
+        assert_not_contains(instruction, "Lifecycle recording:")
+        assert_not_contains(instruction, "Orchestrator instruction:")
         next_idx = instruction.index("NEXT ACTION")
-        orch_idx = instruction.index("Orchestrator instruction:")
-        assert next_idx < orch_idx, "NEXT ACTION must appear before Orchestrator instruction"
+        step_idx = instruction.index("STEP")
+        record_idx = instruction.index("RECORD RESULTS")
+        assert next_idx < step_idx, "NEXT ACTION must appear before STEP"
+        assert step_idx < record_idx, "STEP must appear before RECORD RESULTS"
 
 
 def test_bootstrap_instruction_includes_next_action() -> None:
@@ -1099,30 +1098,36 @@ def test_bootstrap_instruction_includes_next_action() -> None:
         out = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
         assert_contains(out, "NEXT ACTION")
         assert_contains(out, "Do not wait for another user prompt")
-        assert_contains(out, "Enter the orchestrator loop immediately")
+        assert_not_contains(out, "Orchestrator instruction:")
 
 
-def test_subagent_instruction_includes_task_record_discipline() -> None:
+def test_subagent_instruction_includes_record_results() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "subagent-discipline.yaml"
         task.write_text(subagent_instruction_yaml_task(), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        _assert_task_record_discipline_block(instruction)
+        _assert_record_results_block(
+            instruction,
+            expected_channel_snippets=["STEP NOTE (finish --note)", "REPO (set-worktree)"],
+        )
         assert_contains(instruction, "Subagent prompt:")
         assert_contains(instruction, "do not inspect the task store directly")
+        assert_not_contains(instruction, "Orchestrator instruction:")
 
 
-def test_task_record_discipline_uses_task_file_and_slice_key_hints() -> None:
+def test_record_results_uses_task_file_and_slice_key_hints() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "discipline-hints.yaml"
         task.write_text(subagent_instruction_yaml_task(slice_key="target-slice"), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "TASK_FILE")
         assert_contains(instruction, "SLICE_KEY")
-        assert_contains(instruction, "markdown [--slice SLICE_KEY]")
-        assert_contains(instruction, "show [--slice SLICE_KEY]")
-        assert_not_contains(instruction, "markdown [--slice target-slice]")
-        assert_not_contains(instruction, "show [--slice target-slice]")
+        assert_contains(instruction, "Channels: pi-job channels")
+        prompt = instruction.split("Subagent prompt:", 1)[1]
+        assert_contains(prompt, "markdown --slice SLICE_KEY --with-decisions")
+        assert_contains(prompt, "show --slice SLICE_KEY")
+        assert_not_contains(prompt, "markdown --slice target-slice")
+        assert_not_contains(prompt, "show --slice target-slice")
         assert_not_contains(instruction, "{task_file}")
         assert_not_contains(instruction, "{slice_key}")
         assert_not_contains(instruction, f"--task {task}")
@@ -1138,12 +1143,180 @@ def test_update_task_file_guidance_names_mutation_commands() -> None:
         assert_contains(instruction, "Do not edit the task store directly")
 
 
-def test_plan_output_omits_task_record_discipline() -> None:
+def test_plan_output_omits_record_results() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "plan-omits-discipline.yaml"
         task.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
         plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
-        assert_not_contains(plan, "Task record discipline:")
+        assert_not_contains(plan, "RECORD RESULTS")
+
+
+def share_with_team_instruction_yaml_task(*, slice_key: str = "ship-slice") -> str:
+    """Initialized YAML task with cursor on share-with-team (orchestrator, long PR guidance)."""
+
+    return f"""title: Share with team instruction test
+status: in_progress
+orchestration:
+  cursor:
+    slice: {slice_key}
+    step: share-with-team
+plan:
+  note: ""
+  slices:
+    - key: {slice_key}
+      kind: implement
+      title: Ship
+      goal: Share ticket and PR for the repo change
+      status: in_progress
+      note: ""
+      steps:
+        - key: create-plan
+          title: Create plan
+          status: done
+          note: "Plan file: share.plans/{slice_key}.md"
+        - key: grill-plan
+          title: Grill plan
+          status: done
+          note: ""
+        - key: edit-code
+          title: Edit code
+          status: done
+          note: ""
+        - key: verify
+          title: Verify
+          status: done
+          note: ""
+        - key: share-with-team
+          title: Share with team
+          status: planned
+          note: ""
+      final_steps: []
+"""
+
+
+def test_pick_next_packet_is_structural_only() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "pick-next-structural.yaml"
+        write_task_yaml(task, closing_slice_mapping())
+        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False).stdout
+        assert_contains(pick_next, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next, "NEXT ACTION")
+        assert_not_contains(pick_next, "Orchestrator instruction:")
+        assert_not_contains(pick_next, "Lifecycle recording:")
+        assert_not_contains(pick_next, "Channels (which write for which fact):")
+        assert_not_contains(pick_next, "RECORD RESULTS")
+
+
+def test_channels_cli_prints_catalog_and_step_blurbs() -> None:
+    catalog = run(str(PI_JOB), "channels").stdout
+    assert_contains(catalog, "decision (add-decision)")
+    assert_contains(catalog, "step_note (finish --note)")
+    step_out = run(str(PI_JOB), "channels", "--step", "share-with-team").stdout
+    assert_contains(step_out, "share-with-team record channels")
+    assert_contains(step_out, "step_note:")
+    assert_contains(step_out, "pull_request:")
+    assert_not_contains(step_out, "finding (add-finding)")
+
+
+def test_profile_rejects_missing_record_channels_on_step_kind() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["step_kinds"]["verify"]["record_channels"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "record_channels")
+    else:
+        raise AssertionError("profile accepted step kind without record_channels")
+
+
+def test_profile_rejects_unknown_record_channel_id() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    profile["step_kinds"]["verify"]["record_channels"] = ["not-a-real-channel"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "not-a-real-channel")
+    else:
+        raise AssertionError("profile accepted unknown record_channels entry")
+
+
+def test_instruction_collapses_long_slice_goal() -> None:
+    long_goal = "G" * 600
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "long-goal.yaml"
+        task.write_text(
+            orchestrator_instruction_yaml_task().replace(
+                "goal: Explore before planning",
+                f"goal: {long_goal}",
+            ),
+            encoding="utf-8",
+        )
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "…")
+        assert_contains(instruction, "full goal: pi-job --task TASK_FILE markdown --slice setup-slice --with-decisions")
+        assert_not_contains(instruction, long_goal)
+
+
+def test_execution_packet_budget_share_with_team() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "share-budget.yaml"
+        task.write_text(share_with_team_instruction_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_not_contains(instruction, "Lifecycle recording:")
+        assert_not_contains(instruction, "Orchestrator instruction:")
+        assert_not_contains(instruction, "PLAN FILE")
+        assert_contains(instruction, "PR (add-pr)")
+        assert_not_contains(instruction, "FINDING (add-finding)")
+        budget = module.measure_instruction_packet_budget(instruction)
+        if budget["total_body_bytes"] > module.PACKET_TOTAL_MAX_BYTES:
+            raise AssertionError(
+                f"execution packet body {budget['total_body_bytes']} bytes exceeds "
+                f"{module.PACKET_TOTAL_MAX_BYTES}: {instruction[:500]}…"
+            )
+        if budget["generic_bytes"] > module.PACKET_GENERIC_MAX_BYTES:
+            raise AssertionError(
+                f"generic boilerplate {budget['generic_bytes']} bytes exceeds "
+                f"{module.PACKET_GENERIC_MAX_BYTES}"
+            )
+        if budget["step_specific_bytes"] <= budget["generic_bytes"]:
+            raise AssertionError(
+                f"step-specific ({budget['step_specific_bytes']}) must exceed generic ({budget['generic_bytes']})"
+            )
+
+
+def test_subagent_execution_packet_budget_excludes_prompt_body() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "subagent-budget.yaml"
+        task.write_text(subagent_instruction_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        budget = module.measure_instruction_packet_budget(instruction)
+        if budget["total_body_bytes"] > module.PACKET_TOTAL_MAX_BYTES:
+            raise AssertionError(f"subagent execution body too large: {budget['total_body_bytes']}")
+        if budget["generic_bytes"] > module.PACKET_GENERIC_MAX_BYTES:
+            raise AssertionError(f"subagent generic boilerplate too large: {budget['generic_bytes']}")
+        if budget["subagent_prompt_bytes"] <= 0:
+            raise AssertionError("expected separate Subagent prompt body")
+        if budget["subagent_prompt_bytes"] > module.SUBAGENT_PROMPT_MAX_BYTES:
+            raise AssertionError(
+                f"subagent prompt {budget['subagent_prompt_bytes']} bytes exceeds "
+                f"{module.SUBAGENT_PROMPT_MAX_BYTES}"
+            )
+
+
+def test_profile_requires_record_results_intro_packet() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["instruction_packets"]["record_results_intro"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "record_results_intro")
+    else:
+        raise AssertionError("profile accepted instruction_packets without required record_results_intro")
 
 
 def test_advance_pick_next_then_jump_to_closing_slice() -> None:
@@ -5918,8 +6091,18 @@ def test_finish_while_dirty_does_not_clear_digest() -> None:
         run(
             str(PI_JOB), "--task", str(task_path), "start", "--model", "provider/test",
         )
+        # Fixture has two unfinished steps (s2 + final finish); bare finish is ambiguous.
         run(
-            str(PI_JOB), "--task", str(task_path), "finish", "--note", "finished while dirty",
+            str(PI_JOB),
+            "--task",
+            str(task_path),
+            "finish",
+            "--slice",
+            "second-slice",
+            "--step",
+            "s2",
+            "--note",
+            "finished while dirty",
         )
         task_after = module.YamlTaskStore(task_path).read()
         digest_after = task_after["orchestration"]["content_digest"]
@@ -6739,19 +6922,27 @@ def main() -> None:
     test_fog_slice_kind_seeds_template()
     test_wayfinder_context_reports_frontier_and_fog()
     test_edit_code_owner_from_step_kinds()
-    test_orchestrator_instruction_includes_task_record_discipline()
-    test_instruction_includes_next_action_and_enter_the_loop()
+    test_orchestrator_instruction_includes_record_results()
+    test_instruction_includes_next_action_and_step_first_layout()
     test_bootstrap_instruction_includes_next_action()
-    test_subagent_instruction_includes_task_record_discipline()
-    test_task_record_discipline_uses_task_file_and_slice_key_hints()
+    test_subagent_instruction_includes_record_results()
+    test_record_results_uses_task_file_and_slice_key_hints()
     test_subagent_instruction_prohibits_direct_task_store_inspection()
     test_subagent_instruction_includes_scoped_read_command()
     test_orchestrator_instruction_has_no_subagent_prompt()
-    test_subagent_orchestrator_directs_markdown_slice_without_decisions_dump()
+    test_subagent_orchestrator_prompt_is_separate_from_execution_body()
     test_add_decision_and_finish_help_describe_channels()
     test_decision_document_schema_describes_channels_contract()
     test_update_task_file_guidance_names_mutation_commands()
-    test_plan_output_omits_task_record_discipline()
+    test_plan_output_omits_record_results()
+    test_pick_next_packet_is_structural_only()
+    test_channels_cli_prints_catalog_and_step_blurbs()
+    test_profile_rejects_missing_record_channels_on_step_kind()
+    test_profile_rejects_unknown_record_channel_id()
+    test_instruction_collapses_long_slice_goal()
+    test_execution_packet_budget_share_with_team()
+    test_subagent_execution_packet_budget_excludes_prompt_body()
+    test_profile_requires_record_results_intro_packet()
     test_create_plan_instruction_defines_constraint_and_behaviour_contract()
     test_grill_plan_instruction_defines_constraint_and_behaviour_contract()
     test_profile_yaml_aliases_shared_guidance_strings()

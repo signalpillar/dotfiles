@@ -300,12 +300,22 @@ class ToolbeltAidDocument(StrictDocument):
     example: str | None = Field(default=None, description="Optional concise usage example.")
 
 
+class RecordChannelsDocument(StrictDocument):
+    """Channel catalog and packet blurbs. Channel ids are profile-owned; Python validates membership only."""
+
+    catalog: str = Field(description="Full channel map printed by `pi-job channels`.")
+    blurbs: dict[str, str] = Field(description="One-line blurbs keyed by channel id for RECORD RESULTS packets.")
+
+
 class StepKindDocument(StrictDocument):
     """Live execution contract looked up by persisted step key."""
 
     key: str = Field(description="Stable step-kind identifier; must match its mapping key.")
     title: str = Field(description="Default title used when creating a step.")
     owner: ExecutionOwner = Field(description="Actor responsible for executing the step.")
+    record_channels: list[str] = Field(
+        description="Non-empty channel ids emitted in RECORD RESULTS for this step; each must exist in record_channels.blurbs.",
+    )
     requires_user_decision: bool = Field(default=False, description="Whether execution requires an explicit user choice.")
     different_model_from_step: str | None = Field(
         default=None,
@@ -403,10 +413,16 @@ class InstructionPacketsDocument(StrictDocument):
 
     todo_tracking: str = Field(description="Todo-tracking lines in every instruction packet. Supports {cursor}.")
     future_work: str = Field(description="Future-work capture lines in every instruction packet.")
+    record_results_intro: str = Field(
+        description=(
+            "Intro lines for RECORD RESULTS in execution instruction packets. "
+            "Use literal TASK_FILE / SLICE_KEY command hints (not interpolated paths). Supports {cursor}."
+        )
+    )
     task_record_discipline: str = Field(
         description=(
-            "Task-record read/write discipline in every instruction packet. "
-            "Use literal TASK_FILE / SLICE_KEY command hints (not interpolated paths). Supports {cursor}."
+            "Legacy full task-record discipline text kept in the profile for reference and CLI help. "
+            "Execution packets use record_results_intro plus step-scoped channel blurbs instead."
         )
     )
     next_action: str = Field(
@@ -494,6 +510,9 @@ class ProfileDocument(StrictDocument):
     instruction_packets: InstructionPacketsDocument = Field(
         description="Required instruction text blocks. All packet bodies live here; Python must not duplicate them."
     )
+    record_channels: RecordChannelsDocument = Field(
+        description="Channel catalog and blurbs. Python validates step_kinds.record_channels membership only."
+    )
     interrupt_park_steps: list[str] = Field(
         description=(
             "Step keys that park the cursor for user decision (grill/clarify). "
@@ -536,11 +555,19 @@ class ProfileDocument(StrictDocument):
                     f"slice kind {key!r} requires steps absent from its creation template: "
                     f"{', '.join(missing_from_template)}"
                 )
+        known_channel_ids = set(self.record_channels.blurbs)
         for key, step in self.step_kinds.items():
             if step.different_model_from_step and step.different_model_from_step not in known_steps:
                 raise ValueError(
                     f"step kind {key!r} requires a different model from unknown step "
                     f"{step.different_model_from_step!r}"
+                )
+            if not step.record_channels:
+                raise ValueError(f"step kind {key!r} must declare non-empty record_channels")
+            unknown_channels = [channel for channel in step.record_channels if channel not in known_channel_ids]
+            if unknown_channels:
+                raise ValueError(
+                    f"step kind {key!r} references unknown record_channels: {', '.join(unknown_channels)}"
                 )
         return self
 
@@ -4632,6 +4659,99 @@ def render_packet_lines(text: str, *, defaults: dict[str, str]) -> list[str]:
     return lines
 
 
+SLICE_GOAL_PREVIEW_MAX_CHARS = 500
+PACKET_GENERIC_MAX_BYTES = 1500
+PACKET_TOTAL_MAX_BYTES = 4500
+SUBAGENT_PROMPT_MAX_BYTES = 2500
+
+
+def collapse_slice_goal(goal: str, *, slice_key: str) -> str:
+    """Return a short slice-goal preview with a markdown pointer when the goal is long."""
+
+    if len(goal) <= SLICE_GOAL_PREVIEW_MAX_CHARS:
+        return goal
+    preview = goal[:SLICE_GOAL_PREVIEW_MAX_CHARS].rstrip()
+    if not preview.endswith("…"):
+        preview += "…"
+    return (
+        f"{preview}\n"
+        f"(full goal: pi-job --task TASK_FILE markdown --slice {slice_key} --with-decisions)"
+    )
+
+
+def render_record_results_lines(
+    profile: dict[str, Any],
+    step_kind: dict[str, Any] | None,
+    *,
+    defaults: dict[str, str],
+) -> list[str]:
+    """Step-scoped RECORD RESULTS blurbs from profile record_channels."""
+
+    packets = profile["instruction_packets"]
+    channels = profile["record_channels"]
+    lines = ["RECORD RESULTS"]
+    lines.extend(render_packet_lines(packets["record_results_intro"], defaults=defaults))
+    if step_kind:
+        for channel_id in step_kind.get("record_channels") or []:
+            blurb = channels["blurbs"].get(channel_id)
+            if blurb:
+                lines.append(f"- {blurb}")
+    return lines
+
+
+def split_execution_instruction(instruction: str) -> tuple[str, str]:
+    """Split an execution packet into body (budgeted) and optional Subagent prompt tail."""
+
+    marker = "\nSubagent prompt:"
+    if marker in instruction:
+        body, prompt = instruction.split(marker, 1)
+        return body, marker + prompt
+    return instruction, ""
+
+
+def measure_instruction_packet_budget(instruction: str) -> dict[str, int]:
+    """Measure generic, step-specific, total execution body, and subagent prompt byte counts."""
+
+    body, prompt_tail = split_execution_instruction(instruction)
+    step_marker = "\nSTEP\n"
+    record_marker = "\nRECORD RESULTS\n"
+    todo_marker = "\nTodo tracking:\n"
+    step_idx = body.find(step_marker)
+    record_idx = body.find(record_marker)
+    todo_idx = body.find(todo_marker)
+    if step_idx == -1 or record_idx == -1 or record_idx < step_idx:
+        generic_bytes = len(body.encode("utf-8"))
+        step_specific_bytes = 0
+    else:
+        record_block = body[record_idx:todo_idx if todo_idx != -1 else len(body)]
+        record_lines = record_block.split("\n")
+        intro_lines: list[str] = []
+        blurb_lines: list[str] = []
+        past_header = False
+        for line in record_lines:
+            if line == "RECORD RESULTS":
+                intro_lines.append(line)
+                past_header = True
+                continue
+            if past_header and line.startswith("- "):
+                blurb_lines.append(line)
+            elif past_header:
+                intro_lines.append(line)
+        record_intro = "\n".join(intro_lines)
+        blurbs = "\n".join(blurb_lines)
+        after_todo = body[todo_idx:] if todo_idx != -1 else ""
+        generic_bytes = len((body[: step_idx + len(step_marker)] + record_intro + after_todo).encode("utf-8"))
+        step_specific_bytes = len((body[step_idx + len(step_marker) : record_idx] + blurbs).encode("utf-8"))
+    total_body_bytes = len(body.encode("utf-8"))
+    prompt_bytes = len(prompt_tail.encode("utf-8")) if prompt_tail else 0
+    return {
+        "generic_bytes": generic_bytes,
+        "step_specific_bytes": step_specific_bytes,
+        "total_body_bytes": total_body_bytes,
+        "subagent_prompt_bytes": prompt_bytes,
+    }
+
+
 def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:
     """Packet when the current slice has no unfinished steps - orchestrator picks via show."""
     require_initialized(task_file, task)
@@ -4652,9 +4772,7 @@ def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label() if cursor else '<unset>'}",
         (
-            "Role: orchestrator; CLI-only for the store; pause on grill/clarify/"
-            "requires_user_decision. Supersedes any default workspace role "
-            "(e.g. Product Owner) while this task is active."
+            "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
         ),
         "",
     ]
@@ -4675,9 +4793,6 @@ def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:
     lines.append("")
     lines.append("NEXT ACTION")
     lines.extend(render_packet_lines(packets["pick_next_slice"], defaults=packet_defaults))
-    lines.append("")
-    lines.append("Orchestrator instruction:")
-    lines.extend(render_packet_lines(packets["orchestrator"], defaults=packet_defaults))
     return "\n".join(lines)
 
 
@@ -4717,25 +4832,20 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
         f"Current cursor: {cursor.label()}",
         f"Owner: {owner}",
         (
-            "Role: orchestrator; CLI-only for the store; pause on grill/clarify/"
-            "requires_user_decision. Supersedes any default workspace role "
-            "(e.g. Product Owner) while this task is active."
+            "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
             if owner == "orchestrator"
-            else (
-                "Role: orchestrator (dispatching); step owner is subagent. "
-                "Supersedes any default workspace role (e.g. Product Owner) "
-                "while this task is active."
-            )
+            else "Role: orchestrator dispatching subagent (CLI-only store)."
         ),
         "",
         "NEXT ACTION",
     ]
     lines.extend(render_packet_lines(packets["next_action"], defaults=packet_defaults))
     lines.append("")
+    lines.append("STEP")
     if task_slice:
         lines.append(f"Slice: {task_slice.key} [{task_slice.kind}] — {task_slice.title or '<untitled>'}")
         if task_slice.goal:
-            lines.append(f"Slice goal: {task_slice.goal}")
+            lines.append(f"Slice goal: {collapse_slice_goal(task_slice.goal, slice_key=task_slice.key)}")
         if task_slice.note:
             lines.append(f"Slice note: {task_slice.note}")
     if step:
@@ -4774,71 +4884,49 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             lines.append(
                 f"Artifact gate: {gate.get('key')} ({req}) — {gate.get('output')} when {gate.get('when')}"
             )
+        if step and has_lifecycle_policy(step_kind):
+            source_step_key = str(step_kind.get("different_model_from_step") or "")
+            lines.append("Step lifecycle policy:")
+            if step_kind.get("requires_user_decision"):
+                lines += [
+                    "- Ask the user whether to run this step before dispatching its executor.",
+                    "- If declined, run `finish --skip --model <orchestrator-model-id> --reason '<user decision>'`.",
+                ]
+            if source_step_key:
+                source_step = find_step(task_slice, source_step_key) if task_slice else None
+                source_model = source_step.execution.model if source_step and source_step.execution else "<missing>"
+                lines += [
+                    f"- Model recorded on {source_step_key}: {source_model}",
+                    "- Choose a different fully qualified model ID for this step.",
+                    "- Prefer a higher-reasoning / higher-capability model than that author model "
+                    "(do not reuse a fast coding or low-cost edit model for review/scan).",
+                ]
+            lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
 
     subagent_required = contract_policy.get("subagent_required", True)
     lower_power = contract_policy.get("lower_power_model_preferred", True)
     reviews = contract_policy.get("orchestrator_reviews_subagent", True)
     lines += [
-        "",
         "Execution policy:",
         f"- subagent_required: {subagent_required}",
         f"- lower_power_model_preferred: {lower_power}",
         f"- orchestrator_reviews_subagent: {reviews}",
     ]
-    if step:
-        lines += [
-            "",
-            "Lifecycle recording:",
-            "- Before work begins, run `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`.",
-            "- After evidence is recorded, run `pi-job --task TASK_FILE finish` before `pi-job advance`.",
-            "- Start the containing slice separately with `start --slice-only --model <orchestrator-model-id>` if it has no execution metadata.",
-        ]
-    elif task_slice:
-        lines += [
-            "",
-            "Lifecycle recording:",
-            "- Finish this slice with `pi-job --task TASK_FILE finish --slice-only` after every step is done or skipped.",
-        ]
-    if step and step_kind and has_lifecycle_policy(step_kind):
-        source_step_key = str(step_kind.get("different_model_from_step") or "")
-        lines += ["", "Step lifecycle policy:"]
-        if step_kind.get("requires_user_decision"):
-            lines += [
-                "- Ask the user whether to run this step before dispatching its executor.",
-                "- If declined, run `finish --skip --model <orchestrator-model-id> --reason '<user decision>'`.",
-            ]
-        if source_step_key:
-            source_step = find_step(task_slice, source_step_key) if task_slice else None
-            source_model = source_step.execution.model if source_step and source_step.execution else "<missing>"
-            lines += [
-                f"- Model recorded on {source_step_key}: {source_model}",
-                "- Choose a different fully qualified model ID for this step.",
-                "- Prefer a higher-reasoning / higher-capability model than that author model "
-                "(do not reuse a fast coding or low-cost edit model for review/scan).",
-            ]
-        lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
-
-    discipline_lines = ["", "Task record discipline:"]
-    discipline_lines.extend(
-        render_packet_lines(packets["task_record_discipline"], defaults=packet_defaults)
-    )
-    todo_lines = ["", "Todo tracking:"]
-    todo_lines.extend(render_packet_lines(packets["todo_tracking"], defaults=packet_defaults))
-    todo_lines += ["", "Future-work capture:"]
-    todo_lines.extend(render_packet_lines(packets["future_work"], defaults=packet_defaults))
-
-    if owner == "subagent":
-        subagent_lines = ["", "Orchestrator instruction:"]
-        subagent_lines.extend(render_packet_lines(packets["subagent_orchestrator"], defaults=packet_defaults))
-        prompt_lines = ["", "Subagent prompt:"]
-        prompt_lines.extend(render_packet_lines(packets["subagent_prompt"], defaults=packet_defaults))
-        lines += subagent_lines + discipline_lines + todo_lines + prompt_lines
-    else:
-        orch_lines = ["", "Orchestrator instruction:"]
-        orch_lines.extend(render_packet_lines(packets["orchestrator"], defaults=packet_defaults))
-        lines += orch_lines + discipline_lines + todo_lines
     if step and step.key in ("select-toolbelt", "plan-slices"):
         lines += toolbelt_block(task, task_slice_kinds(task))
+
+    lines.append("")
+    lines.extend(render_record_results_lines(profile, step_kind, defaults=packet_defaults))
+    lines.append("")
+    lines.append("Todo tracking:")
+    lines.extend(render_packet_lines(packets["todo_tracking"], defaults=packet_defaults))
+    lines.append("Future-work capture:")
+    lines.extend(render_packet_lines(packets["future_work"], defaults=packet_defaults))
+
+    if owner == "subagent":
+        lines.append("")
+        lines.append("Subagent prompt:")
+        lines.extend(render_packet_lines(packets["subagent_prompt"], defaults=packet_defaults))
     return "\n".join(lines)
 
 
@@ -7202,6 +7290,19 @@ def cmd_profile(args: argparse.Namespace) -> None:
     print("Pass --json for the full validated profile.")
 
 
+def cmd_channels(args: argparse.Namespace) -> None:
+    profile = load_profile_contract()
+    channels = profile["record_channels"]
+    if args.step:
+        step_kind = get_step_kind(args.step)
+        print(f"Step {args.step} record channels:")
+        for channel_id in step_kind.get("record_channels") or []:
+            blurb = channels["blurbs"].get(channel_id, "")
+            print(f"- {channel_id}: {blurb}")
+        return
+    print(channels["catalog"].rstrip())
+
+
 def cmd_schema(args: argparse.Namespace) -> None:
     if args.json_output:
         schemas = {
@@ -7608,6 +7709,13 @@ def main() -> None:
     profile_cmd = sub.add_parser("profile", help="show the active execution profile")
     profile_cmd.add_argument("--json", dest="json_output", action="store_true", help="output full validated profile as JSON")
     profile_cmd.set_defaults(fn=cmd_profile)
+
+    channels_cmd = sub.add_parser(
+        "channels",
+        help="show the full task-record channel map, or one step's record_channels blurbs",
+    )
+    channels_cmd.add_argument("--step", help="step kind key; print only that step's record_channels blurbs")
+    channels_cmd.set_defaults(fn=cmd_channels)
 
     schema_cmd = sub.add_parser("schema", help="show the task document schema")
     schema_cmd.add_argument("--json", dest="json_output", action="store_true", help="output JSON Schema for task and bootstrap documents")
