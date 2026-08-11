@@ -244,12 +244,14 @@ instruction_packets:
     - Do not skip required artifacts or validators from the task contract.
     - Run pi-job advance only after the step evidence is recorded or a blocker is written down.
   subagent_orchestrator: |-
-    - Choose an appropriate lower-cost model using judgement.
+    - Choose an appropriate lower-cost model using judgement for the coding/subagent pass.
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
     - Tell the subagent to run first: pi-job --task TASK_FILE markdown --slice SLICE_KEY --with-decisions
     - Do not paste a decisions dump into the subagent prompt; the markdown --slice --with-decisions read loads binding decisions.
     - Review the subagent result before running pi-job advance.
+      Prefer a higher-reasoning model for that review pass than the subagent used to write
+      the change (spot incorrect assumptions, missed edge cases, and unsafe defaults).
     - After review, continue the orchestrator loop (finish → advance → instruction); do not wait for "continue".
   subagent_prompt: |-
     This packet is your execution context; do not inspect the task store directly.
@@ -462,7 +464,21 @@ step_kinds:
       - scanner-model-differs-from-code-author-model
       - vulnerabilities-resolved-or-risk-accepted
     skip_rule: only when the user explicitly declines the scan for this implement slice
-    guidance: Ask the user whether this implement slice requires a vulnerability scan. If declined, record an explicit user-declined skip. If accepted, dispatch a vulnerability-focused reviewer whose fully qualified model ID differs from the model recorded on edit-code, regardless of whether edit-code ran in the orchestrator or a subagent. Record findings and ensure they are resolved or explicitly accepted before sharing.
+    guidance: |-
+      Ask the user whether this implement slice requires a vulnerability scan.
+      If declined, record an explicit user-declined skip.
+      If accepted, dispatch a vulnerability-focused reviewer as a separate pass:
+      - Fully qualified model ID must differ from the model recorded on edit-code
+        (whether edit-code ran in the orchestrator or a subagent).
+      - Prefer a higher-reasoning / higher-capability model than the code author
+        (do not reuse a fast coding or low-cost edit model for the scan).
+        Example pattern: if edit-code used a composer/fast ID, pick a reasoning-oriented
+        ID from a different family or a stronger tier in the same provider.
+      - Review the changed/generated code for vulnerabilities, insecure defaults,
+        authz gaps, injection, secrets, and unsafe trust boundaries.
+      - Record findings in finish --note; resolve them or explicitly accept remaining
+        risk before sharing.
+      Do not treat "different model" alone as enough - capability for review matters.
   share-with-team:
     key: share-with-team
     title: 'Share with team: ticket + PR for this slice''s repo'

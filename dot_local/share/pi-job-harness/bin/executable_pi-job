@@ -4813,6 +4813,8 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
             lines += [
                 f"- Model recorded on {source_step_key}: {source_model}",
                 "- Choose a different fully qualified model ID for this step.",
+                "- Prefer a higher-reasoning / higher-capability model than that author model "
+                "(do not reuse a fast coding or low-cost edit model for review/scan).",
             ]
         lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
 

@@ -446,7 +446,7 @@ Every new implement slice includes `vulnerability-scan` after verify and before 
 Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
-2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`.
+2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`, and prefers a higher-reasoning / higher-capability model than the code author (not a second fast coding model).
 3. The scanner reviews changed/generated code for vulnerabilities and records findings in the step note.
 4. The step finishes only after findings are resolved or the remaining risk is explicitly accepted.
 5. If the user declines, the orchestrator records `finish --skip --model <id> --reason '<user decision>'`.

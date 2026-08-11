@@ -5189,6 +5189,18 @@ def test_vulnerability_scan_rejects_writer_model() -> None:
         assert_contains(result.stderr, "must differ from edit-code model")
 
 
+def test_vulnerability_scan_instruction_prefers_higher_reasoning_model() -> None:
+    """Scan packets must recommend a stronger review model, not only a different ID."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "scan-instruction.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(instruction, "vulnerability-scan")
+        assert_contains(instruction, "higher-reasoning")
+        assert_contains(instruction, "Model recorded on edit-code")
+        assert_contains(instruction, "anthropic/claude-writer")
+
+
 def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "unqualified-author.yaml"
@@ -6863,6 +6875,7 @@ def main() -> None:
     test_unblock_slice_refuses_non_blocked()
     test_start_refuses_blocked_slice()
     test_vulnerability_scan_rejects_writer_model()
+    test_vulnerability_scan_instruction_prefers_higher_reasoning_model()
     test_vulnerability_scan_rejects_unqualified_author_model()
     test_start_unqualified_model_error_includes_example()
     test_advance_rejects_malformed_scan_timestamps()
