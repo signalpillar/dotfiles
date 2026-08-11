@@ -105,6 +105,62 @@ toolbelt:
     suits:
       - setup
       - research
+  endpoint-status-map:
+    key: endpoint-status-map
+    title: Endpoint status map
+    purpose: >-
+      One journey's mutating endpoints in causal order, each with a before->after
+      status contract (resource roles, non-effects, dual writers). Not a generic
+      sequence or architecture diagram.
+    suits:
+      - setup
+      - research
+      - implement
+      - spike
+    example: |-
+      Build an **endpoint status map** for this ticket.
+
+      ## Name
+      `{journey short name} - endpoint status map`
+
+      ## Scope
+      - One primary journey only (happy path + the failure under investigation).
+      - Systems in play (P3 / PI / SF / Camunda / Graphius). Do not widen to unrelated markets.
+
+      ## Method
+      1. List mutating endpoints in causal order (who calls whom).
+      2. For each endpoint capture a row:
+         - Endpoint (method + path)
+         - Caller (Camunda task / SF EventBridge / Graphius / ...)
+         - PI service (if any)
+         - Resources touched (roles: prescribed MR, requested/winner MR, SR, addons)
+         - Status / field rules: before -> after
+         - Explicit non-effects (does NOT set X)
+         - Failure mode if relevant (HTTP status + meaning)
+      3. Draw a vertical flow of those endpoints only.
+      4. Add a compact table under the diagram with the same rows.
+      5. Call out dual writers (two paths that can set the same status) and the invariant each owns.
+      6. Ground every status rule in a code/BPMN reference (file or ticket), not memory.
+      7. End with: "what this ticket's failure maps to" (which step broke which rule).
+
+      ## Output shape
+      1. One mermaid/ASCII flow (endpoints + status deltas on arrows or under steps)
+      2. One table: Endpoint | Caller | Resources | Status rules | Notes
+      3. Optional: 3-5 line "tonight's case" overlay
+
+      ## Do not
+      - Include read-only GETs unless they are the gate
+      - Mix accept + decline + timeout into one diagram unless the ticket is the shared matrix
+      - Use opaque UUIDs as primary labels (put them in a separate evidence table)
+
+      ## Rules of thumb
+      - Time order of writers only.
+      - Mutations only (or fields later gates need, e.g. requester).
+      - Resource roles, not UUIDs.
+      - Per endpoint: one status contract + explicit non-effects.
+      - Surface dual writers; fail-closed notes; code over folklore.
+      - Happy path first, then tonight's fork.
+
 pr_template_guardrail: &pr_template_guidance |-
   Before writing any PR body: (1) check the target repo for a template at
   .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
@@ -119,45 +175,37 @@ pr_template_guardrail: &pr_template_guidance |-
   Prefer `gh pr create --head <branch>` right after the first push of a new branch
   (avoids the "must first push" abort).
 plan_and_grill_guardrail: &plan_and_grill_guidance |-
-  Before any other step in an implement/spike slice starts, that slice's steps must
-  begin with exactly two leading steps, in order:
-  (1) create-plan - write THIS slice's plan to a sibling Markdown plan file as a
-      constraint-and-behaviour contract, not a how-to essay or delivery journal.
-      Required sections: intent, system behaviour, constraints, verification;
-      optional short touch surface.
-      Not a restatement of the slice's goal. Do NOT inline the plan body in the task file.
+  Before other implement/spike steps, lead with create-plan then grill-plan:
+  (1) create-plan - sibling Markdown plan file as a constraint-and-behaviour contract
+      (not a how-to essay or delivery journal).
+      Required sections: intent, types and composition, call stacks, system behaviour,
+      constraints, verification; optional short touch surface.
+      Types and composition: prefer pseudo-code (fenced type/interface sketch, any
+      language tag) plus prose boundaries.
+      Call stacks: one indented stack (e.g. handler -> service -> store); note
+      test/memory swaps inline; prefer a shallow stack over `Call stacks: N/A - <reason>`.
+      Do not restate the slice goal; do not inline the plan body in the task file.
       Do not move delivery status, cursor, or session journals into plan files
       (pi-job store owns those).
-      DX and agent experience share the same constructs: clear names and short contracts
-      help the next human and the next agent equally - write the plan for both.
+      DX and agent experience share the same constructs: clear names and short contracts.
       Persist product/scope/architecture/policy agreements with `pi-job add-decision`
       (and/or the grilled plan); do not leave load-bearing scope choices only in chat.
       Step evidence belongs in `finish --note`, not `add-decision`.
-      Token smell: if the plan needs a huge dump to be usable, shrink the slice or the
-      contract - do not compensate by loading more of the task store into context.
-      Naming: beside the task file, directory `<task-stem>.plans/`, file
-      `<slice-key>.md` (e.g. task `projects/foo/tasks/bar.yaml` + slice `wire-api`
-      -> `projects/foo/tasks/bar.plans/wire-api.md`). create-plan's step note is ONLY
-      a pointer: `Plan file: <task-stem>.plans/<slice-key>.md` (path relative to the
-      task file's directory).
-  (2) grill-plan - interrogate that plan file using the grill-me skill
-      (skills/grill-me/SKILL.md).
-      Challenge behaviour, boundaries, must-not constraints, and verification; prose volume is not an acceptance criterion.
-      grill-plan's note records what was challenged and what changed.
-      If grilling surfaces a real gap, revise the plan FILE (not the
-      task-file note), grill again, only mark grill-plan done once the plan survives
-      - this is a loop, not a one-shot rubber stamp.
+      Token smell: shrink the slice or contract; do not dump more of the task store.
+      Naming: `<task-stem>.plans/<slice-key>.md`. create-plan note is ONLY
+      `Plan file: <task-stem>.plans/<slice-key>.md` (relative to the task file's directory).
+  (2) grill-plan - grill-me skill (skills/grill-me/SKILL.md).
+      Challenge behaviour, boundaries, must-not constraints, verification, types and
+      composition, and call stacks; prose volume is not an acceptance criterion.
+      Note what changed; revise the plan FILE and re-grill until it survives.
       After grill survives, capture product/scope choices that should outlive the session
       with `pi-job add-decision` (date/note/source), not only in chat.
       Do not use add-decision for PR, deploy, e2e, or progress chatter.
-  Mark both done only once the plan has survived grilling; advance refuses to pass an
-  incomplete step, so edit-code-style steps stay unreachable until both are done.
-  Distinct from the setup slice's `grill` step (overall scope before implement slices
-  exist) - grill-plan is the per-slice equivalent.
-  Exception: a genuinely trivial single-file edit may skip both steps (status:
-  skipped, note: one-line reason) - same exception class as coding_execution.exceptions.
-  If the sibling plan file already exists from a create/add-slice seed reminder,
-  revise it with remaining detail rather than starting from a blank page.
+  Advance blocks past incomplete create-plan/grill-plan. Distinct from setup `grill`.
+  Exception: trivial single-file edit may skip both (status: skipped, one-line reason) -
+  same class as coding_execution.exceptions; only way to omit types and composition / call stacks.
+  Soft enforcement: guidance + phrase locks + seeded stub; no hard plan-file heading linter.
+  If a seed stub already exists, revise it rather than starting blank.
 sync_pipeline_instructions: |-
   ACTION REQUIRED: this command only reads the task file - it never calls GitHub or Jira.
   The slice list below is LAST-RECORDED state, not live remote status.
@@ -298,10 +346,33 @@ instruction_packets:
     ## Depends on
     {depends_on}
 
-    ## Open questions
+    ## Intent
     -
 
-    ## Evidence
+    ## Types and composition
+    ```ts
+    // prefer fenced type/interface sketch + prose boundaries
+    ```
+
+    ## Call stacks
+    ```ts
+    // one indented stack; note test/memory swaps inline when they matter
+    // shallow: edit-code -> file -> function  (prefer over N/A)
+    ```
+
+    ## System behaviour
+    -
+
+    ## Constraints
+    -
+
+    ## Verification
+    -
+
+    ## Touch surface
+    -
+
+    ## Open questions
     -
 
     ## Decisions
@@ -376,7 +447,7 @@ step_kinds:
     validators:
       - at-least-one-slice
       - slices-repo-scoped-and-atomic
-    guidance: Prefer one slice per repository. Make each slice atomic - self-contained end to end - ordered by dependency. Add implement slices with `pi-job add-slice --kind implement`.
+    guidance: Prefer one slice per repository. Make each slice atomic - self-contained end to end - ordered by dependency. Add implement slices with `pi-job add-slice --kind implement`. When producing a registered toolbelt aid, if the catalog entry has an `example`, follow that as the build instruction for the aid file.
   wayfinder:
     key: wayfinder
     title: Chart the fog

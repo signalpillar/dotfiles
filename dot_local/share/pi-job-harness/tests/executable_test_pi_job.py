@@ -978,8 +978,16 @@ plan:
 def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
     """Phrase-lock the profile-owned create-plan / grill-plan contract in instruction packets."""
     assert_contains(instruction, "constraint-and-behaviour contract")
-    assert_contains(instruction, "intent, system behaviour, constraints, verification")
+    assert_contains(
+        instruction,
+        "intent, types and composition, call stacks, system behaviour",
+    )
+    assert_contains(instruction, "constraints, verification")
     assert_contains(instruction, "optional short touch surface")
+    assert_contains(instruction, "Types and composition")
+    assert_contains(instruction, "Call stacks")
+    assert_contains(instruction, "one indented stack")
+    assert_contains(instruction, "prefer pseudo-code")
     assert_contains(
         instruction,
         "Do not move delivery status, cursor, or session journals into plan files",
@@ -1007,8 +1015,9 @@ def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> N
         _assert_constraint_and_behaviour_plan_contract(instruction)
         assert_contains(
             instruction,
-            "Challenge behaviour, boundaries, must-not constraints, and verification",
+            "Challenge behaviour, boundaries, must-not constraints, verification, types and",
         )
+        assert_contains(instruction, "composition, and call stacks")
         assert_contains(instruction, "prose volume is not an acceptance criterion")
         assert_contains(instruction, "capture product/scope choices that should outlive the session")
         assert_contains(instruction, "Do not use add-decision for PR, deploy, e2e, or progress chatter")
@@ -1353,13 +1362,14 @@ def test_toolbelt_lists_for_slice_kinds() -> None:
         write_task_yaml(implement_task, standard_fixture_mapping())
         out = run(str(PI_JOB), "--task", str(implement_task), "toolbelt").stdout
         assert_contains(out, "implement")
-        for key in ("httpyac-api-spec", "test-case-table"):
+        for key in ("httpyac-api-spec", "test-case-table", "endpoint-status-map"):
             assert_contains(out, key)
         assert_contains(out, "[not registered]")
 
         out_setup = run(str(PI_JOB), "--task", str(implement_task), "toolbelt", "--kind", "setup").stdout
         assert_contains(out_setup, "setup")
         assert_contains(out_setup, "config-flag-matrix")
+        assert_contains(out_setup, "endpoint-status-map")
 
         research_task = Path(tmp) / "research.yaml"
         write_task_yaml(research_task, {
@@ -1386,6 +1396,22 @@ def test_toolbelt_lists_for_slice_kinds() -> None:
         out_research = run(str(PI_JOB), "--task", str(research_task), "toolbelt").stdout
         assert_contains(out_research, "sequence-diagram")
         assert_contains(out_research, "state-transition-table")
+        assert_contains(out_research, "endpoint-status-map")
+
+
+def test_endpoint_status_map_catalog_has_build_example() -> None:
+    module = load_pi_job_module()
+    aid = module.load_profile_contract()["toolbelt"]["endpoint-status-map"]
+    assert_contains(aid["title"], "Endpoint status map")
+    assert_contains(aid["purpose"], "mutating endpoints")
+    example = aid.get("example") or ""
+    assert_contains(example, "endpoint status map")
+    assert_contains(example, "before -> after")
+    assert_contains(example, "dual writers")
+    assert_contains(example, "Do not")
+    for kind in ("setup", "research", "implement", "spike"):
+        if kind not in (aid.get("suits") or []):
+            raise AssertionError(f"endpoint-status-map should suit {kind!r}")
 
 
 def test_toolbelt_add_records_artifact() -> None:
@@ -6580,7 +6606,13 @@ def test_add_slice_creates_plan_stub() -> None:
         module = load_pi_job_module()
         template = module.load_profile_contract()["instruction_packets"]["slice_plan_stub"]
         # Stub body must come from the profile template, not a Python hardcode.
+        assert_contains(template, "## Types and composition")
+        assert_contains(template, "## Call stacks")
+        assert_contains(template, "## Intent")
         assert_contains(template, "## Open questions")
+        assert_contains(body, "## Types and composition")
+        assert_contains(body, "## Call stacks")
+        assert_contains(body, "## Intent")
         assert_contains(body, "## Open questions")
         assert_contains(body, "## Goal")
         assert_contains(body, "Ship a stub")
@@ -6735,6 +6767,7 @@ def main() -> None:
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
     test_toolbelt_lists_for_slice_kinds()
+    test_endpoint_status_map_catalog_has_build_example()
     test_toolbelt_add_records_artifact()
     test_select_toolbelt_step_and_instruction()
     test_toolbelt_block_in_plan()

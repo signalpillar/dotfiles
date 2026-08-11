@@ -74,8 +74,8 @@ Prefer packet guidance. Typical shape:
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
-Slice plans: `<task-stem>.plans/<slice-key>.md` (constraint contracts; see profile
-`plan_and_grill_guardrail`).
+Slice plans: `<task-stem>.plans/<slice-key>.md` (constraint contracts with types/composition
+and call stacks; see profile `plan_and_grill_guardrail`).
 
 ## Wayfinder
 

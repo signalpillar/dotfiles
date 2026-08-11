@@ -187,9 +187,10 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 - Session todos should track the slice/step plan from `plan`, not a separate profile phase list.
 - Prefer small context: `status` / `show --slice` / `markdown --slice` / `instruction` over loading the whole task file.
   Token smell: if a step needs a huge dump, shrink the contract or the slice.
-- Sibling slice plans are succinct constraint-and-behaviour contracts (intent, behaviour, constraints, verification).
+- Sibling slice plans are succinct constraint-and-behaviour contracts (intent, types and composition, call stacks, behaviour, constraints, verification).
   Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
   Step evidence belongs in `finish --note`, not `add-decision`.
+  Full wording lives in profile `plan_and_grill_guardrail` (thin pointer only here).
 - Developer experience and agent experience share the same constructs: clear names, modular boundaries, and machine-readable contracts help both.
 
 ## Channels
@@ -530,13 +531,15 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 The setup slice's `select-toolbelt` step picks aids suited to the task's slice kinds; `plan-slices` produces them.
 The catalog lives in `profile.yaml` under `toolbelt`.
+Catalog entries may include an `example` build instruction; follow it when writing the aid file.
 
 ## Planning before code changes: create-plan / grill-plan / grill
 
 **Setup slice** uses step key `grill` to interrogate overall task scope before implement slices exist.
 
 **Implement and spike slices** must lead with `create-plan` then `grill-plan` before other work in that slice.
-Sibling plan files are succinct constraint-and-behaviour contracts.
+Sibling plan files are succinct constraint-and-behaviour contracts
+(intent, types and composition, call stacks, behaviour, constraints, verification).
 Full wording (required sections, grill axes, task-store boundary, naming, skip exception) lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
 Do not restate that contract here.
 
