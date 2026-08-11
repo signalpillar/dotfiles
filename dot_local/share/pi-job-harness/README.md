@@ -383,7 +383,7 @@ Safety guarantees:
 
 These commands write task metadata and durable state without editing the YAML by hand:
 
-- `pi-job --task <t> set-project --key K --name N --route R --context C` - merge into `task.project` (at least one flag required).
+- `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note`; date defaults to today UTC; source defaults to `pi-job add-decision`).
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
@@ -434,6 +434,7 @@ execution:
 - `finish --note '<evidence>'` appends completion evidence with a blank line when a note already exists; omitted preserves the existing note.
 - `finish --replace --note '<evidence>'` overwrites the existing note instead of appending (`--replace` requires `--note` and cannot combine with `--skip`).
 - `finish --reconcile --model <id> --note '<evidence>'` records completion for an `in_progress` target that was never started via pi-job; refuses `planned`/`done`/`skipped`.
+- When more than one unfinished step exists anywhere in the task, finishing a step requires explicit `--slice` and `--step` (bare cursor finish is allowed only when exactly one unfinished step remains).
 - Normal `finish` without `--reconcile` still requires a prior `start` (unless `--skip`).
 - `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice` first for slice-level blocks.
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
@@ -445,7 +446,7 @@ Every new implement slice includes `vulnerability-scan` after verify and before 
 Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
-2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`.
+2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`, and prefers a higher-reasoning / higher-capability model than the code author (not a second fast coding model).
 3. The scanner reviews changed/generated code for vulnerabilities and records findings in the step note.
 4. The step finishes only after findings are resolved or the remaining risk is explicitly accepted.
 5. If the user declines, the orchestrator records `finish --skip --model <id> --reason '<user decision>'`.

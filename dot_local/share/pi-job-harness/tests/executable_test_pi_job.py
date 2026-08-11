@@ -4997,6 +4997,59 @@ def test_finish_replace_refused_with_skip() -> None:
         assert_contains(res.stderr, "finish --replace cannot be combined with --skip")
 
 
+def test_finish_bare_refuses_when_multiple_unfinished_steps() -> None:
+    """When ≥2 unfinished steps exist, bare finish (cursor defaults) fails closed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-ambiguous.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        write_task_yaml(task, mapping)
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "openai/gpt-orchestrator")
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--note", "Should refuse - other unfinished steps exist.",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("bare finish with multiple unfinished steps unexpectedly succeeded")
+        assert_contains(res.stderr, "finish target ambiguous")
+        assert_contains(res.stderr, "--slice KEY --step KEY")
+
+
+def test_finish_explicit_slice_step_ok_when_multiple_unfinished() -> None:
+    """Explicit --slice/--step succeeds even when other unfinished steps remain."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-explicit.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB), "--task", str(task), "start",
+            "--slice", "second-slice", "--step", "s2",
+            "--model", "openai/gpt-orchestrator",
+        )
+        out = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice", "second-slice", "--step", "s2",
+            "--note", "Evidence on the named step.",
+        ).stdout
+        assert_contains(out, "finished: second-slice/s2")
+        module = load_pi_job_module()
+        step = find_step(module.YamlTaskStore(task).read(), "second-slice", "s2")
+        assert step["status"] == "done"
+
+
+def test_finish_bare_ok_when_exactly_one_unfinished_step() -> None:
+    """Bare finish remains allowed when the task has only one unfinished step."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-single.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "google/gemini-reviewer")
+        out = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--note", "Only one unfinished step.",
+        ).stdout
+        assert_contains(out, "finished: implementation/vulnerability-scan")
+
+
 def test_set_slice_updates_title_and_goal() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "set-slice.yaml"
@@ -5136,6 +5189,18 @@ def test_vulnerability_scan_rejects_writer_model() -> None:
         assert_contains(result.stderr, "must differ from edit-code model")
 
 
+def test_vulnerability_scan_instruction_prefers_higher_reasoning_model() -> None:
+    """Scan packets must recommend a stronger review model, not only a different ID."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "scan-instruction.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(instruction, "vulnerability-scan")
+        assert_contains(instruction, "higher-reasoning")
+        assert_contains(instruction, "Model recorded on edit-code")
+        assert_contains(instruction, "anthropic/claude-writer")
+
+
 def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "unqualified-author.yaml"
@@ -5148,6 +5213,25 @@ def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
         )
         assert result.returncode != 0
         assert_contains(result.stderr, "not fully qualified as provider/model")
+        assert_contains(result.stderr, "openai/gpt-5.6-sol")
+
+
+def test_start_unqualified_model_error_includes_example() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unqualified-start.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        # Neutralize different-model policy by using a planned non-scan step fixture:
+        # lifecycle cursor is vulnerability-scan; skip that by finishing via bare single-step path
+        # after first making author model qualified - use create empty instead.
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "implement", "--force", "--title", "Model id")
+        res = run(
+            str(PI_JOB), "--task", str(task), "start", "--model", "composer-2",
+            check=False,
+        )
+        if res.returncode == 0:
+            raise AssertionError("unqualified start model unexpectedly succeeded")
+        assert_contains(res.stderr, "fully qualified as provider/model")
+        assert_contains(res.stderr, "openai/gpt-5.6-sol")
 
 
 def test_advance_rejects_malformed_scan_timestamps() -> None:
@@ -5500,6 +5584,30 @@ def test_set_project_mutation() -> None:
         task_data = store.read()
         assert task_data["project"]["key"] == "new-key"
         assert task_data["project"]["name"] == "New Name"
+
+
+def test_set_project_title_updates_task_title() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "project-title.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force", "--title", "Old title")
+        out = run(
+            str(PI_JOB), "--task", str(task), "set-project", "--title", "Widened scope title",
+        ).stdout
+        assert_contains(out, "title=Widened scope title")
+        module = load_pi_job_module()
+        assert module.YamlTaskStore(task).read()["title"] == "Widened scope title"
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Widened scope title")
+
+
+def test_set_project_title_refuses_empty() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "project-title-empty.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
+        res = run(str(PI_JOB), "--task", str(task), "set-project", "--title", "   ", check=False)
+        if res.returncode == 0:
+            raise AssertionError("empty set-project --title unexpectedly succeeded")
+        assert_contains(res.stderr, "title must be non-empty")
 
 
 def test_set_context_mutation() -> None:
@@ -6755,6 +6863,9 @@ def main() -> None:
     test_finish_replace_requires_note()
     test_finish_note_append_with_slice_only()
     test_finish_replace_refused_with_skip()
+    test_finish_bare_refuses_when_multiple_unfinished_steps()
+    test_finish_explicit_slice_step_ok_when_multiple_unfinished()
+    test_finish_bare_ok_when_exactly_one_unfinished_step()
     test_set_slice_updates_title_and_goal()
     test_set_slice_requires_one_field()
     test_set_slice_refuses_done_slice()
@@ -6764,7 +6875,9 @@ def main() -> None:
     test_unblock_slice_refuses_non_blocked()
     test_start_refuses_blocked_slice()
     test_vulnerability_scan_rejects_writer_model()
+    test_vulnerability_scan_instruction_prefers_higher_reasoning_model()
     test_vulnerability_scan_rejects_unqualified_author_model()
+    test_start_unqualified_model_error_includes_example()
     test_advance_rejects_malformed_scan_timestamps()
     test_vulnerability_scan_can_record_user_declined_skip()
     test_slice_lifecycle_records_orchestrator_after_steps_finish()
@@ -6791,6 +6904,8 @@ def main() -> None:
     test_add_slice_follow_work_seeds_template_steps()
     test_validate_accepts_conformant_follow_work_fixture()
     test_set_project_mutation()
+    test_set_project_title_updates_task_title()
+    test_set_project_title_refuses_empty()
     test_set_context_mutation()
     test_add_decision_mutation()
     test_set_plan_note_mutation()
