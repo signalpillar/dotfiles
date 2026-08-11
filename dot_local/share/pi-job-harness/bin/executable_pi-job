@@ -4660,9 +4660,6 @@ def render_packet_lines(text: str, *, defaults: dict[str, str]) -> list[str]:
 
 
 SLICE_GOAL_PREVIEW_MAX_CHARS = 500
-PACKET_GENERIC_MAX_BYTES = 1500
-PACKET_TOTAL_MAX_BYTES = 4500
-SUBAGENT_PROMPT_MAX_BYTES = 2500
 
 
 def collapse_slice_goal(goal: str, *, slice_key: str) -> str:
@@ -4699,57 +4696,77 @@ def render_record_results_lines(
     return lines
 
 
-def split_execution_instruction(instruction: str) -> tuple[str, str]:
-    """Split an execution packet into body (budgeted) and optional Subagent prompt tail."""
+class InstructionPacketBudget:
+    """Byte-budget limits and measurement for instruction packets.
 
-    marker = "\nSubagent prompt:"
-    if marker in instruction:
-        body, prompt = instruction.split(marker, 1)
-        return body, marker + prompt
-    return instruction, ""
+    Boundary: only this type splits execution body vs Subagent prompt and
+    measures generic / step-specific / total body / prompt bytes. Tests and
+    callers use ``measure()`` and the ClassVar limits; they do not re-parse
+    packet section markers.
+    """
 
+    GENERIC_MAX_BYTES: ClassVar[int] = 1500
+    TOTAL_MAX_BYTES: ClassVar[int] = 4500
+    SUBAGENT_PROMPT_MAX_BYTES: ClassVar[int] = 2500
 
-def measure_instruction_packet_budget(instruction: str) -> dict[str, int]:
-    """Measure generic, step-specific, total execution body, and subagent prompt byte counts."""
+    _SUBAGENT_PROMPT_MARKER: ClassVar[str] = "\nSubagent prompt:"
+    _STEP_MARKER: ClassVar[str] = "\nSTEP\n"
+    _RECORD_MARKER: ClassVar[str] = "\nRECORD RESULTS\n"
+    _TODO_MARKER: ClassVar[str] = "\nTodo tracking:\n"
 
-    body, prompt_tail = split_execution_instruction(instruction)
-    step_marker = "\nSTEP\n"
-    record_marker = "\nRECORD RESULTS\n"
-    todo_marker = "\nTodo tracking:\n"
-    step_idx = body.find(step_marker)
-    record_idx = body.find(record_marker)
-    todo_idx = body.find(todo_marker)
-    if step_idx == -1 or record_idx == -1 or record_idx < step_idx:
-        generic_bytes = len(body.encode("utf-8"))
-        step_specific_bytes = 0
-    else:
-        record_block = body[record_idx:todo_idx if todo_idx != -1 else len(body)]
-        record_lines = record_block.split("\n")
-        intro_lines: list[str] = []
-        blurb_lines: list[str] = []
-        past_header = False
-        for line in record_lines:
-            if line == "RECORD RESULTS":
-                intro_lines.append(line)
-                past_header = True
-                continue
-            if past_header and line.startswith("- "):
-                blurb_lines.append(line)
-            elif past_header:
-                intro_lines.append(line)
-        record_intro = "\n".join(intro_lines)
-        blurbs = "\n".join(blurb_lines)
-        after_todo = body[todo_idx:] if todo_idx != -1 else ""
-        generic_bytes = len((body[: step_idx + len(step_marker)] + record_intro + after_todo).encode("utf-8"))
-        step_specific_bytes = len((body[step_idx + len(step_marker) : record_idx] + blurbs).encode("utf-8"))
-    total_body_bytes = len(body.encode("utf-8"))
-    prompt_bytes = len(prompt_tail.encode("utf-8")) if prompt_tail else 0
-    return {
-        "generic_bytes": generic_bytes,
-        "step_specific_bytes": step_specific_bytes,
-        "total_body_bytes": total_body_bytes,
-        "subagent_prompt_bytes": prompt_bytes,
-    }
+    @classmethod
+    def split_execution(cls, instruction: str) -> tuple[str, str]:
+        """Split an execution packet into body (budgeted) and optional Subagent prompt tail."""
+
+        marker = cls._SUBAGENT_PROMPT_MARKER
+        if marker in instruction:
+            body, prompt = instruction.split(marker, 1)
+            return body, marker + prompt
+        return instruction, ""
+
+    @classmethod
+    def measure(cls, instruction: str) -> dict[str, int]:
+        """Measure generic, step-specific, total execution body, and subagent prompt byte counts."""
+
+        body, prompt_tail = cls.split_execution(instruction)
+        step_idx = body.find(cls._STEP_MARKER)
+        record_idx = body.find(cls._RECORD_MARKER)
+        todo_idx = body.find(cls._TODO_MARKER)
+        if step_idx == -1 or record_idx == -1 or record_idx < step_idx:
+            generic_bytes = len(body.encode("utf-8"))
+            step_specific_bytes = 0
+        else:
+            record_block = body[record_idx : todo_idx if todo_idx != -1 else len(body)]
+            record_lines = record_block.split("\n")
+            intro_lines: list[str] = []
+            blurb_lines: list[str] = []
+            past_header = False
+            for line in record_lines:
+                if line == "RECORD RESULTS":
+                    intro_lines.append(line)
+                    past_header = True
+                    continue
+                if past_header and line.startswith("- "):
+                    blurb_lines.append(line)
+                elif past_header:
+                    intro_lines.append(line)
+            record_intro = "\n".join(intro_lines)
+            blurbs = "\n".join(blurb_lines)
+            after_todo = body[todo_idx:] if todo_idx != -1 else ""
+            generic_bytes = len(
+                (body[: step_idx + len(cls._STEP_MARKER)] + record_intro + after_todo).encode("utf-8")
+            )
+            step_specific_bytes = len(
+                (body[step_idx + len(cls._STEP_MARKER) : record_idx] + blurbs).encode("utf-8")
+            )
+        total_body_bytes = len(body.encode("utf-8"))
+        prompt_bytes = len(prompt_tail.encode("utf-8")) if prompt_tail else 0
+        return {
+            "generic_bytes": generic_bytes,
+            "step_specific_bytes": step_specific_bytes,
+            "total_body_bytes": total_body_bytes,
+            "subagent_prompt_bytes": prompt_bytes,
+        }
 
 
 def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:

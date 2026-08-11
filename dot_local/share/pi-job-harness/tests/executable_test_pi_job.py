@@ -1270,16 +1270,17 @@ def test_execution_packet_budget_share_with_team() -> None:
         assert_not_contains(instruction, "PLAN FILE")
         assert_contains(instruction, "PR (add-pr)")
         assert_not_contains(instruction, "FINDING (add-finding)")
-        budget = module.measure_instruction_packet_budget(instruction)
-        if budget["total_body_bytes"] > module.PACKET_TOTAL_MAX_BYTES:
+        budget = module.InstructionPacketBudget.measure(instruction)
+        limits = module.InstructionPacketBudget
+        if budget["total_body_bytes"] > limits.TOTAL_MAX_BYTES:
             raise AssertionError(
                 f"execution packet body {budget['total_body_bytes']} bytes exceeds "
-                f"{module.PACKET_TOTAL_MAX_BYTES}: {instruction[:500]}…"
+                f"{limits.TOTAL_MAX_BYTES}: {instruction[:500]}…"
             )
-        if budget["generic_bytes"] > module.PACKET_GENERIC_MAX_BYTES:
+        if budget["generic_bytes"] > limits.GENERIC_MAX_BYTES:
             raise AssertionError(
                 f"generic boilerplate {budget['generic_bytes']} bytes exceeds "
-                f"{module.PACKET_GENERIC_MAX_BYTES}"
+                f"{limits.GENERIC_MAX_BYTES}"
             )
         if budget["step_specific_bytes"] <= budget["generic_bytes"]:
             raise AssertionError(
@@ -1293,17 +1294,18 @@ def test_subagent_execution_packet_budget_excludes_prompt_body() -> None:
         task = Path(tmp) / "subagent-budget.yaml"
         task.write_text(subagent_instruction_yaml_task(), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        budget = module.measure_instruction_packet_budget(instruction)
-        if budget["total_body_bytes"] > module.PACKET_TOTAL_MAX_BYTES:
+        budget = module.InstructionPacketBudget.measure(instruction)
+        limits = module.InstructionPacketBudget
+        if budget["total_body_bytes"] > limits.TOTAL_MAX_BYTES:
             raise AssertionError(f"subagent execution body too large: {budget['total_body_bytes']}")
-        if budget["generic_bytes"] > module.PACKET_GENERIC_MAX_BYTES:
+        if budget["generic_bytes"] > limits.GENERIC_MAX_BYTES:
             raise AssertionError(f"subagent generic boilerplate too large: {budget['generic_bytes']}")
         if budget["subagent_prompt_bytes"] <= 0:
             raise AssertionError("expected separate Subagent prompt body")
-        if budget["subagent_prompt_bytes"] > module.SUBAGENT_PROMPT_MAX_BYTES:
+        if budget["subagent_prompt_bytes"] > limits.SUBAGENT_PROMPT_MAX_BYTES:
             raise AssertionError(
                 f"subagent prompt {budget['subagent_prompt_bytes']} bytes exceeds "
-                f"{module.SUBAGENT_PROMPT_MAX_BYTES}"
+                f"{limits.SUBAGENT_PROMPT_MAX_BYTES}"
             )
 
 
