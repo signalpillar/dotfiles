@@ -61,10 +61,21 @@ When using this skill for implementation or review, explicitly scan for edge-cas
 ## Testing style
 
 - Add tests for each new branch and edge case, not just happy paths.
-- Use reusable fixtures/test doubles to reduce duplication and support future file moves.
+- Prefer `test.each` for cases that exercise the same behavior with different inputs or expected outputs instead of duplicating test bodies.
+- Reuse existing fixtures and test doubles when they express the required scenario.
+- When existing fixtures do not fit, create focused reusable fixtures rather than duplicating setup or object literals across tests.
 - Ensure tests cover both business-success and safety-failure modes.
 - Keep tests aligned with current contracts; update fixtures first when interfaces change.
 - Add at least one test for each documented edge-case decision.
+
+### Test review checklist
+
+When using this skill for review, explicitly scan changed tests for avoidable duplication.
+
+- Request `test.each` when multiple tests differ only in input, expected output, or a small scenario parameter.
+- Request reuse of an existing fixture when duplicated setup already has a shared representation.
+- Request a new focused fixture when repeated setup has no suitable reusable fixture.
+- Keep separate tests when parameterization would hide materially different behavior or make failures harder to understand.
 
 ## Code style preferences
 
