@@ -2523,6 +2523,36 @@ def task_tasks_home(*, env: Mapping[str, str] | None = None) -> Path:
     return Path(raw).expanduser().resolve()
 
 
+def bundle_slug_under_home(layout: BundleTaskLayout) -> str | None:
+    """Bundle slug when `layout.bundle_root` is an immediate child of `task_tasks_home()`.
+
+    Mirrors the home-membership rule `list` uses to enumerate bundles: a bundle opened by
+    path from anywhere else (or nested deeper under the home) is not slug-addressable and
+    has no display slug, even though its directory name looks like one."""
+    if layout.bundle_root.parent == task_tasks_home():
+        return layout.bundle_root.name
+    return None
+
+
+def task_display_ref(store: TaskStore) -> str:
+    """Display identity for `--task`, used as the `Task:` header in status output and
+    instruction/plan/sync/wayfinder packets.
+
+    Prefers the bundle slug when the store is a `BundleTaskLayout` living directly under
+    the task home; otherwise falls back to the resolved document path (loose YAML, or a
+    bundle opened from outside the home). Non-YAML-backed stores (e.g. the experimental
+    directory store) have no layout document path, so they fall back to `store.describe()`.
+    """
+    layout = getattr(store, "layout", None)
+    if isinstance(layout, BundleTaskLayout):
+        slug = bundle_slug_under_home(layout)
+        if slug is not None:
+            return slug
+    if isinstance(layout, (YamlTaskLayout, BundleTaskLayout)):
+        return str(layout.document_path)
+    return store.describe()
+
+
 def worktrees_home(*, env: Mapping[str, str] | None = None) -> Path:
     """Central pi-job worktree home; `PI_JOB_WORKTREES` overrides the default location.
 
@@ -3321,14 +3351,14 @@ def cursor_on_user_decision(task: Mapping[str, Any], cursor: Cursor | None) -> b
     return bool(step_execution_policy(step).get("requires_user_decision"))
 
 
-def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | None = None) -> None:
+def print_status(ref: str, task: dict[str, Any], task_path: Path | None = None) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
-    print(f"File: {task_file_desc}")
+    print(f"Task: {ref}")
     print(f"Status: {task.get('status', '<unknown>')}")
     print(f"Contract: {PROFILE}")
     if not task.get("orchestration"):
         print("Initialization: required")
-        print(f"Next: initialize with pi-job --task {task_file_desc} create [--kind setup|implement|...]")
+        print(f"Next: initialize with pi-job --task {ref} create [--kind setup|implement|...]")
     else:
         print("Initialization: ok")
         structure_issues = slice_structure_issues(task)
@@ -4020,7 +4050,7 @@ def enforce_owner_policy(
         return
 
 
-def build_plan(task_file: Path, task: dict[str, Any]) -> str:
+def build_plan(store: TaskStore, task: dict[str, Any]) -> str:
     claims = owned_cursors(task)
     positions = {claim.owner: claim_position(task, claim) for claim in claims}
     ready = ready_slices(task)
@@ -4034,7 +4064,7 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
     lines = [
         "PI-JOB TASK PLAN",
         "",
-        f"Task file: {task_file}",
+        f"Task: {task_display_ref(store)}",
         f"Contract: {PROFILE}",
         f"Task cursors: {cursors_label}",
         f"Ready slices: {ready_label}",
@@ -4086,6 +4116,16 @@ def slice_plan_note_pointer(task_file: Path, slice_key: str) -> str:
     return layout_for_document_path(task_file).slice_plan_pointer(slice_key)
 
 
+def slice_plan_markdown_label(layout: YamlTaskLayout | BundleTaskLayout, slice_key: str) -> str:
+    """Backtick-friendly label for a `markdown --slice` plan body.
+
+    Same layout-relative path as `slice_plan_pointer`, without the `Plan file: ` prefix:
+    `plans/<slice>.md` for a bundle, `<stem>.plans/<slice>.md` for loose YAML."""
+    pointer = layout.slice_plan_pointer(slice_key)
+    prefix = "Plan file: "
+    return pointer.removeprefix(prefix) if pointer.startswith(prefix) else pointer
+
+
 def slice_kind_requires_plan_file(kind: str) -> bool:
     """True when the slice kind's step_template includes create-plan."""
     template = get_slice_kind(kind).get("step_template") or []
@@ -4124,7 +4164,7 @@ def _truncate_seed_text(text: str, limit: int = 240) -> str:
 
 
 def build_seed_slice_plans_block(
-    task_file: Path, task: dict[str, Any], slices: list[dict[str, Any]]
+    layout: YamlTaskLayout | BundleTaskLayout, task: dict[str, Any], slices: list[dict[str, Any]]
 ) -> str:
     """Return a seed reminder block for qualifying slices, or empty string if none."""
     qualifying = [
@@ -4143,7 +4183,7 @@ def build_seed_slice_plans_block(
         key = str(sl.get("key") or "")
         kind = str(sl.get("kind") or "")
         lines.append(f"- {key} [{kind}]")
-        lines.append(f"  {slice_plan_note_pointer(task_file, key)}")
+        lines.append(f"  {layout.slice_plan_pointer(key)}")
         goal = str(sl.get("goal") or "").strip()
         if goal:
             lines.append(f"  Goal: {_truncate_seed_text(goal)}")
@@ -4292,7 +4332,9 @@ class InstructionPacketBudget:
         }
 
 
-def build_pick_next_instruction(task_file: Path, task: dict[str, Any], claim: OwnedCursor) -> str:
+def build_pick_next_instruction(
+    store: TaskStore, task_file: Path, task: dict[str, Any], claim: OwnedCursor
+) -> str:
     """Packet when claim's slice has no unfinished steps - owner picks via show."""
     require_initialized(task_file, task)
     cursor = claim_position(task, claim)
@@ -4308,7 +4350,7 @@ def build_pick_next_instruction(task_file: Path, task: dict[str, Any], claim: Ow
     lines = [
         "PI-JOB PICK NEXT SLICE",
         "",
-        f"Task file: {task_file}",
+        f"Task: {task_display_ref(store)}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Owner: {claim.owner}",
@@ -4338,7 +4380,7 @@ def build_pick_next_instruction(task_file: Path, task: dict[str, Any], claim: Ow
     return "\n".join(lines)
 
 
-def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
+def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
     require_initialized(task_file, task)
     task_slice = find_current_slice(task, cursor)
     step = find_current_step(task_slice, cursor)
@@ -4368,7 +4410,7 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
     lines = [
         "PI-JOB EXECUTION INSTRUCTION",
         "",
-        f"Task file: {task_file}",
+        f"Task: {task_display_ref(store)}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
@@ -4477,7 +4519,7 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
 def cmd_status(args: argparse.Namespace) -> None:
     task_file = args.task
     store = open_task_store(task_file)
-    print_status(str(task_file), store.read(), task_path=task_file)
+    print_status(task_display_ref(store), store.read(), task_path=task_file)
 
 
 def cmd_advance(args: argparse.Namespace) -> None:
@@ -4504,11 +4546,11 @@ def cmd_instruction(args: argparse.Namespace) -> None:
         assert claim is not None
         within = within_slice_cursor(task, claim.slice)
         if within is None:
-            print(build_pick_next_instruction(task_file, task, claim))
+            print(build_pick_next_instruction(store, task_file, task, claim))
             return
         if isinstance(store, YamlTaskStore):
             store.touch_claim(owner=claim.owner, now=utc_now())
-    print(build_instruction(task_file, task, within))
+    print(build_instruction(store, task_file, task, within))
 
 
 def cmd_plan(args: argparse.Namespace) -> None:
@@ -4516,10 +4558,10 @@ def cmd_plan(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
-    print(build_plan(task_file, task))
+    print(build_plan(store, task))
 
 
-def build_wayfinder_context(task_file: Path, task: dict[str, Any]) -> str:
+def build_wayfinder_context(store: TaskStore, task: dict[str, Any]) -> str:
     """Reconstruct the Wayfinder map from the task file at the slice level (no step
     detail): the destination, recorded decisions, in-progress/done slice notes, and the
     planned work split into frontier (takeable now) vs fog (blocked by unfinished deps).
@@ -4550,7 +4592,7 @@ def build_wayfinder_context(task_file: Path, task: dict[str, Any]) -> str:
     lines = [
         "PI-JOB WAYFINDER CONTEXT",
         "",
-        f"Task file: {task_file}",
+        f"Task: {task_display_ref(store)}",
         "",
         "DESTINATION:",
         f"  {destination}" if destination else "  <unset>",
@@ -4587,7 +4629,7 @@ def cmd_wayfinder_context(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
-    print(build_wayfinder_context(task_file, task))
+    print(build_wayfinder_context(store, task))
 
 
 def cmd_sync(args: argparse.Namespace) -> None:
@@ -4596,7 +4638,7 @@ def cmd_sync(args: argparse.Namespace) -> None:
     task = store.read()
     require_initialized(task_file, task)
     status_filter = set(args.status.split(",")) if args.status else None
-    print(build_sync_instruction(task_file, task, status_filter))
+    print(build_sync_instruction(store, task, status_filter))
 
 
 def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) -> list[TaskSlice]:
@@ -4620,7 +4662,7 @@ def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) 
 
 
 def build_sync_instruction(
-    task_file: Path, task: dict[str, Any], status_filter: set[str] | None
+    store: TaskStore, task: dict[str, Any], status_filter: set[str] | None
 ) -> str:
     candidates = sync_candidate_slices(task, status_filter)
     pipeline_text = load_profile_contract()["sync_pipeline_instructions"]
@@ -4628,7 +4670,7 @@ def build_sync_instruction(
     lines = [
         "PI-JOB SYNC PIPELINE",
         "",
-        f"Task file: {task_file}",
+        f"Task: {task_display_ref(store)}",
         f"Repository root: {ROOT}",
         f"{len(candidates)} slice(s) to verify.",
         "",
@@ -5294,12 +5336,12 @@ def cmd_markdown(args: argparse.Namespace) -> None:
     plan_bodies: dict[str, str] = {}
     plan_labels: dict[str, str] = {}
     # Disk read at the edge: render stays pure over task + optional plan bodies.
-    if args.slice:
-        layout = YamlTaskLayout(task_file)
+    if args.slice and isinstance(store, YamlTaskStore):
+        layout = store.layout
         plan_path = layout.slice_plan_file(args.slice)
         if plan_path.is_file():
             plan_bodies[args.slice] = plan_path.read_text(encoding="utf-8")
-            plan_labels[args.slice] = f"{task_file.stem}.plans/{args.slice}.md"
+            plan_labels[args.slice] = slice_plan_markdown_label(layout, args.slice)
     print(
         render_task_markdown(
             task,
@@ -5827,8 +5869,8 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     print("claim → <none>")
     print(f"next: {_suggest_first_claim(canonical_repr)}")
     print()
-    print(build_plan(task_file, canonical_repr))
-    seed_block = build_seed_slice_plans_block(task_file, canonical_repr, assembled_slices)
+    print(build_plan(store, canonical_repr))
+    seed_block = build_seed_slice_plans_block(store.layout, canonical_repr, assembled_slices)
     if seed_block:
         print()
         print(seed_block, end="")
@@ -5873,7 +5915,7 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
     print("claim → <none>")
     print(f"next: {_suggest_first_claim(task)}")
     print()
-    print(build_plan(task_file, task))
+    print(build_plan(store, task))
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -5924,9 +5966,9 @@ def cmd_create(args: argparse.Namespace) -> None:
     print("claim → <none>")
     print(f"next: {_suggest_first_claim(task)}")
     print()
-    print(build_plan(task_file, task))
+    print(build_plan(store, task))
     seed_block = build_seed_slice_plans_block(
-        task_file, task, [dict(s) for s in (task.get("plan") or {}).get("slices") or []]
+        store.layout, task, [dict(s) for s in (task.get("plan") or {}).get("slices") or []]
     )
     if seed_block:
         print()
@@ -5996,7 +6038,8 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
         None,
     )
     if new_slice is not None:
-        seed_block = build_seed_slice_plans_block(task_file, updated, [new_slice])
+        layout = store.layout if isinstance(store, YamlTaskStore) else layout_for_document_path(task_file)
+        seed_block = build_seed_slice_plans_block(layout, updated, [new_slice])
         if seed_block:
             print()
             print(seed_block, end="")

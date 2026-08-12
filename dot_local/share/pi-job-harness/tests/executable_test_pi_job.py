@@ -1005,8 +1005,8 @@ def test_instruction_includes_next_action_and_step_first_layout() -> None:
         assert_contains(instruction, "NEXT ACTION")
         assert_contains(instruction, "Do not wait for another user prompt")
         assert_contains(instruction, "Role: orchestrator")
-        assert_contains(instruction, "Task file:")
-        assert_contains(instruction, str(task))  # header still names the real path
+        assert_contains(instruction, "Task:")
+        assert_contains(instruction, str(task))  # loose YAML: header names the real path
         assert_contains(instruction, "TASK_FILE")  # command hints use the token
         assert_not_contains(instruction, f"--task {task}")
         assert_not_contains(instruction, "{task_file}")
@@ -6133,6 +6133,160 @@ def test_bundle_read_write_and_plan_stub() -> None:
         assert not (root / "alpha.plans").exists()
 
 
+def test_bundle_slug_under_home_pure() -> None:
+    """`bundle_slug_under_home` returns the directory name only for an immediate child of
+    the configured task home; a nested or outside-home bundle has no display slug."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            direct = module.BundleTaskLayout(home / "direct-child")
+            assert module.bundle_slug_under_home(direct) == "direct-child"
+
+            nested = module.BundleTaskLayout(home / "group" / "nested-child")
+            assert module.bundle_slug_under_home(nested) is None
+
+            outside = module.BundleTaskLayout(Path(tmp) / "elsewhere" / "outside-child")
+            assert module.bundle_slug_under_home(outside) is None
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_task_display_ref_home_bundle() -> None:
+    """`status`'s `Task:` line shows the bundle slug (not the absolute path) for a bundle
+    opened by slug from directly under the configured task home."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            bundle = home / "ref-slug"
+            write_task_yaml(bundle / "task.yaml", standard_fixture_mapping())
+
+            status = run(str(PI_JOB), "--task", "ref-slug", "status").stdout
+            assert_contains(status, "Task: ref-slug")
+            assert_not_contains(status, str(bundle))
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_task_display_ref_loose_yaml() -> None:
+    """A loose YAML task (never slug-addressable) shows its resolved path in `Task:`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "loose-ref.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, f"Task: {task.resolve()}")
+
+
+def test_task_display_ref_outside_bundle() -> None:
+    """A bundle opened by path from outside the configured task home shows its resolved
+    `task.yaml` path, not a slug, even though its directory name looks like a valid slug."""
+    with tempfile.TemporaryDirectory() as tmp:
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(Path(tmp) / "not-the-home")
+        try:
+            bundle = Path(tmp) / "outside-bundle"
+            task = bundle / "task.yaml"
+            write_task_yaml(task, standard_fixture_mapping())
+
+            status = run(str(PI_JOB), "--task", str(task), "status").stdout
+            assert_contains(status, f"Task: {task.resolve()}")
+            assert_not_contains(status, "Task: outside-bundle")
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_status_task_line_uses_display_ref() -> None:
+    """`status` prints the title under `Task:` as before, then a second `Task:` line for the
+    display ref; the old `File:` label is gone."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "status-ref.yaml"
+        write_task_yaml(task, standard_fixture_mapping(title="Ref Line Task"))
+
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "Task: Ref Line Task")
+        assert_contains(status, f"Task: {task.resolve()}")
+        assert_not_contains(status, "File:")
+
+
+def test_instruction_plan_pointer_bundle() -> None:
+    """create-plan's `Slice plan file:` pointer resolves to the bundle's `plans/<key>.md`,
+    and the note-pointer backtick matches the same shape."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "plan-pointer-bundle"
+        task = bundle / "task.yaml"
+        task.parent.mkdir(parents=True, exist_ok=True)
+        task.write_text(subagent_create_plan_yaml_task(slice_key="plan-slice"), encoding="utf-8")
+
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        resolved_bundle = task.resolve().parent
+        assert_contains(instruction, f"Slice plan file: {resolved_bundle / 'plans' / 'plan-slice.md'}")
+        assert_contains(instruction, "create-plan note must be only `Plan file: plans/plan-slice.md`")
+
+
+def test_instruction_plan_pointer_loose() -> None:
+    """create-plan's `Slice plan file:` pointer resolves to the loose `<stem>.plans/<key>.md`
+    sibling directory, and the note-pointer backtick matches the same shape."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "plan-pointer-loose.yaml"
+        task.write_text(subagent_create_plan_yaml_task(slice_key="plan-slice"), encoding="utf-8")
+
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        resolved_task = task.resolve()
+        plan_path = resolved_task.parent / f"{resolved_task.stem}.plans" / "plan-slice.md"
+        assert_contains(instruction, f"Slice plan file: {plan_path}")
+        assert_contains(
+            instruction,
+            "create-plan note must be only `Plan file: plan-pointer-loose.plans/plan-slice.md`",
+        )
+
+
+def test_markdown_plan_label_bundle() -> None:
+    """`markdown --slice` labels a bundle's plan body `plans/<slice>.md`, not the previously
+    hardcoded stem-based loose label."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "bundle-label"
+        task = bundle / "task.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        plans_dir = bundle / "plans"
+        plans_dir.mkdir()
+        (plans_dir / "second-slice.md").write_text("# Second slice plan\n", encoding="utf-8")
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown", "--slice", "second-slice").stdout
+        assert_contains(out, "#### Plan file")
+        assert_contains(out, "`plans/second-slice.md`")
+        assert_contains(out, "# Second slice plan")
+        assert_not_contains(out, "bundle-label.plans/second-slice.md")
+
+
+def test_markdown_plan_label_loose() -> None:
+    """`markdown --slice` labels a loose task's plan body `<stem>.plans/<slice>.md`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "loose-label.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        plans_dir = task.parent / f"{task.stem}.plans"
+        plans_dir.mkdir()
+        (plans_dir / "second-slice.md").write_text("# Second slice plan\n", encoding="utf-8")
+
+        out = run(str(PI_JOB), "--task", str(task), "markdown", "--slice", "second-slice").stdout
+        assert_contains(out, "#### Plan file")
+        assert_contains(out, "`loose-label.plans/second-slice.md`")
+        assert_contains(out, "# Second slice plan")
+
+
 def test_store_describe_uses_layout() -> None:
     """describe() delegates to the layout: loose YAML keeps 'YAML task file …';
     bundles say 'task bundle …' and never claim to be a bare file."""
@@ -7348,6 +7502,17 @@ if __name__ == "__main__":
     test_layout_for_document_path_bundle_and_loose()
     test_derive_bundle_root_task_yaml_parent_dir_self_and_loose_dies()
     test_scaffold_bundle_dirs_idempotent_preserves_contents()
+    test_bundle_read_write_and_plan_stub()
+    test_store_describe_uses_layout()
+    test_bundle_slug_under_home_pure()
+    test_task_display_ref_home_bundle()
+    test_task_display_ref_loose_yaml()
+    test_task_display_ref_outside_bundle()
+    test_status_task_line_uses_display_ref()
+    test_instruction_plan_pointer_bundle()
+    test_instruction_plan_pointer_loose()
+    test_markdown_plan_label_bundle()
+    test_markdown_plan_label_loose()
     test_create_slug_scaffolds_bundle()
     test_create_path_scaffolds_bundle()
     test_create_duplicate_slug()
