@@ -7,7 +7,6 @@ import hashlib
 import importlib.machinery
 import importlib.util
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -38,9 +37,8 @@ if not PI_JOB.exists():
 
 def load_pi_job_module():
     """Import pi-job (no .py suffix, chezmoi's executable_ naming) as a module so tests
-    can exercise YamlTaskStore/FsTaskStore/TaskLayout/CueTaskStore directly instead of only via
-    subprocess. YAML via YamlTaskStore is the primary test path; CueTaskStore remains for legacy
-    compatibility tests only. Safe: `main()` only runs under `if __name__ == "__main__":`."""
+    can exercise YamlTaskStore, FsTaskStore, and TaskLayout directly instead of only via
+    subprocess. Safe: `main()` only runs under `if __name__ == "__main__":`."""
     loader = importlib.machinery.SourceFileLoader("pi_job_under_test", str(PI_JOB))
     spec = importlib.util.spec_from_file_location("pi_job_under_test", PI_JOB, loader=loader)
     module = importlib.util.module_from_spec(spec)
@@ -268,7 +266,7 @@ def all_done_mapping(
 
 
 def sync_mapping() -> dict:
-    """Port of SYNC_FIXTURE_CUE."""
+    """Fixture for sync selection behavior."""
     return {
         "title": "Sync fixture",
         "status": "in_progress",
@@ -423,101 +421,10 @@ def step_status(path: Path, slice_key: str, step_key: str) -> str:
     return find_step(task, slice_key, step_key)["status"]
 
 
-VENDORED_CLOSED_FINAL_STEPS_CUE = """
-package task
-
-#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
-#Step: {
-    key: string
-    title: string
-    status: #Status
-    note: string
-}
-#Slice: {
-    key: string
-    kind: string
-    title: string
-    goal: string
-    status: #Status
-    note: string
-    steps: [...#Step]
-    final_steps: [
-        #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""},
-        #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
-    ]
-}
-
-task: {
-    title: "Closed final_steps bootstrap"
-    status: "in_progress"
-    project: {name: "Bootstrap"}
-    orchestration: {
-        cursors: []
-        policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
-    }
-    plan: {
-        note: ""
-        slices: [
-            #Slice & {
-                key: "init-harness"
-                kind: "implement"
-                title: "Init harness"
-                goal: "Bootstrap"
-                status: "in_progress"
-                note: ""
-                steps: [
-                    #Step & {key: "create-plan", title: "Create plan", status: "planned", note: ""},
-                ]
-                final_steps: [
-                    #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""},
-                    #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
-                ]
-            },
-        ]
-    }
-}
-"""
 
 
-LEGACY_CUE_TEST_ALLOWLIST = frozenset({
-    "test_fs_and_cue_task_store_shape_parity",
-    "test_cue_escape_escapes_newlines_quotes_and_tabs",
-    "test_cmd_project_cue_to_fs_to_cue_round_trip",
-    "test_cmd_project_refuses_nonempty_cue_destination",
-    "test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics",
-    "test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently",
-    "test_migrate_task_reports_already_migrated",
-    "test_migrate_task_recommends_delete_for_identical_status",
-    "test_migrate_task_recommends_keep_for_status_with_used_extra_value",
-    "test_migrate_task_recommends_delete_for_status_with_unused_extra_value",
-    "test_migrate_task_recommends_replace_for_slice_with_extra_fields",
-    "test_migrate_task_line_ranges_are_accurate",
-    "test_migrate_task_partial_migration_only_slice_remains",
-    "test_bootstrap_requires_yaml",
-    "test_legacy_cue_add_step_final_rolls_back_on_closed_final_steps_schema",
-    "test_add_slice_unified_final_steps_field",
-    "test_validate_fails_invalid_step_status",
-    "test_legacy_cue_validate_passes_shared_schema_task",
-    "test_legacy_cue_scaffold_output_has_no_local_schema",
-})
 
 
-def test_fixture_policy_disallows_incidental_cue_task_paths() -> None:
-    source = Path(__file__).read_text(encoding="utf-8")
-    current_test: str | None = None
-    offenders: list[str] = []
-    for lineno, line in enumerate(source.splitlines(), 1):
-        m = re.match(r"def (test_\w+)\(", line)
-        if m:
-            current_test = m.group(1)
-        if current_test in LEGACY_CUE_TEST_ALLOWLIST:
-            continue
-        if current_test == "test_fixture_policy_disallows_incidental_cue_task_paths":
-            continue
-        if re.search(r'Path\([^)]*\)\s*/\s*"[^"]+\.cue"', line):
-            offenders.append(f"{lineno}: {current_test}: {line.strip()}")
-    if offenders:
-        raise AssertionError("incidental .cue task fixtures:\n" + "\n".join(offenders))
 
 
 
@@ -2795,13 +2702,6 @@ def test_init_rejects_forward_reference_dependency() -> None:
         assert_contains(claim.stderr, "not Ready")
 
 
-def test_legacy_cue_scaffold_output_has_no_local_schema() -> None:
-    """Scaffold output should not contain local #Slice:/#Status: definitions."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "schema-test.cue"
-        dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
-        if "#Status:" in dry or "#Step:" in dry or "#Slice:" in dry or "#Decision:" in dry or "#Artifact:" in dry:
-            raise AssertionError(f"create dry-run should not contain local type definitions:\n{dry}")
 
 
 def test_scaffold_output_still_validates_via_shared_schema() -> None:
@@ -2898,74 +2798,6 @@ def test_add_slice_works_on_empty_plan_slices() -> None:
         assert_contains(show, "first-slice")
 
 
-def test_add_slice_unified_final_steps_field() -> None:
-    """Regression test: add-slice must correctly handle unified final_steps expressions.
-    When a local #Slice has a closed final_steps (e.g., 2 fixed items) unified with the
-    shared schema's open [...#Step] final_steps via cue def, parse_def_struct_fields must
-    split on top-level & and classify the closed operand correctly (not misclassify as open).
-    This ensures the new slice literal copies the fixed 2 items, not empty."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "unified-final-steps.cue"
-        # Define a local #Slice with a CLOSED 2-element final_steps list.
-        # This mimics the bootstrap task structure.
-        preamble_closed_final_steps = """
-package task
-
-#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
-#Step: {
-    key: string
-    title: string
-    status: #Status
-    note: string
-}
-#Slice: {
-    key: string
-    title: string
-    goal: string
-    status: #Status
-    note: string
-    steps: [...#Step]
-    final_steps: [
-        #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence or record the gap", status: "planned", note: ""},
-        #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
-    ]
-}
-"""
-        fixture_closed_final = preamble_closed_final_steps + """
-task: {
-    title: "Closed final_steps test"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-    orchestration: {
-        cursors: []
-        policy: {
-            coding_execution: {
-                subagent_required: true
-                lower_power_model_preferred: true
-                orchestrator_reviews_subagent: true
-            }
-        }
-    }
-    plan: {
-        slices: []
-    }
-}
-"""
-        task.write_text(fixture_closed_final)
-
-        # Dry-run should show the literal with BOTH final_steps entries
-        dry = run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional", "--kind", "implement", "--dry-run").stdout
-        assert_contains(dry, 'key: "e2e-evidence"')
-        assert_contains(dry, 'key: "update-task-file"')
-
-        # Real add-slice should succeed (previously failed with "incompatible list lengths (0 and 2)")
-        run(str(PI_JOB), "--task", str(task), "add-slice", "--key", "extra-work", "--title", "Extra", "--goal", "Additional", "--kind", "implement")
-
-        # Show should list the new slice with 2 final_steps
-        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
-        assert_contains(show, "extra-work")
 
 
 def test_add_step_happy_path() -> None:
@@ -3043,26 +2875,6 @@ def test_add_step_after_inserts_in_correct_order() -> None:
             raise AssertionError(f"step order wrong: s1={idx_s1}, s1b={idx_s1b}, s2={idx_s2}")
 
 
-def test_legacy_cue_add_step_final_rolls_back_on_closed_final_steps_schema() -> None:
-    """add-step --final on a closed-length final_steps rolls back cleanly."""
-    with tempfile.TemporaryDirectory() as tmp:
-        # Use the bootstrap task which has a closed 2-element final_steps
-        # Copy it to tmp to avoid modifying original
-        task = Path(tmp) / "closed-final.cue"
-        original_content = VENDORED_CLOSED_FINAL_STEPS_CUE.strip() + "\n"
-        task.write_text(original_content)
-
-        # Try to add a step to final_steps when it's a closed list
-        res = run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "init-harness", "--key", "extra-step", "--title", "Extra", "--final", check=False)
-
-        # Should fail
-        if res.returncode == 0:
-            raise AssertionError("add-step --final should reject closed final_steps schema")
-
-        # File should be byte-identical to original (rollback)
-        after_content = task.read_text()
-        if after_content != original_content:
-            raise AssertionError("file was not rolled back to original on validation failure")
 
 
 def test_add_slice_happy_path_with_repos() -> None:
@@ -3103,7 +2915,7 @@ def test_add_slice_requires_repos_when_schema_requires_it() -> None:
 
 
 def test_add_slice_rejects_unsupported_required_field() -> None:
-    """YAML add-slice ignores unsupported local CUE-only required fields (no task-schema preamble)."""
+    """YAML add-slice ignores unsupported local required fields."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "unsupported-field.yaml"
         write_task_yaml(task, standard_fixture_mapping(title="Unsupported field"))
@@ -3118,61 +2930,6 @@ def test_add_slice_rejects_unsupported_required_field() -> None:
         assert_contains(show, "new")
 
 
-def test_legacy_cue_validate_passes_shared_schema_task() -> None:
-    """validate is the canonical check: loads task + shared schema and exits 0."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "ok.cue"
-        task.write_text(
-            """
-package task
-
-task: {
-    title: "Validate ok"
-    status: "in_progress"
-    project: {name: "Fixture"}
-    orchestration: {
-        cursors: []
-        policy: {
-            coding_execution: {
-                subagent_required: true
-                lower_power_model_preferred: true
-                orchestrator_reviews_subagent: true
-            }
-        }
-    }
-    plan: {
-        note: ""
-        slices: [
-            #Slice & {
-                key: "only"
-                kind: "implement"
-                title: "Only"
-                goal: "g"
-                status: "planned"
-                note: ""
-                steps: [
-                    #Step & {key: "create-plan", title: "Plan", status: "planned", note: ""},
-                    #Step & {key: "grill-plan", title: "Grill", status: "planned", note: ""},
-                    #Step & {key: "edit-code", title: "Edit", status: "planned", note: ""},
-                    #Step & {key: "verify", title: "Verify", status: "planned", note: ""},
-                ]
-                final_steps: [
-                    #Step & {key: "e2e-evidence", title: "Evidence", status: "planned", note: ""},
-                    #Step & {key: "vulnerability-scan", title: "Scan", status: "planned", note: ""},
-                    #Step & {key: "share-with-team", title: "Share", status: "planned", note: ""},
-                    #Step & {key: "update-task-file", title: "Update", status: "planned", note: ""},
-                    #Step & {key: "wait-for-feedback", title: "Wait", status: "planned", note: ""},
-                ]
-            },
-        ]
-    }
-}
-"""
-        )
-        out = run(str(PI_JOB), "--task", str(task), "validate").stdout
-        assert_contains(out, "ok:")
-        assert_contains(out, "task-schema.cue")
-        assert_contains(out, "pi-job validate")
 
 
 def test_validate_warns_when_persisted_slice_predates_template_addition() -> None:
@@ -3248,40 +3005,6 @@ def test_finish_note_not_refused_when_long() -> None:
         assert long_note in step["note"]
 
 
-def test_validate_fails_invalid_step_status() -> None:
-    """validate must fail closed when a #Step status violates shared #Status."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bad.cue"
-        task.write_text(
-            """
-package task
-
-task: {
-    title: "Bad step status"
-    status: "in_progress"
-    project: {name: "Fixture"}
-    plan: {
-        note: ""
-        slices: [
-            #Slice & {
-                key: "only"
-                kind: "implement"
-                title: "Only"
-                goal: "g"
-                status: "planned"
-                note: ""
-                steps: [#Step & {key: "x", title: "X", status: "bogus", note: ""}]
-                final_steps: []
-            },
-        ]
-    }
-}
-"""
-        )
-        res = run(str(PI_JOB), "--task", str(task), "validate", check=False)
-        if res.returncode == 0:
-            raise AssertionError("validate should fail on invalid #Step status")
-        assert_contains(res.stderr, "cue export failed")
 
 
 
@@ -3538,361 +3261,18 @@ def test_status_reports_structure_invalid_without_failing() -> None:
         assert_contains(res.stdout, "Structure: invalid (2 issues; try validate or validate --slice <key>)")
 
 
-def test_migrate_task_reports_already_migrated() -> None:
-    """Task with no local defs (pure shared-schema style) reports already migrated."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "shared-schema.cue"
-        # Use NO preamble with local defs - just package and task
-        fixture = """
-package task
-
-task: {
-    title: "Shared schema task"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-""" + LEGACY_MIGRATE_PLAN_BODY + """
-}
-"""
-        task.write_text(fixture)
-
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-        assert_contains(out, "PI-JOB MIGRATION INSTRUCTION")
-        assert_contains(out, "already migrated")
-        assert_contains(out, "no local type declarations found")
 
 
-def test_migrate_task_recommends_delete_for_identical_status() -> None:
-    """Local #Status exactly matches shared schema → recommends DELETE."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "identical-status.cue"
-        # Use preamble that already matches shared schema
-        fixture = LEGACY_MIGRATE_PREAMBLE + """
-task: {
-    title: "Identical status"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-""" + LEGACY_MIGRATE_PLAN_BODY + """
-}
-"""
-        task.write_text(fixture)
-
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-        assert_contains(out, "#Status")
-        assert_contains(out, "DELETE")
-        assert_contains(out, "identical")
 
 
-def test_migrate_task_recommends_keep_for_status_with_used_extra_value() -> None:
-    """Extra status value declared AND used in instance data → recommends KEEP."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "used-extra-status.cue"
-        # Define a custom #Status with extra value "ready"
-        preamble_extra_status = """
-package task
-
-#Status: "planned" | "ready" | "in_progress" | "blocked" | "done" | "skipped"
-#Step: {
-    key: string
-    title: string
-    status: #Status
-    note: string
-}
-#Slice: {
-    key: string
-    title: string
-    goal: string
-    status: #Status
-    note: string
-    steps: [...#Step]
-    final_steps: [...#Step]
-}
-"""
-        fixture = preamble_extra_status + """
-task: {
-    title: "Used extra status"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-    plan: {
-        slices: [
-            #Slice & {
-                key: "use-ready"
-                kind:   "implement"
-                title: "Use ready status"
-                goal: "Test extra value usage"
-                status: "ready"
-                note: ""
-                steps: []
-                final_steps: []
-            },
-        ]
-    }
-}
-"""
-        task.write_text(fixture)
-
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-        assert_contains(out, "#Status")
-        assert_contains(out, "KEEP AS-IS")
-        assert_contains(out, "used")
-        assert_contains(out, "ready")
 
 
-def test_migrate_task_recommends_delete_for_status_with_unused_extra_value() -> None:
-    """Extra value declared but never used → recommends DELETE."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "unused-extra-status.cue"
-        # Define a custom #Status with extra value "unused_value" that's never used
-        preamble_unused = """
-package task
-
-#Status: "planned" | "unused_value" | "in_progress" | "blocked" | "done" | "skipped"
-#Step: {
-    key: string
-    title: string
-    status: #Status
-    note: string
-}
-#Slice: {
-    key: string
-    title: string
-    goal: string
-    status: #Status
-    note: string
-    steps: [...#Step]
-    final_steps: [...#Step]
-}
-"""
-        fixture = preamble_unused + """
-task: {
-    title: "Unused extra status"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-    plan: {
-        slices: [
-            #Slice & {
-                key: "no-unused"
-                kind:   "implement"
-                title: "No unused status"
-                goal: "Only use normal statuses"
-                status: "planned"
-                note: ""
-                steps: []
-                final_steps: []
-            },
-        ]
-    }
-}
-"""
-        task.write_text(fixture)
-
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-        assert_contains(out, "#Status")
-        assert_contains(out, "DELETE")
-        assert_contains(out, "unused")
 
 
-def test_migrate_task_recommends_replace_for_slice_with_extra_fields() -> None:
-    """#Slice with extra local fields (repos, closed final_steps) → recommends REPLACE."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "slice-extra-fields.cue"
-        # Define a local #Slice with repos field and closed final_steps
-        preamble_slice_extra = """
-package task
-
-#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
-#Step: {
-    key: string
-    title: string
-    status: #Status
-    note: string
-}
-#Slice: {
-    key: string
-    title: string
-    goal: string
-    status: #Status
-    note: string
-    repos: [...string]
-    steps: [...#Step]
-    final_steps: [
-        #Step & {key: "e2e-evidence", title: "E2E evidence", status: "planned", note: ""},
-        #Step & {key: "update-task-file", title: "Update task", status: "planned", note: ""},
-    ]
-}
-"""
-        fixture = preamble_slice_extra + """
-task: {
-    title: "Slice with repos and closed final_steps"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-    plan: {
-        slices: [
-            #Slice & {
-                key: "multi-repo"
-                kind:   "implement"
-                title: "Multi repo work"
-                goal: "Work across repos"
-                status: "planned"
-                note: ""
-                repos: ["graphius", "darius"]
-                steps: []
-                final_steps: [
-                    #Step & {key: "e2e-evidence", title: "E2E evidence", status: "planned", note: ""},
-                    #Step & {key: "update-task-file", title: "Update task", status: "planned", note: ""},
-                ]
-            },
-        ]
-    }
-}
-"""
-        task.write_text(fixture)
-
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-        assert_contains(out, "#Slice")
-        assert_contains(out, "REPLACE")
-        assert_contains(out, "repos")
-        assert_contains(out, "final_steps")
-        assert_contains(out, "e2e-evidence")
-        assert_contains(out, "update-task-file")
 
 
-def test_migrate_task_line_ranges_are_accurate() -> None:
-    """Line ranges in output match the actual declaration span."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "line-ranges.cue"
-        # Create fixture with a known #Slice block on specific lines
-        fixture = """
-package task
-
-#Status: "planned" | "in_progress" | "blocked" | "done" | "skipped"
-#Step: {
-    key: string
-    title: string
-    status: #Status
-    note: string
-}
-#Slice: {
-    key: string
-    title: string
-    goal: string
-    status: #Status
-    note: string
-    repos: [...string]
-    steps: [...#Step]
-    final_steps: [...#Step]
-}
-
-task: {
-    title: "Line range test"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-    plan: {
-        slices: []
-    }
-}
-"""
-        task.write_text(fixture)
-
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-        assert_contains(out, "#Slice")
-        assert_contains(out, "lines")
-        # Should mention the Slice definition block which is roughly on lines 9-17
-        # (the exact range depends on formatting, but it should be reasonable)
-        if "lines" not in out:
-            raise AssertionError(f"expected 'lines' in output to show line ranges:\n{out}")
 
 
-def test_migrate_task_partial_migration_only_slice_remains() -> None:
-    """Regression: migrate-task should work on files already partially migrated.
-
-    When a file has already had some types (like #Step) migrated away in a previous pass,
-    the remaining local block (e.g. #Slice with a closed final_steps list) still references
-    those deleted types. Previously, diagnose_slice() would shell `cue def <file alone>`
-    which would fail with "reference #Step not found". The fix parses the raw text directly
-    instead, avoiding the need to resolve deleted type references.
-
-    This test creates a fixture where #Slice has a closed final_steps list (referencing #Step),
-    but #Step itself is NOT declared locally (already migrated away), and verifies that
-    migrate-task produces a real diagnosis instead of "Diagnosis error"."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "partially-migrated.cue"
-        # Only #Slice is declared locally; #Step, #Status, etc. are already gone (migrated)
-        fixture = """
-package task
-
-#Slice: {
-    key: string
-    title: string
-    goal: string
-    status: string
-    note: string
-    repos: [...string]
-    steps: [...]
-    final_steps: [
-        #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence", status: "planned", note: ""},
-        #Step & {key: "share-with-team", title: "Share with team: ticket + PR", status: "planned", note: ""},
-        #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
-    ]
-}
-
-task: {
-    title: "Partially migrated test"
-    status: "in_progress"
-    project: {
-        name: "Test"
-    }
-    decisions: []
-    plan: {
-        slices: [
-            #Slice & {
-                key: "test-slice"
-                kind:   "implement"
-                title: "Test Slice"
-                goal: "Test"
-                status: "planned"
-                note: ""
-                repos: ["graphius"]
-                steps: []
-                final_steps: [
-                    #Step & {key: "e2e-evidence", title: "Provide e2e/acceptance evidence", status: "planned", note: ""},
-                    #Step & {key: "share-with-team", title: "Share with team: ticket + PR", status: "planned", note: ""},
-                    #Step & {key: "update-task-file", title: "Update this task file plan", status: "planned", note: ""},
-                ]
-            },
-        ]
-    }
-}
-"""
-        task.write_text(fixture)
-
-        # Run migrate-task and capture output
-        out = run(str(PI_JOB), "--task", str(task), "migrate-task").stdout
-
-        # Verify it does NOT contain "Diagnosis error" (the bug)
-        if "Diagnosis error" in out:
-            raise AssertionError(f"migrate-task should not error on partially-migrated files:\n{out}")
-
-        # Verify it does contain a real diagnosis (mentions the file has delta fields)
-        assert_contains(out, "#Slice")
-        assert_contains(out, "REPLACE")
-        assert_contains(out, "repos")
-        assert_contains(out, "final_steps")
-        # Verify closed_items are extracted correctly
-        assert_contains(out, "e2e-evidence")
-        assert_contains(out, "share-with-team")
-        assert_contains(out, "update-task-file")
 
 
 def test_set_worktree_happy_path() -> None:
@@ -4272,48 +3652,6 @@ LEGACY_MIGRATE_PLAN_BODY = """
 """
 
 
-MINIMAL_CUE_FIXTURE = """package task
-
-task: {
-	title:  "Minimal fixture"
-	status: "in_progress"
-
-	source: {
-		jira:       ""
-		discovered: ""
-		context:    ""
-	}
-
-	project: {
-		key:     "minimal"
-		name:    "Minimal"
-		route:   ""
-		context: ""
-	}
-
-	context: "minimal context"
-
-	decisions: []
-
-	plan: {
-		note: ""
-		slices: [
-			#Slice & {
-				kind:   "implement"
-				key:    "s1"
-				title:  "Slice one"
-				goal:   "Goal one"
-				status: "planned"
-				note:   ""
-				steps: [
-					#Step & {key: "step1", title: "Step one", status: "planned", note: ""},
-				]
-				final_steps: []
-			},
-		]
-	}
-}
-"""
 
 
 def test_fs_task_store_round_trip() -> None:
@@ -4501,171 +3839,14 @@ def test_fs_task_store_invalid_status_dies_on_read() -> None:
         assert raised, "read() should die on an invalid status value instead of passing it through"
 
 
-def test_fs_and_cue_task_store_shape_parity() -> None:
-    """For a minimal one-slice/one-step task, FsTaskStore.read() and CueTaskStore.read()
-    should agree on top-level keys and on plan.slices[0]'s keys (shape parity, not
-    byte-identical output - list contents/order aren't compared here)."""
-    module = load_pi_job_module()
-    with tempfile.TemporaryDirectory() as tmp:
-        cue_path = Path(tmp) / "minimal.cue"
-        cue_path.write_text(MINIMAL_CUE_FIXTURE)
-        cue_task = module.CueTaskStore(cue_path).read()
-
-        fs_base = Path(tmp) / "fsminimal"
-        fs_base.mkdir()
-        (fs_base / "title").write_text("Minimal fixture\n")
-        (fs_base / "status").write_text("in_progress\n")
-        (fs_base / "source").write_text("jira: \ndiscovered: \ncontext: \n")
-        (fs_base / "project").write_text("key: minimal\nname: Minimal\nroute: \ncontext: \n")
-        (fs_base / "context").write_text("minimal context\n")
-        store = module.FsTaskStore(fs_base)
-        store.add_slice(key="s1", kind="implement", title="Slice one", goal="Goal one", extra_fields={}, steps=[("step1", "Step one")], final_steps=[], after=None)
-
-        fs_task = store.read()
-
-        assert set(fs_task.keys()) == set(cue_task.keys()), (sorted(fs_task.keys()), sorted(cue_task.keys()))
-        fs_slice0 = fs_task["plan"]["slices"][0]
-        cue_slice0 = cue_task["plan"]["slices"][0]
-        assert set(fs_slice0.keys()) == set(cue_slice0.keys()), (sorted(fs_slice0.keys()), sorted(cue_slice0.keys()))
 
 
-PROJECT_FIXTURE_CUE = """package task
-
-task: {
-	title:  "Project fixture task"
-	status: "in_progress"
-
-	source: {
-		jira:       "PROJ-1"
-		discovered: "2026-07-01"
-		context:    "Why this task exists."
-	}
-
-	project: {
-		key:     "proj"
-		name:    "Project Fixture"
-		route:   "projects/proj/workflow.md"
-		context: "Where this lives."
-	}
-
-	context: \"\"\"
-		Multi-line free-form background.
-		Second paragraph here.
-		\"\"\"
-
-	orchestration: {
-		cursors: []
-		policy: {
-			coding_execution: {
-				subagent_required:             true
-				lower_power_model_preferred:   true
-				orchestrator_reviews_subagent: true
-			}
-		}
-		artifacts: {
-			daily_boo: #Artifact & {status: "planned", note: "Append only on a real aha."}
-		}
-	}
-
-	decisions: [
-		#Decision & {date: "2026-07-01", note: "First \\"quoted\\" decision.\\n\\nSecond paragraph — still one note.", source: "chat:2026-07-01"},
-		#Decision & {date: "2026-07-02", note: "Second decision.", source: "chat:2026-07-02"},
-	]
-
-	plan: {
-		note: "Real plan note, not the scaffold placeholder."
-		slices: [
-			#Slice & {
-				kind:   "implement"
-				key:    "alpha"
-				title:  "Alpha slice"
-				goal:   "Alpha goal"
-				status: "in_progress"
-				note:   "Alpha note."
-				repos: ["repo-a"]
-				repo_work: {
-					"repo-a": {
-						worktree: "/tmp/worktrees/alpha"
-						prs: [
-							#PR & {url: "https://example.com/pr/1", status: "open", note: "first PR — with emdash"},
-						]
-					}
-				}
-				steps: [
-					#Step & {key: "edit-code", title: "Add \\"on-hold\\": \\"mapped\\"", status: "done", note: "Done already.\\n\\nUpdated later with more detail.", execution: {model: "anthropic/claude-test", started: "2026-07-01T10:00:00Z", ended: "2026-07-01T10:05:00Z"}},
-					#Step & {key: "verify", title: "Verify", status: "planned", note: ""},
-				]
-				final_steps: [
-					#Step & {key: "e2e-evidence", title: "Evidence", status: "in_progress", note: "In flight."},
-				]
-			},
-			#Slice & {
-				kind:   "implement"
-				key:    "beta"
-				title:  "Beta slice"
-				goal:   "Beta goal"
-				status: "planned"
-				note:   ""
-				depends_on: ["alpha"]
-				steps: []
-				final_steps: []
-			},
-		]
-	}
-}
-"""
 
 
-def test_cue_escape_escapes_newlines_quotes_and_tabs() -> None:
-    """Double-quoted CUE literals must escape control characters, not embed raw newlines."""
-    module = load_pi_job_module()
-    escaped = module.cue_escape('a\n"b"\tc\\d')
-    assert escaped == 'a\\n\\"b\\"\\tc\\\\d', escaped
-    assert "\n" not in escaped
-    assert "\t" not in escaped
 
 
-def test_cmd_project_cue_to_fs_to_cue_round_trip() -> None:
-    """project() must be lossless: CUE fixture -> fresh FS dir -> fresh CUE file should
-    produce a CueTaskStore.read() dict identical to the original fixture's, covering
-    orchestration, decisions, plan.note, and every slice/step/repo_work/PR field.
-
-    Fixture deliberately includes newlines, quotes, and em dashes in notes/titles - the
-    shape that broke FS→CUE on real tasks when cue_escape left raw newlines unescaped."""
-    module = load_pi_job_module()
-    with tempfile.TemporaryDirectory() as tmp:
-        fixture_path = Path(tmp) / "fixture.cue"
-        fixture_path.write_text(PROJECT_FIXTURE_CUE)
-
-        fs_dir = Path(tmp) / "fsout"
-        run(str(PI_JOB), "--task", str(fixture_path), "project", "--to", str(fs_dir))
-
-        roundtrip_path = Path(tmp) / "roundtrip.cue"
-        run(str(PI_JOB), "--task", str(fs_dir), "project", "--to", str(roundtrip_path))
-
-        original = module.CueTaskStore(fixture_path).read()
-        roundtrip = module.CueTaskStore(roundtrip_path).read()
-        assert original == roundtrip, (original, roundtrip)
-        # Sanity: the tricky fields survived, not just empty-fixture equality.
-        assert "\n\n" in original["decisions"][0]["note"]
-        assert '"quoted"' in original["decisions"][0]["note"]
-        assert "\n\n" in original["plan"]["slices"][0]["steps"][0]["note"]
 
 
-def test_cmd_project_refuses_nonempty_cue_destination() -> None:
-    """project() must fail closed rather than append after an existing slice (which would
-    silently shift every subsequent slice's position) when the CUE destination already
-    has content."""
-    with tempfile.TemporaryDirectory() as tmp:
-        fixture_path = Path(tmp) / "fixture.cue"
-        fixture_path.write_text(PROJECT_FIXTURE_CUE)
-
-        nonempty_dst = Path(tmp) / "nonempty.cue"
-        nonempty_dst.write_text(PROJECT_FIXTURE_CUE)
-
-        res = run(str(PI_JOB), "--task", str(fixture_path), "project", "--to", str(nonempty_dst), check=False)
-        assert res.returncode != 0
-        assert_contains(res.stderr, "already has slices/decisions")
 
 
 def test_persisted_models_document_every_field() -> None:
@@ -5009,64 +4190,8 @@ def test_profile_requires_cli_help() -> None:
         raise AssertionError("profile accepted missing cli_help")
 
 
-def test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        source = Path(tmp) / "source.cue"
-        destination = Path(tmp) / "source.yaml"
-        source.write_text(PROJECT_FIXTURE_CUE)
-        original = source.read_text()
-
-        result = run(str(PI_JOB), "--task", str(source), "project", "--to", str(destination))
-        assert_contains(result.stdout, "YAML task file")
-        assert_contains(result.stderr, "CUE task storage is deprecated")
-        assert source.read_text() == original
-        assert destination.exists()
-
-        module = load_pi_job_module()
-        cue_task = module.semantic_task_mapping(module.CueTaskStore(source).read(), source=str(source))
-        yaml_task = module.semantic_task_mapping(module.YamlTaskStore(destination).read(), source=str(destination))
-        assert cue_task == yaml_task
-
-        destination_before_refusal = destination.read_text()
-        refusal = run(
-            str(PI_JOB), "--task", str(source), "project", "--to", str(destination),
-            check=False,
-        )
-        assert refusal.returncode != 0
-        assert_contains(refusal.stderr, "destination YAML task already exists")
-        assert destination.read_text() == destination_before_refusal
 
 
-def test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        source = Path(tmp) / "custom.cue"
-        destination = Path(tmp) / "custom.yaml"
-        source.write_text(
-            "package task\n"
-            "#Slice: {\n"
-            "  key: string\n  kind: string\n  title: string\n  goal: string\n"
-            "  status: #Status\n  note: string\n  custom?: string\n"
-            "  steps: [...#Step]\n  final_steps: [...#Step]\n}\n"
-            "task: {\n"
-            "  title: \"Custom CUE\"\n  status: \"planned\"\n"
-            "  plan: {note: \"\", slices: [#Slice & {\n"
-            "    key: \"one\", kind: \"implement\", title: \"One\", goal: \"Goal\",\n"
-            "    status: \"planned\", note: \"\", custom: \"must not disappear\",\n"
-            "    steps: [], final_steps: []\n"
-            "  }]}\n"
-            "}\n"
-        )
-        module = load_pi_job_module()
-        task = module.CueTaskStore(source).read()
-        assert task["plan"]["slices"][0]["custom"] == "must not disappear"
-
-        result = run(
-            str(PI_JOB), "--task", str(source), "project", "--to", str(destination),
-            check=False,
-        )
-        assert result.returncode != 0
-        assert_contains(result.stderr, "Extra inputs are not permitted")
-        assert not destination.exists()
 
 
 
@@ -5940,14 +5065,6 @@ def test_remove_slice_removes_and_guards() -> None:
         assert len(task_data["plan"]["slices"]) == 1
 
 
-def test_bootstrap_requires_yaml() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "task.cue"
-        bootstrap_input = Path(tmp) / "input.yaml"
-        bootstrap_input.write_text("title: Fail\nslices:\n  - key: slice\n    kind: implement\n    title: Slice\n    goal: Fail\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
-        result = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), check=False)
-        assert result.returncode != 0
-        assert_contains(result.stderr, "requires a YAML task file")
 
 
 def test_create_from_requires_intent_path() -> None:
@@ -7063,7 +6180,6 @@ def main() -> None:
     test_show_renders_deps_with_mixed_statuses()
     test_show_omits_deps_line_when_absent()
     test_init_rejects_forward_reference_dependency()
-    test_legacy_cue_scaffold_output_has_no_local_schema()
     test_scaffold_output_still_validates_via_shared_schema()
     test_add_slice_happy_path_no_repos()
     test_add_slice_happy_path_with_repos()
@@ -7073,20 +6189,16 @@ def main() -> None:
     test_add_slice_after_inserts_in_correct_order()
     test_add_slice_rejects_unknown_after_slice()
     test_add_slice_works_on_empty_plan_slices()
-    test_add_slice_unified_final_steps_field()
     test_add_step_happy_path()
     test_add_step_final_flag()
     test_add_step_rejects_duplicate_key()
     test_add_step_rejects_unknown_slice()
     test_add_step_after_inserts_in_correct_order()
-    test_legacy_cue_add_step_final_rolls_back_on_closed_final_steps_schema()
-    test_legacy_cue_validate_passes_shared_schema_task()
     test_validate_warns_when_persisted_slice_predates_template_addition()
     test_validate_warns_on_long_note()
     test_status_warns_on_long_note()
     test_validate_warns_on_large_task_file()
     test_finish_note_not_refused_when_long()
-    test_validate_fails_invalid_step_status()
     test_validate_fails_when_slice_missing_template_steps()
     test_validate_allows_extra_steps_beyond_template()
     test_validate_fails_on_unknown_slice_kind()
@@ -7096,13 +6208,6 @@ def main() -> None:
     test_validate_without_slice_still_fails_on_legacy_debt()
     test_status_reports_structure_ok_for_conformant_task()
     test_status_reports_structure_invalid_without_failing()
-    test_migrate_task_reports_already_migrated()
-    test_migrate_task_recommends_delete_for_identical_status()
-    test_migrate_task_recommends_keep_for_status_with_used_extra_value()
-    test_migrate_task_recommends_delete_for_status_with_unused_extra_value()
-    test_migrate_task_recommends_replace_for_slice_with_extra_fields()
-    test_migrate_task_line_ranges_are_accurate()
-    test_migrate_task_partial_migration_only_slice_remains()
     test_set_worktree_happy_path()
     test_set_worktree_upserts_existing_path()
     test_set_worktree_rejects_unknown_slice()
@@ -7125,10 +6230,6 @@ def main() -> None:
     test_fs_task_store_ordering()
     test_fs_task_store_depends_on_symlink()
     test_fs_task_store_invalid_status_dies_on_read()
-    test_fs_and_cue_task_store_shape_parity()
-    test_cue_escape_escapes_newlines_quotes_and_tabs()
-    test_cmd_project_cue_to_fs_to_cue_round_trip()
-    test_cmd_project_refuses_nonempty_cue_destination()
     test_persisted_models_document_every_field()
     test_yaml_task_store_round_trip_and_atomic_mutations()
     test_yaml_mutations_serialize_concurrent_writers()
@@ -7146,8 +6247,6 @@ def main() -> None:
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
     test_profile_requires_cli_help()
-    test_cmd_project_cue_to_yaml_keeps_source_and_verifies_semantics()
-    test_legacy_cue_custom_fields_remain_readable_but_do_not_migrate_silently()
     test_lifecycle_records_model_and_timestamps()
     test_finish_reconcile_succeeds_on_in_progress_without_start()
     test_finish_reconcile_refuses_planned_status()
@@ -7206,7 +6305,6 @@ def main() -> None:
     test_add_decision_mutation()
     test_set_plan_note_mutation()
     test_remove_slice_removes_and_guards()
-    test_bootstrap_requires_yaml()
     test_create_from_requires_intent_path()
     test_bootstrap_rejects_initial_slice_key_without_kind()
     test_pi_job_write_stores_content_digest()
@@ -7214,7 +6312,6 @@ def main() -> None:
     test_acknowledge_edit_clears_warning()
     test_finish_while_dirty_does_not_clear_digest()
     test_missing_digest_does_not_warn()
-    test_fixture_policy_disallows_incidental_cue_task_paths()
     test_markdown_representative_full_dump()
     test_markdown_contents_lists_all_slices_in_order()
     test_markdown_minimal_omits_empty_decisions_none()
@@ -7239,5 +6336,31 @@ def main() -> None:
     print("pi-job tests passed")
 
 
+def test_cue_task_path_is_rejected_without_cue() -> None:
+    """A .cue task path must fail at storage selection without invoking CUE."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "unsupported.cue"
+        result = run(str(PI_JOB), "--task", str(task), "status", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "unsupported task storage")
+        assert_contains(result.stderr, "use a .yaml/.yml file or a directory")
+
+
+def test_project_cue_destination_is_rejected_without_cue() -> None:
+    """A .cue project destination must fail before any destination is created."""
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "source.yaml"
+        destination = Path(tmp) / "unsupported.cue"
+        write_task_yaml(source, standard_fixture_mapping())
+        result = run(
+            str(PI_JOB), "--task", str(source), "project", "--to", str(destination), check=False
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "unsupported task storage")
+        assert not destination.exists()
+
+
 if __name__ == "__main__":
+    test_cue_task_path_is_rejected_without_cue()
+    test_project_cue_destination_is_rejected_without_cue()
     main()

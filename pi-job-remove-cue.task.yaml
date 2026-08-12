@@ -1,0 +1,211 @@
+# Managed by pi-job. Prefer pi-job commands over manual edits.
+# Validate emergency edits with: pi-job --task <this-file> validate
+title: Remove CUE support from pi-job harness
+status: planned
+source:
+  jira: ''
+  discovered: ''
+  context: Short discovery note for why this task exists.
+project:
+  key: ''
+  name: ''
+  route: ''
+  context: ''
+context: 'Remove all CUE support from pi-job-harness. No backward compatibility.
+
+
+  User constraints (binding):
+
+  - Edit on master in chezmoi source; no worktree, no feature branch
+
+  - User will review the diff themselves
+
+  - README may briefly note we started with CUE and what we learned
+
+
+  Scope lives under dot_local/share/pi-job-harness/ (and any AGENTS.md / skill mentions of CUE).'
+orchestration:
+  cursors: []
+  policy:
+    coding_execution:
+      subagent_required: true
+      lower_power_model_preferred: true
+      orchestrator_reviews_subagent: true
+      exceptions: []
+  artifacts: {}
+  content_digest: 84f7108bb7889114b2fc5b75d024097f5711a4f1f005ed5431c367e9338cc73d
+decisions:
+- date: '2026-08-12'
+  note: 'No worktree and no feature branch: implement CUE removal directly on master for user review.'
+  source: user request 2026-08-12
+- date: '2026-08-12'
+  note: 'No CUE backward compatibility: refuse .cue tasks, delete CueTaskStore and task-schema.cue, remove
+    migrate-task; YAML (and directory store if retained) only.'
+  source: user request 2026-08-12
+- date: '2026-08-12'
+  note: Keep experimental FsTaskStore (directory-backed tasks). project remains YAML ↔ directory only;
+    CUE is out of scope for removal of that backend.
+  source: grill-plan Q1 2026-08-12
+- date: '2026-08-12'
+  note: Hard-fail on .cue task paths and project destinations with a short unsupported-storage message
+    (use .yaml/.yml or a directory). No migration hint and no cue CLI invocation.
+  source: grill-plan Q2 2026-08-12
+- date: '2026-08-12'
+  note: 'README historical note: main CUE pain was mutating task files from pi-job via regex (not schema
+    strength). Short lesson only; no migration docs.'
+  source: grill-plan Q3 2026-08-12
+- date: '2026-08-12'
+  note: Skip share-with-team ticket and PR for this slice; deliver master diff only for user review.
+  source: grill-plan Q4 2026-08-12
+- date: '2026-08-12'
+  note: 'Vulnerability scan skipped for this slice: user declined; CUE removal is local CLI deletion with
+    no new network/auth trust boundary.'
+  source: vulnerability-scan user decline 2026-08-12
+plan:
+  note: CUE removed from pi-job-harness on master. YAML + FsTaskStore only. Awaiting user review of the
+    master diff; apply chezmoi when ready so ~/.local/share/pi-job-harness matches.
+  slices:
+  - key: implement-slice
+    kind: implement
+    title: Remove CUE support completely
+    goal: Delete CueTaskStore, task-schema.cue, migrate-task, and all CUE paths/tests/docs; YAML (+ dir
+      store) only. No backward compatibility. README notes CUE origin + lessons. Work on master only (no
+      worktree/branch).
+    status: done
+    note: CUE removal landed on master for review. YAML + FsTaskStore only; migrate-task gone; .cue hard-fails.
+    execution:
+      model: cursor/grok-4.5
+      started: '2026-08-12T08:15:22.080786Z'
+      ended: '2026-08-12T08:53:52.320821Z'
+    repos: []
+    depends_on: []
+    repo_work:
+      chezmoi:
+        worktree: /home/volodymyrvitvitskyi/.local/share/chezmoi
+        prs: []
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: done
+      note: 'Plan file: pi-job-remove-cue.task.plans/implement-slice.md'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:15:22.312570Z'
+        ended: '2026-08-12T08:16:55.194750Z'
+    - key: grill-plan
+      title: Grill the plan file
+      status: done
+      note: 'Grill survived: keep FsTaskStore; hard-fail .cue; README lesson = regex mutation pain; skip
+        ticket/PR; implement on master.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:17:07.185855Z'
+        ended: '2026-08-12T08:33:21.526044Z'
+    - key: edit-code
+      title: Edit code
+      status: done
+      note: 'Removed CueTaskStore, task-schema.cue, migrate-task, CUE helpers/tests/docs.
+
+        Kept YamlTaskStore + FsTaskStore; project is YAML↔directory only.
+
+        Hard-fail .cue with short unsupported-storage message; added rejection tests.
+
+        README historical note: regex mutation pain.
+
+        Review fix: dropped dead legacy_cue validate flag.
+
+        Verified: ruff clean; full test suite passed under env -u PI_JOB_OWNER; CLI help has no CUE/migrate-task;
+        smoke reject .cue task and project dest.
+
+        Edited on master in-place at /home/volodymyrvitvitskyi/.local/share/chezmoi (no separate worktree
+        per decision).'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:33:21.812242Z'
+        ended: '2026-08-12T08:41:57.936511Z'
+    - key: verify
+      title: Verify
+      status: done
+      note: 'ruff: All checks passed.
+
+        Full suite: `env -u PI_JOB_OWNER uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py`
+        → pi-job tests passed.
+
+        No live refs: CueTaskStore / task-schema.cue / migrate-task / cue_escape / legacy_cue / cue export.
+
+        Smoke: YAML create+validate; project YAML↔dir both ways; `.cue` status hard-fails with unsupported-storage
+        message.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:42:08.170747Z'
+        ended: '2026-08-12T08:43:36.884868Z'
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: skipped
+      note: 'User declined vulnerability-scan: User declined: deletion of local CLI store backend; master
+        diff review suffices.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:06.600918Z'
+        ended: '2026-08-12T08:53:06.600918Z'
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: skipped
+      note: 'User decision: skip ticket and PR; deliver master diff only for review.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:11.271574Z'
+        ended: '2026-08-12T08:53:11.271574Z'
+    - key: update-task-file
+      title: Update this task file
+      status: done
+      note: 'Plan note updated. No extra follow-up slices: apply/review stays with the user on master.
+        Decisions already capture keep FsTaskStore, hard-fail .cue, README lesson, skip ticket/PR/vuln-scan.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:11.526252Z'
+        ended: '2026-08-12T08:53:25.780369Z'
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: skipped
+      note: No PR; user reviews master diff directly.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:26.010124Z'
+        ended: '2026-08-12T08:53:26.010124Z'
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: done
+      note: 'Acceptance via edited harness binary (not yet chezmoi-applied to ~/.local/share/pi-job-harness):
+
+        - Full regression suite passed
+
+        - YAML create + validate
+
+        - project YAML → directory and directory → YAML
+
+        - `.cue` task path hard-fails: unsupported task storage … use a .yaml/.yml file or a directory
+
+        Gap: applied install path still has old package until user runs chezmoi apply.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:26.233108Z'
+        ended: '2026-08-12T08:53:36.385021Z'
+    - key: ready-for-release
+      title: Mark the ticket Ready for Release
+      status: skipped
+      note: No ticket; master diff awaiting user review/apply.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:36.730693Z'
+        ended: '2026-08-12T08:53:36.730693Z'
+    - key: pi-job-feedback
+      title: Record pi-job feedback
+      status: done
+      note: 'Appended entry to ~/pi-job.feedback.yml: PI_JOB_OWNER test pollution; finish ambiguity; same-repo
+        vs worktree evidence.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:53:37.032585Z'
+        ended: '2026-08-12T08:53:52.046588Z'
+    final_steps: []

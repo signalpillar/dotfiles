@@ -4,7 +4,9 @@ Portable deterministic job harness for machine-owned YAML task files.
 
 `pi-job` keeps durable task state in exactly one `TaskStore` backend, with YAML as the default.
 It validates task state and the package-local `profile.yaml` through documented Pydantic models, walks unfinished steps within the current slice (or jumps with an explicit cursor), and emits deterministic instruction packets.
-Legacy CUE files remain readable and writable during migration, but every CUE invocation prints the exact `project --to <task>.yaml` migration command.
+
+pi-job started with CUE task files.
+The main pain was updating CUE from pi-job through fragile regex rewrites, so it now uses YAML, an optional directory store, and Pydantic.
 
 ## Contents
 
@@ -12,7 +14,6 @@ Legacy CUE files remain readable and writable during migration, but every CUE in
 bin/pi-job              CLI entrypoint
 profile.yaml            validated step kinds, slice kinds, toolbelt, and artifact rules
 pyproject.toml          ruff config (includes extensionless chezmoi scripts)
-task-schema.cue         compatibility schema used only by legacy CUE tasks
 tests/executable_test_pi_job.py   regression tests (may install as tests/test_pi_job.py)
 ```
 
@@ -20,7 +21,6 @@ tests/executable_test_pi_job.py   regression tests (may install as tests/test_pi
 
 - Python 3.12+
 - `uv`, which resolves the script's PEP 723 dependencies
-- `cue` CLI on `PATH` only while reading, writing, or migrating legacy CUE tasks
 
 The executable declares compatible Pydantic and PyYAML versions in its inline PEP 723 metadata.
 No separate virtual environment or package installation command is required when invoking it through `uv run`.
@@ -242,14 +242,13 @@ BASE=https://raw.githubusercontent.com/signalpillar/dotfiles/master/dot_local/sh
 mkdir -p ~/.local/share/pi-job-harness/bin ~/.local/bin
 curl -fsSL "$BASE/bin/executable_pi-job" -o ~/.local/share/pi-job-harness/bin/pi-job
 curl -fsSL "$BASE/profile.yaml" -o ~/.local/share/pi-job-harness/profile.yaml
-curl -fsSL "$BASE/task-schema.cue" -o ~/.local/share/pi-job-harness/task-schema.cue
 curl -fsSL "$BASE/README.md" -o ~/.local/share/pi-job-harness/README.md
 chmod +x ~/.local/share/pi-job-harness/bin/pi-job
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
   'exec uv run --script "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' \
   > ~/.local/bin/pi-job
 chmod +x ~/.local/bin/pi-job
-# requires: uv with Python 3.12; cue is needed only for legacy CUE tasks
+# requires: uv with Python 3.12
 ```
 
 Direct system-Python execution requires compatible Pydantic and PyYAML packages to be installed manually.
@@ -312,7 +311,6 @@ A task without `task.orchestration` is not initialized; run `create` (with `--ki
 - YAML syntax is loaded with duplicate-key detection.
 - Task and profile fields are checked through strict Pydantic models that reject unknown fields.
 - Slice structure and live profile-template requirements are checked after document validation.
-- Legacy CUE validation still exports through `task-schema.cue` before applying the same Pydantic task model.
 - `validate` and `status` warn (non-fatal) when slice or step notes exceed ~2000 characters or the task file exceeds ~100KB; keep long prose in slice plan files.
 
 ### create
@@ -459,34 +457,6 @@ Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immed
 `start` rejects the code-author model for this step, and `advance` rechecks recorded provenance so externally modified status cannot bypass the model-separation rule.
 The CLI does not recognize `vulnerability-scan` by name; it applies the generic `requires_user_decision` and `different_model_from_step` fields declared on any step kind.
 
-## Migrating CUE storage
-
-Use the existing backend projection command to create a sibling YAML task:
-
-```bash
-pi-job --task projects/example/tasks/task.cue project \
-  --to projects/example/tasks/task.yaml
-```
-
-The command detects both stores from their paths, validates the CUE export, writes YAML atomically, reads it back, and verifies semantic equality through `TaskDocument`.
-It refuses to overwrite an existing YAML destination and never modifies, renames, or deletes the CUE source.
-
-CUE reads and writes remain supported temporarily.
-Every CUE invocation prints a deprecation warning containing the corresponding projection command.
-
-## Migrating legacy CUE schemas
-
-If a task file was created before `task-schema.cue` existed, it may have local copies of type declarations (`#Status`, `#Step`, `#Decision`, `#Artifact`, `#Slice`) at the top level.
-These are now legacy - the shared `task-schema.cue` is unified into every legacy CUE load automatically, making local copies redundant and a source of confusion.
-
-`pi-job migrate-task` diagnoses a CUE task for these legacy declarations and prints deletion or refactoring recommendations.
-It does not perform storage migration; use `project --to <task>.yaml` for that.
-It never modifies the file.
-If an emergency manual cleanup is required, run `pi-job validate` immediately afterward.
-
-Note: a bare `cue vet` or `cue export` invoked on the migrated task file *alone* will fail with missing reference errors like `reference "#Step" not found` - this is expected and not breakage.
-Use `pi-job validate` rather than invoking `cue` directly.
-
 ### Migrating from v1 profile/phase model
 
 v1 stored `task.orchestration.profile`, `cursor.phase`, and walked post-slice profile phases.
@@ -586,15 +556,13 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 
 ## Task storage backends
 
-`--task` accepts `.yaml`, `.yml`, legacy `.cue`, or an existing directory.
+`--task` accepts `.yaml`, `.yml`, or an existing directory.
 `open_task_store()` selects the backend from that shape; no separate storage flag is needed.
 
 - **`YamlTaskStore`** (default) - a strictly validated, deterministically serialized YAML document.
   Mutations hold an advisory lock across load, validation, mutation, and atomic replacement.
   The lock file lives under `$XDG_CACHE_HOME/pi-job/locks/` (default `~/.cache`), keyed by a hash of the resolved task path, so task directories stay free of sibling `.*.yaml.lock` sentinels.
   Atomic replacement preserves the task file's existing permission mode.
-- **`CueTaskStore`** (deprecated) - a compatibility backend for existing CUE files.
-  Reads and writes remain available, and each invocation prints migration guidance.
 - **`FsTaskStore`** (experimental) - a directory-backed backend.
   `task.title`/`task.status`/etc become files; `task.plan.slices[]` become subdirectories; `depends_on` becomes a directory of symlinks.
   Ordered collections use gapped numeric-prefix directory names (`0010-`, `0020-`, …) so inserts never require renaming siblings.
@@ -602,16 +570,13 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 All backends implement the same `TaskStore` protocol.
 Task data from every backend passes through the documented Pydantic task contract.
 
-`create` supports YAML and legacy CUE task paths.
-`migrate-task` remains a CUE-only schema-diagnosis command.
+`create` supports YAML task paths.
 
 ## Converting between backends: project
 
 - `pi-job --task <source> project --to <dest>` - copies a task's full state into another backend.
 - A new `.yaml` or `.yml` destination is published with atomic no-clobber semantics and verified against the source's canonical Pydantic representation.
 - Existing YAML destinations are never overwritten.
-- `<dest>` as a `.cue` path is bootstrapped from an empty skeleton if it doesn't exist yet.
-  If `<dest>` already has slices or decisions, `project` refuses rather than risk shifting existing entries.
 - `<dest>` as a directory is created if missing.
 
 ## Slice kinds (contract reference)
@@ -784,7 +749,7 @@ Run `uvx ruff@latest check .` from this package directory after Python edits (se
 
 ## Test
 
-Behavior tests use YAML task fixtures; legacy CUE coverage lives only in explicitly named compatibility tests.
+Behavior tests cover YAML task fixtures and the directory-backed store.
 
 When contributing Python changes under this package, also run:
 
