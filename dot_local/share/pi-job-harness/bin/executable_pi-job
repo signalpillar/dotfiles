@@ -2523,6 +2523,47 @@ def task_tasks_home(*, env: Mapping[str, str] | None = None) -> Path:
     return Path(raw).expanduser().resolve()
 
 
+def worktrees_home(*, env: Mapping[str, str] | None = None) -> Path:
+    """Central pi-job worktree home; `PI_JOB_WORKTREES` overrides the default location.
+
+    Advisory only: `pi-job` never creates directories or git worktrees here, it only
+    recommends and records absolute paths under this convention."""
+    source = os.environ if env is None else env
+    raw = source.get("PI_JOB_WORKTREES", "~/.local/share/pi-job/worktrees")
+    return Path(raw).expanduser().resolve()
+
+
+def iter_home_bundle_docs(home: Path) -> list[tuple[str, Path]]:
+    """`(slug, task.yaml path)` for every immediate child bundle dir of `home`, sorted by slug.
+
+    Only directories containing a `task.yaml` file count; loose `*.yaml`/`*.yml` files
+    directly under `home`, non-directory entries, and dirs without `task.yaml` are ignored
+    (no recursive scan, no slug map)."""
+    if not home.is_dir():
+        return []
+    found = []
+    for child in home.iterdir():
+        if not child.is_dir():
+            continue
+        doc = child / BundleTaskLayout.DOCUMENT_NAME
+        if doc.is_file():
+            found.append((child.name, doc))
+    return sorted(found, key=lambda pair: pair[0])
+
+
+def format_list_row(
+    slug: str,
+    title: str,
+    status: str,
+    ready_keys: Sequence[str],
+    cursor_labels: Sequence[str],
+) -> str:
+    """One `pi-job list` row: slug, title, status, Ready slice keys, and claim labels."""
+    ready = ", ".join(ready_keys) if ready_keys else "-"
+    cursors = ", ".join(cursor_labels) if cursor_labels else "-"
+    return f"{slug}: {title} [{status}]  Ready: {ready}  Cursors: {cursors}"
+
+
 def is_task_slug(text: str) -> bool:
     return TASK_SLUG_RE.fullmatch(text) is not None
 
@@ -2755,6 +2796,42 @@ def open_task_store(task_arg: Path) -> TaskStore:
     if task_arg.is_dir():
         return FsTaskStore(task_arg)
     unsupported_storage(task_arg)
+
+
+def task_slug_for_worktree(store: TaskStore, task_path: Path) -> str | None:
+    """Bundle slug for a worktree recommendation, or `None` when not bundle-backed.
+
+    A `BundleTaskLayout`-backed store (central-home or path-opened bundle) contributes
+    its bundle root directory name as the slug segment; a loose `YamlTaskLayout` or a
+    directory-backed `FsTaskStore` has no slug segment. `task_path` is accepted for
+    symmetry with `recommend_worktree_path` but the slug is always derived from the
+    open store's layout, not the raw CLI path."""
+    layout = getattr(store, "layout", None)
+    if isinstance(layout, BundleTaskLayout):
+        return layout.bundle_root.name
+    return None
+
+
+def recommend_worktree_path(
+    *, store: TaskStore, task_path: Path, slice_key: str, repo: str
+) -> tuple[str, str | None]:
+    """Recommended `$PI_JOB_WORKTREES/<slug>/<slice>/<repo>` path, plus an optional note.
+
+    The slug segment is omitted for a non-bundle-backed task (loose YAML or directory
+    store); the note then explains how to get a slug-addressable recommendation."""
+    slug = task_slug_for_worktree(store, task_path)
+    segments = [worktrees_home()]
+    if slug:
+        segments.append(slug)
+    segments.append(slice_key)
+    segments.append(repo)
+    path = str(Path(*segments))
+    note = (
+        None
+        if slug
+        else "no bundle slug for this task; project it into the central task home for a slug-based path"
+    )
+    return path, note
 
 
 def project(src: TaskStore, dst: TaskStore) -> None:
@@ -5958,6 +6035,30 @@ def cmd_add_step(args: argparse.Namespace) -> None:
     print(f"added step: {args.slice}/{args.key} ({group})")
 
 
+def cmd_list(args: argparse.Namespace) -> None:
+    """List `$PI_JOB_TASKS` bundles (slug, title, status, Ready frontier, active claims).
+
+    Scans only immediate child bundle directories of the task home; loose `*.yaml` files
+    there are never listed (out of scope; use `project` to bundle them first). An
+    individual bundle that fails to load (bad YAML, failed validation) is skipped with a
+    stderr warning rather than aborting the whole listing."""
+    home = task_tasks_home()
+    for slug, doc in iter_home_bundle_docs(home):
+        try:
+            task = open_task_store(doc).read()
+        except SystemExit:
+            print(f"warning: skipping unreadable bundle {slug!r} ({doc})", file=sys.stderr)
+            continue
+        except (OSError, yaml.YAMLError, ValueError) as exc:
+            print(f"warning: skipping unreadable bundle {slug!r} ({doc}): {exc}", file=sys.stderr)
+            continue
+        title = str(task.get("title") or "")
+        status = str(task.get("status") or "")
+        ready_keys = [task_slice.key for task_slice in ready_slices(task)]
+        cursor_labels = [claim_label(task, claim) for claim in owned_cursors(task)]
+        print(format_list_row(slug, title, status, ready_keys, cursor_labels))
+
+
 def cmd_set_worktree(args: argparse.Namespace) -> None:
     task_file = args.task
     store = open_task_store(task_file)
@@ -5978,6 +6079,15 @@ def cmd_set_worktree(args: argparse.Namespace) -> None:
         store.clear_worktree(slice_key=args.slice, repo=args.repo)
         print(f"cleared worktree: {args.slice}/{args.repo}")
         return
+
+    if args.path is None:
+        path, note = recommend_worktree_path(
+            store=store, task_path=task_file, slice_key=args.slice, repo=args.repo
+        )
+        print(f"recommended worktree path: {path}")
+        if note:
+            print(f"note: {note}")
+        die("set-worktree requires --path to record (or --clear to remove); pass --path to persist the recommendation above")
 
     if args.dry_run:
         print(yaml.safe_dump({"worktree": args.path}), end="")
@@ -6507,6 +6617,15 @@ def main() -> None:
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
+    list_cmd = sub.add_parser(
+        "list",
+        help=(
+            "list task bundles under $PI_JOB_TASKS (slug, title, status, Ready frontier, "
+            "cursors); does not take --task, and ignores loose YAML in the task home"
+        ),
+    )
+    list_cmd.set_defaults(fn=cmd_list)
+
     status = sub.add_parser("status", help="show task status, saved cursor, and Ready frontier")
     status.set_defaults(fn=cmd_status)
 
@@ -6930,8 +7049,16 @@ def main() -> None:
     set_worktree = sub.add_parser("set-worktree", help="record or update the filesystem worktree path for a slice's repo work")
     set_worktree.add_argument("--slice", required=True)
     set_worktree.add_argument("--repo", required=True)
-    set_worktree_mode = set_worktree.add_mutually_exclusive_group(required=True)
-    set_worktree_mode.add_argument("--path", help="record or update the filesystem worktree path")
+    set_worktree_mode = set_worktree.add_mutually_exclusive_group(required=False)
+    set_worktree_mode.add_argument(
+        "--path",
+        help=(
+            "record or update the filesystem worktree path; when omitted (and --clear is "
+            "not given), pi-job prints the recommended path and exits non-zero instead of "
+            "recording anything. Convention: $PI_JOB_WORKTREES/<slug>/<slice>/<repo> "
+            "(default worktree home ~/.local/share/pi-job/worktrees)"
+        ),
+    )
     set_worktree_mode.add_argument(
         "--clear",
         action="store_true",

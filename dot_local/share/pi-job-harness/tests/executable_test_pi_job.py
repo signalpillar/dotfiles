@@ -3371,10 +3371,12 @@ def test_set_worktree_clear_rejects_path_and_clear() -> None:
 
 
 def test_set_worktree_clear_rejects_missing_path_and_clear() -> None:
-    """set-worktree requires exactly one of --path or --clear."""
+    """set-worktree without --path/--clear prints a recommendation and fails non-zero
+    (not a bare argparse mode error) instead of recording anything."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "worktree-clear-no-mode.yaml"
         write_task_yaml(task, standard_fixture_mapping())
+        before = task.read_text(encoding="utf-8")
 
         res = run(
             str(PI_JOB), "--task", str(task), "set-worktree",
@@ -3382,10 +3384,11 @@ def test_set_worktree_clear_rejects_missing_path_and_clear() -> None:
             check=False,
         )
         if res.returncode == 0:
-            raise AssertionError("set-worktree should require --path or --clear")
-        stderr = res.stderr.lower()
-        if "mutually exclusive" not in stderr and "required" not in stderr:
-            raise AssertionError(f"expected argparse mode error, got:\n{res.stderr}")
+            raise AssertionError("set-worktree should require --path or --clear to record")
+        assert_contains(res.stdout, "recommended worktree path:")
+        assert_contains(res.stderr, "set-worktree requires --path to record")
+        if task.read_text(encoding="utf-8") != before:
+            raise AssertionError("set-worktree must not mutate the task file on recommend-only")
 
 
 def test_set_worktree_clear_happy_path() -> None:
@@ -6682,6 +6685,168 @@ def test_investigate_does_not_move_claim() -> None:
         assert_contains(findings.read_text(encoding="utf-8"), "Evidence chain complete")
 
 
+def test_list_home_bundles_only() -> None:
+    """`pi-job list` shows bundle dirs under the task home; a loose `*.yaml` sibling is
+    never listed (out of scope; use `project` to bundle it first)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        home.mkdir()
+        bundle = home / "demo-slug"
+        write_task_yaml(bundle / "task.yaml", standard_fixture_mapping(title="Demo bundle"))
+        write_task_yaml(home / "loose.yaml", standard_fixture_mapping(title="Loose task"))
+
+        with _pi_job_tasks_home(home):
+            out = run(str(PI_JOB), "list").stdout
+            assert_contains(out, "demo-slug")
+            assert_contains(out, "Demo bundle")
+            assert_not_contains(out, "Loose task")
+            assert_not_contains(out, "loose.yaml")
+
+
+def test_list_row_fields() -> None:
+    """A `pi-job list` row includes the slug, title, status, a Ready slice key, and a
+    cursor label (owner and derived position)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        bundle = home / "row-fields-slug"
+        write_task_yaml(bundle / "task.yaml", standard_fixture_mapping(title="Row Fields Task"))
+
+        with _pi_job_tasks_home(home):
+            out = run(str(PI_JOB), "list").stdout
+            assert_contains(out, "row-fields-slug")
+            assert_contains(out, "Row Fields Task")
+            assert_contains(out, "in_progress")
+            assert_contains(out, "second-slice")
+            assert_contains(out, DEFAULT_OWNER)
+
+
+def test_list_empty_home() -> None:
+    """`pi-job list` against an empty (or missing) task home prints nothing and exits 0."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        with _pi_job_tasks_home(home):
+            out = run(str(PI_JOB), "list").stdout
+            if out.strip():
+                raise AssertionError(f"expected empty output for empty task home, got:\n{out}")
+
+        missing = Path(tmp) / "does-not-exist"
+        with _pi_job_tasks_home(missing):
+            out = run(str(PI_JOB), "list").stdout
+            if out.strip():
+                raise AssertionError(f"expected empty output for missing task home, got:\n{out}")
+
+
+def test_list_respects_PI_JOB_TASKS() -> None:
+    """`pi-job list` only enumerates the currently configured `PI_JOB_TASKS` home."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home_a = Path(tmp) / "home-a"
+        home_b = Path(tmp) / "home-b"
+        write_task_yaml(home_a / "slug-a" / "task.yaml", standard_fixture_mapping(title="Home A task"))
+        write_task_yaml(home_b / "slug-b" / "task.yaml", standard_fixture_mapping(title="Home B task"))
+
+        with _pi_job_tasks_home(home_a):
+            out = run(str(PI_JOB), "list").stdout
+            assert_contains(out, "slug-a")
+            assert_not_contains(out, "slug-b")
+
+        with _pi_job_tasks_home(home_b):
+            out = run(str(PI_JOB), "list").stdout
+            assert_contains(out, "slug-b")
+            assert_not_contains(out, "slug-a")
+
+
+def test_list_skips_unreadable_bundle_with_warning() -> None:
+    """An unreadable/invalid bundle is skipped with a stderr warning; `list` still
+    reports the other bundles instead of aborting."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        write_task_yaml(home / "good-slug" / "task.yaml", standard_fixture_mapping(title="Good task"))
+        bad_doc = home / "bad-slug" / "task.yaml"
+        bad_doc.parent.mkdir(parents=True)
+        bad_doc.write_text("title: [unterminated\n", encoding="utf-8")
+
+        with _pi_job_tasks_home(home):
+            result = run(str(PI_JOB), "list")
+            assert_contains(result.stdout, "good-slug")
+            assert_contains(result.stdout, "Good task")
+            assert_not_contains(result.stdout, "bad-slug")
+            assert_contains(result.stderr, "bad-slug")
+
+
+def test_set_worktree_recommend_missing_path() -> None:
+    """set-worktree without `--path`/`--clear` prints a recommendation and dies non-zero
+    without writing to the task file."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "worktree-recommend.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        before = task.read_text(encoding="utf-8")
+
+        with _pi_job_worktrees_home(Path(tmp) / "worktrees"):
+            res = run(
+                str(PI_JOB), "--task", str(task), "set-worktree",
+                "--slice", "second-slice", "--repo", "graphius",
+                check=False,
+            )
+        if res.returncode == 0:
+            raise AssertionError("set-worktree without --path/--clear should fail")
+        assert_contains(res.stdout, "recommended worktree path:")
+        assert_contains(res.stdout, str(Path(tmp) / "worktrees" / "second-slice" / "graphius"))
+        assert_contains(res.stderr, "requires --path")
+        if task.read_text(encoding="utf-8") != before:
+            raise AssertionError("recommend-only set-worktree must not mutate the task file")
+
+
+def test_set_worktree_recommend_under_home() -> None:
+    """A bundle task's recommendation includes the bundle slug segment:
+    `$PI_JOB_WORKTREES/<slug>/<slice>/<repo>`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tasks_home = Path(tmp) / "tasks-home"
+        worktrees_home = Path(tmp) / "worktrees-home"
+        write_task_yaml(tasks_home / "recommend-slug" / "task.yaml", standard_fixture_mapping())
+
+        with _pi_job_tasks_home(tasks_home), _pi_job_worktrees_home(worktrees_home):
+            res = run(
+                str(PI_JOB), "--task", "recommend-slug", "set-worktree",
+                "--slice", "second-slice", "--repo", "graphius",
+                check=False,
+            )
+        if res.returncode == 0:
+            raise AssertionError("set-worktree without --path/--clear should fail")
+        expected = worktrees_home / "recommend-slug" / "second-slice" / "graphius"
+        assert_contains(res.stdout, str(expected))
+
+
+def test_set_worktree_recommend_loose_yaml() -> None:
+    """A loose (non-bundle) task's recommendation omits the slug segment and adds a note
+    about projecting into the central home for a slug-based path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "loose-recommend.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        worktrees_home = Path(tmp) / "worktrees-home"
+
+        with _pi_job_worktrees_home(worktrees_home):
+            res = run(
+                str(PI_JOB), "--task", str(task), "set-worktree",
+                "--slice", "second-slice", "--repo", "graphius",
+                check=False,
+            )
+        if res.returncode == 0:
+            raise AssertionError("set-worktree without --path/--clear should fail")
+        expected = worktrees_home / "second-slice" / "graphius"
+        assert_contains(res.stdout, str(expected))
+        assert_not_contains(res.stdout, str(worktrees_home / "loose-recommend"))
+        assert_contains(res.stdout, "note:")
+
+
+def test_set_worktree_help_mentions_worktree_convention() -> None:
+    """`set-worktree --help` documents the `$PI_JOB_WORKTREES/<slug>/<slice>/<repo>`
+    recommendation convention and its default home."""
+    out = run(str(PI_JOB), "set-worktree", "--help").stdout
+    assert_contains(out, "PI_JOB_WORKTREES")
+    assert_contains(out, "<slug>/<slice>/<repo>")
+    assert_contains(out, "~/.local/share/pi-job/worktrees")
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
@@ -6942,6 +7107,20 @@ def _pi_job_tasks_home(home: Path) -> Iterator[None]:
             os.environ["PI_JOB_TASKS"] = saved
 
 
+@contextmanager
+def _pi_job_worktrees_home(home: Path) -> Iterator[None]:
+    """Point `PI_JOB_WORKTREES` at `home` for the duration of the block, then restore it."""
+    saved = os.environ.get("PI_JOB_WORKTREES")
+    os.environ["PI_JOB_WORKTREES"] = str(home)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop("PI_JOB_WORKTREES", None)
+        else:
+            os.environ["PI_JOB_WORKTREES"] = saved
+
+
 def test_project_loose_to_slug_bundle() -> None:
     """`project --to <slug>` converts a loose YAML task (+ stem-based `.plans/`) into a
     fresh `$PI_JOB_TASKS/<slug>/` bundle, keeping an extra sibling directory by name."""
@@ -7174,4 +7353,13 @@ if __name__ == "__main__":
     test_create_duplicate_slug()
     test_create_invalid_slug()
     test_create_rejects_loose_yaml_path()
+    test_list_home_bundles_only()
+    test_list_row_fields()
+    test_list_empty_home()
+    test_list_respects_PI_JOB_TASKS()
+    test_list_skips_unreadable_bundle_with_warning()
+    test_set_worktree_recommend_missing_path()
+    test_set_worktree_recommend_under_home()
+    test_set_worktree_recommend_loose_yaml()
+    test_set_worktree_help_mentions_worktree_convention()
     main()

@@ -41,6 +41,7 @@ It does **not** run the agent session and does **not** spawn subagents.
 
 Given a YAML task file and package-local `profile.yaml`, it can:
 
+- `list` - list task bundles under the central task home (slug, title, status, Ready frontier, active claims); no `--task` needed
 - `create` - create and initialize a task file (`--from` intent YAML, or `--kind`/`--empty-plan` skeleton; also finishes init on an existing uninitialized file)
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
@@ -400,6 +401,9 @@ These commands write task metadata and durable state without editing the YAML by
 
 These commands do not require `--task`.
 
+- `pi-job list` - one row per task bundle under `$PI_JOB_TASKS` (default `~/.local/share/pi-job/tasks`): slug, title, status, Ready frontier slice keys, and active claim labels.
+  Scans only immediate child bundle directories with a `task.yaml`; loose `*.yaml` files directly under the task home are never listed (`project` them into a bundle first).
+  A bundle that fails to load is skipped with a stderr warning instead of aborting the whole listing.
 - `pi-job profile [--json]` - show the active execution profile. Human output lists slice/step/toolbelt counts; `--json` dumps the full validated profile.
 - `pi-job schema [--json]` - show the task document and create-intent input schemas. Human output summarizes model counts; `--json` dumps a complete JSON Schema object with `task` and `create` keys.
 - `pi-job kinds list [--json]` - list all slice kinds with their step templates. `--json` dumps the full slice_kinds catalog.
@@ -551,7 +555,11 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 
 - `pi-job --task <t> set-worktree --slice K --repo R --path P` - record/update the filesystem worktree path for a slice's repo work (upsert; not filesystem-validated).
 - `pi-job --task <t> set-worktree --slice K --repo R --clear` - remove the recorded worktree path for an **existing** repo entry; PR records are unchanged; fails if the repo entry was never created.
-- `--path` and `--clear` are mutually exclusive; exactly one is required.
+- `--path` and `--clear` are mutually exclusive.
+  Neither is strictly required by argparse: omitting both prints the recommended path (see below) and exits non-zero without writing anything; recording still requires an explicit `--path`.
+- Worktree convention: `$PI_JOB_WORKTREES/<slug>/<slice>/<repo>` (default worktree home `~/.local/share/pi-job/worktrees`; `PI_JOB_WORKTREES` overrides).
+  The slug segment is the task bundle's directory name; a loose (non-bundle) YAML task has no slug, so the recommendation omits that segment and adds a note about projecting the task into the central home first.
+  Recommendations are advisory only - `pi-job` never creates the directory or a git worktree.
 - `pi-job --task <t> add-pr --slice K --repo R --url U --status open|merged|closed [--note N]` - record a PR for a slice's repo work, upserting by URL.
 - `pi-job --task <t> show [--all]` - also renders each slice's `repo_work`: worktree path (or "not set") and each PR's status/url.
 - Agents listing recorded worktrees: `show --status done` (set paths only), or `show --all` / `show --slice KEY` for full `repo_work`.
