@@ -35,10 +35,26 @@ restate them from this skill.
 ## Cold start
 
 ```bash
-pi-job --task TASK_FILE status
+pi-job list                              # home bundles under $PI_JOB_TASKS
+pi-job --task SLUG status                # preferred: slug under the task home
+# path still works for loose YAML or an explicit bundle:
+# pi-job --task ./legacy.task.yaml status
+# pi-job --task ~/.local/share/pi-job/tasks/SLUG status
 ```
 
-If the file is missing, follow the create hint from the CLI (`create --kind` or `create --from`).
+Create a new home task (always a bundle: `task.yaml` + `plans/` + `references/`):
+
+```bash
+pi-job --task SLUG create --kind setup
+```
+
+Convert a legacy loose YAML into the home:
+
+```bash
+pi-job --task ./legacy.task.yaml project --to SLUG
+```
+
+If the store is missing, follow the create hint from the CLI.
 Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
 Claims live in `orchestration.cursors[]` (`{owner, slice, claimed_at, last_seen}`).
@@ -47,7 +63,7 @@ Trust `status`/`show` for claims + Ready frontier.
 Array order of slices is not execution order.
 
 ```bash
-pi-job --task TASK_FILE claim --slice KEY --owner ID
+pi-job --task SLUG claim --slice KEY --owner ID
 # optional: export PI_JOB_OWNER=ID  (omit --owner when unambiguous / sole claim)
 ```
 
@@ -55,7 +71,7 @@ After create or any `instruction` packet: enter the orchestrator loop immediatel
 Do not wait for the user to say "continue".
 Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
 Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SLICE_KEY`;
-the packet header names the real task path).
+the packet header shows `Task:` as slug when under the home, else a path).
 After create, run `pi-job loop` and arm your own `/loop` from that instruction (resolve TASK).
 
 ## Orchestrator loop
@@ -82,15 +98,16 @@ Prefer packet guidance. Typical shape:
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
-Slice plans: `<task-stem>.plans/<slice-key>.md` (constraint contracts with types/composition
-and call stacks; see profile `plan_and_grill_guardrail`).
+Slice plans live under the layout: bundle `plans/<slice-key>.md`, or legacy
+`<task-stem>.plans/<slice-key>.md` until projected (constraint contracts with
+types/composition and call stacks; see profile `plan_and_grill_guardrail`).
 
 ## Wayfinder
 
 Foggy work: use the wayfinder skill with this task file as the map.
 
 ```bash
-pi-job --task TASK_FILE wayfinder-context
+pi-job --task SLUG wayfinder-context
 ```
 
 Details and kind mapping: `pi-job wayfinder-context --help` and the harness README.

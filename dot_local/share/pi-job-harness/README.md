@@ -70,10 +70,10 @@ Assumption: a smart orchestrator model keeps calling `pi-job` instead of freelan
 **Role:** while a task file is active, the agent is the **orchestrator** (CLI-only for the store; pause on grill/clarify).
 This supersedes any default workspace role such as Product Owner.
 
-1. `pi-job --task <file> status` (and usually `plan` / `show`)
-2. `pi-job --task <file> claim --slice KEY --owner ID` (Ready slice; one claim per owner)
-3. `pi-job --task <file> instruction` (derived active step, or pick-next when exhausted)
-4. `pi-job --task <file> start --model <provider/model>`
+1. `pi-job --task <slug> status` (and usually `plan` / `show`)
+2. `pi-job --task <slug> claim --slice KEY --owner ID` (Ready slice; one claim per owner)
+3. `pi-job --task <slug> instruction` (derived active step, or pick-next when exhausted)
+4. `pi-job --task <slug> start --model <provider/model>`
 5. Do that step in the orchestrator session, or launch a subagent when the packet says so
 6. Record evidence / decisions / blockers, then run `finish [--note ...]`
 7. Repeat from `instruction`; on pick-next: `finish --slice-only` → `show` → claim next Ready → `instruction`
@@ -225,7 +225,8 @@ Short examples:
 
 1. Global hint: chezmoi [`AGENTS.md`](../../../AGENTS.md) points agents at `pi-job` for durable task orchestration.
 2. On PATH after chezmoi apply: `pi-job` -> `~/.local/bin/pi-job`.
-3. When a user names a task file, run `pi-job --task <file> status` first.
+3. When a user names a task (slug or path), run `pi-job --task <slug-or-path> status` first.
+   Prefer `pi-job list` to discover home slugs.
 4. If the file is missing (or uninitialized), use `create` (`--from` intent YAML, or `--kind setup`).
    In either case, use task mutation commands (`set-project`, `set-context`, `add-decision`, `set-plan-note`, `remove-slice`) to shape the task.
 5. Use `plan` to create session todos, `instruction` before acting, and `advance` only after evidence or a recorded blocker.
