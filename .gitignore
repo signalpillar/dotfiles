@@ -2,6 +2,8 @@
 
 # Local pi-job task stores (machine-owned; do not commit)
 /pi-job-markdown-preview.task.yaml
+/pi-job-orchestrator-loop.task.yaml
+/pi-job-orchestrator-loop.task.plans/
 
 # FogLAMP scan lock (editToken is secret)
 .foglamp/
