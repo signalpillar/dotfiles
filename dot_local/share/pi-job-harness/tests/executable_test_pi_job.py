@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.machinery
 import importlib.util
-import hashlib
 import os
 import re
 import subprocess
@@ -13,9 +13,22 @@ import sys
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
+
+DEFAULT_OWNER = "orchestrator"
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def claim_dict(slice_key: str, *, owner: str = DEFAULT_OWNER, last_seen: str | None = None) -> dict:
+    """Build one `orchestration.cursors[]` entry (fresh claimed_at/last_seen by default)."""
+    now = _now_iso()
+    return {"owner": owner, "slice": slice_key, "claimed_at": now, "last_seen": last_seen or now}
 
 ROOT = Path(__file__).resolve().parents[3]
 PI_JOB = Path(__file__).resolve().parents[1] / "bin" / "pi-job"
@@ -97,7 +110,7 @@ def standard_fixture_mapping(
     }
     if not uninitialized:
         mapping["orchestration"] = {
-            "cursor": {"slice": cursor[0], "step": cursor[1]},
+            "cursors": [claim_dict(cursor[0])],
             "policy": _orchestration_policy(),
         }
     return mapping
@@ -154,10 +167,7 @@ def fixture_with_dependencies_mapping(
             "final_steps": [],
         },
     ]
-    if cursor[1] is None:
-        mapping["orchestration"]["cursor"] = {"slice": cursor[0]}
-    else:
-        mapping["orchestration"]["cursor"] = {"slice": cursor[0], "step": cursor[1]}
+    mapping["orchestration"]["cursors"] = [claim_dict(cursor[0])]
     return mapping
 
 
@@ -172,7 +182,7 @@ def closing_slice_mapping(
         "status": "in_progress",
         "project": {"name": "Fixture"},
         "orchestration": {
-            "cursor": {"slice": cursor[0], "step": cursor[1]},
+            "cursors": [claim_dict(cursor[0])],
             "policy": _orchestration_policy(),
         },
         "plan": {
@@ -221,7 +231,7 @@ def all_done_mapping(
         "status": "in_progress",
         "project": {"name": "Fixture"},
         "orchestration": {
-            "cursor": {"slice": cursor[0], "step": cursor[1]},
+            "cursors": [claim_dict(cursor[0])],
             "policy": _orchestration_policy(),
         },
         "plan": {
@@ -266,7 +276,7 @@ def sync_mapping() -> dict:
         "project": {"key": "sync", "name": "Sync", "route": "", "context": ""},
         "context": "",
         "orchestration": {
-            "cursor": {"slice": "only-slice", "step": "create-plan"},
+            "cursors": [claim_dict("only-slice")],
             "policy": _orchestration_policy(),
         },
         "decisions": [],
@@ -343,7 +353,7 @@ def lifecycle_mapping(**scan_step_overrides) -> dict:
         "title": "Execution lifecycle",
         "status": "in_progress",
         "orchestration": {
-            "cursor": {"slice": "implementation", "step": "vulnerability-scan"},
+            "cursors": [claim_dict("implementation")],
             "policy": _orchestration_policy(),
         },
         "plan": {
@@ -442,7 +452,7 @@ task: {
     status: "in_progress"
     project: {name: "Bootstrap"}
     orchestration: {
-        cursor: {slice: "init-harness", step: "create-plan"}
+        cursors: []
         policy: {coding_execution: {subagent_required: true, lower_power_model_preferred: true, orchestrator_reviews_subagent: true}}
     }
     plan: {
@@ -533,12 +543,15 @@ def subagent_instruction_yaml_task(
 ) -> str:
     """Initialized YAML task with cursor on a subagent-owned implement step."""
 
+    claim_ts = _now_iso()
     return f"""title: Subagent instruction test
 status: in_progress
 orchestration:
-  cursor:
-    slice: {slice_key}
-    step: {step_key}
+  cursors:
+    - owner: orchestrator
+      slice: {slice_key}
+      claimed_at: "{claim_ts}"
+      last_seen: "{claim_ts}"
   policy:
     coding_execution:
       subagent_required: true
@@ -573,12 +586,15 @@ plan:
 def orchestrator_instruction_yaml_task() -> str:
     """Initialized YAML task with cursor on an orchestrator-owned setup step."""
 
-    return """title: Orchestrator instruction test
+    claim_ts = _now_iso()
+    return f"""title: Orchestrator instruction test
 status: in_progress
 orchestration:
-  cursor:
-    slice: setup-slice
-    step: explore-context
+  cursors:
+    - owner: orchestrator
+      slice: setup-slice
+      claimed_at: "{claim_ts}"
+      last_seen: "{claim_ts}"
 plan:
   note: ""
   slices:
@@ -600,12 +616,15 @@ plan:
 def subagent_create_plan_yaml_task(*, slice_key: str = "plan-slice") -> str:
     """Initialized YAML task with cursor on subagent-owned create-plan."""
 
+    claim_ts = _now_iso()
     return f"""title: Create plan instruction test
 status: in_progress
 orchestration:
-  cursor:
-    slice: {slice_key}
-    step: create-plan
+  cursors:
+    - owner: orchestrator
+      slice: {slice_key}
+      claimed_at: "{claim_ts}"
+      last_seen: "{claim_ts}"
   policy:
     coding_execution:
       subagent_required: true
@@ -659,23 +678,19 @@ def test_profiled_task() -> None:
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Initialization: ok")
-        assert_contains(status, "Cursor: old-slice / old-step")
+        assert_contains(status, "orchestrator → old-slice")
         assert_contains(status, "Ready: second-slice")
-        assert_contains(status, "cursor slice missing")
+        assert_contains(status, "claim targets a missing slice")
 
-        dry = run(str(PI_JOB), "--task", str(task), "advance", "--dry-run").stdout
-        assert_contains(dry, "PI-JOB PICK NEXT SLICE")
-        assert_contains(dry, "Ready slices")
-        assert_contains(dry, "second-slice")
+        deprecated = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        if deprecated.returncode == 0:
+            raise AssertionError("advance should be a deprecated stub that always fails")
+        assert_contains(deprecated.stderr, "deprecated")
 
-        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
-        if pick_next.returncode != 0:
-            raise AssertionError(f"bare advance should exit 0 with pick-next packet:\n{pick_next.stderr}")
-        assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
-
-        run(str(PI_JOB), "--task", str(task), "advance", "--slice", "second-slice", "--step", "s2")
+        run(str(PI_JOB), "--task", str(task), "release", "--owner", "orchestrator")
+        run(str(PI_JOB), "--task", str(task), "claim", "--slice", "second-slice", "--owner", "orchestrator")
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(advanced, "Cursor: second-slice / s2")
+        assert_contains(advanced, "orchestrator → second-slice / s2")
         assert_not_contains(advanced, "Next:")
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
@@ -709,10 +724,10 @@ def test_uninitialized_task_requires_orchestration() -> None:
         assert_contains(status, "Initialization: required")
         assert_contains(status, "create [--kind setup|implement|...]")
 
-        advance = run(str(PI_JOB), "--task", str(task), "advance", check=False)
-        if advance.returncode == 0:
-            raise AssertionError("advance unexpectedly succeeded for uninitialized task")
-        assert_contains(advance.stderr, "missing task.orchestration")
+        claim_cmd = run(str(PI_JOB), "--task", str(task), "claim", "--slice", "second-slice", "--owner", "x", check=False)
+        if claim_cmd.returncode == 0:
+            raise AssertionError("claim unexpectedly succeeded for uninitialized task")
+        assert_contains(claim_cmd.stderr, "missing task.orchestration")
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if instruction.returncode == 0:
@@ -720,13 +735,13 @@ def test_uninitialized_task_requires_orchestration() -> None:
         assert_contains(instruction.stderr, "missing task.orchestration")
 
         init_dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
-        assert_contains(init_dry, "second-slice")
-        assert_contains(init_dry, "s2")
+        assert_contains(init_dry, "cursors: []")
 
         run(str(PI_JOB), "--task", str(task), "create")
         initialized = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(initialized, "Initialization: ok")
-        assert_contains(initialized, "Cursor: second-slice / s2")
+        assert_contains(initialized, "Cursors: <none>")
+        assert_contains(initialized, "Next: `pi-job claim --slice KEY --owner ID`")
 
 
 def test_init_with_kind_setup_seeds_setup_slice() -> None:
@@ -739,7 +754,8 @@ def test_init_with_kind_setup_seeds_setup_slice() -> None:
         })
         run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(status, "Cursor: setup-slice / explore-context")
+        assert_contains(status, "Cursors: <none>")
+        assert_contains(status, "Ready: setup-slice")
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         assert_contains(show, "setup-slice")
         assert_contains(show, "explore-context")
@@ -782,7 +798,7 @@ def test_wayfinder_context_reports_frontier_and_fog() -> None:
             "title": "Chart it",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "b", "step": ""},
+                "cursors": [claim_dict("b")],
                 "policy": _orchestration_policy(),
             },
             "decisions": [
@@ -821,7 +837,7 @@ def test_edit_code_owner_from_step_kinds() -> None:
             "title": "Edit code owner",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "edit-code"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -949,12 +965,15 @@ def test_subagent_instruction_create_plan_includes_plan_path() -> None:
 def orchestrator_grill_plan_yaml_task(*, slice_key: str = "plan-slice") -> str:
     """Initialized YAML task with cursor on orchestrator-owned grill-plan."""
 
+    claim_ts = _now_iso()
     return f"""title: Grill plan instruction test
 status: in_progress
 orchestration:
-  cursor:
-    slice: {slice_key}
-    step: grill-plan
+  cursors:
+    - owner: orchestrator
+      slice: {slice_key}
+      claimed_at: "{claim_ts}"
+      last_seen: "{claim_ts}"
 plan:
   note: ""
   slices:
@@ -1090,12 +1109,19 @@ def test_instruction_includes_next_action_and_step_first_layout() -> None:
         assert step_idx < record_idx, "STEP must appear before RECORD RESULTS"
 
 
-def test_bootstrap_instruction_includes_next_action() -> None:
+def test_bootstrap_then_claim_instruction_includes_next_action() -> None:
+    """create no longer seeds a claim; the agent must claim before instruction has anything
+    to derive a position from."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "bootstrap-next.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
-        out = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
+        created = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
+        assert_contains(created, "claim \u2192 <none>")
+        assert_not_contains(created, "NEXT ACTION")
+
+        run(str(PI_JOB), "--task", str(task), "claim", "--slice", "task-setup", "--owner", DEFAULT_OWNER)
+        out = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(out, "NEXT ACTION")
         assert_contains(out, "Do not wait for another user prompt")
         assert_not_contains(out, "Orchestrator instruction:")
@@ -1136,7 +1162,12 @@ def test_record_results_uses_task_file_and_slice_key_hints() -> None:
 def test_update_task_file_guidance_names_mutation_commands() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "update-task-file-guidance.yaml"
-        write_task_yaml(task, closing_slice_mapping(cursor=("closing", "update-task-file")))
+        mapping = closing_slice_mapping(cursor=("closing", ""))
+        closing = next(s for s in mapping["plan"]["slices"] if s["key"] == "closing")
+        for step in closing["steps"]:
+            if step["key"] != "update-task-file":
+                step["status"] = "done"
+        write_task_yaml(task, mapping)
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "Guidance:")
         assert_contains(instruction, "add-slice")
@@ -1154,12 +1185,15 @@ def test_plan_output_omits_record_results() -> None:
 def share_with_team_instruction_yaml_task(*, slice_key: str = "ship-slice") -> str:
     """Initialized YAML task with cursor on share-with-team (orchestrator, long PR guidance)."""
 
+    claim_ts = _now_iso()
     return f"""title: Share with team instruction test
 status: in_progress
 orchestration:
-  cursor:
-    slice: {slice_key}
-    step: share-with-team
+  cursors:
+    - owner: orchestrator
+      slice: {slice_key}
+      claimed_at: "{claim_ts}"
+      last_seen: "{claim_ts}"
 plan:
   note: ""
   slices:
@@ -1198,7 +1232,7 @@ def test_pick_next_packet_is_structural_only() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "pick-next-structural.yaml"
         write_task_yaml(task, closing_slice_mapping())
-        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False).stdout
+        pick_next = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(pick_next, "PI-JOB PICK NEXT SLICE")
         assert_contains(pick_next, "NEXT ACTION")
         assert_not_contains(pick_next, "Orchestrator instruction:")
@@ -1321,38 +1355,36 @@ def test_profile_requires_record_results_intro_packet() -> None:
         raise AssertionError("profile accepted instruction_packets without required record_results_intro")
 
 
-def test_advance_pick_next_then_jump_to_closing_slice() -> None:
+def test_pick_next_slice_reports_closing_slice_ready() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "all-implement-done.yaml"
         write_task_yaml(task, closing_slice_mapping())
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Ready: closing")
-        assert_contains(status, "no unfinished steps")
+        assert_contains(status, "claim (implement-done) is not Ready")
         assert_not_contains(status, "Next:")
 
-        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        pick_next = run(str(PI_JOB), "--task", str(task), "instruction", "--current", check=False)
         if pick_next.returncode != 0:
-            raise AssertionError(f"bare advance should exit 0 with pick-next:\n{pick_next.stderr}")
+            raise AssertionError(f"instruction --current should exit 0 with pick-next:\n{pick_next.stderr}")
         assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
         assert_contains(pick_next.stdout, "closing")
 
-        run(
-            str(PI_JOB), "--task", str(task), "advance",
-            "--slice", "closing", "--step", "update-test-plan",
-        )
+        run(str(PI_JOB), "--task", str(task), "release", "--owner", DEFAULT_OWNER)
+        run(str(PI_JOB), "--task", str(task), "claim", "--slice", "closing", "--owner", DEFAULT_OWNER)
         advanced = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(advanced, "Cursor: closing / update-test-plan")
+        assert_contains(advanced, f"{DEFAULT_OWNER} \u2192 closing / update-test-plan")
         assert_not_contains(advanced, "Next:")
 
 
-def test_status_shows_cursor_and_ready_without_next_line() -> None:
+def test_status_shows_claim_and_ready_without_next_line() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "aligned-cursor.yaml"
         write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
-        assert_contains(status, "Cursor: second-slice / s2")
+        assert_contains(status, f"{DEFAULT_OWNER} \u2192 second-slice / s2")
         assert_contains(status, "Ready: second-slice")
         assert_not_contains(status, "Next:")
         assert_not_contains(status, "pick-next")
@@ -1373,121 +1405,147 @@ def test_pick_next_reports_all_slices_done() -> None:
         assert_not_contains(status, "Next:")
 
 
-def test_advance_blocked_on_incomplete_current_step() -> None:
+def test_advance_is_deprecated_regardless_of_flags() -> None:
+    """`advance` no longer moves anything; it always dies with claim/instruction guidance,
+    even when invoked with the flags its old --force/--resync modes used to accept."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "incomplete.yaml"
-        
+        task = Path(tmp) / "deprecated-advance.yaml"
         write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
 
-        # Negative control: cursor's step (s2) is still "planned", so advance must fail closed.
-        res = run(str(PI_JOB), "--task", str(task), "advance", check=False)
-        if res.returncode == 0:
-            raise AssertionError("advance unexpectedly succeeded past an unfinished step")
-        assert_contains(res.stderr, "current cursor step is not done")
-        assert_contains(res.stderr, "--force")
-        assert_contains(res.stderr, "--reason")
+        for extra_args in (
+            [],
+            ["--force", "--reason", "manual override for test"],
+            ["--resync", "--reason", "jump to final step", "--slice", "second-slice", "--step", "finish"],
+            ["--dry-run"],
+        ):
+            res = run(str(PI_JOB), "--task", str(task), "advance", *extra_args, check=False)
+            if res.returncode == 0:
+                raise AssertionError(f"advance {extra_args} unexpectedly succeeded")
+            assert_contains(res.stderr, "deprecated")
+            assert_contains(res.stderr, "claim")
 
-        # --force without --reason must also fail.
-        forced_no_reason = run(str(PI_JOB), "--task", str(task), "advance", "--force", check=False)
-        if forced_no_reason.returncode == 0:
-            raise AssertionError("advance --force without --reason unexpectedly succeeded")
-        assert_contains(forced_no_reason.stderr, "--force requires --reason")
 
-        # --force with --reason records the skip and advances anyway.
-        forced = run(
-            str(PI_JOB), "--task", str(task), "advance", "--force", "--reason", "manual override for test"
+def test_claim_release_and_one_claim_per_owner() -> None:
+    """claim Ready ok; second slice by same owner refuses; release frees; re-claim works."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "claim-lifecycle.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        mapping["orchestration"]["cursors"] = []
+        # Make first slice planned+Ready so two Ready slices exist.
+        mapping["plan"]["slices"][0]["status"] = "planned"
+        mapping["plan"]["slices"][0]["steps"] = [
+            {"key": "a1", "title": "A", "status": "planned", "note": ""},
+        ]
+        write_task_yaml(task, mapping)
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "claim",
+            "--slice", "first", "--owner", "agent-a",
         ).stdout
-        assert_contains(forced, "forced advance (skip reason: manual override for test)")
-        assert_contains(forced, "advanced cursor:")
+        assert_contains(out, "claimed:")
+        assert_contains(out, "agent-a")
 
-        # dry-run must not be blocked by the incomplete-step check (no write happens).
-        task2 = Path(tmp) / "incomplete-dry.yaml"
-        write_task_yaml(task2, standard_fixture_mapping(cursor=("second-slice", "s2")))
-        dry = run(str(PI_JOB), "--task", str(task2), "advance", "--dry-run").stdout
-        assert_contains(dry, "slice:")
-
-
-def test_advance_resync_rejects_force_and_missing_reason() -> None:
-    """--resync is mutually exclusive with --force and requires --reason."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "resync-guards.yaml"
-        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
-
-        both = run(
-            str(PI_JOB), "--task", str(task), "advance", "--resync", "--force", "--reason", "nope",
-            check=False,
+        refuse = run(
+            str(PI_JOB), "--task", str(task), "claim",
+            "--slice", "second-slice", "--owner", "agent-a", check=False,
         )
-        if both.returncode == 0:
-            raise AssertionError("advance --resync --force unexpectedly succeeded")
-        assert "mutually exclusive" in both.stderr or "not allowed with argument --resync" in both.stderr
+        if refuse.returncode == 0:
+            raise AssertionError("second claim by same owner unexpectedly succeeded")
+        assert_contains(refuse.stderr, "already has a claim")
 
-        no_reason = run(str(PI_JOB), "--task", str(task), "advance", "--resync", check=False)
-        if no_reason.returncode == 0:
-            raise AssertionError("advance --resync without --reason unexpectedly succeeded")
-        assert_contains(no_reason.stderr, "--resync requires --reason")
-
-
-def test_advance_resync_explicit_jump_does_not_skip_previous_step() -> None:
-    """Resync with --slice/--step moves cursor without marking the prior step skipped."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "resync-jump.yaml"
-        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
-
-        out = run(
-            str(PI_JOB), "--task", str(task), "advance",
-            "--resync", "--reason", "jump to final step",
-            "--slice", "second-slice", "--step", "finish",
+        run(str(PI_JOB), "--task", str(task), "release", "--owner", "agent-a")
+        again = run(
+            str(PI_JOB), "--task", str(task), "claim",
+            "--slice", "second-slice", "--owner", "agent-a",
         ).stdout
-        assert_contains(out, "advanced cursor: second-slice / finish")
-
-        assert step_status(task, "second-slice", "s2") == "planned"
-        
+        assert_contains(again, "second-slice")
 
 
-def test_advance_resync_without_jump_fails_on_same_unfinished_step() -> None:
-    """Resync without explicit jump fails when next_cursor stays on the unfinished step."""
+def test_claim_displaces_stale_and_refuses_fresh() -> None:
+    """Fresh foreign claim blocks; stale foreign claim is displaced."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "resync-same.yaml"
-        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
+        task = Path(tmp) / "stale-claim.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        mapping["orchestration"]["cursors"] = [
+            claim_dict("second-slice", owner="old-agent", last_seen="2020-01-01T00:00:00Z"),
+        ]
+        write_task_yaml(task, mapping)
 
-        res = run(
-            str(PI_JOB), "--task", str(task), "advance",
-            "--resync", "--reason", "try implicit resync",
-            check=False,
+        displaced = run(
+            str(PI_JOB), "--task", str(task), "claim",
+            "--slice", "second-slice", "--owner", "new-agent",
+        ).stdout
+        assert_contains(displaced, "displaced stale claim")
+        assert_contains(displaced, "new-agent")
+
+        mapping2 = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        mapping2["orchestration"]["cursors"] = [
+            claim_dict("second-slice", owner="fresh-agent"),
+        ]
+        task2 = Path(tmp) / "fresh-claim.yaml"
+        write_task_yaml(task2, mapping2)
+        blocked = run(
+            str(PI_JOB), "--task", str(task2), "claim",
+            "--slice", "second-slice", "--owner", "intruder", check=False,
         )
-        if res.returncode == 0:
-            raise AssertionError("resync without jump unexpectedly succeeded on same unfinished step")
-        assert_contains(res.stderr, "same unfinished step")
-        assert_contains(res.stderr, "--slice/--step")
+        if blocked.returncode == 0:
+            raise AssertionError("claim should refuse a non-stale foreign claim")
+        assert_contains(blocked.stderr, "already claimed")
+        assert_contains(blocked.stderr, "not stale")
 
 
-def test_advance_resync_without_jump_succeeds_when_cursor_on_finished_step() -> None:
-    """Resync realigns a cursor on a finished step to the next unfinished step in the slice."""
+def test_owner_omit_when_sole_claim_and_ambiguous_refuse() -> None:
+    """instruction/status mutations may omit --owner with one claim; refuse when many."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "resync-finished-step.yaml"
-        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s1")))
+        sole = Path(tmp) / "sole.yaml"
+        write_task_yaml(sole, standard_fixture_mapping(cursor=("second-slice", "s2")))
+        # No --owner: sole claim resolves.
+        inst = run(str(PI_JOB), "--task", str(sole), "instruction").stdout
+        assert_contains(inst, "second-slice / s2")
+
+        multi = Path(tmp) / "multi.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        mapping["plan"]["slices"][0]["status"] = "planned"
+        mapping["plan"]["slices"][0]["steps"] = [
+            {"key": "a1", "title": "A", "status": "planned", "note": ""},
+        ]
+        mapping["orchestration"]["cursors"] = [
+            claim_dict("first", owner="a"),
+            claim_dict("second-slice", owner="b"),
+        ]
+        write_task_yaml(multi, mapping)
+        ambiguous = run(str(PI_JOB), "--task", str(multi), "instruction", check=False)
+        if ambiguous.returncode == 0:
+            raise AssertionError("instruction without owner should refuse when >1 claim")
+        assert_contains(ambiguous.stderr, "ambiguous owner")
+        ok = run(str(PI_JOB), "--task", str(multi), "instruction", "--owner", "b").stdout
+        assert_contains(ok, "second-slice / s2")
+
+
+def test_finish_slice_only_auto_releases_claim() -> None:
+    """finish --slice-only on a terminal slice drops the owning claim."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "auto-release.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        # Exhaust steps so slice-only finish is allowed.
+        for step in mapping["plan"]["slices"][1]["steps"]:
+            step["status"] = "done"
+        for step in mapping["plan"]["slices"][1]["final_steps"]:
+            step["status"] = "done"
+        mapping["orchestration"]["cursors"] = [claim_dict("second-slice", owner="agent-x")]
+        write_task_yaml(task, mapping)
 
         out = run(
-            str(PI_JOB), "--task", str(task), "advance",
-            "--resync", "--reason", "cursor drifted to finished step",
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice-only", "--slice", "second-slice",
+            "--model", "cursor/test-model", "--owner", "agent-x",
+            "--reconcile", "--note", "slice complete",
         ).stdout
-        assert_contains(out, "advanced cursor: second-slice / s2")
-
-        assert step_status(task, "second-slice", "s2") == "planned"
-
-
-def test_advance_force_still_skips_incomplete_step() -> None:
-    """Regression: --force still marks the incomplete current step skipped before advancing."""
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "force-skip.yaml"
-        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
-
-        out = run(
-            str(PI_JOB), "--task", str(task), "advance",
-            "--force", "--reason", "manual override for test",
-        ).stdout
-        assert_contains(out, "forced advance (skip reason: manual override for test)")
-        assert step_status(task, "second-slice", "s2") == "skipped"
+        assert_contains(out, "auto-released")
+        module = load_pi_job_module()
+        claims = module.YamlTaskStore(task).read()["orchestration"]["cursors"]
+        if claims:
+            raise AssertionError(f"expected empty cursors after auto-release, got {claims}")
 
 
 def test_missing_task_points_to_scaffold() -> None:
@@ -1551,7 +1609,7 @@ def test_toolbelt_lists_for_slice_kinds() -> None:
             "title": "Research",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "r", "step": "explore-context"},
+                "cursors": [claim_dict("r")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -1625,7 +1683,7 @@ def test_select_toolbelt_step_and_instruction() -> None:
             "title": "Setup toolbelt",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "setup-slice", "step": "select-toolbelt"},
+                "cursors": [claim_dict("setup-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -1662,7 +1720,7 @@ def test_toolbelt_block_in_plan() -> None:
             "title": "Setup plan",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "setup-slice", "step": "select-toolbelt"},
+                "cursors": [claim_dict("setup-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -1715,7 +1773,7 @@ def test_show_work_first_puts_open_before_done_newest_completed_last_block() -> 
             "title": "Work first",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "active", "step": "edit-code"},
+                "cursors": [claim_dict("active")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -1818,7 +1876,7 @@ def test_show_aligns_kind_counts_after_longest_key() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "second-slice", "step": "s2"},
+                "cursors": [claim_dict("second-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -1908,7 +1966,7 @@ def test_show_short_collapses_consecutive_done_slices() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "active", "step": "s1"},
+                "cursors": [claim_dict("active")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -1987,15 +2045,15 @@ def test_show_short_collapses_consecutive_done_slices() -> None:
         default = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
         if "alpha, beta" in default:
             raise AssertionError(f"default show must not collapse:\n{default}")
-        # cursor slice stays on its own line even when done
+        # claimed slice stays on its own line even when done
         store = load_pi_job_module().YamlTaskStore(task)
         data = store.read()
-        data["orchestration"]["cursor"] = {"slice": "delta", "step": None}
+        data["orchestration"]["cursors"] = [claim_dict("delta")]
         store.replace(data)
         cursor_out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--color", "never").stdout
         assert_contains(cursor_out, "✓ alpha, beta")
         if "alpha, beta, delta" in cursor_out:
-            raise AssertionError(f"cursor done slice must not fold into short run:\n{cursor_out}")
+            raise AssertionError(f"claimed done slice must not fold into short run:\n{cursor_out}")
         assert_contains(cursor_out, "delta")
 
 
@@ -2010,7 +2068,7 @@ def test_show_started_flag_expands_non_planned_slices() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "create-plan"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2116,7 +2174,7 @@ def test_show_slice_prints_goal_notes_steps_repo_work() -> None:
             "context": "SECRET CONTEXT",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "target-slice", "step": "step-with-note"},
+                "cursors": [claim_dict("target-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2224,7 +2282,7 @@ def test_show_slice_omits_empty_fields() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "sparse", "step": "only-step"},
+                "cursors": [claim_dict("sparse")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2272,7 +2330,7 @@ def test_show_slice_multiline_note_indents_continuation() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "notes", "step": "s1"},
+                "cursors": [claim_dict("notes")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2336,18 +2394,17 @@ def test_scaffold_includes_create_plan_and_grill_plan_before_edit_code() -> None
             raise AssertionError(f"steps order wrong: create-plan={i_plan} grill-plan={i_grill} edit-code={i_edit}")
 
 
-def test_advance_walks_create_plan_then_grill_plan_before_edit_code() -> None:
-    """pi-job's existing step-ordering gate, applied to the new convention: within-slice
-    advance must land on create-plan first, then grill-plan once create-plan is done,
-    then edit-code only once both are done - proving the guardrail is actually enforced,
-    not just documented."""
+def test_derived_position_walks_create_plan_then_grill_plan_before_edit_code() -> None:
+    """The claim's derived position must land on create-plan first, then grill-plan once
+    create-plan is done, then edit-code only once both are done - proving the ordering
+    guardrail is actually enforced, not just documented."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "task.yaml"
         write_task_yaml(task, {
             "title": "Plan-and-grill gating test",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "create-plan"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2373,16 +2430,10 @@ def test_advance_walks_create_plan_then_grill_plan_before_edit_code() -> None:
         assert_contains(instruction, "Step: create-plan")
 
         mutate_step_status(task, "only-slice", "create-plan", "done")
-        advanced = run(str(PI_JOB), "--task", str(task), "advance").stdout
-        assert_contains(advanced, "grill-plan")
-
         instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
         assert_contains(instruction, "Step: grill-plan")
 
         mutate_step_status(task, "only-slice", "grill-plan", "done")
-        advanced = run(str(PI_JOB), "--task", str(task), "advance").stdout
-        assert_contains(advanced, "edit-code")
-
         instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
         assert_contains(instruction, "Step: edit-code")
 
@@ -2437,7 +2488,7 @@ def test_blocked_status_slice_is_skipped() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "create-plan"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2462,14 +2513,16 @@ def test_blocked_status_slice_is_skipped() -> None:
         if "only-blocked ready" in show:
             raise AssertionError(f"blocked slice should not be marked ready in show:\n{show}")
 
-        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        pick_next = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if pick_next.returncode != 0:
-            raise AssertionError(f"advance should exit 0 with pick-next when Ready is empty:\n{pick_next.stderr}")
+            raise AssertionError(
+                f"instruction should exit 0 with pick-next when Ready is empty:\n{pick_next.stderr}"
+            )
         assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
         assert_contains(pick_next.stdout, "Ready slices: none")
 
 
-def test_advance_pick_next_when_nothing_ready() -> None:
+def test_pick_next_when_nothing_ready() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "nothing-ready.yaml"
         write_task_yaml(task, {
@@ -2477,7 +2530,7 @@ def test_advance_pick_next_when_nothing_ready() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "create-plan"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2499,9 +2552,11 @@ def test_advance_pick_next_when_nothing_ready() -> None:
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Ready: none")
 
-        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        pick_next = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if pick_next.returncode != 0:
-            raise AssertionError(f"advance should exit 0 with pick-next when nothing is ready:\n{pick_next.stderr}")
+            raise AssertionError(
+                f"instruction should exit 0 with pick-next when nothing is ready:\n{pick_next.stderr}"
+            )
         assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
         assert_contains(pick_next.stdout, "Ready slices: none")
         assert_not_contains(pick_next.stdout, "all slices done")
@@ -2533,20 +2588,23 @@ def test_status_no_warning_when_cursor_slice_is_ready() -> None:
             raise AssertionError(f"should not warn about missing slice when cursor is valid:\n{status}")
 
 
-def test_advance_within_slice_then_pick_next_on_exhausted_slice() -> None:
-    """Within-slice advance walks unfinished steps; when the slice is exhausted, emit pick-next."""
+def test_derived_position_walks_steps_then_pick_next_on_exhausted_slice() -> None:
+    """Derived position walks unfinished steps as they complete; once the claimed slice is
+    exhausted (no unfinished step left), instruction emits pick-next."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "within-slice-pick-next.yaml"
         write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
 
         mutate_step_status(task, "second-slice", "s2", "done")
-        within = run(str(PI_JOB), "--task", str(task), "advance").stdout
-        assert_contains(within, "advanced cursor: second-slice / finish")
+        within = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(within, "Step: finish")
 
         mutate_step_status(task, "second-slice", "finish", "done")
-        pick_next = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        pick_next = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if pick_next.returncode != 0:
-            raise AssertionError(f"advance should exit 0 with pick-next when slice is exhausted:\n{pick_next.stderr}")
+            raise AssertionError(
+                f"instruction should exit 0 with pick-next when slice is exhausted:\n{pick_next.stderr}"
+            )
         assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
         assert_contains(pick_next.stdout, "second-slice")
 
@@ -2559,7 +2617,7 @@ def test_status_warns_on_unknown_dependency_key() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "create-plan"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2660,7 +2718,7 @@ def test_show_graph_unknown_depends_on_emits_missing_node() -> None:
             "status": "in_progress",
             "project": {"name": "Fixture"},
             "orchestration": {
-                "cursor": {"slice": "orphan", "step": "s1"},
+                "cursors": [claim_dict("orphan")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -2698,7 +2756,7 @@ def test_show_graph_rejects_slice_flag() -> None:
 
 
 def test_init_rejects_forward_reference_dependency() -> None:
-    """Regression test: cmd_init() must use slice_work_contract_phase() not hardcoded 'implement'."""
+    """create seeds cursors:[] (no auto-claim); forward-ref deps leave Ready empty and print guidance."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "forward-ref.yaml"
         write_task_yaml(task, {
@@ -2721,11 +2779,20 @@ def test_init_rejects_forward_reference_dependency() -> None:
             },
         })
 
-        # init with full profile on a task with unmet dependency should die, not guess "implement"
         init_res = run(str(PI_JOB), "--task", str(task), "create", check=False)
-        if init_res.returncode == 0:
-            raise AssertionError("create unexpectedly succeeded with forward-reference dependency in full profile")
-        assert_contains(init_res.stderr, "no slice is dependency-satisfied yet")
+        if init_res.returncode != 0:
+            raise AssertionError(
+                f"create should succeed with empty cursors even when Ready is empty:\n{init_res.stderr}"
+            )
+        assert_contains(init_res.stdout, "claim → <none>")
+        assert_contains(init_res.stdout, "no slice is dependency-satisfied yet")
+        claim = run(
+            str(PI_JOB), "--task", str(task), "claim",
+            "--slice", "first-slice", "--owner", DEFAULT_OWNER, check=False,
+        )
+        if claim.returncode == 0:
+            raise AssertionError("claim should refuse a non-Ready forward-ref slice")
+        assert_contains(claim.stderr, "not Ready")
 
 
 def test_legacy_cue_scaffold_output_has_no_local_schema() -> None:
@@ -2819,7 +2886,7 @@ def test_add_slice_works_on_empty_plan_slices() -> None:
             "status": "in_progress",
             "project": {"name": "Empty"},
             "orchestration": {
-                "cursor": {"slice": "only-slice", "step": "create-plan"},
+                "cursors": [claim_dict("only-slice")],
                 "policy": _orchestration_policy(),
             },
             "plan": {"note": "", "slices": []},
@@ -2872,7 +2939,7 @@ task: {
         name: "Test"
     }
     orchestration: {
-        cursor: {slice: "only-slice", step: "create-plan"}
+        cursors: []
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -3064,7 +3131,7 @@ task: {
     status: "in_progress"
     project: {name: "Fixture"}
     orchestration: {
-        cursor: {slice: "only", step: "create-plan"}
+        cursors: []
         policy: {
             coding_execution: {
                 subagent_required: true
@@ -3412,7 +3479,7 @@ def _initialized_mixed_legacy_fixture(module, task_path: Path) -> None:
     _mixed_legacy_validate_fixture(module, task_path)
     task = module.YamlTaskStore(task_path).read()
     task["orchestration"] = {
-        "cursor": {"slice": "good", "step": "create-plan"},
+        "cursors": [claim_dict("good")],
         "policy": {
             "coding_execution": {
                 "subagent_required": True,
@@ -3432,7 +3499,7 @@ def test_status_reports_structure_ok_for_conformant_task() -> None:
         mapping = module.example_task_mapping(title="Validate ok")
         mapping["project"] = {"name": "Fixture"}
         mapping["orchestration"] = {
-            "cursor": {"slice": "only", "step": "create-plan"},
+            "cursors": [claim_dict("only")],
             "policy": _orchestration_policy(),
         }
         mapping["plan"]["slices"] = [{
@@ -4261,7 +4328,7 @@ def test_fs_task_store_round_trip() -> None:
         (base / "status").write_text("in_progress\n")
 
         store = module.FsTaskStore(base)
-        store.init_orchestration(module.Cursor(slice="alpha", step="edit-code"))
+        store.init_orchestration()
 
         store.add_slice(
             key="alpha",
@@ -4293,8 +4360,6 @@ def test_fs_task_store_round_trip() -> None:
 
         store.write_artifact("share_with_team", status="planned", path=None, note="registered")
 
-        store.set_cursor(module.Cursor(slice="alpha", step="edit-code"))
-
         task = store.read()
 
         assert task["title"] == "FS round-trip task"
@@ -4306,7 +4371,7 @@ def test_fs_task_store_round_trip() -> None:
 
         orch = task["orchestration"]
         assert "profile" not in orch
-        assert orch["cursor"] == {"slice": "alpha", "step": "edit-code"}
+        assert orch["cursors"] == []
         assert orch["policy"]["coding_execution"] == {
             "subagent_required": True,
             "lower_power_model_preferred": True,
@@ -4489,10 +4554,7 @@ task: {
 		\"\"\"
 
 	orchestration: {
-		cursor: {
-            slice: "alpha"
-			step:  "edit-code"
-		}
+		cursors: []
 		policy: {
 			coding_execution: {
 				subagent_required:             true
@@ -4612,12 +4674,13 @@ def test_persisted_models_document_every_field() -> None:
         "ExecutionDocument", "StepDocument", "DecisionDocument", "ArtifactDocument",
         "PullRequestDocument", "RepositoryWorkDocument", "SliceDocument", "SourceDocument",
         "ProjectDocument", "CodingExecutionPolicyDocument", "OrchestrationPolicyDocument",
-        "CursorDocument", "OrchestrationDocument", "PlanDocument", "TaskDocument",
+        "OwnedCursorDocument", "OrchestrationDocument", "PlanDocument", "TaskDocument",
         "BootstrapSliceDocument", "BootstrapDocument",
         "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
         "SliceKindDocument", "InstructionPacketsDocument", "CliHelpDocument",
         "CliHelpAddDecisionDocument", "CliHelpFinishDocument", "ProfileDocument",
+        "OrchestrationDefaultsDocument",
     )
     missing = [
         f"{model_name}.{field_name}"
@@ -4636,7 +4699,8 @@ def test_yaml_task_store_round_trip_and_atomic_mutations() -> None:
         store = module.YamlTaskStore(task_path)
         store.replace(module.example_task_mapping(title="YAML round trip"))
         task_path.chmod(0o600)
-        store.init_orchestration(module.Cursor(slice="do-the-change", step="create-plan"))
+        store.init_orchestration()
+        store.claim_slice(owner="orchestrator", slice_key="do-the-change", now=_now_iso())
         store.add_step(
             slice_key="do-the-change", key="custom", title="Custom", note="evidence",
             terminal=True, after=None,
@@ -4651,7 +4715,7 @@ def test_yaml_task_store_round_trip_and_atomic_mutations() -> None:
         task = store.read()
         task_slice = task["plan"]["slices"][0]
         assert task["title"] == "YAML round trip"
-        assert task["orchestration"]["cursor"]["step"] == "create-plan"
+        assert task["orchestration"]["cursors"][0]["slice"] == "do-the-change"
         assert task_slice["final_steps"][0]["key"] == "custom"
         assert task_slice["repo_work"]["repo-a"]["worktree"] == "/tmp/worktree"
         assert task_slice["repo_work"]["repo-a"]["prs"][0]["status"] == "open"
@@ -4737,7 +4801,8 @@ def test_yaml_lifecycle_lock_preserves_first_executor() -> None:
         task_path = Path(tmp) / "lifecycle.yaml"
         store = module.YamlTaskStore(task_path)
         store.replace(module.example_task_mapping(title="Concurrent lifecycle"))
-        store.init_orchestration(module.Cursor(slice="do-the-change", step="create-plan"))
+        store.init_orchestration()
+        store.claim_slice(owner=DEFAULT_OWNER, slice_key="do-the-change", now=_now_iso())
         barrier = threading.Barrier(2)
 
         def start(model: str) -> subprocess.CompletedProcess[str]:
@@ -4757,13 +4822,16 @@ def test_yaml_lifecycle_lock_preserves_first_executor() -> None:
         assert execution["model"] in {"provider/one", "provider/two"}
 
 
-def test_yaml_force_advance_cannot_overwrite_concurrent_finish() -> None:
+def test_yaml_lock_serializes_concurrent_finish_and_release() -> None:
+    """The exclusive lock must serialize concurrent mutations of different orchestration
+    fields (plan.slices via finish, orchestration.cursors via release) so neither is lost."""
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
-        task_path = Path(tmp) / "advance-race.yaml"
+        task_path = Path(tmp) / "finish-release-race.yaml"
         store = module.YamlTaskStore(task_path)
-        store.replace(module.example_task_mapping(title="Advance race"))
-        store.init_orchestration(module.Cursor(slice="do-the-change", step="create-plan"))
+        store.replace(module.example_task_mapping(title="Finish/release race"))
+        store.init_orchestration()
+        store.claim_slice(owner=DEFAULT_OWNER, slice_key="do-the-change", now=_now_iso())
         run(
             str(PI_JOB), "--task", str(task_path), "start", "--model", "provider/writer"
         )
@@ -4777,26 +4845,27 @@ def test_yaml_force_advance_cannot_overwrite_concurrent_finish() -> None:
                 check=False,
             )
 
-        def force_advance() -> subprocess.CompletedProcess[str]:
+        def release() -> subprocess.CompletedProcess[str]:
             barrier.wait()
             return run(
-                str(PI_JOB), "--task", str(task_path), "advance",
-                "--force", "--reason", "forced concurrently",
+                str(PI_JOB), "--task", str(task_path), "release", "--owner", DEFAULT_OWNER,
                 check=False,
             )
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             finish_future = executor.submit(finish)
-            advance_future = executor.submit(force_advance)
+            release_future = executor.submit(release)
             finish_result = finish_future.result()
-            advance_result = advance_future.result()
+            release_result = release_future.result()
 
         assert finish_result.returncode == 0, finish_result.stderr
-        assert advance_result.returncode == 0, advance_result.stderr
-        step = store.read()["plan"]["slices"][0]["steps"][0]
+        assert release_result.returncode == 0, release_result.stderr
+        task = store.read()
+        step = task["plan"]["slices"][0]["steps"][0]
         assert step["status"] == "done"
         assert "completed" in step["note"]
         assert step["execution"]["ended"]
+        assert task["orchestration"]["cursors"] == []
 
 
 def test_yaml_rejects_duplicate_and_unknown_fields() -> None:
@@ -5067,7 +5136,8 @@ def test_finish_reconcile_refuses_planned_status() -> None:
 
 
 def test_finish_reconcile_refuses_done_status() -> None:
-    """Reconcile fails when the target is already done."""
+    """Reconcile fails when the target step is already done (explicit --step; derived
+    position would skip past done steps to the slice)."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "reconcile-done.yaml"
         write_task_yaml(task, lifecycle_mapping(
@@ -5078,6 +5148,7 @@ def test_finish_reconcile_refuses_done_status() -> None:
 
         res = run(
             str(PI_JOB), "--task", str(task), "finish", "--reconcile",
+            "--slice", "implementation", "--step", "vulnerability-scan",
             "--model", "google/gemini-reviewer",
             "--note", "Should not apply.",
             check=False,
@@ -5420,11 +5491,9 @@ def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
 def test_start_unqualified_model_error_includes_example() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "unqualified-start.yaml"
-        write_task_yaml(task, lifecycle_mapping())
-        # Neutralize different-model policy by using a planned non-scan step fixture:
-        # lifecycle cursor is vulnerability-scan; skip that by finishing via bare single-step path
-        # after first making author model qualified - use create empty instead.
+        # create seeds cursors:[]; claim before start so the model-id check is reached.
         run(str(PI_JOB), "--task", str(task), "create", "--kind", "implement", "--force", "--title", "Model id")
+        run(str(PI_JOB), "--task", str(task), "claim", "--slice", "implement-slice", "--owner", DEFAULT_OWNER)
         res = run(
             str(PI_JOB), "--task", str(task), "start", "--model", "composer-2",
             check=False,
@@ -5435,7 +5504,7 @@ def test_start_unqualified_model_error_includes_example() -> None:
         assert_contains(res.stderr, "openai/gpt-5.6-sol")
 
 
-def test_advance_rejects_malformed_scan_timestamps() -> None:
+def test_finish_slice_only_rejects_malformed_scan_timestamps() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "malformed-time.yaml"
         write_task_yaml(task, lifecycle_mapping(
@@ -5443,7 +5512,12 @@ def test_advance_rejects_malformed_scan_timestamps() -> None:
             note="No findings",
             execution={"model": "google/gemini-reviewer", "started": "not-a-time", "ended": "2026-07-01T10:10:00Z"},
         ))
-        result = run(str(PI_JOB), "--task", str(task), "advance", check=False)
+        result = run(
+            str(PI_JOB), "--task", str(task), "finish", "--slice-only",
+            "--slice", "implementation",
+            "--reconcile", "--note", "close slice",
+            "--model", "google/gemini-reviewer", check=False,
+        )
         assert result.returncode != 0
         assert_contains(result.stderr, "timestamps must be valid UTC ISO 8601")
 
@@ -5595,12 +5669,13 @@ slices:
 """, encoding="utf-8")
         result = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
         assert_contains(result.stdout, "created:")
-        assert_contains(result.stdout, "cursor: task-setup / explore-context")
-        assert_contains(result.stdout, "PI-JOB EXECUTION INSTRUCTION")
+        assert_contains(result.stdout, "claim \u2192 <none>")
+        assert_contains(result.stdout, "pi-job claim --slice task-setup --owner ID")
         assert task.exists()
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Initialization: ok")
-        assert_contains(status, "Cursor: task-setup / explore-context")
+        assert_contains(status, "Cursors: <none>")
+        assert_contains(status, "Ready: task-setup")
         validate = run(str(PI_JOB), "--task", str(task), "validate").stdout
         assert_contains(validate, "ok:")
 
@@ -6194,7 +6269,7 @@ def _markdown_representative_mapping(*, chronological_cursor: tuple[str, str] = 
             },
         ],
         "orchestration": {
-            "cursor": {"slice": chronological_cursor[0], "step": chronological_cursor[1]},
+            "cursors": [claim_dict(chronological_cursor[0])],
             "policy": _orchestration_policy(),
             "artifacts": {
                 "test-case-table": {
@@ -6475,7 +6550,7 @@ def test_markdown_chronological_sort() -> None:
             "title": "Chronological sort",
             "status": "in_progress",
             "orchestration": {
-                "cursor": {"slice": "middle", "step": "create-plan"},
+                "cursors": [claim_dict("middle")],
                 "policy": _orchestration_policy(),
             },
             "plan": {
@@ -6855,14 +6930,13 @@ def test_status_shows_blocked_and_interrupt_hint() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "status-ux.yaml"
         mapping = lifecycle_mapping()
-        mapping["orchestration"]["cursor"] = {"slice": "implementation", "step": "grill-plan"}
         mapping["plan"]["slices"][0]["steps"] = [
             {"key": "grill-plan", "title": "Grill", "status": "planned", "note": ""},
         ]
         mapping["plan"]["slices"][0]["status"] = "blocked"
         mapping["plan"]["slices"][0]["note"] = "GP PIN fails after treatment-change"
         # grill-plan requires user decision; but slice is blocked - still show hint from step kind
-        # Use a second slice as cursor host that is not blocked
+        # Use a second slice as the claim host that is not blocked
         mapping["plan"]["slices"].append(
             {
                 "key": "other",
@@ -6877,23 +6951,20 @@ def test_status_shows_blocked_and_interrupt_hint() -> None:
                 "final_steps": [],
             }
         )
-        mapping["orchestration"]["cursor"] = {"slice": "other", "step": "grill-plan"}
+        mapping["orchestration"]["cursors"] = [claim_dict("other")]
         write_task_yaml(task, mapping)
         out = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(out, "Blocked:")
         assert_contains(out, "implementation")
-        assert_contains(out, "Cursor parked")
+        assert_contains(out, "parked on a user-decision step")
         assert_contains(out, "investigate")
 
 
-def test_investigate_does_not_move_cursor() -> None:
+def test_investigate_does_not_move_claim() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "investigate.yaml"
         mapping = lifecycle_mapping()
-        mapping["orchestration"]["cursor"] = {
-            "slice": "implementation",
-            "step": "vulnerability-scan",
-        }
+        mapping["orchestration"]["cursors"] = [claim_dict("implementation")]
         write_task_yaml(task, mapping)
         out = run(
             str(PI_JOB),
@@ -6906,11 +6977,11 @@ def test_investigate_does_not_move_cursor() -> None:
             "Evidence chain complete",
         ).stdout
         assert_contains(out, "PI-JOB INVESTIGATE")
-        assert_contains(out, "do not advance")
+        assert_contains(out, "do not finish/release it")
         module = load_pi_job_module()
-        cursor = module.YamlTaskStore(task).read()["orchestration"]["cursor"]
-        assert cursor["slice"] == "implementation"
-        assert cursor["step"] == "vulnerability-scan"
+        claims = module.YamlTaskStore(task).read()["orchestration"]["cursors"]
+        assert len(claims) == 1
+        assert claims[0]["slice"] == "implementation"
         findings = Path(tmp) / "investigate.plans" / "_findings.md"
         assert findings.is_file()
         assert_contains(findings.read_text(encoding="utf-8"), "Evidence chain complete")
@@ -6926,7 +6997,7 @@ def main() -> None:
     test_edit_code_owner_from_step_kinds()
     test_orchestrator_instruction_includes_record_results()
     test_instruction_includes_next_action_and_step_first_layout()
-    test_bootstrap_instruction_includes_next_action()
+    test_bootstrap_then_claim_instruction_includes_next_action()
     test_subagent_instruction_includes_record_results()
     test_record_results_uses_task_file_and_slice_key_hints()
     test_subagent_instruction_prohibits_direct_task_store_inspection()
@@ -6948,15 +7019,14 @@ def main() -> None:
     test_create_plan_instruction_defines_constraint_and_behaviour_contract()
     test_grill_plan_instruction_defines_constraint_and_behaviour_contract()
     test_profile_yaml_aliases_shared_guidance_strings()
-    test_advance_pick_next_then_jump_to_closing_slice()
-    test_status_shows_cursor_and_ready_without_next_line()
+    test_pick_next_slice_reports_closing_slice_ready()
+    test_status_shows_claim_and_ready_without_next_line()
     test_pick_next_reports_all_slices_done()
-    test_advance_blocked_on_incomplete_current_step()
-    test_advance_resync_rejects_force_and_missing_reason()
-    test_advance_resync_explicit_jump_does_not_skip_previous_step()
-    test_advance_resync_without_jump_fails_on_same_unfinished_step()
-    test_advance_resync_without_jump_succeeds_when_cursor_on_finished_step()
-    test_advance_force_still_skips_incomplete_step()
+    test_advance_is_deprecated_regardless_of_flags()
+    test_claim_release_and_one_claim_per_owner()
+    test_claim_displaces_stale_and_refuses_fresh()
+    test_owner_omit_when_sole_claim_and_ambiguous_refuse()
+    test_finish_slice_only_auto_releases_claim()
     test_missing_task_points_to_scaffold()
     test_scaffold_creates_task_file()
     test_toolbelt_lists_for_slice_kinds()
@@ -6980,15 +7050,15 @@ def main() -> None:
     test_show_slice_multiline_note_indents_continuation()
     test_scaffold_mirrors_implement_template()
     test_scaffold_includes_create_plan_and_grill_plan_before_edit_code()
-    test_advance_walks_create_plan_then_grill_plan_before_edit_code()
+    test_derived_position_walks_create_plan_then_grill_plan_before_edit_code()
     test_status_ready_skips_unready_head_of_array()
     test_show_ready_tag_lists_only_ready_slices()
     test_status_ready_line_matches_ready_slices()
     test_blocked_status_slice_is_skipped()
-    test_advance_pick_next_when_nothing_ready()
+    test_pick_next_when_nothing_ready()
     test_status_warns_when_cursor_slice_not_ready()
     test_status_no_warning_when_cursor_slice_is_ready()
-    test_advance_within_slice_then_pick_next_on_exhausted_slice()
+    test_derived_position_walks_steps_then_pick_next_on_exhausted_slice()
     test_status_warns_on_unknown_dependency_key()
     test_show_renders_deps_with_mixed_statuses()
     test_show_omits_deps_line_when_absent()
@@ -7065,7 +7135,7 @@ def main() -> None:
     test_yaml_task_lock_lives_under_xdg_cache_not_task_dir()
     test_yaml_task_lock_path_resolves_aliases_to_same_inode_key()
     test_yaml_lifecycle_lock_preserves_first_executor()
-    test_yaml_force_advance_cannot_overwrite_concurrent_finish()
+    test_yaml_lock_serializes_concurrent_finish_and_release()
     test_yaml_rejects_duplicate_and_unknown_fields()
     test_profile_rejects_required_steps_absent_from_template()
     test_profile_requires_subagent_prompt_packet()
@@ -7104,7 +7174,7 @@ def main() -> None:
     test_vulnerability_scan_instruction_prefers_higher_reasoning_model()
     test_vulnerability_scan_rejects_unqualified_author_model()
     test_start_unqualified_model_error_includes_example()
-    test_advance_rejects_malformed_scan_timestamps()
+    test_finish_slice_only_rejects_malformed_scan_timestamps()
     test_vulnerability_scan_can_record_user_declined_skip()
     test_slice_lifecycle_records_orchestrator_after_steps_finish()
     test_slice_skip_cannot_bypass_policy_governed_step()
@@ -7165,7 +7235,7 @@ def main() -> None:
     test_add_slice_creates_plan_stub()
     test_profile_requires_slice_plan_stub_and_findings_header()
     test_status_shows_blocked_and_interrupt_hint()
-    test_investigate_does_not_move_cursor()
+    test_investigate_does_not_move_claim()
     print("pi-job tests passed")
 
 

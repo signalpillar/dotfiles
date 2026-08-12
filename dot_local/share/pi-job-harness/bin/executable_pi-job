@@ -26,7 +26,7 @@ import shutil
 import stat
 import subprocess
 import sys
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -204,17 +204,27 @@ class OrchestrationPolicyDocument(StrictDocument):
     )
 
 
-class CursorDocument(StrictDocument):
-    """Saved resume position in the ordered task plan."""
+class OwnedCursorDocument(StrictDocument):
+    """One owner's claim on a whole slice. No stored step: the active step is always
+    derived as the claimed slice's first non-terminal step (see within_slice_cursor)."""
 
-    slice: str = Field(description="Key of the current slice.")
-    step: str | None = Field(default=None, description="Key of the current step, or null for slice-level work.")
+    owner: str = Field(description="Claim owner identity: CLI --owner or PI_JOB_OWNER; agent-chosen.")
+    slice: str = Field(description="Key of the claimed slice; one owner claims at most one whole slice.")
+    claimed_at: str = Field(description="UTC ISO 8601 timestamp recorded when the claim was created.")
+    last_seen: str = Field(description="UTC ISO 8601 timestamp bumped by mutating commands run by this owner.")
 
 
 class OrchestrationDocument(StrictDocument):
-    """Persisted cursor, execution policy, and artifact state."""
+    """Persisted owned cursors, execution policy, and artifact state."""
 
-    cursor: CursorDocument = Field(description="Saved position used to resume orchestration deterministically.")
+    cursors: list[OwnedCursorDocument] = Field(
+        default_factory=list,
+        description=(
+            "Active owned claims. Replaces the single orchestration.cursor (hard cut; no "
+            "read shim). Each owner holds at most one claim; each slice has at most one "
+            "non-stale claim."
+        ),
+    )
     policy: OrchestrationPolicyDocument = Field(
         default_factory=OrchestrationPolicyDocument,
         description="Task-specific execution policy.",
@@ -266,6 +276,18 @@ class ConfigLayeringDocument(StrictDocument):
     user_defaults: bool = Field(description="Whether user-level defaults participate in configuration.")
     repo_overrides: bool = Field(description="Whether repository configuration may override user defaults.")
     precedence: Literal["repo-over-user"] = Field(description="Deterministic precedence order for configuration layers.")
+
+
+class OrchestrationDefaultsDocument(StrictDocument):
+    """Task-independent defaults for the owned-cursor claim layer."""
+
+    claim_stale_after_hours: float = Field(
+        default=24.0,
+        description=(
+            "Claim staleness TTL: a claim is stale when now - last_seen exceeds this many "
+            "hours. No heartbeat daemon; mutating commands for an owner bump last_seen."
+        ),
+    )
 
 
 class ArtifactGateDocument(StrictDocument):
@@ -494,6 +516,10 @@ class ProfileDocument(StrictDocument):
     """Complete live execution profile loaded by every command."""
 
     config_layering: ConfigLayeringDocument = Field(description="Configuration overlay capabilities and precedence.")
+    orchestration_defaults: OrchestrationDefaultsDocument = Field(
+        default_factory=OrchestrationDefaultsDocument,
+        description="Task-independent defaults for the owned-cursor claim layer (e.g. staleness TTL).",
+    )
     artifact_rules: dict[str, ArtifactRuleDocument] = Field(description="Artifact rules keyed by stable identifier.")
     toolbelt: dict[str, ToolbeltAidDocument] = Field(description="Planning aids keyed by stable identifier.")
     pr_template_guardrail: str = Field(description="Shared pull-request template guidance expanded into relevant rules.")
@@ -723,7 +749,7 @@ def set_content_digest(task: dict[str, Any]) -> None:
     """Refresh orchestration.content_digest from the current semantic task content."""
 
     orchestration = task.get("orchestration")
-    if not isinstance(orchestration, dict) or "cursor" not in orchestration:
+    if not isinstance(orchestration, dict) or "cursors" not in orchestration:
         return
     orchestration["content_digest"] = compute_content_digest(task)
 
@@ -938,6 +964,9 @@ task: {
 
 @dataclass(frozen=True)
 class Cursor:
+    """A derived position in the plan (slice, optional step). Never persisted directly:
+    within a claimed slice the step is always derived (see within_slice_cursor)."""
+
     slice: str
     step: str | None = None
 
@@ -945,6 +974,18 @@ class Cursor:
         if self.step:
             return f"{self.slice} / {self.step}"
         return self.slice
+
+
+@dataclass(frozen=True)
+class OwnedCursor:
+    """One owner's claim on a whole slice, as persisted in orchestration.cursors.
+    Distinct from step_owner()'s "orchestrator|subagent" execution owner - this is the
+    claim identity (CLI --owner / PI_JOB_OWNER), not a role."""
+
+    owner: str
+    slice: str
+    claimed_at: str
+    last_seen: str
 
 
 @dataclass(frozen=True)
@@ -1038,12 +1079,9 @@ class TaskStore(Protocol):
         """Read and export the task as a dict."""
         ...
 
-    def set_cursor(self, cursor: Cursor) -> None:
-        """Update the saved cursor position."""
-        ...
-
-    def init_orchestration(self, cursor: Cursor) -> None:
-        """Initialize orchestration with a cursor and default policy."""
+    def init_orchestration(self) -> None:
+        """Initialize orchestration with an empty owned-cursor list and default policy.
+        No cursor is seeded; agents claim a Ready slice explicitly (`pi-job claim`)."""
         ...
 
     def init_task(
@@ -1155,8 +1193,7 @@ class TaskStore(Protocol):
 
     def remove_slice(self, *, key: str) -> None:
         """Remove a slice from the task plan. Must validate that no other slice
-        depends on it and that the orchestration cursor does not target it before
-        removing."""
+        depends on it and that no owned cursor claims it before removing."""
         ...
 
     def set_slice_fields(
@@ -1171,8 +1208,8 @@ class TaskStore(Protocol):
         """Update a slice's status and optionally its note."""
         ...
 
-    def acknowledge_edit(self, *, reason: str) -> None:
-        """Refresh content digest and append the reason to the current cursor slice note."""
+    def acknowledge_edit(self, *, reason: str, slice_key: str) -> None:
+        """Refresh content digest and append the reason to the given slice's note."""
         ...
 
 
@@ -1188,27 +1225,15 @@ class CueTaskStore:
     def read(self) -> dict[str, Any]:
         return load_task(self.path)
 
-    def set_cursor(self, cursor: Cursor) -> None:
+    def init_orchestration(self) -> None:
         text = self.path.read_text()
-        pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
-        new_text, count = pattern.subn(cursor_block(cursor), text, count=1)
-        if count != 1:
-            die("could not find exactly one orchestration cursor block to replace")
-        write_and_format(self.path, new_text)
-
-    def init_orchestration(self, cursor: Cursor) -> None:
-        text = self.path.read_text()
-        block = orchestration_block(cursor)
+        block = orchestration_block()
         if re.search(r"(?m)^[ \t]*orchestration:\s*\{", text):
-            cursor_pattern = re.compile(r"(?m)^[ \t]*cursor:\s*\{\n(?:[ \t]+.*\n)+?[ \t]*\}")
-            new_text, cursor_count = cursor_pattern.subn(cursor_block(cursor), text, count=1)
-            if cursor_count != 1:
-                die("found orchestration block but could not replace cursor")
-        else:
-            plan_match = re.search(r"(?m)^\tplan:\s*\{|^[ ]+plan:\s*\{", text)
-            if not plan_match:
-                die("could not find task.plan block to insert orchestration before")
-            new_text = text[: plan_match.start()] + block + "\n\n" + text[plan_match.start() :]
+            die("cue task file already has an orchestration block")
+        plan_match = re.search(r"(?m)^\tplan:\s*\{|^[ ]+plan:\s*\{", text)
+        if not plan_match:
+            die("could not find task.plan block to insert orchestration before")
+        new_text = text[: plan_match.start()] + block + "\n\n" + text[plan_match.start() :]
         write_and_format(self.path, new_text)
 
     def init_task(
@@ -1280,7 +1305,7 @@ class CueTaskStore:
     ) -> None:
         raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
-    def acknowledge_edit(self, *, reason: str) -> None:
+    def acknowledge_edit(self, *, reason: str, slice_key: str) -> None:
         raise NotImplementedError("CUE task storage is deprecated; migrate to YAML with `pi-job --task <file> project --to <file>.yaml`")
 
     def set_plan_note(self, note: str) -> None:
@@ -1690,17 +1715,11 @@ class YamlTaskStore:
                 set_content_digest(task)
             self._write_validated(task)
 
-    def acknowledge_edit(self, *, reason: str) -> None:
-        """Refresh content digest and append the reason to the current cursor slice note."""
+    def acknowledge_edit(self, *, reason: str, slice_key: str) -> None:
+        """Refresh content digest and append the reason to the given slice's note."""
 
         def mutation(task: dict[str, Any]) -> None:
-            cursor = current_cursor(task)
-            if cursor is None:
-                die(
-                    "acknowledge-edit needs a saved cursor so the reason can go on the current "
-                    "slice note; run init or advance --slice/--step first"
-                )
-            task_slice = self._slice(task, cursor.slice)
+            task_slice = self._slice(task, slice_key)
             entry = f"Hand-edit acknowledged: {reason}"
             task_slice["note"] = merge_note(str(task_slice.get("note") or ""), entry, replace=False)
 
@@ -1721,19 +1740,10 @@ class YamlTaskStore:
                 return step
         die(f"step not found in YAML task: {slice_key!r}/{step_key!r}")
 
-    def set_cursor(self, cursor: Cursor) -> None:
-        def mutation(task: dict[str, Any]) -> None:
-            orchestration = task.get("orchestration")
-            if not orchestration:
-                die("task has no orchestration block (run init first)")
-            orchestration["cursor"] = {"slice": cursor.slice, "step": cursor.step}
-
-        self._mutate(mutation)
-
-    def init_orchestration(self, cursor: Cursor) -> None:
+    def init_orchestration(self) -> None:
         def mutation(task: dict[str, Any]) -> None:
             orchestration = task.setdefault("orchestration", {})
-            orchestration["cursor"] = {"slice": cursor.slice, "step": cursor.step}
+            orchestration.setdefault("cursors", [])
             orchestration.setdefault(
                 "policy",
                 {"coding_execution": {
@@ -1746,6 +1756,70 @@ class YamlTaskStore:
             orchestration.setdefault("artifacts", {})
 
         self._mutate(mutation)
+
+    def claim_slice(self, *, owner: str, slice_key: str, now: str) -> None:
+        """Upsert an owned cursor: drops any prior claim by this owner or on this
+        slice (stale-displacement is decided by the caller before this is invoked;
+        this is the unconditional write half of `claim`)."""
+
+        def mutation(task: dict[str, Any]) -> None:
+            orchestration = task.get("orchestration")
+            if not orchestration:
+                die("task has no orchestration block (run create first)")
+            cursors = orchestration.setdefault("cursors", [])
+            cursors[:] = [
+                c for c in cursors if c.get("owner") != owner and c.get("slice") != slice_key
+            ]
+            cursors.append({"owner": owner, "slice": slice_key, "claimed_at": now, "last_seen": now})
+
+        self._mutate(mutation)
+
+    def release_claim(self, *, owner: str) -> bool:
+        """Drop owner's claim, if any. Returns True when a claim was removed."""
+        removed = False
+
+        def mutation(task: dict[str, Any]) -> None:
+            nonlocal removed
+            orchestration = task.get("orchestration") or {}
+            cursors = orchestration.get("cursors") or []
+            kept = [c for c in cursors if c.get("owner") != owner]
+            removed = len(kept) != len(cursors)
+            orchestration["cursors"] = kept
+
+        self._mutate(mutation)
+        return removed
+
+    def touch_claim(self, *, owner: str, now: str) -> None:
+        """Bump last_seen for owner's claim, if any (no-op if the claim is gone)."""
+
+        def mutation(task: dict[str, Any]) -> None:
+            orchestration = task.get("orchestration") or {}
+            for c in orchestration.get("cursors") or []:
+                if c.get("owner") == owner:
+                    c["last_seen"] = now
+                    return
+
+        self._mutate(mutation)
+
+    def auto_release_slice(self, *, slice_key: str) -> str | None:
+        """Drop any claim on slice_key, unconditionally. Returns the released owner,
+        if any. Callers check the slice reached a terminal status first."""
+        released: str | None = None
+
+        def mutation(task: dict[str, Any]) -> None:
+            nonlocal released
+            orchestration = task.get("orchestration") or {}
+            cursors = orchestration.get("cursors") or []
+            kept = []
+            for c in cursors:
+                if c.get("slice") == slice_key:
+                    released = c.get("owner")
+                    continue
+                kept.append(c)
+            orchestration["cursors"] = kept
+
+        self._mutate(mutation)
+        return released
 
     def init_task(
         self,
@@ -2146,7 +2220,6 @@ class TaskLayout:
 
     # ---- orchestration ----
     def orchestration_dir(self) -> Path: return self.base / "orchestration"
-    def cursor_file(self) -> Path: return self.orchestration_dir() / "cursor"
     def policy_file(self) -> Path: return self.orchestration_dir() / "policy"
     def artifacts_dir(self) -> Path: return self.orchestration_dir() / "artifacts"
 
@@ -2456,7 +2529,6 @@ class FsTaskStore:
 
     def _read_orchestration(self) -> dict[str, Any]:
         L = self.layout
-        cursor_rec = self._read_record(L.cursor_file())
         policy_rec = self._read_record(L.policy_file())
         artifacts: dict[str, Any] = {}
         for key in L.artifact_keys():
@@ -2468,11 +2540,10 @@ class FsTaskStore:
                 entry["path"] = path_val
             entry["note"] = self._read_text(L.artifact_note_file(key))
             artifacts[key] = entry
-        cursor = {"slice": cursor_rec.get("slice", ""), "step": cursor_rec.get("step")}
-        if cursor_rec.get("step") is None:
-            cursor.pop("step", None)
         result: dict[str, Any] = {
-            "cursor": cursor,
+            # FsTaskStore is an experimental read/write backend and does not support the
+            # owned-cursor claim layer (Yaml-only, like block-slice/add-finding); always empty.
+            "cursors": [],
             "policy": {
                 "coding_execution": {
                     "subagent_required": self._read_bool_field(
@@ -2562,17 +2633,9 @@ class FsTaskStore:
 
     # ---- mutations ----
 
-    def set_cursor(self, cursor: Cursor) -> None:
-        self._write_cursor(cursor)
-
-    def _write_cursor(self, cursor: Cursor) -> None:
-        fields: dict[str, str | None] = {"slice": cursor.slice, "step": cursor.step}
-        self._write_record(self.layout.cursor_file(), fields)
-
-    def init_orchestration(self, cursor: Cursor) -> None:
+    def init_orchestration(self) -> None:
         L = self.layout
         L.orchestration_dir().mkdir(parents=True, exist_ok=True)
-        self._write_cursor(cursor)
         self._write_record(
             L.policy_file(),
             {
@@ -2851,7 +2914,7 @@ class FsTaskStore:
             "`pi-job --task <dir> project --to <file>.yaml`"
         )
 
-    def acknowledge_edit(self, *, reason: str) -> None:
+    def acknowledge_edit(self, *, reason: str, slice_key: str) -> None:
         raise NotImplementedError(
             "directory task storage does not support acknowledge-edit; migrate to YAML with "
             "`pi-job --task <dir> project --to <file>.yaml`"
@@ -2904,10 +2967,9 @@ def project(src: TaskStore, dst: TaskStore) -> None:
 
     orch = task.get("orchestration")
     if orch:
-        cursor_dict = orch.get("cursor") or {}
-        dst.init_orchestration(
-            Cursor(slice=str(cursor_dict.get("slice") or ""), step=cursor_dict.get("step")),
-        )
+        # Owned cursors are a YAML-only feature (like block-slice/add-finding); a non-YAML
+        # destination starts with no claims regardless of what src had claimed.
+        dst.init_orchestration()
         for key, artifact in (orch.get("artifacts") or {}).items():
             dst.write_artifact(
                 key, status=artifact.get("status", "planned"), path=artifact.get("path"), note=artifact.get("note", "")
@@ -3154,14 +3216,91 @@ def status_value(item: TaskSlice | TaskStep | Mapping[str, Any]) -> str:
     return str(item.get("status") or "").lower()
 
 
-def current_cursor(task: dict[str, Any]) -> Cursor | None:
-    cursor = task.get("orchestration", {}).get("cursor")
-    if not cursor:
+def owned_cursors(task: Mapping[str, Any]) -> list[OwnedCursor]:
+    """All active owned claims, in persisted order."""
+    raw = (task.get("orchestration") or {}).get("cursors") or []
+    return [
+        OwnedCursor(
+            owner=str(c.get("owner") or ""),
+            slice=str(c.get("slice") or ""),
+            claimed_at=str(c.get("claimed_at") or ""),
+            last_seen=str(c.get("last_seen") or ""),
+        )
+        for c in raw
+    ]
+
+
+def find_claim_by_owner(task: Mapping[str, Any], owner: str) -> OwnedCursor | None:
+    return next((c for c in owned_cursors(task) if c.owner == owner), None)
+
+
+def find_claim_by_slice(task: Mapping[str, Any], slice_key: str) -> OwnedCursor | None:
+    return next((c for c in owned_cursors(task) if c.slice == slice_key), None)
+
+
+def claim_ttl_seconds() -> float:
+    hours = load_profile_contract().get("orchestration_defaults", {}).get("claim_stale_after_hours", 24.0)
+    return float(hours) * 3600.0
+
+
+def claim_is_stale(claim: OwnedCursor, *, now: datetime | None = None) -> bool:
+    """A claim is stale when now - last_seen exceeds the profile TTL, or last_seen is
+    unparseable (fail toward allowing displacement over wedging a slice forever)."""
+    last_seen = parse_utc_timestamp(claim.last_seen)
+    if last_seen is None:
+        return True
+    moment = now or datetime.now(UTC)
+    return (moment - last_seen).total_seconds() > claim_ttl_seconds()
+
+
+def claim_position(task: Mapping[str, Any], claim: OwnedCursor) -> Cursor:
+    """Derived position for a claim: the claimed slice's first non-terminal step
+    (steps then final_steps), or the bare slice when none remain. Never persisted."""
+    return within_slice_cursor(task, claim.slice) or Cursor(slice=claim.slice)
+
+
+def claim_label(task: Mapping[str, Any], claim: OwnedCursor) -> str:
+    position = claim_position(task, claim)
+    suffix = " (stale)" if claim_is_stale(claim) else ""
+    return f"{claim.owner} \u2192 {position.label()}{suffix}"
+
+
+def resolve_claim_for_command(
+    task: Mapping[str, Any],
+    args: argparse.Namespace,
+    *,
+    cmd: str,
+    required: bool,
+) -> OwnedCursor | None:
+    """Resolve which claim a mutating/reading command acts on.
+
+    Precedence: CLI --owner > env PI_JOB_OWNER > the sole active claim when
+    unambiguous. Dies (when required) rather than guessing across >1 claims.
+    """
+    owner_id = getattr(args, "owner", None) or os.environ.get("PI_JOB_OWNER")
+    claims = owned_cursors(task)
+    if owner_id:
+        claim = next((c for c in claims if c.owner == owner_id), None)
+        if claim is None and required:
+            die(
+                f"no active claim for owner {owner_id!r}; run "
+                f"`pi-job claim --slice KEY --owner {owner_id}` first (see `pi-job show`)"
+            )
+        return claim
+    if len(claims) == 1:
+        return claims[0]
+    if not required:
         return None
-    slice_key = cursor.get("slice")
-    if not slice_key:
-        return None
-    return Cursor(slice=str(slice_key), step=cursor.get("step"))
+    if not claims:
+        die(
+            f"pi-job {cmd} needs an active claim; run `pi-job claim --slice KEY --owner ID` "
+            "first (see `pi-job show`), or pass --owner / set PI_JOB_OWNER"
+        )
+    owners = ", ".join(c.owner for c in claims)
+    die(
+        f"ambiguous owner for pi-job {cmd}: {len(claims)} active claims ({owners}); "
+        "pass --owner ID or set PI_JOB_OWNER"
+    )
 
 
 def require_initialized(task_file: Path, task: dict[str, Any]) -> None:
@@ -3330,14 +3469,21 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
             )
         else:
             print("Structure: ok")
-        cursor = current_cursor(task)
-        print(f"Cursor: {cursor.label() if cursor else '<unset>'}")
-        if cursor_on_user_decision(task, cursor):
-            hint = str(
-                load_profile_contract()["instruction_packets"]["status_interrupt_hint"]
-            ).strip()
-            if hint:
-                print(hint)
+        claims = owned_cursors(task)
+        if not claims:
+            print("Cursors: <none>")
+        else:
+            print("Cursors:")
+            for claim in sorted(claims, key=lambda c: c.owner):
+                print(f"  {claim_label(task, claim)}")
+        for claim in claims:
+            if cursor_on_user_decision(task, claim_position(task, claim)):
+                hint = str(
+                    load_profile_contract()["instruction_packets"]["status_interrupt_hint"]
+                ).strip()
+                if hint:
+                    print(hint)
+                break
         ready = ready_slices(task)
         if ready:
             ready_keys = [task_slice.key for task_slice in ready]
@@ -3354,37 +3500,26 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
 
         if all_slices_done(task):
             print("Task: all slices done")
-        elif cursor is not None:
+        elif not claims and not ready:
+            print(
+                "⚠ no active claim and Ready is empty "
+                "(blocked on depends_on or all remaining slices blocked)"
+            )
+        elif not claims:
+            print("Next: `pi-job claim --slice KEY --owner ID` (pick from Ready above)")
+        else:
             status_map = slice_status_map(task)
-            cur_slice = find_slice(task, cursor.slice)
-            if cur_slice is None:
-                print(
-                    "⚠ cursor slice missing; run `pi-job show`, pick a Ready slice, "
-                    "then `advance --slice KEY --step STEP`"
-                )
-            elif not slice_has_unfinished_steps(task, cursor.slice):
-                if ready:
+            for claim in claims:
+                cur_slice = find_slice(task, claim.slice)
+                if cur_slice is None:
                     print(
-                        "⚠ current slice has no unfinished steps; run `pi-job show`, "
-                        "pick a Ready slice, then `advance --slice KEY --step STEP` "
-                        "(or `instruction` for the pick-next packet)"
-                    )
-                else:
-                    print(
-                        "⚠ current slice has no unfinished steps and Ready is empty "
-                        "(blocked on depends_on or all remaining slices blocked)"
-                    )
-            else:
-                step = find_current_step(cur_slice, cursor) if cursor.step else None
-                if step is not None and step.status in STATUS_DONE:
-                    print(
-                        "⚠ cursor sits on a finished step; run `pi-job advance` "
-                        "to walk within the slice"
+                        f"⚠ {claim.owner}'s claim targets a missing slice {claim.slice!r}; "
+                        f"run `pi-job release --owner {claim.owner}`"
                     )
                 elif cur_slice.status == "blocked" or not is_actionable(cur_slice, status_map):
                     print(
-                        "⚠ cursor slice is not Ready; run `pi-job show`, pick a Ready slice, "
-                        "then `advance --slice KEY --step STEP`"
+                        f"⚠ {claim.owner}'s claim ({claim.slice}) is not Ready "
+                        f"(status={cur_slice.status}); consider `pi-job release --owner {claim.owner}`"
                     )
 
         # Unknown dependency key warnings
@@ -3397,20 +3532,13 @@ def print_status(task_file_desc: str, task: dict[str, Any], task_path: Path | No
         print(f"warning: {issue}")
 
 
-def cursor_block(cursor: Cursor) -> str:
-    lines = ["\t\tcursor: {"]
-    lines.append(f'\t\t\tslice: "{cursor.slice}"')
-    if cursor.step is not None:
-        lines.append(f'\t\t\tstep:  "{cursor.step}"')
-    lines.append("\t\t}")
-    return "\n".join(lines)
-
-
-def orchestration_block(cursor: Cursor) -> str:
+def orchestration_block() -> str:
+    """CUE orchestration block seeded with an empty owned-cursor list.
+    No cursor is seeded here; agents claim a Ready slice explicitly."""
     return "\n".join(
         [
             "\torchestration: {",
-            cursor_block(cursor),
+            "\t\tcursors: []",
             "\t\tpolicy: {",
             "\t\t\tcoding_execution: {",
             "\t\t\t\tsubagent_required:             true",
@@ -4228,16 +4356,27 @@ def enforce_finish_step_explicitness(
 
 
 def resolve_lifecycle_target(
-    task: dict[str, Any], args: argparse.Namespace
+    task: dict[str, Any], args: argparse.Namespace, *, claim: OwnedCursor | None
 ) -> tuple[TaskSlice, TaskSlice | TaskStep, str | None]:
+    """Resolve the slice/step a start|finish call targets.
+
+    An explicit --slice makes the claim irrelevant (no owner needed at all). Without
+    --slice, this falls back to claim's derived position (caller already resolved -
+    and, when required, died - via resolve_claim_for_command)."""
     if args.slice_only and args.step:
         die("--slice-only cannot be combined with --step")
-    cursor = current_cursor(task)
-    if cursor is None:
-        die("task has no current cursor")
-    slice_key = args.slice or cursor.slice
-    target_cursor = Cursor(slice=slice_key)
-    task_slice = find_current_slice(task, target_cursor)
+    if args.slice:
+        slice_key = args.slice
+        position = None
+    else:
+        if claim is None:
+            die(
+                "no active claim; run `pi-job claim --slice KEY --owner ID` first "
+                "(see `pi-job show`), or pass --slice explicitly"
+            )
+        position = claim_position(task, claim)
+        slice_key = position.slice
+    task_slice = find_slice(task, slice_key)
     if task_slice is None:
         die(f"slice not found: {slice_key!r}")
     if args.step:
@@ -4245,7 +4384,8 @@ def resolve_lifecycle_target(
     elif args.slice_only or args.slice:
         step_key = None
     else:
-        step_key = cursor.step
+        assert position is not None
+        step_key = position.step
     if step_key is None:
         return task_slice, task_slice, None
     step = find_step(task_slice, step_key)
@@ -4318,13 +4458,91 @@ def lifecycle_lock(store: TaskStore):
     return store.exclusive() if isinstance(store, YamlTaskStore) else nullcontext()
 
 
+def resolve_owner_for_claim(args: argparse.Namespace) -> str:
+    """`claim` always needs an explicit identity: CLI --owner, else $PI_JOB_OWNER.
+
+    Unlike other commands, there is no sole-claim fallback here - one claim per owner
+    (decision 10) means an owner can never usefully infer identity from an existing claim
+    when creating a new one."""
+    owner = args.owner or os.environ.get("PI_JOB_OWNER")
+    if not owner:
+        die("claim requires --owner ID or $PI_JOB_OWNER (no default identity is inferred)")
+    return owner
+
+
+def cmd_claim(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("claim requires a YAML task file (owned cursors are a YAML-only feature)")
+    owner = resolve_owner_for_claim(args)
+    slice_key = args.slice
+    if not slice_key:
+        die("--slice KEY is required")
+    with store.exclusive():
+        task = store.read()
+        require_initialized(task_file, task)
+        task_slice = find_slice(task, slice_key)
+        if task_slice is None:
+            die(f"slice not found: {slice_key!r}; known slice keys: {known_slice_keys(task)}")
+
+        existing_by_owner = find_claim_by_owner(task, owner)
+        if existing_by_owner is not None and existing_by_owner.slice != slice_key:
+            die(
+                f"{owner} already has a claim on {existing_by_owner.slice!r}; "
+                f"run `pi-job release --owner {owner}` first (one claim per owner)"
+            )
+
+        existing_on_slice = find_claim_by_slice(task, slice_key)
+        displaced = None
+        if existing_on_slice is not None and existing_on_slice.owner != owner:
+            if not claim_is_stale(existing_on_slice):
+                die(
+                    f"slice {slice_key!r} is already claimed by {existing_on_slice.owner} "
+                    "(not stale); wait for release/auto-release or pick another Ready slice"
+                )
+            displaced = existing_on_slice.owner
+
+        status_map = slice_status_map(task)
+        if not is_actionable(task_slice, status_map) and existing_by_owner is None:
+            die(
+                f"slice {slice_key!r} is not Ready (status={task_slice.status}, "
+                f"depends_on={list(task_slice.depends_on)}); pick from Ready via `pi-job show`"
+            )
+
+        now = utc_now()
+        store.claim_slice(owner=owner, slice_key=slice_key, now=now)
+        task = store.read()
+        claim = find_claim_by_owner(task, owner)
+        assert claim is not None
+        if displaced:
+            print(f"displaced stale claim: {displaced} → {slice_key}")
+        print(f"claimed: {claim_label(task, claim)}")
+
+
+def cmd_release(args: argparse.Namespace) -> None:
+    task_file = args.task.resolve()
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("release requires a YAML task file (owned cursors are a YAML-only feature)")
+    with store.exclusive():
+        task = store.read()
+        require_initialized(task_file, task)
+        claim = resolve_claim_for_command(task, args, cmd="release", required=True)
+        assert claim is not None
+        label = claim_label(task, claim)
+        store.release_claim(owner=claim.owner)
+        print(f"released: {label}")
+
+
 def cmd_start(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
     with lifecycle_lock(store):
         task = store.read()
         require_initialized(task_file, task)
-        task_slice, item, step_key = resolve_lifecycle_target(task, args)
+        claim = resolve_claim_for_command(task, args, cmd="start", required=not bool(args.slice))
+        task_slice, item, step_key = resolve_lifecycle_target(task, args, claim=claim)
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
         status = item.status
         if task_slice.status == "blocked":
@@ -4361,6 +4579,8 @@ def cmd_start(args: argparse.Namespace) -> None:
             slice_key=task_slice.key, step_key=step_key, status="in_progress",
             note=item.note, execution=execution,
         )
+        if claim is not None and isinstance(store, YamlTaskStore):
+            store.touch_claim(owner=claim.owner, now=execution["started"])
         print(f"started: {label} by {model} at {execution['started']}")
 
 
@@ -4370,7 +4590,8 @@ def cmd_finish(args: argparse.Namespace) -> None:
     with lifecycle_lock(store):
         task = store.read()
         require_initialized(task_file, task)
-        task_slice, item, step_key = resolve_lifecycle_target(task, args)
+        claim = resolve_claim_for_command(task, args, cmd="finish", required=not bool(args.slice))
+        task_slice, item, step_key = resolve_lifecycle_target(task, args, claim=claim)
         enforce_finish_step_explicitness(task, args, step_key=step_key)
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
         target_status = "skipped" if args.skip else "done"
@@ -4442,31 +4663,16 @@ def cmd_finish(args: argparse.Namespace) -> None:
             note=note, execution=execution,
         )
         print(f"finished: {label} [{target_status}] at {now}")
+        if isinstance(store, YamlTaskStore):
+            slice_terminal = step_key is None and target_status in STATUS_DONE
+            if slice_terminal:
+                released_owner = store.auto_release_slice(slice_key=task_slice.key)
+                if released_owner:
+                    print(f"auto-released: {released_owner}'s claim on {task_slice.key} [{target_status}]")
+            elif claim is not None:
+                store.touch_claim(owner=claim.owner, now=now)
         if args.note is not None:
             print("tip: prefer Markdown in --note; `pi-job markdown` renders notes formatted")
-
-
-def blocking_incomplete_step(task: dict[str, Any], cursor: Cursor | None) -> str | None:
-    """Return a reason string if the saved cursor's step is not done/skipped, else None."""
-    if cursor is None or not cursor.step:
-        return None
-    task_slice = find_current_slice(task, cursor)
-    step = find_current_step(task_slice, cursor)
-    if step is None:
-        return None
-    if step.status not in STATUS_DONE:
-        return f"current cursor step is not done: {cursor.label()} (status: {step.status or '<unset>'})"
-    return None
-
-
-def blocking_execution_policy(task: dict[str, Any], cursor: Cursor | None) -> str | None:
-    if cursor is None or not cursor.step:
-        return None
-    task_slice = find_current_slice(task, cursor)
-    step = find_current_step(task_slice, cursor)
-    if task_slice is None or step is None:
-        return None
-    return completed_step_policy_issue(task_slice, step)
 
 
 def try_get_step_kind(step_key: str) -> dict[str, Any] | None:
@@ -4505,18 +4711,22 @@ def enforce_owner_policy(
 
 
 def build_plan(task_file: Path, task: dict[str, Any]) -> str:
-    cursor = current_cursor(task)
+    claims = owned_cursors(task)
+    positions = {claim.owner: claim_position(task, claim) for claim in claims}
     ready = ready_slices(task)
     profile = load_profile_contract()
     packets = profile["instruction_packets"]
 
     ready_label = ", ".join(s.key for s in ready) if ready else "none"
+    cursors_label = (
+        ", ".join(claim_label(task, claim) for claim in claims) if claims else "<none>"
+    )
     lines = [
         "PI-JOB TASK PLAN",
         "",
         f"Task file: {task_file}",
         f"Contract: {PROFILE}",
-        f"Task cursor: {cursor.label() if cursor else '<unset>'}",
+        f"Task cursors: {cursors_label}",
         f"Ready slices: {ready_label}",
         "",
         "Plan slices:",
@@ -4525,9 +4735,10 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
         slice_key = task_slice.key
         kind = task_slice.kind or "<unset>"
         st = task_slice.status
+        owners_here = [owner for owner, pos in positions.items() if pos.slice == slice_key]
         marker = ""
-        if cursor and cursor.slice == slice_key:
-            marker = "  <-- current slice"
+        if owners_here:
+            marker = f"  <-- claimed by {', '.join(owners_here)}"
         elif any(s.key == slice_key for s in ready):
             marker = "  <-- ready"
         kind_entry = get_slice_kind(kind) if kind in valid_slice_kinds() else {}
@@ -4537,9 +4748,11 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
         for step in task_slice.all_steps:
             step_key = step.key
             step_st = step.status
-            step_marker = ""
-            if cursor and cursor.slice == slice_key and cursor.step == step_key:
-                step_marker = "  <-- current step"
+            step_owners = [
+                owner for owner, pos in positions.items()
+                if pos.slice == slice_key and pos.step == step_key
+            ]
+            step_marker = f"  <-- current for {', '.join(step_owners)}" if step_owners else ""
             step_kinds = contract_step_kinds()
             owner = step_kinds.get(step_key, {}).get("owner", "?")
             lines.append(f"    - {step_key} [{owner}/{step_st}] {step.title}{step_marker}")
@@ -4769,17 +4982,18 @@ class InstructionPacketBudget:
         }
 
 
-def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:
-    """Packet when the current slice has no unfinished steps - orchestrator picks via show."""
+def build_pick_next_instruction(task_file: Path, task: dict[str, Any], claim: OwnedCursor) -> str:
+    """Packet when claim's slice has no unfinished steps - owner picks via show."""
     require_initialized(task_file, task)
-    cursor = current_cursor(task)
+    cursor = claim_position(task, claim)
     ready = ready_slices(task)
     profile = load_profile_contract()
     packets = profile["instruction_packets"]
     packet_defaults = {
-        "cursor": cursor.label() if cursor else "<unset>",
+        "cursor": cursor.label(),
+        "owner": claim.owner,
         "task_file": str(task_file),
-        "slice_key": cursor.slice if cursor else "<unknown>",
+        "slice_key": cursor.slice,
     }
     lines = [
         "PI-JOB PICK NEXT SLICE",
@@ -4787,7 +5001,8 @@ def build_pick_next_instruction(task_file: Path, task: dict[str, Any]) -> str:
         f"Task file: {task_file}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
-        f"Current cursor: {cursor.label() if cursor else '<unset>'}",
+        f"Owner: {claim.owner}",
+        f"Exhausted claim: {cursor.label()}",
         (
             "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
         ),
@@ -4954,147 +5169,34 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 
 def cmd_advance(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task.resolve())
-    task_file = args.task.resolve()
-    with lifecycle_lock(store):
-        task = store.read()
-        require_initialized(task_file, task)
+    """Deprecated: position is now derived from an owned claim, not a stored cursor.
 
-        if args.resync and args.force:
-            die("--resync and --force are mutually exclusive")
-
-        if not args.dry_run:
-            current_for_guard = current_cursor(task)
-            current_slice = find_current_slice(task, current_for_guard) if current_for_guard else None
-            current_step = find_current_step(current_slice, current_for_guard) if current_for_guard else None
-            if args.resync:
-                if not args.reason:
-                    die("--resync requires --reason '<why>' to record why the cursor is being realigned")
-            else:
-                if args.force and has_lifecycle_policy(step_execution_policy(current_step)):
-                    die(
-                        "do not force-skip a policy-governed step; use "
-                        "finish --skip --model <id> --reason '<decision>'"
-                    )
-                # Explicit cross-slice jumps skip the incomplete-step guard on the old cursor.
-                if not args.slice:
-                    block_reason = blocking_incomplete_step(task, current_for_guard)
-                    if block_reason and not args.force:
-                        die(
-                            f"{block_reason}\n"
-                            "mark the step done/skipped in the task file, or re-run with "
-                            "--force --reason '<why>' to record an explicit skip"
-                        )
-                    if args.force and not args.reason:
-                        die("--force requires --reason '<why>' to record why the step is being skipped")
-                    policy_reason = blocking_execution_policy(task, current_for_guard)
-                    if policy_reason:
-                        die(policy_reason)
-
-        if args.slice:
-            target = find_slice(task, args.slice)
-            if target is None:
-                die(f"slice not found: {args.slice!r}; known slice keys: {known_slice_keys(task)}")
-            status_map = slice_status_map(task)
-            if not is_actionable(target, status_map) and not args.force and not args.resync:
-                die(
-                    f"slice {args.slice!r} is not Ready (status={target.status}, "
-                    f"depends_on={list(target.depends_on)}); pick from Ready via `pi-job show` "
-                    "or pass --resync/--force with --reason"
-                )
-            if args.step:
-                if find_step(target, args.step) is None:
-                    die(f"step {args.step!r} not found in slice {args.slice!r}")
-                cursor = Cursor(slice=args.slice, step=args.step)
-            else:
-                cursor = within_slice_cursor(task, args.slice)
-                if cursor is None:
-                    die(
-                        f"slice {args.slice!r} has no unfinished steps; "
-                        "pass --step explicitly or pick another Ready slice"
-                    )
-                if cursor.step is not None:
-                    die("--slice requires --step when the target slice has unfinished steps")
-        else:
-            current = current_cursor(task)
-            if current is None:
-                die(
-                    "no saved cursor; pick a Ready slice with "
-                    "`advance --slice KEY --step STEP` (see `pi-job show`)"
-                )
-            # --force without an explicit jump marks the incomplete current step skipped
-            # so within_slice_cursor can move past it.
-            if (
-                not args.dry_run
-                and args.force
-                and args.reason
-                and current.step
-                and blocking_incomplete_step(task, current)
-            ):
-                store.set_step_status(
-                    slice_key=current.slice,
-                    step_key=current.step,
-                    status="skipped",
-                    note=args.reason,
-                )
-                task = store.read()
-            cursor = within_slice_cursor(task, current.slice)
-            if cursor is None:
-                # Slice exhausted - inject pick-next packet; do not auto-jump.
-                if args.dry_run:
-                    print(build_pick_next_instruction(task_file, task))
-                    return
-                if args.resync and args.reason:
-                    print(f"resynced cursor (reason: {args.reason})")
-                print(build_pick_next_instruction(task_file, task))
-                return
-            if (
-                args.resync
-                and not args.dry_run
-                and cursor == current
-                and blocking_incomplete_step(task, current)
-            ):
-                die(
-                    "resync would keep cursor on the same unfinished step "
-                    f"{current.label()}; pass explicit --slice/--step to jump elsewhere"
-                )
-        if args.dry_run:
-            print(cursor_block(cursor))
-            return
-        store.set_cursor(cursor)
-        if args.force and args.reason:
-            print(f"forced advance (skip reason: {args.reason})")
-        elif args.resync and args.reason:
-            print(f"resynced cursor (reason: {args.reason})")
-        print(f"advanced cursor: {cursor.label()}")
+    Kept only so old muscle-memory invocations fail with actionable guidance instead
+    of a Python traceback; there is no `orchestration.cursor` left to advance."""
+    die(
+        "`advance` is deprecated and no longer has a cursor to move: position is derived "
+        "from your claim (see `pi-job claim`/`pi-job show`).\n"
+        "- No active claim: `pi-job claim --slice KEY --owner ID`, then `pi-job instruction`\n"
+        "- Slice exhausted: `pi-job finish --slice-only`, then claim a new Ready slice\n"
+        "- Wrong step order within a slice: mark the step `finish --skip --reason '<why>'`"
+    )
 
 
 def cmd_instruction(args: argparse.Namespace) -> None:
     task_file = args.task.resolve()
     store = open_task_store(task_file)
-    task = store.read()
-    require_initialized(task_file, task)
-    cursor = current_cursor(task)
-    if cursor is None:
-        die(
-            "task has no saved cursor for instruction; "
-            "run `pi-job show`, then `advance --slice KEY --step STEP`"
-        )
-    # Soft within-slice recovery: cursor on a finished step but slice still has work.
-    task_slice = find_slice(task, cursor.slice)
-    step = find_current_step(task_slice, cursor) if task_slice and cursor.step else None
-    within = within_slice_cursor(task, cursor.slice)
-    if within is None:
-        print(build_pick_next_instruction(task_file, task))
-        return
-    if step is not None and step.status in STATUS_DONE and within != cursor:
-        print(
-            "⚠ cursor sits on a finished step; using next unfinished step in this slice. "
-            "Run `pi-job advance` to resync the stored cursor.",
-            file=sys.stderr,
-        )
-        cursor = within
-    print(build_instruction(task_file, task, cursor))
+    with lifecycle_lock(store):
+        task = store.read()
+        require_initialized(task_file, task)
+        claim = resolve_claim_for_command(task, args, cmd="instruction", required=True)
+        assert claim is not None
+        within = within_slice_cursor(task, claim.slice)
+        if within is None:
+            print(build_pick_next_instruction(task_file, task, claim))
+            return
+        if isinstance(store, YamlTaskStore):
+            store.touch_claim(owner=claim.owner, now=utc_now())
+    print(build_instruction(task_file, task, within))
 
 
 def cmd_plan(args: argparse.Namespace) -> None:
@@ -5343,7 +5445,7 @@ def render_slice_scoped(
     task: Mapping[str, Any],
     task_slice: TaskSlice,
     *,
-    cursor: Cursor | None,
+    positions: Mapping[str, Cursor],
     status_map: Mapping[str, str],
     color: bool,
     include_model: bool = True,
@@ -5357,8 +5459,8 @@ def render_slice_scoped(
         lines.append(f"goal: {task_slice.goal}")
     append_multiline_note(lines, "note: ", task_slice.note, "    ")
     append_slice_work_lines(lines, task_slice, status_map)
-    is_current = bool(cursor and cursor.slice == task_slice.key)
-    current_step = cursor.step if is_current and cursor else None
+    current = positions.get(task_slice.key)
+    current_step = current.step if current else None
     for step in task_slice.steps:
         lines.extend(
             step_detail_line(
@@ -5459,10 +5561,10 @@ def slice_latest_change(task_slice: TaskSlice) -> str | None:
 def work_first_open_rank(
     task_slice: TaskSlice,
     status_map: Mapping[str, str],
-    cursor: Cursor | None,
+    claimed_slices: set[str],
 ) -> int:
     """Lower ranks surface first among unfinished slices."""
-    if cursor is not None and cursor.slice == task_slice.key:
+    if task_slice.key in claimed_slices:
         return 0
     if task_slice.status == "in_progress":
         return 1
@@ -5492,7 +5594,7 @@ def _newest_first_indexed(items: list[tuple[int, TaskSlice]]) -> list[tuple[int,
 def ordered_slices_for_show(
     task: Mapping[str, Any],
     *,
-    cursor: Cursor | None,
+    claimed_slices: set[str],
     work_first: bool,
 ) -> list[TaskSlice]:
     """Plan order by default; --work-first puts open work on top (newest first), finished last."""
@@ -5517,7 +5619,7 @@ def ordered_slices_for_show(
         group = [
             item
             for item in open_items
-            if work_first_open_rank(item[1], status_map, cursor) == rank
+            if work_first_open_rank(item[1], status_map, claimed_slices) == rank
         ]
         ordered.extend(task_slice for _, task_slice in _newest_first_indexed(group))
     ordered.extend(task_slice for _, task_slice in _newest_first_indexed(finished_items))
@@ -5652,7 +5754,7 @@ def render_step_markdown(
 def render_slices_toc(
     slice_items: tuple[TaskSlice, ...],
     *,
-    cursor: Cursor | None,
+    cursors: Sequence[Cursor],
 ) -> list[str]:
     """Return a default table of contents for slices (key + title)."""
 
@@ -5660,7 +5762,7 @@ def render_slices_toc(
         return []
     lines = ["## Contents", ""]
     for task_slice in slice_items:
-        is_current = bool(cursor and cursor.slice == task_slice.key)
+        is_current = any(c.slice == task_slice.key for c in cursors)
         current_badge = " (current)" if is_current else ""
         key = escape_md_inline(task_slice.key)
         title = escape_md_inline(task_slice.title or task_slice.key or "<untitled>")
@@ -5675,13 +5777,14 @@ def render_slices_toc(
 def render_slice_markdown(
     task_slice: TaskSlice,
     *,
-    cursor: Cursor | None,
+    cursors: Sequence[Cursor],
     summary: bool = False,
     plan_body: str | None = None,
     plan_label: str | None = None,
 ) -> list[str]:
-    is_current_slice = bool(cursor and cursor.slice == task_slice.key)
-    current_step = cursor.step if is_current_slice and cursor else None
+    matching = [c for c in cursors if c.slice == task_slice.key]
+    is_current_slice = bool(matching)
+    current_step = matching[0].step if matching else None
     current_badge = " (current)" if is_current_slice else ""
     title = escape_md_inline(task_slice.title or task_slice.key or "<untitled>")
     lines = [
@@ -5772,7 +5875,7 @@ def render_task_markdown(
     plan_bodies: Mapping[str, str] | None = None,
     plan_labels: Mapping[str, str] | None = None,
 ) -> str:
-    cursor = current_cursor(dict(task))
+    cursors = [claim_position(dict(task), claim) for claim in owned_cursors(dict(task))]
     title = escape_md_inline(str(task.get("title") or "<untitled>"))
     status = str(task.get("status") or "")
     lines = [f"# {title}", "", f"**Status:** {status}", ""]
@@ -5829,7 +5932,7 @@ def render_task_markdown(
 
     if slice_items:
         if not lean_slice:
-            toc_lines = render_slices_toc(slice_items, cursor=cursor)
+            toc_lines = render_slices_toc(slice_items, cursors=cursors)
             lines.extend(toc_lines)
             lines.append("")
         lines.append("## Slices")
@@ -5840,7 +5943,7 @@ def render_task_markdown(
             lines.extend(
                 render_slice_markdown(
                     task_slice,
-                    cursor=cursor,
+                    cursors=cursors,
                     summary=summary,
                     plan_body=body,
                     plan_label=label,
@@ -5908,10 +6011,10 @@ class SliceDependencyMermaid:
     def __init__(
         self,
         *,
-        cursor: Cursor | None = None,
+        claimed_slices: set[str] | None = None,
         status_filter: set[str] | None = None,
     ) -> None:
-        self._cursor = cursor
+        self._claimed_slices = claimed_slices or set()
         self._status_filter = status_filter
         self._node_ids: dict[str, str] = {}
         self._used_ids: set[str] = set()
@@ -5930,12 +6033,8 @@ class SliceDependencyMermaid:
         return text.replace("\\", "\\\\").replace('"', "#quot;")
 
     def style_status(self, task_slice: TaskSlice) -> str:
-        """Status class for graph coloring; cursor slice paints as in_progress like show glyphs."""
-        if (
-            self._cursor is not None
-            and self._cursor.slice == task_slice.key
-            and task_slice.status not in STATUS_DONE
-        ):
+        """Status class for graph coloring; a claimed slice paints as in_progress like show glyphs."""
+        if task_slice.key in self._claimed_slices and task_slice.status not in STATUS_DONE:
             return "in_progress"
         if task_slice.status in {"done", "skipped", "in_progress", "blocked", "planned"}:
             return task_slice.status
@@ -5995,7 +6094,9 @@ def cmd_show(args: argparse.Namespace) -> None:
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
-    cursor = current_cursor(task)
+    claims = owned_cursors(task)
+    positions = {claim.slice: claim_position(task, claim) for claim in claims}
+    claimed_slices = set(positions)
     color = color_enabled(args.color)
 
     if args.graph and args.slice:
@@ -6005,7 +6106,7 @@ def cmd_show(args: argparse.Namespace) -> None:
         status_filter = set(args.status.split(",")) if args.status else None
         print(
             SliceDependencyMermaid(
-                cursor=cursor,
+                claimed_slices=claimed_slices,
                 status_filter=status_filter,
             ).render(task),
             end="",
@@ -6020,7 +6121,7 @@ def cmd_show(args: argparse.Namespace) -> None:
         lines = render_slice_scoped(
             task,
             task_slice,
-            cursor=cursor,
+            positions=positions,
             status_map=status_map,
             color=color,
             include_model=True,
@@ -6032,11 +6133,14 @@ def cmd_show(args: argparse.Namespace) -> None:
     include_model = bool(args.full)
 
     lines = [f"{task.get('title', '<untitled>')}"]
-    if cursor:
-        lines.append(f"cursor → {cursor.slice} / {cursor.step or '-'}")
+    if claims:
+        for claim in claims:
+            lines.append(f"claim → {claim_label(task, claim)}")
+    else:
+        lines.append("claim → <none>")
     lines.append("")
 
-    slices = ordered_slices_for_show(task, cursor=cursor, work_first=bool(args.work_first))
+    slices = ordered_slices_for_show(task, claimed_slices=claimed_slices, work_first=bool(args.work_first))
     status_map = slice_status_map(task)
     visible_slices = [
         s for s in slices
@@ -6063,12 +6167,12 @@ def cmd_show(args: argparse.Namespace) -> None:
             i += 1
             continue
 
-        if short and st == "done" and not (cursor and cursor.slice == task_slice.key):
+        if short and st == "done" and task_slice.key not in claimed_slices:
             run_keys: list[str] = []
             while (
                 i < len(slices)
                 and slices[i].status == "done"
-                and not (cursor and cursor.slice == slices[i].key)
+                and slices[i].key not in claimed_slices
             ):
                 if not status_filter or slices[i].status in status_filter:
                     run_keys.append(slices[i].key)
@@ -6079,7 +6183,7 @@ def cmd_show(args: argparse.Namespace) -> None:
             continue
 
         d, t = slice_counts(task_slice)
-        is_current = bool(cursor and cursor.slice == task_slice.key)
+        is_current = task_slice.key in claimed_slices
         status_map_ready = status_map
         is_ready = is_actionable(task_slice, status_map_ready)
         glyph_status = "in_progress" if is_current else st
@@ -6113,7 +6217,7 @@ def cmd_show(args: argparse.Namespace) -> None:
             or (args.started and st not in STATUS_DONE and st != "planned")
         )
         if expand_steps:
-            current_step = cursor.step if is_current and cursor else None
+            current_step = positions[task_slice.key].step if is_current else None
             for step in task_slice.steps:
                 lines.append(
                     step_line(
@@ -6184,9 +6288,10 @@ def _default_coding_policy() -> dict[str, Any]:
     }
 
 
-def _orchestration_for_cursor(cursor: Cursor) -> dict[str, Any]:
+def _fresh_orchestration() -> dict[str, Any]:
+    """No silent claim on create: cursors starts empty; an owner must `claim` explicitly."""
     return {
-        "cursor": {"slice": cursor.slice, "step": cursor.step},
+        "cursors": [],
         "policy": {"coding_execution": _default_coding_policy()},
         "artifacts": {},
     }
@@ -6260,15 +6365,16 @@ def _seed_kind_if_empty(store: TaskStore, task: dict[str, Any], kind: str | None
     return store.read()
 
 
-def _require_seed_cursor(task: dict[str, Any], *, label: str) -> Cursor:
+def _suggest_first_claim(task: dict[str, Any]) -> str:
+    """Human-readable next step after create; no claim is seeded automatically."""
     cursor = seed_cursor(task)
     if cursor is not None:
-        return cursor
+        return f"pi-job claim --slice {cursor.slice} --owner ID"
     if all_slices_done(task):
-        die(f"{label}: task has no actionable slice/step; add slices with pi-job add-slice --kind ...")
-    die(
-        f"{label}: no slice is dependency-satisfied yet; "
-        "check depends_on for a forward reference or cycle among the first slices"
+        return "(task has no actionable slice/step; add slices with pi-job add-slice --kind ...)"
+    return (
+        "(no slice is dependency-satisfied yet; check depends_on for a forward reference "
+        "or cycle among the first slices)"
     )
 
 
@@ -6358,8 +6464,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     if missing_deps:
         die("create: unresolved dependency references:\n" + "\n".join(missing_deps))
     validate_task_mapping(prospective, source=str(input_path))
-    cursor = _require_seed_cursor(prospective, label="create")
-    prospective["orchestration"] = _orchestration_for_cursor(cursor)
+    prospective["orchestration"] = _fresh_orchestration()
     full_task = canonical_task_mapping(prospective, source=str(input_path))
     new_yaml = render_yaml_task(full_task, source=str(input_path))
     if args.dry_run:
@@ -6386,9 +6491,10 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     print(f"created: {task_file}")
     print(f"profile: {PROFILE}")
     print(f"schema: Pydantic {TaskDocument.__name__}")
-    print(f"cursor: {cursor.label()}")
+    print("claim → <none>")
+    print(f"next: {_suggest_first_claim(canonical_repr)}")
     print()
-    print(build_instruction(task_file, canonical_repr, cursor))
+    print(build_plan(task_file, canonical_repr))
     seed_block = build_seed_slice_plans_block(task_file, canonical_repr, assembled_slices)
     if seed_block:
         print()
@@ -6423,18 +6529,17 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
                 ],
                 "final_steps": [],
             }]
-        cursor = _require_seed_cursor(task, label="create")
-        preview = {"orchestration": _orchestration_for_cursor(cursor)}
+        preview = {"orchestration": _fresh_orchestration()}
         print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
         return
     task = _seed_kind_if_empty(store, task, args.kind)
-    cursor = _require_seed_cursor(task, label="create")
-    store.init_orchestration(cursor)
+    store.init_orchestration()
     task = store.read()
     print(f"initialized: {task_file}")
-    print(f"cursor: {cursor.label()}")
+    print("claim → <none>")
+    print(f"next: {_suggest_first_claim(task)}")
     print()
-    print(build_instruction(task_file, task, cursor))
+    print(build_plan(task_file, task))
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -6476,8 +6581,7 @@ def cmd_create(args: argparse.Namespace) -> None:
         print(f"  pi-job --task {task_file} create")
         return
 
-    cursor = _require_seed_cursor(mapping, label="create")
-    mapping["orchestration"] = _orchestration_for_cursor(cursor)
+    mapping["orchestration"] = _fresh_orchestration()
     if suffix in {".yaml", ".yml"}:
         full_task = canonical_task_mapping(mapping, source=str(task_file))
         content = render_yaml_task(full_task, source=str(task_file))
@@ -6494,11 +6598,11 @@ def cmd_create(args: argparse.Namespace) -> None:
         atomic_write_text(task_file, content)
         store = open_task_store(task_file)
         task = store.read()
-        cursor = current_cursor(task) or _require_seed_cursor(task, label="create")
         print(f"created: {task_file}")
-        print(f"cursor: {cursor.label()}")
+        print("claim → <none>")
+        print(f"next: {_suggest_first_claim(task)}")
         print()
-        print(build_instruction(task_file, task, cursor))
+        print(build_plan(task_file, task))
         seed_block = build_seed_slice_plans_block(
             task_file, task, [dict(s) for s in (task.get("plan") or {}).get("slices") or []]
         )
@@ -6510,13 +6614,13 @@ def cmd_create(args: argparse.Namespace) -> None:
     write_and_format(task_file, content)
     store = open_task_store(task_file)
     task = store.read()
-    cursor = _require_seed_cursor(task, label="create")
-    store.init_orchestration(cursor)
+    store.init_orchestration()
     task = store.read()
     print(f"created: {task_file}")
-    print(f"cursor: {cursor.label()}")
+    print("claim → <none>")
+    print(f"next: {_suggest_first_claim(task)}")
     print()
-    print(build_instruction(task_file, task, cursor))
+    print(build_plan(task_file, task))
 
 
 BASELINE_SLICE_FIELDS = {"key", "kind", "title", "goal", "status", "note", "steps", "final_steps"}
@@ -7219,8 +7323,8 @@ def cmd_investigate(args: argparse.Namespace) -> None:
     if not isinstance(store, YamlTaskStore):
         die("investigate requires a YAML task file")
     task = store.read()
-    cursor = current_cursor(task)
-    cursor_label = cursor.label() if cursor else "<unset>"
+    claim = resolve_claim_for_command(task, args, cmd="investigate", required=False)
+    cursor_label = claim_label(task, claim) if claim else "<none>"
     finding_path: Path | None = None
     if note:
         finding_path = store.add_finding(note=note, source=source)
@@ -7251,9 +7355,15 @@ def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
     if not isinstance(store, YamlTaskStore):
         die("acknowledge-edit requires a YAML task file")
     task = store.read()
-    cursor = current_cursor(task)
-    slice_key = cursor.slice if cursor else "<unset>"
-    store.acknowledge_edit(reason=reason)
+    if args.slice:
+        slice_key = args.slice
+        if find_slice(task, slice_key) is None:
+            die(f"slice not found: {slice_key!r}")
+    else:
+        claim = resolve_claim_for_command(task, args, cmd="acknowledge-edit", required=True)
+        assert claim is not None
+        slice_key = claim.slice
+    store.acknowledge_edit(reason=reason, slice_key=slice_key)
     print(
         f"acknowledged out-of-band edit on slice {slice_key}: "
         + reason[:60]
@@ -7273,9 +7383,9 @@ def cmd_remove_slice(args: argparse.Namespace) -> None:
     dependents = [sk for sk in status_map if sk != key and key in slices_map[sk].depends_on]
     if dependents:
         die(f"cannot remove slice {key!r}: other slices depend on it: {', '.join(dependents)}")
-    cursor = current_cursor(task)
-    if cursor and cursor.slice == key:
-        die(f"cannot remove slice {key!r}: orchestration cursor points at it; advance to another slice first")
+    claim = find_claim_by_slice(task, key)
+    if claim is not None:
+        die(f"cannot remove slice {key!r}: {claim.owner} has an active claim on it; release it first")
     store.remove_slice(key=key)
     print(f"removed slice: {key}")
 
@@ -7430,9 +7540,27 @@ def main() -> None:
     create.add_argument("--dry-run", action="store_true", help="print the would-be task (or intent diff) without writing")
     create.set_defaults(fn=cmd_create)
 
+    claim = sub.add_parser(
+        "claim",
+        help="claim a Ready slice for an owner; required before start (one claim per owner, one owner per slice)",
+    )
+    claim.add_argument("--slice", required=True, metavar="KEY", help="Ready slice to claim")
+    claim.add_argument("--owner", help="claim owner identity; defaults to $PI_JOB_OWNER")
+    claim.set_defaults(fn=cmd_claim)
+
+    release = sub.add_parser(
+        "release",
+        help="drop an owner's claim (any claim, not self-only); slice status is unchanged",
+    )
+    release.add_argument(
+        "--owner",
+        help="claim owner to release; defaults to $PI_JOB_OWNER, then the sole active claim",
+    )
+    release.set_defaults(fn=cmd_release)
+
     adv = sub.add_parser(
         "advance",
-        help="walk to the next unfinished step in the current slice, or jump with --slice/--step",
+        help="deprecated: use `claim`/`instruction`; kept only to fail with actionable guidance",
     )
     adv.add_argument("--slice", help="explicit slice key (requires --step)")
     adv.add_argument("--step", help="explicit step key")
@@ -7452,6 +7580,10 @@ def main() -> None:
     start.add_argument("--slice", help="explicit slice key; without --step this targets the slice itself")
     start.add_argument("--step", help="explicit step key (uses the current slice unless --slice is supplied)")
     start.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
+    start.add_argument(
+        "--owner",
+        help="claim owner whose position to act on; defaults to $PI_JOB_OWNER, then the sole active claim",
+    )
     start.set_defaults(fn=cmd_start)
 
     finish = sub.add_parser(
@@ -7463,6 +7595,10 @@ def main() -> None:
     finish.add_argument("--slice", help="explicit slice key; without --step this targets the slice itself")
     finish.add_argument("--step", help="explicit step key (uses the current slice unless --slice is supplied)")
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
+    finish.add_argument(
+        "--owner",
+        help="claim owner whose position to act on; defaults to $PI_JOB_OWNER, then the sole active claim",
+    )
     finish.add_argument(
         "--note",
         help=finish_note_help,
@@ -7598,7 +7734,11 @@ def main() -> None:
     instruction.add_argument(
         "--current",
         action="store_true",
-        help="deprecated no-op; instruction always uses the saved cursor",
+        help="deprecated no-op; instruction always uses the resolved claim's derived position",
+    )
+    instruction.add_argument(
+        "--owner",
+        help="claim owner to emit instructions for; defaults to $PI_JOB_OWNER, then the sole active claim",
     )
     instruction.set_defaults(fn=cmd_instruction)
 
@@ -7675,19 +7815,28 @@ def main() -> None:
         help="optional finding body to append immediately to .plans/_findings.md",
     )
     investigate.add_argument("--source", default="", help="finding source label")
+    investigate.add_argument(
+        "--owner",
+        help="claim owner to report as parked; defaults to $PI_JOB_OWNER, then the sole active claim",
+    )
     investigate.set_defaults(fn=cmd_investigate)
 
     acknowledge_edit = sub.add_parser(
         "acknowledge-edit",
         help=(
             "refresh content digest after a legitimate hand-edit; "
-            "appends --reason to the current cursor slice note"
+            "appends --reason to the target slice note"
         ),
     )
     acknowledge_edit.add_argument(
         "--reason",
         required=True,
-        help="why the out-of-band edit was made (appended to the current slice note)",
+        help="why the out-of-band edit was made (appended to the target slice note)",
+    )
+    acknowledge_edit.add_argument("--slice", help="explicit slice key; defaults to the resolved claim's slice")
+    acknowledge_edit.add_argument(
+        "--owner",
+        help="claim owner whose slice to target; defaults to $PI_JOB_OWNER, then the sole active claim",
     )
     acknowledge_edit.set_defaults(fn=cmd_acknowledge_edit)
 

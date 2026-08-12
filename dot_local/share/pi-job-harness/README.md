@@ -49,16 +49,17 @@ Given a YAML task file and package-local `profile.yaml`, it can:
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
-- `instruction` - emit a deterministic packet for the saved cursor (or pick-next when the slice is exhausted)
-- `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites)
-- `advance` - walk unfinished steps within the current slice, or jump with `--slice`/`--step`; when the slice is exhausted, prints a pick-next packet instead of auto-picking
+- `instruction` - emit a deterministic packet for the claim's derived active step (or pick-next when the claimed slice is exhausted)
+- `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
+- `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
+- `advance` - **deprecated**; always fails with claim/instruction guidance (position is claim + derived step)
 - `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
 - `toolbelt` - list or register planning aids
 - `sync` - print last-recorded slices to re-verify; orchestrator must run live checks (sync never calls gh/Jira)
 - `set-worktree` / `add-pr` - manage worktree paths and pull request records
 - YAML writes store a semantic `orchestration.content_digest`; hand-edits produce a loud warning until `acknowledge-edit --reason`
 
-Same task state should yield the same instruction for the same saved cursor, independent of which model is orchestrating.
+Same task state should yield the same instruction for the same claim/owner, independent of which model is orchestrating.
 
 ## Orchestrator loop
 
@@ -68,18 +69,18 @@ Assumption: a smart orchestrator model keeps calling `pi-job` instead of freelan
 This supersedes any default workspace role such as Product Owner.
 
 1. `pi-job --task <file> status` (and usually `plan` / `show`)
-2. `pi-job --task <file> instruction` (saved cursor, or pick-next when the slice is exhausted)
-3. `pi-job --task <file> start --model <provider/model>`
-4. Do that step in the orchestrator session, or launch a subagent when the packet says so
-5. Record evidence / decisions / blockers, then run `finish [--note ...]`
-6. `pi-job --task <file> advance` (within-slice) or, after pick-next: `show` → choose Ready → `advance --slice/--step`
-7. Repeat until pick-next / status reports all slices done
+2. `pi-job --task <file> claim --slice KEY --owner ID` (Ready slice; one claim per owner)
+3. `pi-job --task <file> instruction` (derived active step, or pick-next when exhausted)
+4. `pi-job --task <file> start --model <provider/model>`
+5. Do that step in the orchestrator session, or launch a subagent when the packet says so
+6. Record evidence / decisions / blockers, then run `finish [--note ...]`
+7. Repeat from `instruction`; on pick-next: `finish --slice-only` → `show` → claim next Ready → `instruction`
 
 During every step, capture discovered future work, revisitable issues, technical debt, and unresolved doubts as explicit bounded slices with the appropriate kind and dependencies.
 Do not leave actionable follow-up work only in notes.
 
-`pi-job` answers "what is the saved cursor?" and "how should this step run?" when asked.
-Across slices it lists Ready candidates; the orchestrator chooses.
+`pi-job` answers "who holds which claim?" and "how should this step run?" when asked.
+Across slices it lists Ready candidates; agents claim independently (parallel owners allowed).
 The orchestrator owns model choice, tool use, and whether to keep consulting the harness.
 
 ## Picture
@@ -88,8 +89,8 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
   human / capture
         |
         v
-  YAML task file <----------------------------- advance (atomic rewrite)
-  (concrete work: slices, steps, status, evidence, cursor {slice, step})
+  YAML task file <----------------------------- claim/release/finish (atomic rewrite)
+  (concrete work: slices, steps, status, evidence, cursors[{owner,slice,…}])
         |
         | strict Pydantic validation
         v
@@ -109,7 +110,7 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
 
 ## Concepts: task file vs contract catalogs
 
-The task file stores **concrete work**: slice keys, titles, goals, per-step status and notes, decisions, artifacts, repo work, and the saved cursor.
+The task file stores **concrete work**: slice keys, titles, goals, per-step status and notes, decisions, artifacts, repo work, and owned claims.
 The contract file stores **reusable live meaning**: step owners, guidance, validators, artifact gates, slice-kind policies, and default step templates for new slices.
 Old tasks pick up contract updates without rewriting step bodies because metadata is looked up by step key at runtime.
 
@@ -126,17 +127,17 @@ task.plan.slices[]                             slice_kinds: setup | implement | 
     key ───────────────────────────────►         artifact_gates, skip_rule
   repo_work, decisions, artifacts
 
-task.orchestration.cursor                      toolbelt: aids keyed by suits: [slice kinds]
-  slice, step  (no phase, no profile)
+task.orchestration.cursors[]                   toolbelt: aids keyed by suits: [slice kinds]
+  owner, slice, claimed_at, last_seen
+  (active step = first non-terminal in slice)
 
 WALK ORDER
 ══════════
-Within a slice: advance walks steps[], then final_steps[] (linear).
-Across slices: the orchestrator picks among Ready slices (depends_on satisfied,
-unfinished, not blocked) via `pi-job show`, then `advance --slice/--step`.
-Array order of plan.slices is not execution order.
-When the current slice has no unfinished steps, advance/instruction inject a
-pick-next packet instead of inventing a Next cursor.
+Within a claimed slice: derived active step is first non-terminal in steps[] then final_steps[].
+Across slices: agents claim among Ready slices (depends_on satisfied, unfinished, not blocked)
+via `pi-job show` then `claim --slice/--owner`. Array order of plan.slices is not execution order.
+When the claimed slice has no unfinished steps, instruction injects a pick-next packet;
+`finish --slice-only` auto-releases the claim.
 Closing work is a closing slice in the plan, not a post-slice phase tail.
 When every slice is done/skipped, pick-next reports done.
 ```
@@ -150,7 +151,7 @@ Typical slice layout for an end-to-end implementation task:
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
 ```
 
-Cursor example: `{slice: "wire-api", step: "grill-plan"}`.
+Claim example: `{owner: "agent-a", slice: "wire-api", …}` with derived step `grill-plan`.
 
 ### Custom step keys
 
@@ -163,8 +164,8 @@ Add a contract entry when a step key should carry shared enforcement text.
 
 **Guards** are code paths that can refuse a command:
 
-1. `blocking_incomplete_step()` - `advance` cannot move past an incomplete current step unless `--force --reason`
-2. `dependency_satisfied()` / `is_actionable()` - Ready frontier skips slices whose `depends_on` are not done/skipped; cross-slice moves require explicit `--slice/--step`
+1. Claim eligibility (`is_actionable` + non-stale occupancy) - `claim` refuses non-Ready or fresh-foreign claims
+2. `dependency_satisfied()` / `is_actionable()` - Ready frontier skips slices whose `depends_on` are not done/skipped
 3. `enforce_owner_policy()` - dies when owner is subagent but slice-kind coding policy forbids it without a recorded exception
 4. `blocking_execution_policy()` - enforces user-decision and distinct-model policies declared by the current step kind
 
@@ -405,15 +406,18 @@ These commands do not require `--task`.
 - `pi-job kinds list [--json]` - list all slice kinds with their step templates. `--json` dumps the full slice_kinds catalog.
 - `pi-job kinds show <kind> [--json]` - show one slice kind's details including expanded step entries (title, owner). `--json` adds resolved step metadata.
 
-### advance
+### claim / release
 
-- Fails closed when the saved cursor's step is not `done`/`skipped` (unless jumping with `--slice`/`--step`).
-- `--force --reason '<why>'` marks the current step skipped before advancing within the slice.
-- `--resync --reason '<why>'` realigns the cursor within the current slice without changing step status; mutually exclusive with `--force`.
-  Fails closed when that would stay on the same unfinished step (pass explicit `--slice`/`--step` instead).
-- Omit `--slice`/`--step` to walk to the next unfinished step in the current slice.
-  When the slice is exhausted, prints a pick-next packet (orchestrator chooses via `show`).
-- Use `--slice` and `--step` to jump to a Ready slice explicitly.
+- `claim --slice KEY --owner ID` takes a Ready slice (deps satisfied, not terminal) with no active non-stale claim.
+- One claim per owner; stale foreign claims may be displaced (default TTL 24h via `orchestration_defaults.claim_stale_after_hours`).
+- `release --owner ID` drops any claim (not self-only); mid-slice release leaves slice status unchanged.
+- `finish --slice-only` to a terminal slice status auto-releases the claim on that slice.
+- Owner may also come from `$PI_JOB_OWNER`; omit when there is exactly one active claim.
+
+### advance (deprecated)
+
+- Always fails with guidance to `claim` / `instruction` / `finish --slice-only`.
+- Position is the owned claim plus the slice's first non-terminal step; there is no stored step cursor to move.
 
 ### Execution lifecycle
 
@@ -428,14 +432,14 @@ execution:
 
 - Model IDs should be fully qualified as `provider/model` so model-separation checks are meaningful.
 - Timestamps are generated by `pi-job` as UTC ISO 8601 values.
-- With no target flags, lifecycle commands operate on the saved cursor step.
-- `--slice-only` targets the current slice; `--slice K` targets another slice; add `--step K` to target one of its steps.
+- With no target flags, lifecycle commands operate on the claim's derived active step (`--owner` / `$PI_JOB_OWNER` / sole claim).
+- `--slice-only` targets the claimed (or explicit `--slice`) slice; `--slice K` targets another slice; add `--step K` to target one of its steps.
 - Start the slice with the orchestrator model, then start and finish each step with the model that directly performs it.
 - `finish --skip --model <id> --reason '<why>'` records an atomic skip when no prior `start` exists.
 - `finish --note '<evidence>'` appends completion evidence with a blank line when a note already exists; omitted preserves the existing note.
 - `finish --replace --note '<evidence>'` overwrites the existing note instead of appending (`--replace` requires `--note` and cannot combine with `--skip`).
 - `finish --reconcile --model <id> --note '<evidence>'` records completion for an `in_progress` target that was never started via pi-job; refuses `planned`/`done`/`skipped`.
-- When more than one unfinished step exists anywhere in the task, finishing a step requires explicit `--slice` and `--step` (bare cursor finish is allowed only when exactly one unfinished step remains).
+- When more than one unfinished step exists anywhere in the task, finishing a step requires explicit `--slice` and `--step` (bare claim finish is allowed only when exactly one unfinished step remains).
 - Normal `finish` without `--reconcile` still requires a prior `start` (unless `--skip`).
 - `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice` first for slice-level blocks.
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
@@ -714,10 +718,10 @@ Profile models document configuration layering, artifact rules and gates, toolbe
 
 What `pi-job` cares about most:
 
-- `orchestration` - must exist after `create`; holds cursor, policy, and artifacts
-- `orchestration.cursor` - saved resume point `{slice, step}` only
+- `orchestration` - must exist after `create`; holds cursors, policy, and artifacts
+- `orchestration.cursors[]` - owned claims `{owner, slice, claimed_at, last_seen}` (hard cut; no single `cursor`)
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
-- `plan.slices[].steps` plus `final_steps` - what within-slice `advance` walks
+- `plan.slices[].steps` plus `final_steps` - sequential work; active step is derived as first non-terminal
 - `decisions` and `orchestration.artifacts` - durable notes and artifact gates
 
 ## Agent dev notes

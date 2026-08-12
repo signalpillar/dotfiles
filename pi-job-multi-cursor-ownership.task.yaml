@@ -1,0 +1,543 @@
+# Managed by pi-job. Prefer pi-job commands over manual edits.
+# Validate emergency edits with: pi-job --task <this-file> validate
+title: pi-job multi-cursor ownership
+status: planned
+source:
+  jira: ''
+  discovered: ''
+  context: Short discovery note for why this task exists.
+project:
+  key: ''
+  name: ''
+  route: ''
+  context: ''
+context: 'Problem: a single saved cursor blocks parallel agents on independent Ready slices.
+
+
+  Need:
+
+  - More than one cursor per task, with ownership
+
+  - Agent creates its own cursor when it starts working on a slice; releases when the slice work is done,
+  or when the agent is done with the task
+
+  - Definition of done working with the task: user asks to remove the cursor
+
+  - Stale cursors concept (abandoned/orphaned ownership)
+
+  - Agent is free to create its own cursor for its own identity (identity TBD)
+
+  - Multiple agents create/release cursors independently
+
+
+  Goal: enable multiple agents to work in parallel on independent slices in one task.'
+orchestration:
+  cursors: []
+  policy:
+    coding_execution:
+      subagent_required: true
+      lower_power_model_preferred: true
+      orchestrator_reviews_subagent: true
+      exceptions: []
+  artifacts: {}
+  content_digest: 6dfc54ab8fa7c588db32f2ce64c52f9153f51ad00e2ac4af50ca69a85e829cf0
+decisions:
+- date: '2026-08-11'
+  note: 'Claim unit: one owner per slice. Slices are sequential; a cursor owns a whole slice, not a step
+    inside it.'
+  source: clarify-scope 2026-08-11
+- date: '2026-08-11'
+  note: 'Owner identity: agent-chosen. Explore whether pi-job can offer a stable default owner id derived
+    from session signals (e.g. cwd, parent pid); not required that agents use it.'
+  source: clarify-scope 2026-08-11
+- date: '2026-08-11'
+  note: 'Release: auto-release when slice work completes (finish/done path), plus explicit release (user
+    asks to remove cursor / agent done with task).'
+  source: clarify-scope 2026-08-11
+- date: '2026-08-11'
+  note: 'Stale cursors: status flags plus optional TTL-based staleness. Reclaim/force-release is a later
+    detail under that model.'
+  source: clarify-scope 2026-08-11
+- date: '2026-08-11'
+  note: 'Compatibility: no single-cursor compatibility shim required. Hard cut to multi-cursor with ownership.'
+  source: clarify-scope 2026-08-11
+- date: '2026-08-11'
+  note: 'Cursor binding: mutating commands and disambiguating reads take `--owner <id>` (optional env
+    default `PI_JOB_OWNER`). One active claim per owner; claim record is `{owner, slice, step, claimed_at,
+    last_seen}`. No separate cursor UUID for v1.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Claim lifecycle: explicit `claim --slice KEY --owner ID` before start. Mutating commands refuse
+    if the owner has no claim or the claim''s slice mismatches. Auto-release on slice completion; `release
+    --owner` for explicit drop. No silent claim inside start.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Auto-release: drop the owner''s claim when the claimed slice reaches terminal status (done or
+    skipped). Mid-slice `release --owner` abandons the claim only; slice state is unchanged and the slice
+    becomes claimable again.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Claim eligibility: only Ready slices (deps satisfied, not terminal) with no active non-stale
+    claim. A stale claim does not block; a new claim displaces it (previous owner may still be around;
+    that is accepted). Surface displacement clearly in status/output.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Staleness: mutating commands for an owner bump `last_seen`. A claim is stale when `now - last_seen
+    > TTL`. Default TTL is 24h in the profile (overridable later). status/show flag stale claims. No heartbeat
+    daemon in v1.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Hard cut: replace `orchestration.cursor` with `orchestration.cursors`. No read-path shim and
+    no migrate-task conversion for legacy single-cursor files. Stop using the old field; that is the whole
+    compatibility story.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Owner identity helper: deferred. v1 requires explicit `--owner` or `PI_JOB_OWNER`. No cwd/ppid
+    auto-id on the critical path; optional suggest command only if friction appears later.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Release authority: `release --owner ID` may drop any claim (not self-only). User/orchestrator
+    can clear non-stale stuck claims immediately. Stale displacement on claim remains the unattended path.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Delivery shape: develop directly on master in this chezmoi/harness tree. No feature branches,
+    worktrees, or PRs for this effort. Skip share-with-team / set-worktree / add-pr paths; verify and
+    land in-tree.'
+  source: wayfinder grill 2026-08-11
+- date: '2026-08-11'
+  note: 'Owner resolution: `--owner` / `PI_JOB_OWNER` preferred but not mandatory when the target claim
+    is unambiguous (e.g. exactly one active claim). Do not force owner on every mutating call; stay out
+    of the agent''s way.'
+  source: grill-plan 2026-08-11
+- date: '2026-08-11'
+  note: 'One claim per owner: an owner may hold at most one active claim. A second `claim` while another
+    claim is held refuses until `release` or auto-release of the first.'
+  source: grill-plan 2026-08-11
+- date: '2026-08-11'
+  note: SUPERSEDES earlier claim shape that included step. Owned claim is `{owner, slice, claimed_at,
+    last_seen}` only. Active step is derived as the claimed slice's first non-terminal step. No stored
+    step on the cursor for v1.
+  source: grill-plan 2026-08-11
+- date: '2026-08-11'
+  note: No advance in the multi-cursor agent loop. Position is claim + derived first non-terminal step.
+    After finish, continue with instruction/start on the new first non-terminal; when the slice is terminal,
+    claim auto-releases and the next Ready slice is claimed. Remove or leave advance unused pending cleanup;
+    do not require it after finish.
+  source: grill-plan 2026-08-11
+plan:
+  note: 'Destination: multi-owned cursors in pi-job so parallel agents claim independent Ready slices,
+    mutate via --owner / PI_JOB_OWNER, auto-release on slice terminal, and release or stale-displace stuck
+    claims. Hard cut off single orchestration.cursor. Land on master only (no branches/worktrees/PRs).'
+  slices:
+  - key: fog-slice
+    kind: fog
+    title: Multi-cursor ownership
+    goal: Chart how pi-job supports multiple owned cursors so parallel agents can work independent Ready
+      slices, including create/release lifecycle, user-driven release, stale cursors, and agent identity.
+    status: done
+    note: Fog charted; implement frontier is cursor-model-cli.
+    execution:
+      model: cursor/grok-4.5
+      started: '2026-08-11T21:06:39.159249Z'
+      ended: '2026-08-11T21:44:50.543955Z'
+    repos: []
+    depends_on: []
+    repo_work: {}
+    steps:
+    - key: clarify-scope
+      title: Clarify scope
+      status: done
+      note: 'Clarified blocking scope with user:
+
+        1) one owner owns one whole slice (sequential steps inside slice)
+
+        2) agent picks identity; optional pi-job-suggested stable id (cwd/ppid) TBD in wayfinder
+
+        3) auto-release on slice completion + explicit release
+
+        4) stale = status flags + maybe TTL
+
+        5) no single-cursor compat required'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T21:06:39.391650Z'
+        ended: '2026-08-11T21:21:24.726994Z'
+    - key: wayfinder
+      title: Chart the fog
+      status: done
+      note: 'Charted map after grill. Destination locked in plan note. Slices added: cursor-model-cli
+        (implement), harness-docs-skill (implement, depends on cursor-model-cli), closing (depends on
+        both). Out of scope: auto owner-id helper, single-cursor compat/migrate, heartbeat daemon, branches/worktrees/PRs.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T21:21:58.923588Z'
+        ended: '2026-08-11T21:43:53.970802Z'
+    - key: plan-slices
+      title: Plan slices
+      status: done
+      note: 'Seeded implement plans from locked decisions:
+
+        - pi-job-multi-cursor-ownership.task.plans/cursor-model-cli.md
+
+        - pi-job-multi-cursor-ownership.task.plans/harness-docs-skill.md
+
+        Slices already present: cursor-model-cli, harness-docs-skill (depends), closing (depends). Master-only
+        delivery recorded.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T21:44:04.839954Z'
+        ended: '2026-08-11T21:44:39.534920Z'
+    - key: pi-job-feedback
+      title: Record pi-job feedback
+      status: done
+      note: Recorded finish-ambiguity friction in ~/pi-job.feedback.yml
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T21:44:50.093475Z'
+        ended: '2026-08-11T21:44:50.316804Z'
+    final_steps: []
+  - key: cursor-model-cli
+    kind: implement
+    title: Cursor model and CLI
+    goal: Replace orchestration.cursor with owned cursors[]; add claim/release; wire --owner and PI_JOB_OWNER
+      through start/finish/advance/instruction; auto-release on slice terminal; stale via last_seen with
+      24h profile TTL; update status/show. Land on master; no branch/worktree/PR.
+    status: done
+    note: 'Hand-edit acknowledged: Hard-cut orchestration.cursor to cursors[] claim for continuing edit-code
+      on master
+
+
+      cursor-model-cli complete on master; claim auto-release expected'
+    execution:
+      model: cursor/grok-4.5
+      started: '2026-08-11T21:45:04.736396Z'
+      ended: '2026-08-12T08:04:42.419572Z'
+    repos:
+    - pi-job-harness
+    depends_on: []
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: done
+      note: 'Plan file: pi-job-multi-cursor-ownership.task.plans/cursor-model-cli.md'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T21:45:04.963830Z'
+        ended: '2026-08-11T21:45:15.351822Z'
+    - key: grill-plan
+      title: Grill the plan file
+      status: done
+      note: 'Grill survived. Locked: claim shape without step; derived first non-terminal; no advance
+        in agent loop; owner omit when unambiguous; one claim per owner; Ready-only claim + stale displace;
+        auto-release on slice terminal; hard cut; master-only. Reviewed current step/slice status machines;
+        claim layer is orthogonal. Plan file updated.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T21:45:15.798823Z'
+        ended: '2026-08-11T22:22:51.822285Z'
+    - key: edit-code
+      title: Edit code
+      status: done
+      note: 'Landed multi-owned cursors on master (chezmoi source + chezmoi apply).
+
+
+        - orchestration.cursors[] of {owner, slice, claimed_at, last_seen}; hard cut off cursor
+
+        - claim / release CLI; advance deprecated stub
+
+        - owner via --owner / PI_JOB_OWNER / sole-claim omit
+
+        - Ready-only claim; stale displace (24h profile TTL); auto-release on finish --slice-only terminal
+
+        - status/show list claims with derived first non-terminal step
+
+        - tests: uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py → passed
+
+        - this task YAML converted to cursors[] + acknowledge-edit
+
+
+        Master-only; no worktree/PR.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-11T22:22:52.341650Z'
+        ended: '2026-08-12T07:53:54.830852Z'
+    - key: verify
+      title: Verify
+      status: done
+      note: 'Verified against chezmoi source:
+
+
+        ```
+
+        cd dot_local/share/pi-job-harness
+
+        uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
+
+        # → pi-job tests passed
+
+        ```
+
+
+        Also: claim/release/stale/owner-omit/auto-release unit coverage added; live `pi-job status` on
+        this task shows `Cursors: cursor/grok-4.5 → cursor-model-cli / …` after hard-cut conversion; `chezmoi
+        apply` refreshed `~/.local/share/pi-job-harness`.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T07:54:02.856532Z'
+        ended: '2026-08-12T07:54:03.145972Z'
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: done
+      note: 'Independent security review (security-review subagent, model anthropic/claude-sonnet-4.5
+        ≠ edit-code cursor/grok-4.5) on uncommitted harness multi-cursor diff.
+
+
+        Verdict: no medium/high/critical findings under local-CLI / shared task-YAML threat model.
+
+
+        Examined: claim race under exclusive flock; stale displace; owner spoofing / PI_JOB_OWNER; release-any-owner;
+        --slice bypass of claim; YAML/path injection via --owner/--slice; schema duplicate-cursor hand-edits;
+        profile TTL.
+
+
+        Accepted design (not defects): owner id is self-asserted coordination metadata; release/claim/--slice
+        are advisory locks among co-writers with equal file access; unparseable last_seen treated stale;
+        pick-next does not bump last_seen (TTL can expire while parked).
+
+
+        No code changes required from this scan.'
+      execution:
+        model: anthropic/claude-sonnet-4.5
+        started: '2026-08-12T08:02:25.225620Z'
+        ended: '2026-08-12T08:04:22.494676Z'
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: skipped
+      note: 'User declined: master-only delivery; no ticket/PR/worktree for this harness change (decision
+        2026-08-11 Delivery shape).'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:31.571645Z'
+        ended: '2026-08-12T08:04:31.571645Z'
+    - key: update-task-file
+      title: Update this task file
+      status: done
+      note: Task already on cursors[] with claim cursor/grok-4.5 → cursor-model-cli. Slice progress updated
+        via finish notes. No further store shape changes needed for this slice.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:31.913681Z'
+        ended: '2026-08-12T08:04:32.196492Z'
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: skipped
+      note: 'User declined: no PR opened (master-only); nothing to wait on.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:32.463093Z'
+        ended: '2026-08-12T08:04:32.463093Z'
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: skipped
+      note: 'User declined: harness CLI unit suite is the acceptance evidence; no product e2e surface.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:32.721181Z'
+        ended: '2026-08-12T08:04:32.721181Z'
+    - key: ready-for-release
+      title: Mark the ticket Ready for Release
+      status: skipped
+      note: 'User declined: master-only land in chezmoi; no release train.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:32.980986Z'
+        ended: '2026-08-12T08:04:32.980986Z'
+    - key: pi-job-feedback
+      title: Record pi-job feedback
+      status: done
+      note: Appended hard-cut migration + finish --slice-only pick-next feedback to ~/pi-job.feedback.yml
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:41.883686Z'
+        ended: '2026-08-12T08:04:42.166466Z'
+    final_steps: []
+  - key: harness-docs-skill
+    kind: implement
+    title: Harness docs and skill
+    goal: Update README, profile, and pi-job skill orchestrator loop for multi-cursor claim/release/owner
+      binding. Depends on cursor-model-cli. Land on master; no branch/worktree/PR.
+    status: done
+    note: harness-docs-skill done on master
+    execution:
+      model: cursor/grok-4.5
+      started: '2026-08-12T08:04:48.014479Z'
+      ended: '2026-08-12T08:07:25.564343Z'
+    repos:
+    - pi-job-harness
+    depends_on:
+    - cursor-model-cli
+    repo_work: {}
+    steps:
+    - key: create-plan
+      title: Create plan
+      status: done
+      note: 'Plan file: pi-job-multi-cursor-ownership.task.plans/harness-docs-skill.md'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:04:59.886162Z'
+        ended: '2026-08-12T08:05:00.427784Z'
+    - key: grill-plan
+      title: Grill the plan file
+      status: done
+      note: Grill survives without new product decisions. Docs/skill must mirror locked claim/release/--owner/auto-release/stale/hard-cut/no-advance
+        behaviour; no new scope. Plan file already encodes that contract.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:05:00.801745Z'
+        ended: '2026-08-12T08:05:01.137624Z'
+    - key: edit-code
+      title: Edit code
+      status: done
+      note: 'Updated docs/skill for multi-cursor:
+
+        - dot_agents/skills/pi-job/SKILL.md (claim/release loop; advance deprecated)
+
+        - dot_local/share/pi-job-harness/README.md (cursors[], claim/release, deprecated advance, lifecycle)
+
+        - AGENTS.md (claim → instruction/start/finish; finish --slice-only on pick-next)
+
+        - profile.yaml already updated in cursor-model-cli
+
+        chezmoi apply for skill + README + AGENTS.md'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:05:01.441314Z'
+        ended: '2026-08-12T08:07:20.953198Z'
+    - key: verify
+      title: Verify
+      status: done
+      note: 'Spot-check: applied skill/README mention claim/release; pi-job claim --help and status on
+        this task show Cursors line.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:22.000578Z'
+        ended: '2026-08-12T08:07:22.368015Z'
+    - key: vulnerability-scan
+      title: Run an independent vulnerability scan
+      status: skipped
+      note: 'User declined vulnerability-scan: User declined: docs/skill-only change; security review
+        already done on cursor-model-cli code.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:22.728262Z'
+        ended: '2026-08-12T08:07:22.728262Z'
+    - key: share-with-team
+      title: 'Share with team: ticket + PR for this slice''s repo'
+      status: skipped
+      note: 'User declined: master-only; no PR.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:23.044090Z'
+        ended: '2026-08-12T08:07:23.044090Z'
+    - key: update-task-file
+      title: Update this task file
+      status: done
+      note: Docs slice landed; task already on cursors[].
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:23.394200Z'
+        ended: '2026-08-12T08:07:23.699117Z'
+    - key: wait-for-feedback
+      title: 'Wait for team feedback: loop on PR review until merged'
+      status: skipped
+      note: 'User declined: no PR.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:23.991411Z'
+        ended: '2026-08-12T08:07:23.991411Z'
+    - key: e2e-evidence
+      title: Provide e2e/acceptance evidence or record the gap
+      status: skipped
+      note: 'User declined: docs-only.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:24.294250Z'
+        ended: '2026-08-12T08:07:24.294250Z'
+    - key: ready-for-release
+      title: Mark the ticket Ready for Release
+      status: skipped
+      note: 'User declined: master-only.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:24.599887Z'
+        ended: '2026-08-12T08:07:24.599887Z'
+    - key: pi-job-feedback
+      title: Record pi-job feedback
+      status: done
+      note: Appended skill/README sync recommendation to ~/pi-job.feedback.yml
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:24.880525Z'
+        ended: '2026-08-12T08:07:25.164543Z'
+    final_steps: []
+  - key: closing
+    kind: closing
+    title: Close multi-cursor ownership
+    goal: Close out the multi-cursor ownership effort after cursor-model-cli and harness-docs-skill land
+      on master.
+    status: done
+    note: multi-cursor ownership effort closed on master
+    execution:
+      model: cursor/grok-4.5
+      started: '2026-08-12T08:07:34.659033Z'
+      ended: '2026-08-12T08:07:50.221483Z'
+    repos: []
+    depends_on:
+    - cursor-model-cli
+    - harness-docs-skill
+    repo_work: {}
+    steps:
+    - key: update-test-plan
+      title: Update the test plan
+      status: done
+      note: 'N/A: no PRD test-case table; acceptance is harness unit suite (executable_test_pi_job.py
+        passed) plus claim/release smoke on this task.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:47.302207Z'
+        ended: '2026-08-12T08:07:47.602671Z'
+    - key: update-docs
+      title: Update documentation
+      status: done
+      note: README + pi-job skill + AGENTS.md updated for cursors[] / claim loop; profile packets already
+        claim-oriented.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:47.890785Z'
+        ended: '2026-08-12T08:07:48.184348Z'
+    - key: capture-metrics
+      title: Capture metrics to watch
+      status: done
+      note: 'N/A: no product metrics; regression suite green; claim auto-release verified on two slices.'
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:48.464700Z'
+        ended: '2026-08-12T08:07:48.756267Z'
+    - key: update-task-file
+      title: Update this task file
+      status: done
+      note: Closing out; all implement slices done on master.
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:49.044392Z'
+        ended: '2026-08-12T08:07:49.322281Z'
+    - key: pi-job-feedback
+      title: Record pi-job feedback
+      status: done
+      note: Appended chezmoi dirty-destination TTY gotcha to ~/pi-job.feedback.yml
+      execution:
+        model: cursor/grok-4.5
+        started: '2026-08-12T08:07:49.615776Z'
+        ended: '2026-08-12T08:07:49.936992Z'
+    final_steps: []

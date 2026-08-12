@@ -4,6 +4,8 @@ config_layering:
   user_defaults: true
   repo_overrides: true
   precedence: repo-over-user
+orchestration_defaults:
+  claim_stale_after_hours: 24
 artifact_rules:
   decision_review_deck:
     key: decision_review_deck
@@ -215,8 +217,7 @@ sync_pipeline_instructions: |-
     2. verify - gh pr view <url> + optional git merge-base --is-ancestor <sha> main
     3. add-pr --status merged|closed if the PR state changed
     4. finish --note '<append-style evidence>' to record what was found
-    5. advance to move past the verified step when the current step is complete
-    6. Jira ticket status update if applicable
+    5. Jira ticket status update if applicable
   Do not report this list to the user as current status until step 2 has run for every open PR
   (and every listed in_progress/blocked slice has been checked).
 cli_help:
@@ -236,7 +237,7 @@ cli_help:
       When more than one unfinished step exists, pass --slice KEY --step KEY.
 instruction_packets:
   todo_tracking: |-
-    - Align session todos with `pi-job plan`; set cursor {cursor} in_progress until step gates pass or skip is recorded.
+    - Align session todos with `pi-job plan`; set claim {cursor} in_progress until step gates pass or skip is recorded.
   future_work: |-
     - Spawn a new slice for follow-up work; do not bury actionable items in notes only.
   record_results_intro: |-
@@ -246,7 +247,7 @@ instruction_packets:
     The task record is machine-owned; do not open or edit the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
     Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction.
-    Writes: pi-job mutation commands (start, finish [--replace], advance, add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
+    Writes: pi-job mutation commands (claim, release, start, finish [--replace], add-slice, add-step, set-slice, block-slice, unblock-slice, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
     Write notes and decisions as Markdown so `pi-job markdown` can render them formatted (decisions as blockquotes; context/notes as Markdown prose or quotes).
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
     Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
@@ -254,41 +255,43 @@ instruction_packets:
     Full channel map: pi-job channels (or pi-job channels --step KEY for one step).
   next_action: |-
     Do not wait for another user prompt.
-    1. If the current slice has no execution metadata: `pi-job --task TASK_FILE start --slice-only --model <orchestrator-model-id>`
-    2. `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`
-    3. Execute cursor {cursor} per this packet
-    4. `pi-job --task TASK_FILE finish` with evidence, then `pi-job --task TASK_FILE advance`, then `pi-job --task TASK_FILE instruction`
-    5. If advance/instruction emits a pick-next packet: run `pi-job show`, choose a Ready slice, `advance --slice KEY --step STEP`, then `instruction`
+    1. No claim: `pi-job --task TASK_FILE claim --slice KEY --owner ID` (pick Ready from `show`)
+    2. Slice lacks execution metadata: `pi-job --task TASK_FILE start --slice-only --model <orchestrator-model-id>`
+    3. `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`
+    4. Execute cursor {cursor} per this packet
+    5. `pi-job --task TASK_FILE finish` with evidence, then `instruction`
+    6. Pick-next packet: `finish --slice-only`, `show`, claim a Ready slice, `instruction`
     Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
   pick_next_slice: |-
-    The current slice has no unfinished steps (or the cursor is not on actionable work).
+    Your claimed slice has no unfinished steps.
     Array order of plan.slices is not execution order - you choose among Ready slices.
-    1. Run `pi-job --task TASK_FILE show` and inspect Ready-marked slices
-    2. Choose one Ready slice (deps satisfied; unfinished)
-    3. `pi-job --task TASK_FILE advance --slice KEY --step STEP` (first unfinished step of that slice)
-    4. `pi-job --task TASK_FILE instruction`
+    1. If the slice itself is not yet done/skipped: `pi-job --task TASK_FILE finish --slice-only` (auto-releases your claim)
+    2. Run `pi-job --task TASK_FILE show` and inspect Ready-marked slices
+    3. Choose one Ready slice (deps satisfied; unfinished) and claim it: `pi-job --task TASK_FILE claim --slice KEY --owner {owner}`
+    4. `pi-job --task TASK_FILE instruction --owner {owner}`
     Do not wait for the user. If Ready is empty and the task is not done, record a blocker or fix depends_on.
     If the task is done, stop.
   orchestrator: |-
     - Role: orchestrator (CLI-only for the store). Supersedes any default workspace role (e.g. Product Owner) while this task is active.
     - Enter the orchestrator loop immediately after this packet (including right after create, or instruction).
     - Do not wait for the user to say "continue".
-    - Loop: start → execute this step → finish with evidence → advance → instruction.
-    - When a slice is exhausted: follow the pick-next packet (show → choose Ready → advance --slice/--step → instruction).
+    - Before starting work, claim a slice: `pi-job claim --slice KEY --owner ID`.
+    - Loop: start → execute this step → finish with evidence → instruction.
+    - When a slice is exhausted: follow the pick-next packet (finish --slice-only → show → claim a new Ready slice → instruction).
     - Pause only when the step requires a user decision, grill/clarify answers, or a recorded blocker.
     - Execute this step in the main orchestration session.
     - Do not skip required artifacts or validators from the task contract.
-    - Run pi-job advance only after the step evidence is recorded or a blocker is written down.
+    - Run pi-job finish only after the step evidence is recorded or a blocker is written down.
   subagent_orchestrator: |-
     - Choose an appropriate lower-cost model using judgement for the coding/subagent pass.
     - Run this step in a subagent.
     - Give the subagent the prompt below exactly, plus any runtime tool context it needs.
     - Tell the subagent to run first: pi-job --task TASK_FILE markdown --slice SLICE_KEY --with-decisions
     - Do not paste a decisions dump into the subagent prompt; the markdown --slice --with-decisions read loads binding decisions.
-    - Review the subagent result before running pi-job advance.
+    - Review the subagent result before running pi-job finish.
       Prefer a higher-reasoning model for that review pass than the subagent used to write
       the change (spot incorrect assumptions, missed edge cases, and unsafe defaults).
-    - After review, continue the orchestrator loop (finish → advance → instruction); do not wait for "continue".
+    - After review, continue the orchestrator loop (finish → instruction); do not wait for "continue".
   subagent_prompt: |-
     This packet is your execution context; do not inspect the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
@@ -301,7 +304,7 @@ instruction_packets:
     For sibling-step evidence in this slice after decisions are loaded, run: pi-job --task TASK_FILE show --slice SLICE_KEY
     Execute only cursor {cursor}.
     Return changed files, commands run, verification evidence, and unresolved risks.
-    Do not advance the task record unless this cursor step explicitly asks for task-record updates.
+    Do not finish/claim the task record unless this cursor step explicitly asks for task-record updates.
   plan_todo: |-
     - Use the session todo capability to track this task plan.
     - Create one todo per slice (or per step when helpful).
@@ -310,8 +313,8 @@ instruction_packets:
   out_of_band_edit_warning: |-
     warning: task file semantic content does not match the last pi-job write digest.
     Prefer pi-job mutation commands over hand-edits (see pi-job --help; Writes in the task-record discipline packet).
-    For a legitimate hand-edit run: pi-job --task {task_file} acknowledge-edit --reason '<why>'
-    (appends the reason to the current cursor slice note and refreshes the digest; not a decision).
+    For a legitimate hand-edit run: pi-job --task {task_file} acknowledge-edit --reason '<why>' [--slice KEY]
+    (appends the reason to the target slice's note and refreshes the digest; not a decision).
   missing_task_hint: |-
     task store not found: {task_file}
     create and initialize one with:
@@ -371,17 +374,17 @@ instruction_packets:
     Append-only RCA / evidence log for this task.
     Do not put long findings in the task YAML.
   status_interrupt_hint: >-
-    Cursor parked (user-decision); interrupt work OK via investigate / add-finding / add-slice / block-slice
+    A claim is parked on a user-decision step; interrupt work OK via investigate / add-finding / add-slice / block-slice
   investigate_interrupt: |-
     PI-JOB INVESTIGATE (interrupt)
 
     Task file: {task_file}
-    Saved cursor: {cursor_label} (do not advance / finish / claim it)
+    Active claim: {cursor_label} (do not finish/release it for this investigation)
     Topic: {topic}
 
     Rules:
-    - This is side work against the task; the parked cursor stays parked.
-    - Do not run advance/finish/start on the saved cursor for this investigation.
+    - This is side work against the task; any active claim stays parked as-is.
+    - Do not run finish/release/start on the active claim for this investigation.
     - Record RCA/evidence with: pi-job --task {task_file} add-finding --note '...'
       (appends to {pointer}; never long YAML).
     - Product/scope agreements still use add-decision (prefer short / --plan-file).
@@ -618,7 +621,7 @@ step_kinds:
       Re-check via `pi-job sync` (store-side) then live `gh pr view`.
       When the user reports a merge (or gh shows MERGED), record it before finish:
         pi-job --task TASK_FILE add-pr --slice SLICE_KEY --repo REPO --url URL --status merged
-      Then finish --note with the merge evidence and advance.
+      Then finish --note with the merge evidence.
   update-task-file:
     key: update-task-file
     title: Update this task file
@@ -626,7 +629,7 @@ step_kinds:
     record_channels: [decision, step_note, slice_note, plan_note]
     validators:
       - task-file-current
-    guidance: Keep the task record current via pi-job mutation commands only (add-slice, add-step, add-decision, set-plan-note, finish, advance; see pi-job --help). Do not edit the task store directly. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes.
+    guidance: Keep the task record current via pi-job mutation commands only (add-slice, add-step, add-decision, set-plan-note, finish; see pi-job --help). Do not edit the task store directly. Create explicit new slices for future work, issues worth revisiting, technical debt, or unresolved doubts discovered during execution; give each a bounded goal, appropriate kind, and dependencies instead of burying it in notes.
   investigate:
     key: investigate
     title: Investigate

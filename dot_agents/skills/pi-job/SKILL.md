@@ -2,7 +2,7 @@
 name: pi-job
 description: >-
   Run durable multi-step work through the pi-job CLI task store (status, plan,
-  instruction, start/finish/advance). Use when orchestrating agents against a
+  instruction, claim/release, start/finish). Use when orchestrating agents against a
   pi-job task file, when tempted to open or hand-edit the task YAML/store, or
   when creating a missing task.
 ---
@@ -41,10 +41,15 @@ pi-job --task TASK_FILE status
 If the file is missing, follow the create hint from the CLI (`create --kind` or `create --from`).
 Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
-Trust `Cursor` for the active step and `Ready` for candidates.
+Claims live in `orchestration.cursors[]` (`{owner, slice, claimed_at, last_seen}`).
+Active step is derived: first non-terminal step of the claimed slice.
+Trust `status`/`show` for claims + Ready frontier.
 Array order of slices is not execution order.
-If the current slice has no unfinished steps (or instruction emits pick-next):
-run `show`, choose a Ready slice, `advance --slice KEY --step STEP`, then `instruction`.
+
+```bash
+pi-job --task TASK_FILE claim --slice KEY --owner ID
+# optional: export PI_JOB_OWNER=ID  (omit --owner when unambiguous / sole claim)
+```
 
 After create or any `instruction` packet: enter the orchestrator loop immediately.
 Do not wait for the user to say "continue".
@@ -55,14 +60,16 @@ the packet header names the real task path).
 ## Orchestrator loop
 
 1. `status` / `plan` / `show` - where you are; align session todos with `plan`
-2. `instruction` - step packet for the saved cursor, or pick-next when the slice is exhausted
-3. `start --model <provider/model>` - before work
-4. Do the step (subagent when the packet says so)
-5. `finish` (with evidence note) or `finish --skip --reason ...`
-6. `advance` - within-slice next step; if pick-next: `show` → choose Ready → `advance --slice/--step`
-7. Repeat from `instruction` until the task is done or blocked on the user
+2. `claim --slice KEY --owner ID` for a Ready slice (one claim per owner)
+3. `instruction` - step packet for the claim's derived active step, or pick-next when exhausted
+4. `start --model <provider/model>` - before work
+5. Do the step (subagent when the packet says so)
+6. `finish` (with evidence note) or `finish --skip --reason ...`
+7. Repeat from `instruction` until the claimed slice is exhausted
+8. On pick-next: `finish --slice-only` (auto-releases claim) → `show` → claim next Ready → `instruction`
 
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
+`advance` is deprecated; do not use it.
 
 ## Reads (do not open the store)
 
@@ -70,7 +77,7 @@ Prefer packet guidance. Typical shape:
 
 - `status` | `plan` | `markdown [--slice SLICE_KEY] [--with-decisions]` | `show [--slice SLICE_KEY]` | `instruction`
 - Subagent-owned steps: the packet orders `markdown --slice --with-decisions` first for binding `## Decisions`
-- Interrupt/RCA while cursor is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not advance the saved cursor
+- Interrupt/RCA while a claim is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not release/claim-hop unless needed
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
