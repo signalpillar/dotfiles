@@ -3552,6 +3552,108 @@ def test_show_renders_repo_work_worktree_and_prs() -> None:
         assert_not_contains(show, "WIP schema changes")
 
 
+def test_show_status_done_prints_set_worktrees_without_full_expand() -> None:
+    """--status done keeps done slices collapsed (no deps/steps) but prints set
+    worktrees; default show stays header-only; unset worktrees stay hidden.
+    show --help documents the agent inventory path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "status-done-worktrees.yaml"
+        write_task_yaml(task, {
+            "title": "Status-done worktree inventory",
+            "status": "in_progress",
+            "project": {"name": "Fixture"},
+            "orchestration": {
+                "cursors": [],
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [
+                    {
+                        "key": "pr-only",
+                        "kind": "implement",
+                        "title": "PR without worktree",
+                        "goal": "Repo entry but no path",
+                        "status": "done",
+                        "note": "",
+                        "repos": ["graphius"],
+                        "repo_work": {
+                            "graphius": {
+                                "prs": [
+                                    {
+                                        "url": "https://github.com/example/pr/8",
+                                        "status": "merged",
+                                        "note": "",
+                                    }
+                                ],
+                            }
+                        },
+                        "steps": [{"key": "p1", "title": "Step", "status": "done", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "with-worktree",
+                        "kind": "implement",
+                        "title": "Has worktree",
+                        "goal": "Finished with path",
+                        "status": "done",
+                        "note": "",
+                        "repos": ["graphius"],
+                        "depends_on": ["pr-only"],
+                        "repo_work": {
+                            "graphius": {
+                                "worktree": "/tmp/wt-done-inventory",
+                                "prs": [
+                                    {
+                                        "url": "https://github.com/example/pr/9",
+                                        "status": "merged",
+                                        "note": "",
+                                    }
+                                ],
+                            }
+                        },
+                        "steps": [{"key": "w1", "title": "Step", "status": "done", "note": ""}],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "still-open",
+                        "kind": "implement",
+                        "title": "Not done",
+                        "goal": "Filtered out",
+                        "status": "planned",
+                        "note": "",
+                        "steps": [{"key": "o1", "title": "Step", "status": "planned", "note": ""}],
+                        "final_steps": [],
+                    },
+                ],
+            },
+        })
+
+        default_out = run(str(PI_JOB), "--task", str(task), "show").stdout
+        if "repo_work" in default_out or "/tmp/wt-done-inventory" in default_out:
+            raise AssertionError(f"default show must keep done slices header-only:\n{default_out}")
+
+        status_out = run(str(PI_JOB), "--task", str(task), "show", "--status", "done").stdout
+        assert_contains(status_out, "repo_work[graphius]: worktree=/tmp/wt-done-inventory")
+        assert_contains(status_out, "with-worktree")
+        assert_contains(status_out, "pr-only")
+        if "still-open" in status_out:
+            raise AssertionError(f"--status done must filter out planned slices:\n{status_out}")
+        if "deps:" in status_out:
+            raise AssertionError(f"--status done must not expand deps on done slices:\n{status_out}")
+        if "w1" in status_out or "p1" in status_out:
+            raise AssertionError(f"--status done must not expand steps on done slices:\n{status_out}")
+        if "worktree=not set" in status_out:
+            raise AssertionError(f"--status done must omit unset worktrees:\n{status_out}")
+        if "pr merged" in status_out:
+            raise AssertionError(f"--status done must not dump PR lines for inventory:\n{status_out}")
+
+        help_out = run(str(PI_JOB), "show", "--help").stdout
+        assert_contains(help_out, "repo_work.worktree")
+        assert_contains(help_out, "list recorded worktrees")
+        assert_contains(help_out, "--status")
+
+
 def test_add_slice_still_works_with_repo_work_in_schema() -> None:
     """Regression: add-slice --dry-run doesn't mention repo_work, and real add-slice succeeds."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -6265,6 +6367,7 @@ def main() -> None:
     test_add_pr_rejects_unknown_slice()
     test_add_pr_after_set_worktree_preserves_worktree()
     test_show_renders_repo_work_worktree_and_prs()
+    test_show_status_done_prints_set_worktrees_without_full_expand()
     test_sync_default_selection_and_status_override()
     test_add_slice_still_works_with_repo_work_in_schema()
     test_fs_task_store_round_trip()

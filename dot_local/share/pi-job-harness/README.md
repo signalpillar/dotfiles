@@ -472,11 +472,11 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 - `pi-job --task <t> show [--all] [--started] [--full] [--short] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
   `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`); skipped breaks the run; ignored with `--all`.
   By default only the current cursor slice expands.
-  `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps) and omit `[kind/n/m]` (footer still has totals).
+  `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps) and omit `[kind/n/m]` (footer still has totals), except with `--status`: set `repo_work.worktree` paths are printed so agents can inventory recorded worktrees without `--all`.
   Executor models are omitted unless `--full`.
   `--started` additionally expands `in_progress`/`blocked` slices.
   `--all` expands every slice including finished ones.
-  `--status` filters which slices are listed.
+  `--status` filters which slices are listed (and surfaces set worktrees on done/skipped; see above).
   `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
 - `pi-job --task <t> show --graph [--status s1,s2]` - emit a Mermaid `flowchart TD` of slice `depends_on` edges on stdout (no tree chrome).
   Intended for terminal viewers via stdin, e.g. `pi-job --task <t> show --graph | uvx termaid`.
@@ -554,6 +554,7 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 - `--path` and `--clear` are mutually exclusive; exactly one is required.
 - `pi-job --task <t> add-pr --slice K --repo R --url U --status open|merged|closed [--note N]` - record a PR for a slice's repo work, upserting by URL.
 - `pi-job --task <t> show [--all]` - also renders each slice's `repo_work`: worktree path (or "not set") and each PR's status/url.
+- Agents listing recorded worktrees: `show --status done` (set paths only), or `show --all` / `show --slice KEY` for full `repo_work`.
 
 ## Task storage backends
 

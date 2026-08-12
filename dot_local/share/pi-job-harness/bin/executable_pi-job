@@ -4331,6 +4331,20 @@ def append_multiline_note(
         lines.append(f"{continuation_indent}{part}")
 
 
+def append_set_worktree_lines(lines: list[str], task_slice: TaskSlice) -> None:
+    """Append repo_work lines only for repos with a recorded worktree path.
+
+    Used by status-filtered show so agents can inventory set worktrees on done
+    slices without --all (default tree keeps those slices header-only).
+    """
+    repo_work = task_slice.repo_work or {}
+    for repo_name in sorted(repo_work):
+        work = repo_work[repo_name] or {}
+        worktree = work.get("worktree")
+        if worktree:
+            lines.append(f"    repo_work[{repo_name}]: worktree={worktree}")
+
+
 def append_slice_work_lines(
     lines: list[str],
     task_slice: TaskSlice,
@@ -5145,8 +5159,12 @@ def cmd_show(args: argparse.Namespace) -> None:
         header += execution_suffix
         lines.append(header.rstrip())
 
-        # Done/skipped slices stay header-only unless --all (no deps, repo_work, or steps).
+        # Done/skipped slices stay header-only unless --all (no deps, steps, or unset
+        # repo_work). With --status, still print recorded worktrees so agents can list
+        # them without expanding the whole task via --all.
         if st in STATUS_DONE and not args.all:
+            if status_filter is not None:
+                append_set_worktree_lines(lines, task_slice)
             i += 1
             continue
 
@@ -6345,7 +6363,15 @@ def main() -> None:
             "Ignores tree flags; mutually exclusive with --slice"
         ),
     )
-    show.add_argument("--status", help="comma-separated slice statuses to include")
+    show.add_argument(
+        "--status",
+        help=(
+            "comma-separated slice statuses to include; "
+            "for done/skipped also prints repo_work.worktree when set "
+            "(agents: list recorded worktrees via show --status done, "
+            "or show --all / show --slice KEY)"
+        ),
+    )
     show.add_argument(
         "--color",
         choices=("auto", "always", "never"),
