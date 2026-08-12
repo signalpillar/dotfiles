@@ -1125,7 +1125,7 @@ class TaskStore(Protocol):
 
 
 class YamlTaskLayout:
-    """Sibling filesystem layout for a YAML task file.
+    """Sibling filesystem layout for a loose YAML task file.
 
     Owns paths under `<task-stem>.plans/` (slice plans, findings, decision spills).
     YamlTaskStore owns all I/O against these paths.
@@ -1135,6 +1135,10 @@ class YamlTaskLayout:
 
     def __init__(self, task_path: Path) -> None:
         self.task_path = task_path
+
+    @property
+    def document_path(self) -> Path:
+        return self.task_path
 
     @property
     def plans_dir(self) -> Path:
@@ -1157,22 +1161,78 @@ class YamlTaskLayout:
         """Pure path for a spilled decision body. Caller supplies stamp (no clock here)."""
         return self.plans_dir / f"_decision-{date}-{stamp}.md"
 
+    def describe_store(self) -> str:
+        return f"YAML task file {self.task_path}"
+
+
+class BundleTaskLayout:
+    """Layout for a `$PI_JOB_TASKS/<slug>/` task bundle directory.
+
+    Bundle document lives at `<root>/task.yaml` (exact name, not `.yml`).
+    Plans/findings/decision spills live under `<root>/plans/` (not
+    `<stem>.plans/`); `<root>/references/` is reserved bundle metadata for
+    later slices. YamlTaskStore owns all I/O against these paths.
+    """
+
+    DOCUMENT_NAME = "task.yaml"
+    FINDINGS_NAME = "_findings.md"
+
+    def __init__(self, bundle_root: Path) -> None:
+        self.bundle_root = bundle_root
+
+    @property
+    def document_path(self) -> Path:
+        return self.bundle_root / self.DOCUMENT_NAME
+
+    @property
+    def plans_dir(self) -> Path:
+        return self.bundle_root / "plans"
+
+    @property
+    def references_dir(self) -> Path:
+        return self.bundle_root / "references"
+
+    def findings_file(self) -> Path:
+        return self.plans_dir / self.FINDINGS_NAME
+
+    def findings_pointer(self) -> str:
+        """Task-dir-relative pointer for CLI tips and packets."""
+        return f"plans/{self.FINDINGS_NAME}"
+
+    def slice_plan_file(self, slice_key: str) -> Path:
+        return self.plans_dir / f"{slice_key}.md"
+
+    def slice_plan_pointer(self, slice_key: str) -> str:
+        return f"Plan file: plans/{slice_key}.md"
+
+    def decision_spill_file(self, *, date: str, stamp: str) -> Path:
+        """Pure path for a spilled decision body. Caller supplies stamp (no clock here)."""
+        return self.plans_dir / f"_decision-{date}-{stamp}.md"
+
+    def describe_store(self) -> str:
+        return f"task bundle {self.bundle_root}"
+
 
 class YamlTaskStore:
-    """Preferred TaskStore implementation using one machine-owned YAML document."""
+    """Preferred TaskStore implementation using one machine-owned YAML document.
 
-    def __init__(self, path: Path, *, create_only: bool = False) -> None:
-        self.path = path
+    The layout owns document location, plans-dir arithmetic, and describe
+    wording; the store only performs I/O against `layout.document_path`.
+    """
+
+    def __init__(self, layout: YamlTaskLayout | BundleTaskLayout, *, create_only: bool = False) -> None:
+        self.layout = layout
         self.create_only = create_only
         self._lock_depth = 0
         self._digest_warn_suppressed = 0
 
     @property
-    def layout(self) -> YamlTaskLayout:
-        return YamlTaskLayout(self.path)
+    def path(self) -> Path:
+        """Read-only compat alias for `layout.document_path`."""
+        return self.layout.document_path
 
     def describe(self) -> str:
-        return f"YAML task file {self.path}"
+        return self.layout.describe_store()
 
     @contextmanager
     def _suppress_digest_warn(self) -> Iterator[None]:
@@ -2453,12 +2513,29 @@ def unsupported_storage(task_arg: Path) -> NoReturn:
     die(f"unsupported task storage for {task_arg}; use a .yaml/.yml file or a directory")
 
 
-def open_task_store(task_arg: Path) -> TaskStore:
-    """Select a YAML or existing directory task backend."""
+def _bundle_root_for(task_arg: Path) -> Path | None:
+    """Return the bundle root if `task_arg` is a bundle dir or its `task.yaml`, else None."""
+    if task_arg.is_dir():
+        return task_arg if (task_arg / BundleTaskLayout.DOCUMENT_NAME).is_file() else None
+    if task_arg.name == BundleTaskLayout.DOCUMENT_NAME:
+        return task_arg.parent
+    return None
 
+
+def open_task_store(task_arg: Path) -> TaskStore:
+    """Select a bundle, loose YAML, or existing directory task backend.
+
+    Bundle detection (a directory containing `task.yaml`, or a path to that
+    `task.yaml` itself) runs before the `FsTaskStore` fallback so bundle
+    directories are never opened as the experimental directory store.
+    """
+
+    bundle_root = _bundle_root_for(task_arg)
+    if bundle_root is not None:
+        return YamlTaskStore(BundleTaskLayout(bundle_root))
     suffix = task_arg.suffix.lower()
     if suffix in {".yaml", ".yml"}:
-        return YamlTaskStore(task_arg)
+        return YamlTaskStore(YamlTaskLayout(task_arg))
     if task_arg.is_dir():
         return FsTaskStore(task_arg)
     unsupported_storage(task_arg)
@@ -5716,7 +5793,7 @@ def cmd_project(args: argparse.Namespace) -> None:
     suffix = to_path.suffix.lower()
     created_destination = False
     if suffix in {".yaml", ".yml"}:
-        dst_store = YamlTaskStore(to_path, create_only=True)
+        dst_store = YamlTaskStore(YamlTaskLayout(to_path), create_only=True)
     elif not suffix:
         if to_path.exists() and not to_path.is_dir():
             die(f"destination {to_path} exists and is not a directory")

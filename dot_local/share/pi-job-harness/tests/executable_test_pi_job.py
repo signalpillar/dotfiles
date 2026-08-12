@@ -407,7 +407,7 @@ def mutate_step_status(
     **fields,
 ) -> None:
     module = load_pi_job_module()
-    store = module.YamlTaskStore(path)
+    store = module.YamlTaskStore(module.YamlTaskLayout(path))
     task = store.read()
     step = find_step(task, slice_key, step_key)
     step["status"] = status
@@ -417,7 +417,7 @@ def mutate_step_status(
 
 def step_status(path: Path, slice_key: str, step_key: str) -> str:
     module = load_pi_job_module()
-    task = module.YamlTaskStore(path).read()
+    task = module.YamlTaskStore(module.YamlTaskLayout(path)).read()
     return find_step(task, slice_key, step_key)["status"]
 
 
@@ -1450,7 +1450,7 @@ def test_finish_slice_only_auto_releases_claim() -> None:
         ).stdout
         assert_contains(out, "auto-released")
         module = load_pi_job_module()
-        claims = module.YamlTaskStore(task).read()["orchestration"]["cursors"]
+        claims = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["orchestration"]["cursors"]
         if claims:
             raise AssertionError(f"expected empty cursors after auto-release, got {claims}")
 
@@ -1571,7 +1571,7 @@ def test_toolbelt_add_records_artifact() -> None:
         # idempotent update in place (status changes, no duplicate key)
         run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "httpyac-api-spec", "--status", "planned")
         module = load_pi_job_module()
-        artifacts = module.YamlTaskStore(task).read()["orchestration"]["artifacts"]
+        artifacts = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["orchestration"]["artifacts"]
         if list(artifacts.keys()).count("httpyac-api-spec") != 1:
             raise AssertionError(f"expected one httpyac-api-spec entry, got {artifacts!r}")
         assert artifacts["httpyac-api-spec"]["status"] == "planned"
@@ -1836,7 +1836,7 @@ def test_show_omits_kind_counts_and_models_for_done_by_default() -> None:
         write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
         # Record a model on the done slice so --full can surface it.
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         data = store.read()
         data["plan"]["slices"][0]["execution"] = {
             "model": "cursor/test-model",
@@ -1953,7 +1953,8 @@ def test_show_short_collapses_consecutive_done_slices() -> None:
         if "alpha, beta" in default:
             raise AssertionError(f"default show must not collapse:\n{default}")
         # claimed slice stays on its own line even when done
-        store = load_pi_job_module().YamlTaskStore(task)
+        pi_job_module = load_pi_job_module()
+        store = pi_job_module.YamlTaskStore(pi_job_module.YamlTaskLayout(task))
         data = store.read()
         data["orchestration"]["cursors"] = [claim_dict("delta")]
         store.replace(data)
@@ -2828,7 +2829,7 @@ def test_add_step_final_flag() -> None:
         run(str(PI_JOB), "--task", str(task), "add-step", "--slice", "second-slice", "--key", "final-new", "--title", "Final Step", "--final")
 
         module = load_pi_job_module()
-        sl = next(s for s in module.YamlTaskStore(task).read()["plan"]["slices"] if s["key"] == "second-slice")
+        sl = next(s for s in module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"] if s["key"] == "second-slice")
         final_keys = [step["key"] for step in sl.get("final_steps") or []]
         if "final-new" not in final_keys:
             raise AssertionError(f"expected final-new in final_steps, got {final_keys!r}")
@@ -2937,7 +2938,7 @@ def test_validate_warns_when_persisted_slice_predates_template_addition() -> Non
         task = Path(tmp) / "older-template.yaml"
         run(str(PI_JOB), "--task", str(task), "create")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         sl = task_data["plan"]["slices"][0]
         sl["steps"] = [s for s in sl["steps"] if s["key"] != "vulnerability-scan"]
@@ -2950,7 +2951,7 @@ def test_validate_warns_when_persisted_slice_predates_template_addition() -> Non
 def _scaffolded_task_with_long_step_note(task: Path, *, note_len: int = 2001) -> None:
     run(str(PI_JOB), "--task", str(task), "create")
     module = load_pi_job_module()
-    store = module.YamlTaskStore(task)
+    store = module.YamlTaskStore(module.YamlTaskLayout(task))
     task_data = store.read()
     task_data["plan"]["slices"][0]["steps"][0]["note"] = "x" * note_len
     store.replace(task_data)
@@ -2981,7 +2982,7 @@ def test_validate_warns_on_large_task_file() -> None:
         task = Path(tmp) / "large_task.yaml"
         run(str(PI_JOB), "--task", str(task), "create")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         task_data["context"] = "x" * 101_000
         store.replace(task_data)
@@ -3001,7 +3002,7 @@ def test_finish_note_not_refused_when_long() -> None:
         if res.returncode != 0:
             raise AssertionError(f"finish with long note should succeed:\n{res.stderr}")
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "implementation", "vulnerability-scan")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert long_note in step["note"]
 
 
@@ -3131,7 +3132,7 @@ def _mixed_legacy_validate_fixture(module, task_path: Path) -> None:
             "final_steps": [],
         },
     ]
-    module.YamlTaskStore(task_path).replace(task)
+    module.YamlTaskStore(module.YamlTaskLayout(task_path)).replace(task)
 
 
 def test_validate_slice_passes_when_only_that_slice_is_conformant() -> None:
@@ -3200,7 +3201,7 @@ def test_validate_without_slice_still_fails_on_legacy_debt() -> None:
 def _initialized_mixed_legacy_fixture(module, task_path: Path) -> None:
     """Mixed legacy YAML task with orchestration so status reports Initialization: ok."""
     _mixed_legacy_validate_fixture(module, task_path)
-    task = module.YamlTaskStore(task_path).read()
+    task = module.YamlTaskStore(module.YamlTaskLayout(task_path)).read()
     task["orchestration"] = {
         "cursors": [claim_dict("good")],
         "policy": {
@@ -3211,7 +3212,7 @@ def _initialized_mixed_legacy_fixture(module, task_path: Path) -> None:
             }
         },
     }
-    module.YamlTaskStore(task_path).replace(task)
+    module.YamlTaskStore(module.YamlTaskLayout(task_path)).replace(task)
 
 
 def test_status_reports_structure_ok_for_conformant_task() -> None:
@@ -3392,7 +3393,7 @@ def test_set_worktree_clear_happy_path() -> None:
         assert_contains(show, "worktree=not set")
 
         module = load_pi_job_module()
-        repo_entry = module.YamlTaskStore(task).read()["plan"]["slices"][1]["repo_work"]["graphius"]
+        repo_entry = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][1]["repo_work"]["graphius"]
         if "worktree" in repo_entry:
             raise AssertionError(f"worktree key still present after clear: {repo_entry!r}")
 
@@ -3458,7 +3459,7 @@ def test_yaml_store_clear_worktree() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         task_path = Path(tmp) / "clear-worktree.yaml"
-        store = module.YamlTaskStore(task_path)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task_path))
         store.replace(module.example_task_mapping(title="Clear worktree unit"))
         store.set_worktree(slice_key="do-the-change", repo="repo-a", path="/tmp/worktree")
         store.add_pr(
@@ -3979,7 +3980,7 @@ def test_yaml_task_store_round_trip_and_atomic_mutations() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         task_path = Path(tmp) / "task.yaml"
-        store = module.YamlTaskStore(task_path)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task_path))
         store.replace(module.example_task_mapping(title="YAML round trip"))
         task_path.chmod(0o600)
         store.init_orchestration()
@@ -4014,10 +4015,10 @@ def test_yaml_mutations_serialize_concurrent_writers() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         task_path = Path(tmp) / "concurrent.yaml"
-        module.YamlTaskStore(task_path).replace(module.example_task_mapping(title="Concurrent"))
+        module.YamlTaskStore(module.YamlTaskLayout(task_path)).replace(module.example_task_mapping(title="Concurrent"))
 
         def add_decision(index: int) -> None:
-            module.YamlTaskStore(task_path).add_decision(
+            module.YamlTaskStore(module.YamlTaskLayout(task_path)).add_decision(
                 date="2026-07-22",
                 note=f"decision-{index}",
                 source="concurrency-test",
@@ -4026,7 +4027,7 @@ def test_yaml_mutations_serialize_concurrent_writers() -> None:
         with ThreadPoolExecutor(max_workers=8) as executor:
             list(executor.map(add_decision, range(24)))
 
-        notes = {decision["note"] for decision in module.YamlTaskStore(task_path).read()["decisions"]}
+        notes = {decision["note"] for decision in module.YamlTaskStore(module.YamlTaskLayout(task_path)).read()["decisions"]}
         assert notes == {f"decision-{index}" for index in range(24)}
 
 
@@ -4043,7 +4044,7 @@ def test_yaml_task_lock_lives_under_xdg_cache_not_task_dir() -> None:
         try:
             expected_lock = module.yaml_task_lock_path(task_path)
             assert expected_lock.is_relative_to(cache_home / "pi-job" / "locks")
-            store = module.YamlTaskStore(task_path)
+            store = module.YamlTaskStore(module.YamlTaskLayout(task_path))
             store.replace(module.example_task_mapping(title="Cache lock"))
             store.add_decision(date="2026-07-30", note="touch lock", source="lock-path-test")
             assert expected_lock.is_file(), f"expected lock at {expected_lock}"
@@ -4082,7 +4083,7 @@ def test_yaml_lifecycle_lock_preserves_first_executor() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         task_path = Path(tmp) / "lifecycle.yaml"
-        store = module.YamlTaskStore(task_path)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task_path))
         store.replace(module.example_task_mapping(title="Concurrent lifecycle"))
         store.init_orchestration()
         store.claim_slice(owner=DEFAULT_OWNER, slice_key="do-the-change", now=_now_iso())
@@ -4111,7 +4112,7 @@ def test_yaml_lock_serializes_concurrent_finish_and_release() -> None:
     module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
         task_path = Path(tmp) / "finish-release-race.yaml"
-        store = module.YamlTaskStore(task_path)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task_path))
         store.replace(module.example_task_mapping(title="Finish/release race"))
         store.init_orchestration()
         store.claim_slice(owner=DEFAULT_OWNER, slice_key="do-the-change", now=_now_iso())
@@ -4317,7 +4318,7 @@ def test_lifecycle_records_model_and_timestamps() -> None:
         ).stdout
         assert_contains(finished, "[done]")
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "implementation", "vulnerability-scan")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert step["execution"]["model"] == "google/gemini-reviewer"
         assert step["execution"]["started"]
         assert step["execution"]["ended"]
@@ -4338,7 +4339,7 @@ def test_finish_reconcile_succeeds_on_in_progress_without_start() -> None:
         assert_contains(out, "[done]")
 
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "implementation", "vulnerability-scan")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert step["execution"]["model"] == "google/gemini-reviewer"
         assert step["note"] == "Synced completion from external session."
         assert step["execution"]["ended"]
@@ -4430,7 +4431,7 @@ def test_finish_note_appends_with_blank_line() -> None:
             "--note", "No vulnerabilities found.",
         )
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "implementation", "vulnerability-scan")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert step["note"] == "Existing evidence\n\nNo vulnerabilities found."
 
 
@@ -4445,7 +4446,7 @@ def test_finish_note_replace_overwrites() -> None:
             "--replace", "--note", "Replacement evidence.",
         )
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "implementation", "vulnerability-scan")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert step["note"] == "Replacement evidence."
 
 
@@ -4478,7 +4479,7 @@ def test_finish_note_append_with_slice_only() -> None:
             "--note", "Slice completion evidence.",
         )
         module = load_pi_job_module()
-        task_slice = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["note"] == "Slice baseline\n\nSlice completion evidence."
 
 
@@ -4532,7 +4533,7 @@ def test_finish_explicit_slice_step_ok_when_multiple_unfinished() -> None:
         ).stdout
         assert_contains(out, "finished: second-slice/s2")
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "second-slice", "s2")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "second-slice", "s2")
         assert step["status"] == "done"
 
 
@@ -4561,7 +4562,7 @@ def test_set_slice_updates_title_and_goal() -> None:
         assert_contains(out, "title=New title")
         assert_contains(out, "goal=New goal")
         module = load_pi_job_module()
-        task_slice = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["title"] == "New title"
         assert task_slice["goal"] == "New goal"
 
@@ -4604,14 +4605,14 @@ def test_block_slice_sets_status_and_appends_note() -> None:
             "--key", "implementation", "--reason", "Waiting on upstream API",
         )
         module = load_pi_job_module()
-        task_slice = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["status"] == "blocked"
         assert task_slice["note"] == "Existing blocker context\n\nWaiting on upstream API"
         run(
             str(PI_JOB), "--task", str(task), "block-slice",
             "--key", "implementation", "--reason", "Still blocked",
         )
-        task_slice = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["note"].endswith("Still blocked")
         assert "Waiting on upstream API" in task_slice["note"]
 
@@ -4643,7 +4644,7 @@ def test_unblock_slice_restores_planned() -> None:
         ).stdout
         assert_contains(out, "unblocked slice: implementation [planned]")
         module = load_pi_job_module()
-        task_slice = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["status"] == "planned"
         assert task_slice["note"] == "Blocker note"
 
@@ -4758,7 +4759,7 @@ def test_vulnerability_scan_can_record_user_declined_skip() -> None:
             "--model", "openai/gpt-orchestrator", "--reason", "Not required for this slice",
         )
         module = load_pi_job_module()
-        step = find_step(module.YamlTaskStore(task).read(), "implementation", "vulnerability-scan")
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert step["status"] == "skipped"
         assert "User declined vulnerability-scan" in step["note"]
         assert step["execution"]["model"] == "openai/gpt-orchestrator"
@@ -4780,7 +4781,7 @@ def test_slice_lifecycle_records_orchestrator_after_steps_finish() -> None:
         run(str(PI_JOB), "--task", str(task), "finish", "--slice-only")
 
         module = load_pi_job_module()
-        task_slice = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["status"] == "done"
         assert task_slice["execution"]["model"] == "openai/gpt-orchestrator"
         assert task_slice["execution"]["ended"].endswith("Z")
@@ -5043,7 +5044,7 @@ def test_add_slice_follow_work_seeds_template_steps() -> None:
         )
 
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         slice_entry = next(sl for sl in task_data["plan"]["slices"] if sl["key"] == "observe-peer")
         assert slice_entry["kind"] == "follow-work"
@@ -5083,7 +5084,7 @@ def test_set_project_mutation() -> None:
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "set-project", "--key", "new-key", "--name", "New Name")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         assert task_data["project"]["key"] == "new-key"
         assert task_data["project"]["name"] == "New Name"
@@ -5098,7 +5099,7 @@ def test_set_project_title_updates_task_title() -> None:
         ).stdout
         assert_contains(out, "title=Widened scope title")
         module = load_pi_job_module()
-        assert module.YamlTaskStore(task).read()["title"] == "Widened scope title"
+        assert module.YamlTaskStore(module.YamlTaskLayout(task)).read()["title"] == "Widened scope title"
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Widened scope title")
 
@@ -5119,7 +5120,7 @@ def test_set_context_mutation() -> None:
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "set-context", "--context", "New context")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         assert task_data["context"] == "New context"
 
@@ -5130,7 +5131,7 @@ def test_add_decision_mutation() -> None:
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "add-decision", "--date", "2026-07-27", "--note", "Test decision", "--source", "test")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         assert len(task_data["decisions"]) == 1
         assert task_data["decisions"][0]["note"] == "Test decision"
@@ -5142,7 +5143,7 @@ def test_set_plan_note_mutation() -> None:
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "set-plan-note", "--note", "Plan note text")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         assert task_data["plan"]["note"] == "Plan note text"
 
@@ -5162,7 +5163,7 @@ def test_remove_slice_removes_and_guards() -> None:
         assert result.returncode == 0
         # Verify it's gone
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         task_data = store.read()
         assert len(task_data["plan"]["slices"]) == 1
 
@@ -5325,7 +5326,7 @@ def test_pi_job_write_stores_content_digest() -> None:
         task_path = Path(tmp) / "digest-write.yaml"
         write_task_yaml(task_path, standard_fixture_mapping())
         run(str(PI_JOB), "--task", str(task_path), "set-plan-note", "--note", "machine-owned")
-        task = module.YamlTaskStore(task_path).read()
+        task = module.YamlTaskStore(module.YamlTaskLayout(task_path)).read()
         digest = task["orchestration"]["content_digest"]
         if not digest:
             raise AssertionError("expected content_digest after pi-job write")
@@ -5361,7 +5362,7 @@ def test_acknowledge_edit_clears_warning() -> None:
         )
         status = run(str(PI_JOB), "--task", str(task_path), "status")
         assert_not_contains(status.stderr, "does not match the last pi-job write digest")
-        task = module.YamlTaskStore(task_path).read()
+        task = module.YamlTaskStore(module.YamlTaskLayout(task_path)).read()
         note = next(s["note"] for s in task["plan"]["slices"] if s["key"] == "second-slice")
         assert_contains(note, "Hand-edit acknowledged: fixed context typo by hand")
         # Must not pollute the decisions channel.
@@ -5379,7 +5380,7 @@ def test_finish_while_dirty_does_not_clear_digest() -> None:
         mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
         write_task_yaml(task_path, mapping)
         run(str(PI_JOB), "--task", str(task_path), "set-plan-note", "--note", "baseline")
-        task = module.YamlTaskStore(task_path).read()
+        task = module.YamlTaskStore(module.YamlTaskLayout(task_path)).read()
         digest_before = task["orchestration"]["content_digest"]
         raw = yaml.safe_load(task_path.read_text())
         raw["context"] = "edited outside pi-job"
@@ -5400,7 +5401,7 @@ def test_finish_while_dirty_does_not_clear_digest() -> None:
             "--note",
             "finished while dirty",
         )
-        task_after = module.YamlTaskStore(task_path).read()
+        task_after = module.YamlTaskStore(module.YamlTaskLayout(task_path)).read()
         digest_after = task_after["orchestration"]["content_digest"]
         if digest_after != digest_before:
             raise AssertionError("finish must not refresh digest while dirty")
@@ -5989,7 +5990,7 @@ def test_block_slice_gate_appends_depends_on() -> None:
             "fix-slice",
         )
         module = load_pi_job_module()
-        blocked = module.YamlTaskStore(task).read()["plan"]["slices"][0]
+        blocked = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert blocked["status"] == "blocked"
         assert "fix-slice" in blocked.get("depends_on", [])
 
@@ -6012,7 +6013,7 @@ def test_add_finding_appends_sidecar_not_yaml() -> None:
         after = task.read_text(encoding="utf-8")
         assert before == after
         module = load_pi_job_module()
-        store = module.YamlTaskStore(task)
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
         findings = store.layout.findings_file()
         assert findings == Path(tmp) / "findings.plans" / "_findings.md"
         assert findings.is_file()
@@ -6030,6 +6031,110 @@ def test_yaml_task_layout_owns_plans_paths() -> None:
     assert layout.findings_file() == Path("/tmp/demo/my-task.plans/_findings.md")
     assert layout.slice_plan_file("alpha") == Path("/tmp/demo/my-task.plans/alpha.md")
     assert layout.findings_pointer() == "my-task.plans/_findings.md"
+    assert layout.document_path == task
+    assert layout.describe_store() == f"YAML task file {task}"
+
+
+def test_bundle_task_layout_owns_plans_paths() -> None:
+    module = load_pi_job_module()
+    root = Path("/tmp/demo/my-task")
+    layout = module.BundleTaskLayout(root)
+    assert layout.document_path == Path("/tmp/demo/my-task/task.yaml")
+    assert layout.plans_dir == Path("/tmp/demo/my-task/plans")
+    assert layout.references_dir == Path("/tmp/demo/my-task/references")
+    assert layout.findings_file() == Path("/tmp/demo/my-task/plans/_findings.md")
+    assert layout.slice_plan_file("alpha") == Path("/tmp/demo/my-task/plans/alpha.md")
+    assert layout.findings_pointer() == "plans/_findings.md"
+    assert layout.slice_plan_pointer("alpha") == "Plan file: plans/alpha.md"
+    assert layout.describe_store() == f"task bundle {root}"
+
+
+def test_open_task_store_bundle_dir() -> None:
+    """A directory containing `task.yaml` opens as a YamlTaskStore over BundleTaskLayout,
+    never as the experimental FsTaskStore."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "my-task"
+        root.mkdir()
+        write_task_yaml(root / "task.yaml", module.example_task_mapping())
+
+        store = module.open_task_store(root)
+
+        assert isinstance(store, module.YamlTaskStore)
+        assert isinstance(store.layout, module.BundleTaskLayout)
+        assert not isinstance(store, module.FsTaskStore)
+        assert store.layout.bundle_root == root
+        assert store.path == root / "task.yaml"
+
+
+def test_open_task_store_bundle_task_yaml_path() -> None:
+    """Pointing `--task` directly at a bundle's `task.yaml` resolves the same bundle root."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "my-task"
+        root.mkdir()
+        task_yaml = root / "task.yaml"
+        write_task_yaml(task_yaml, module.example_task_mapping())
+
+        store = module.open_task_store(task_yaml)
+
+        assert isinstance(store, module.YamlTaskStore)
+        assert isinstance(store.layout, module.BundleTaskLayout)
+        assert store.layout.bundle_root == root
+        assert store.path == task_yaml
+
+
+def test_open_task_store_non_bundle_dir_still_fs() -> None:
+    """A plain directory without `task.yaml` keeps opening as FsTaskStore."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp) / "task"
+        base.mkdir()
+        (base / "title").write_text("No task.yaml here\n")
+
+        store = module.open_task_store(base)
+
+        assert isinstance(store, module.FsTaskStore)
+
+
+def test_bundle_read_write_and_plan_stub() -> None:
+    """Bundle round-trip: write via the layout's document_path, read it back, and
+    confirm a slice plan stub lands under `plans/` (not `<stem>.plans/`)."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "bundled-task"
+        layout = module.BundleTaskLayout(root)
+        store = module.YamlTaskStore(layout)
+
+        store.replace(module.example_task_mapping(title="Bundle round-trip"))
+        assert layout.document_path.is_file()
+        assert layout.document_path == root / "task.yaml"
+
+        task = store.read()
+        assert task["title"] == "Bundle round-trip"
+
+        stub = store.ensure_slice_plan_stub(key="alpha", kind="implement", goal="Alpha goal")
+        assert stub == root / "plans" / "alpha.md"
+        assert stub.is_file()
+        assert not (root / "alpha.plans").exists()
+
+
+def test_store_describe_uses_layout() -> None:
+    """describe() delegates to the layout: loose YAML keeps 'YAML task file …';
+    bundles say 'task bundle …' and never claim to be a bare file."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        loose = Path(tmp) / "loose.yaml"
+        write_task_yaml(loose, module.example_task_mapping())
+        loose_store = module.open_task_store(loose)
+        assert loose_store.describe() == f"YAML task file {loose}"
+
+        root = Path(tmp) / "bundle-task"
+        root.mkdir()
+        write_task_yaml(root / "task.yaml", module.example_task_mapping())
+        bundle_store = module.open_task_store(root)
+        assert bundle_store.describe() == f"task bundle {root}"
+        assert "file" not in bundle_store.describe()
 
 
 def test_add_decision_spills_long_note_to_plan_file() -> None:
@@ -6048,7 +6153,7 @@ def test_add_decision_spills_long_note_to_plan_file() -> None:
             "spill-test",
         )
         module = load_pi_job_module()
-        decisions = module.YamlTaskStore(task).read().get("decisions") or []
+        decisions = module.YamlTaskStore(module.YamlTaskLayout(task)).read().get("decisions") or []
         assert decisions
         yaml_note = decisions[-1]["note"]
         assert yaml_note.startswith("Plan file:")
@@ -6239,7 +6344,7 @@ def test_investigate_does_not_move_claim() -> None:
         assert_contains(out, "PI-JOB INVESTIGATE")
         assert_contains(out, "do not finish/release it")
         module = load_pi_job_module()
-        claims = module.YamlTaskStore(task).read()["orchestration"]["cursors"]
+        claims = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["orchestration"]["cursors"]
         assert len(claims) == 1
         assert claims[0]["slice"] == "implementation"
         findings = Path(tmp) / "investigate.plans" / "_findings.md"
