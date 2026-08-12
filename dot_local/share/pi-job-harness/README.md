@@ -148,7 +148,7 @@ Typical slice layout for an end-to-end implementation task:
 
 ```text
 1. task-setup          [kind: setup]     explore → clarify → grill → wayfinder → select-toolbelt → plan-slices
-2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → wait-for-feedback → e2e-evidence → ready-for-release
+2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → pi-job-feedback → wait-for-feedback → e2e-evidence → ready-for-release
 3. fix-follow-up       [kind: implement] …
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
 ```

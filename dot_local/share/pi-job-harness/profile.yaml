@@ -785,10 +785,10 @@ slice_kinds:
       - vulnerability-scan
       - share-with-team
       - update-task-file
+      - pi-job-feedback
       - wait-for-feedback
       - e2e-evidence
       - ready-for-release
-      - pi-job-feedback
     required_steps:
       - create-plan
       - grill-plan

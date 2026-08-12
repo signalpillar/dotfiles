@@ -2289,16 +2289,19 @@ def test_scaffold_mirrors_implement_template() -> None:
         dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
         for key in (
             "create-plan", "grill-plan", "edit-code", "verify",
-            "vulnerability-scan", "share-with-team", "update-task-file", "wait-for-feedback",
-            "e2e-evidence", "ready-for-release",
+            "vulnerability-scan", "share-with-team", "update-task-file", "pi-job-feedback",
+            "wait-for-feedback", "e2e-evidence", "ready-for-release",
         ):
             assert_contains(dry, f"key: {key}")
+        i_feedback = dry.index("key: pi-job-feedback")
         i_wait = dry.index("key: wait-for-feedback")
         i_e2e = dry.index("key: e2e-evidence")
         i_ready = dry.index("key: ready-for-release")
-        if not (i_wait < i_e2e < i_ready):
+        if not (i_feedback < i_wait < i_e2e < i_ready):
             raise AssertionError(
-                f"implement tail order wrong: wait-for-feedback={i_wait} e2e-evidence={i_e2e} ready-for-release={i_ready}"
+                "implement tail order wrong: "
+                f"pi-job-feedback={i_feedback} wait-for-feedback={i_wait} "
+                f"e2e-evidence={i_e2e} ready-for-release={i_ready}"
             )
         if "reconcile-artifacts" in dry:
             raise AssertionError("scaffold still emits retired step key reconcile-artifacts")
