@@ -509,7 +509,7 @@ class InstructionPacketsDocument(StrictDocument):
     )
     orchestrator_heartbeat: str = Field(
         description=(
-            "Body printed by `pi-job loop` after the `/loop <interval>` prefix. "
+            "Body printed by `pi-job loop` as one physical line. "
             "No format placeholders. Use literal TASK in command hints (not {task_file}). "
             "Profile is the only body; Python must not hardcode the packet."
         )
@@ -5948,6 +5948,16 @@ def cmd_add_finding(args: argparse.Namespace) -> None:
     print(f"path: {path}")
 
 
+def render_orchestrator_heartbeat() -> str:
+    """Pure: load orchestrator_heartbeat packet collapsed to one physical line."""
+    template = str(load_profile_contract()["instruction_packets"]["orchestrator_heartbeat"])
+    return " ".join(template.split())
+
+
+def cmd_loop(args: argparse.Namespace) -> None:
+    print(render_orchestrator_heartbeat())
+
+
 def render_investigate_interrupt(
     *,
     task_file: Path,
@@ -6477,6 +6487,15 @@ def main() -> None:
         help="claim owner to report as parked; defaults to $PI_JOB_OWNER, then the sole active claim",
     )
     investigate.set_defaults(fn=cmd_investigate)
+
+    loop = sub.add_parser(
+        "loop",
+        help=(
+            "print the orchestrator heartbeat instruction from profile.yaml "
+            "(no --task; agents arm their own /loop)"
+        ),
+    )
+    loop.set_defaults(fn=cmd_loop)
 
     acknowledge_edit = sub.add_parser(
         "acknowledge-edit",

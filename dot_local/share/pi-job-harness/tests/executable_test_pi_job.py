@@ -6084,6 +6084,40 @@ def test_status_shows_blocked_and_interrupt_hint() -> None:
         assert_contains(out, "investigate")
 
 
+def _normalized_orchestrator_heartbeat(module) -> str:
+    body = module.load_profile_contract()["instruction_packets"]["orchestrator_heartbeat"]
+    return " ".join(str(body).split())
+
+
+def test_render_orchestrator_heartbeat() -> None:
+    module = load_pi_job_module()
+    rendered = module.render_orchestrator_heartbeat()
+    expected = _normalized_orchestrator_heartbeat(module)
+    assert rendered == expected
+    assert_contains(rendered, "TASK")
+    assert_not_contains(rendered, "{interval}")
+    assert_not_contains(rendered, "{task_file}")
+    assert not rendered.lstrip().startswith("/loop")
+    assert len(rendered.splitlines()) == 1
+
+
+def test_loop_command_prints_heartbeat_without_task() -> None:
+    module = load_pi_job_module()
+    expected = _normalized_orchestrator_heartbeat(module)
+    res = run(str(PI_JOB), "loop")
+    stdout = res.stdout.rstrip("\n")
+    assert stdout == expected
+    assert_contains(stdout, "TASK")
+    assert not stdout.lstrip().startswith("/loop")
+    assert len(stdout.splitlines()) == 1
+
+
+def test_loop_rejects_interval_flag() -> None:
+    res = run(str(PI_JOB), "loop", "--interval", "5m", check=False)
+    assert res.returncode != 0
+    assert_contains(res.stderr, "unrecognized arguments")
+
+
 def test_investigate_does_not_move_claim() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "investigate.yaml"
@@ -6339,6 +6373,9 @@ def main() -> None:
     test_add_slice_creates_plan_stub()
     test_profile_requires_slice_plan_stub_and_findings_header()
     test_status_shows_blocked_and_interrupt_hint()
+    test_render_orchestrator_heartbeat()
+    test_loop_command_prints_heartbeat_without_task()
+    test_loop_rejects_interval_flag()
     test_investigate_does_not_move_claim()
     print("pi-job tests passed")
 

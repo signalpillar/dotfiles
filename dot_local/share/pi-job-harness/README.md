@@ -49,6 +49,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default; Ready slices tagged), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
+- `loop` - print the orchestrator heartbeat instruction from `profile.yaml` as one line (no `--task`; agents arm their own `/loop`)
 - `instruction` - emit a deterministic packet for the claim's derived active step (or pick-next when the claimed slice is exhausted)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
@@ -721,7 +722,7 @@ Clocks (`utc_now`) and path stamps live in the store/cmd edge, not in layout.
 
 Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `cli_help`, `interrupt_park_steps`).
 Python loads and formats them; it must not hardcode parallel copy.
-Examples: `status_interrupt_hint`, `investigate_interrupt`, `slice_plan_stub`, `findings_file_header`.
+Examples: `status_interrupt_hint`, `investigate_interrupt`, `orchestrator_heartbeat`, `slice_plan_stub`, `findings_file_header`.
 
 ### Render
 

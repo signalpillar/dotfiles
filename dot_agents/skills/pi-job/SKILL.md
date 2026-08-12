@@ -56,6 +56,7 @@ Do not wait for the user to say "continue".
 Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
 Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SLICE_KEY`;
 the packet header names the real task path).
+After create, run `pi-job loop` and arm your own `/loop` from that instruction (resolve TASK).
 
 ## Orchestrator loop
 
