@@ -396,6 +396,8 @@ instruction_packets:
       pi-job --task {task_file} add-finding --note '<evidence>' --source '{source}'
       pi-job --task {task_file} add-slice --kind fog|implement --key <key> ...
       pi-job --task {task_file} block-slice --key <closing> --reason '...' --gate <fix-key>
+  orchestrator_heartbeat: >-
+    Manager metronome for TASK: stay in manager mode and fan out Ready slices to small subagents (not a Ralph never-exit loop). Prefer 3-5m while agents run, 10-15m when waiting on deps/PRs. On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
 interrupt_park_steps:
   - grill
   - grill-plan

@@ -507,6 +507,13 @@ class InstructionPacketsDocument(StrictDocument):
             "Python must not hardcode the packet."
         )
     )
+    orchestrator_heartbeat: str = Field(
+        description=(
+            "Body printed by `pi-job loop` after the `/loop <interval>` prefix. "
+            "No format placeholders. Use literal TASK in command hints (not {task_file}). "
+            "Profile is the only body; Python must not hardcode the packet."
+        )
+    )
 
 
 class ProfileDocument(StrictDocument):

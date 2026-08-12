@@ -6006,6 +6006,12 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(packets["status_interrupt_hint"], "investigate")
     assert_contains(packets["investigate_interrupt"], "{topic}")
     assert_contains(packets["investigate_interrupt"], "{finding_status}")
+    heartbeat = packets["orchestrator_heartbeat"]
+    assert_contains(heartbeat, "TASK")
+    assert "Manager metronome" in heartbeat
+    assert "{interval}" not in heartbeat
+    assert "{task_file}" not in heartbeat
+    assert not heartbeat.lstrip().startswith("/loop")
     park = module.load_profile_contract()["interrupt_park_steps"]
     assert "grill-plan" in park
     assert "clarify-scope" in park
@@ -6014,6 +6020,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "findings_file_header",
         "status_interrupt_hint",
         "investigate_interrupt",
+        "orchestrator_heartbeat",
     ):
         profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
         del profile["instruction_packets"][field]
