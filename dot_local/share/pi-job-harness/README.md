@@ -574,12 +574,15 @@ Task data from every backend passes through the documented Pydantic task contrac
 
 `create` supports YAML task paths.
 
-## Converting between backends: project
+## Migrating loose YAML into a bundle: project
 
-- `pi-job --task <source> project --to <dest>` - copies a task's full state into another backend.
-- A new `.yaml` or `.yml` destination is published with atomic no-clobber semantics and verified against the source's canonical Pydantic representation.
-- Existing YAML destinations are never overwritten.
-- `<dest>` as a directory is created if missing.
+- `pi-job --task <loose-source> project --to <slug-or-bundle-path>` - converts an old loose YAML task (and its sibling `<stem>.plans/` and other artifacts) into a new task bundle.
+- Source must be loose `YamlTaskLayout`; bundles and directory stores are refused (nothing to convert).
+- `--to` is a task slug (resolved under `$PI_JOB_TASKS`), a bundle directory, or its `task.yaml`; the destination is always a fresh `BundleTaskLayout`, never a loose YAML file or the experimental directory store.
+- The destination `task.yaml` must not already exist (no `--force`).
+- Document state is copied and verified against the source's canonical Pydantic representation; `<stem>.plans/` merges into `plans/`, other sibling directories are copied to the bundle root under their own name, and sibling files land under `references/`.
+- On success, only the source yaml and its `<stem>.plans/` are deleted; other copied sibling dirs/files remain at the old location for manual cleanup.
+- Any failure rolls back the freshly scaffolded destination bundle and leaves the source untouched.
 
 ## Slice kinds (contract reference)
 

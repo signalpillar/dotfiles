@@ -2620,6 +2620,115 @@ def scaffold_bundle_dirs(bundle_root: Path) -> None:
     (bundle_root / "references").mkdir(exist_ok=True)
 
 
+def derive_task_slug_from_loose_yaml(doc: Path) -> str | None:
+    """Best-effort task slug derived from a loose YAML document's filename, for hints only.
+
+    Strips a trailing `.task.yaml`/`.task.yml` suffix if present, else `.yaml`/`.yml`;
+    returns `None` when the remaining stem doesn't match the slug charset (nothing to hint).
+    """
+    name = doc.name
+    for suffix in (".task.yaml", ".task.yml"):
+        if name.endswith(suffix):
+            stem = name[: -len(suffix)]
+            break
+    else:
+        stem = doc.stem
+    return stem if is_task_slug(stem) else None
+
+
+def resolve_project_dest(raw: str | Path) -> Path:
+    """Resolve `project --to` to a bundle root directory.
+
+    A bare slug (charset `^[a-z0-9]+(?:-[a-z0-9]+)*$`) resolves under `task_tasks_home()`,
+    whether or not that bundle exists yet. Anything else is a path, resolved via
+    `derive_bundle_root` (`…/task.yaml` -> parent, directory -> itself). A loose `*.yaml`/
+    `*.yml` path is rejected here (with a derived-slug hint when available) rather than by
+    `derive_bundle_root`'s generic `create`-flavored message, since `project` never targets
+    a loose YAML file or a directory store.
+    """
+    text = str(raw)
+    if is_task_slug(text):
+        return task_tasks_home() / text
+    if "/" not in text and "\\" not in text:
+        die(
+            f"invalid task slug {text!r} for --to; slugs must match {TASK_SLUG_RE.pattern} "
+            f"(use ./{text} or an absolute/~ path for a bundle directory)"
+        )
+    resolved = Path(raw).expanduser().resolve()
+    if resolved.suffix.lower() in {".yaml", ".yml"} and resolved.name != BundleTaskLayout.DOCUMENT_NAME:
+        hint = derive_task_slug_from_loose_yaml(resolved)
+        hint_text = f"; maybe --to {hint}" if hint else ""
+        die(
+            "--to must be a task slug or a bundle directory/"
+            f"{BundleTaskLayout.DOCUMENT_NAME}, not a loose YAML file: {resolved}{hint_text}"
+        )
+    return derive_bundle_root(resolved)
+
+
+def loose_sibling_entries(doc: Path, plans_dir: Path) -> list[Path]:
+    """Filesystem entries next to a loose YAML task document, excluding the document
+    itself and its `<stem>.plans/` directory."""
+    parent = doc.parent
+    excluded = {doc.resolve(), plans_dir.resolve()}
+    return sorted(
+        (entry for entry in parent.iterdir() if entry.resolve() not in excluded),
+        key=lambda entry: entry.name,
+    )
+
+
+def _copy_tree_merge(src: Path, dst: Path) -> None:
+    """Copy `src`'s contents into `dst`, merging into any existing directory."""
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.iterdir():
+        target = dst / item.name
+        if item.is_dir():
+            _copy_tree_merge(item, target)
+        else:
+            shutil.copy2(item, target)
+
+
+def copy_loose_artifacts(doc: Path, bundle_root: Path) -> None:
+    """Copy a loose YAML task's sibling artifacts into a freshly scaffolded bundle.
+
+    `<stem>.plans/` merges into `plans/`; other sibling directories are copied to the
+    bundle root under their own name; sibling files land under `references/`. Nothing at
+    the source is modified or removed here.
+
+    Skips any sibling entry that is `bundle_root` itself or an ancestor of it, in case
+    the destination was scaffolded as (or under) a sibling of the loose source - e.g. a
+    freshly created `$PI_JOB_TASKS` living next to the source - which would otherwise
+    recurse the (still being populated) destination into itself.
+    """
+    plans_dir = YamlTaskLayout(doc).plans_dir
+    if plans_dir.is_dir():
+        _copy_tree_merge(plans_dir, bundle_root / "plans")
+    resolved_bundle_root = bundle_root.resolve()
+    for entry in loose_sibling_entries(doc, plans_dir):
+        resolved_entry = entry.resolve()
+        if resolved_bundle_root == resolved_entry or resolved_bundle_root.is_relative_to(resolved_entry):
+            continue
+        if entry.is_dir():
+            _copy_tree_merge(entry, bundle_root / entry.name)
+        else:
+            references_dir = bundle_root / "references"
+            references_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(entry, references_dir / entry.name)
+
+
+def delete_loose_source(doc: Path, plans_dir: Path) -> list[Path]:
+    """Delete only the loose YAML document and its `<stem>.plans/` directory after a
+    successful `project`; other copied siblings remain at the source parent (manual
+    cleanup if desired). Returns the paths actually removed."""
+    removed: list[Path] = []
+    if doc.is_file():
+        doc.unlink()
+        removed.append(doc)
+    if plans_dir.is_dir():
+        shutil.rmtree(plans_dir)
+        removed.append(plans_dir)
+    return removed
+
+
 def _bundle_root_for(task_arg: Path) -> Path | None:
     """Return the bundle root if `task_arg` is a bundle dir or its `task.yaml`, else None."""
     if task_arg.is_dir():
@@ -5897,33 +6006,52 @@ def cmd_add_pr(args: argparse.Namespace) -> None:
 
 
 def cmd_project(args: argparse.Namespace) -> None:
+    """Convert a loose YAML task (+ sibling `<stem>.plans/` and other artifacts) into a
+    new `BundleTaskLayout` under `$PI_JOB_TASKS/<slug>/` or an explicit bundle path.
+
+    Source must be a loose `YamlTaskLayout`; bundles and directory stores are refused
+    (already central/bundle-shaped, or unsupported as a migrate source). The destination
+    is always a fresh `BundleTaskLayout` - never a loose YAML file, never an `FsTaskStore`
+    directory - and `task.yaml` must not already exist there (no `--force`). On success,
+    only the source yaml and its `<stem>.plans/` are deleted; other copied sibling
+    dirs/files remain at the old location. On any failure, the freshly scaffolded
+    destination is rolled back and the source is left untouched.
+    """
     src_store = open_task_store(args.task)
-    to_path = args.to.resolve()
-    suffix = to_path.suffix.lower()
-    created_destination = False
-    if suffix in {".yaml", ".yml"}:
-        dst_store = YamlTaskStore(YamlTaskLayout(to_path), create_only=True)
-    elif not suffix:
-        if to_path.exists() and not to_path.is_dir():
-            die(f"destination {to_path} exists and is not a directory")
-        to_path.mkdir(parents=True, exist_ok=True)
-        dst_store = FsTaskStore(to_path)
-    else:
-        unsupported_storage(to_path)
+    if not isinstance(src_store, YamlTaskStore) or not isinstance(src_store.layout, YamlTaskLayout):
+        die(
+            "project requires a loose YAML task source, not a bundle or directory store: "
+            f"{src_store.describe()}"
+        )
+    loose_layout = src_store.layout
+    plans_dir = loose_layout.plans_dir
+
+    bundle_root = resolve_project_dest(args.to)
+    dest_doc = bundle_root / BundleTaskLayout.DOCUMENT_NAME
+    if dest_doc.exists():
+        die(f"destination {dest_doc} already exists; project never overwrites (no --force)")
+
+    scaffold_bundle_dirs(bundle_root)
+    dst_store = YamlTaskStore(BundleTaskLayout(bundle_root), create_only=True)
 
     try:
         project(src_store, dst_store)
-        if isinstance(dst_store, YamlTaskStore):
-            created_destination = True
-            source_data = semantic_task_mapping(src_store.read(), source=src_store.describe())
-            destination_data = semantic_task_mapping(dst_store.read(), source=dst_store.describe())
-            if source_data != destination_data:
-                die("projected YAML task failed semantic equality verification")
+        copy_loose_artifacts(loose_layout.document_path, bundle_root)
+        source_data = semantic_task_mapping(src_store.read(), source=src_store.describe())
+        destination_data = semantic_task_mapping(dst_store.read(), source=dst_store.describe())
+        if source_data != destination_data:
+            die("projected YAML task failed semantic equality verification")
     except BaseException:
-        if created_destination and isinstance(dst_store, YamlTaskStore):
-            to_path.unlink(missing_ok=True)
+        shutil.rmtree(bundle_root, ignore_errors=True)
         raise
+
+    removed = delete_loose_source(loose_layout.document_path, plans_dir)
     print(f"projected {src_store.describe()} -> {dst_store.describe()}")
+    home = task_tasks_home()
+    if bundle_root.parent == home:
+        print(f"slug: {bundle_root.name}")
+    for path in removed:
+        print(f"removed {path}")
 
 
 def cmd_validate(args: argparse.Namespace) -> None:
@@ -6824,11 +6952,14 @@ def main() -> None:
 
     project_cmd = sub.add_parser(
         "project",
-        help="copy this task between YAML and directory storage backends",
+        help="convert a loose YAML task (+ sibling plans/artifacts) into a central task bundle",
     )
     project_cmd.add_argument(
-        "--to", required=True, type=Path,
-        help="destination: a new .yaml/.yml file or a directory store",
+        "--to", required=True, type=str,
+        help=(
+            "destination bundle: a task slug (under $PI_JOB_TASKS), a bundle directory, "
+            "or its task.yaml (never a loose YAML file or directory store)"
+        ),
     )
     project_cmd.set_defaults(fn=cmd_project)
 

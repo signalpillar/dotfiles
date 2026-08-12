@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -11,7 +12,9 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -6925,23 +6928,236 @@ def test_cue_task_path_is_rejected_without_cue() -> None:
         assert_contains(result.stderr, "use a .yaml/.yml file or a directory")
 
 
-def test_project_cue_destination_is_rejected_without_cue() -> None:
-    """A .cue project destination must fail before any destination is created."""
+@contextmanager
+def _pi_job_tasks_home(home: Path) -> Iterator[None]:
+    """Point `PI_JOB_TASKS` at `home` for the duration of the block, then restore it."""
+    saved = os.environ.get("PI_JOB_TASKS")
+    os.environ["PI_JOB_TASKS"] = str(home)
+    try:
+        yield
+    finally:
+        if saved is None:
+            os.environ.pop("PI_JOB_TASKS", None)
+        else:
+            os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_project_loose_to_slug_bundle() -> None:
+    """`project --to <slug>` converts a loose YAML task (+ stem-based `.plans/`) into a
+    fresh `$PI_JOB_TASKS/<slug>/` bundle, keeping an extra sibling directory by name."""
+    module = load_pi_job_module()
     with tempfile.TemporaryDirectory() as tmp:
-        source = Path(tmp) / "source.yaml"
-        destination = Path(tmp) / "unsupported.cue"
+        home = Path(tmp) / "tasks-home"
+        legacy_dir = Path(tmp) / "legacy"
+        legacy_dir.mkdir()
+        source = legacy_dir / "pi-job-orchestrator-loop.yaml"
+        write_task_yaml(source, standard_fixture_mapping(title="Orchestrator loop"))
+
+        plans_dir = legacy_dir / "pi-job-orchestrator-loop.plans"
+        plans_dir.mkdir()
+        (plans_dir / "second-slice.md").write_text("# Plan\n", encoding="utf-8")
+        (plans_dir / "_findings.md").write_text("# Findings\n", encoding="utf-8")
+
+        attachments_dir = legacy_dir / "attachments"
+        attachments_dir.mkdir()
+        (attachments_dir / "diagram.png").write_bytes(b"fake-bytes")
+
+        with _pi_job_tasks_home(home):
+            out = run(
+                str(PI_JOB), "--task", str(source), "project", "--to", "pi-job-orchestrator-loop",
+            ).stdout
+            assert_contains(out, "projected")
+            assert_contains(out, "slug: pi-job-orchestrator-loop")
+
+            bundle = home / "pi-job-orchestrator-loop"
+            assert (bundle / "task.yaml").is_file()
+            assert (bundle / "plans" / "second-slice.md").read_text(encoding="utf-8") == "# Plan\n"
+            assert (bundle / "plans" / "_findings.md").is_file()
+            assert (bundle / "references").is_dir()
+            assert (bundle / "attachments" / "diagram.png").is_file()
+
+            task = module.YamlTaskStore(module.BundleTaskLayout(bundle)).read()
+            assert task["title"] == "Orchestrator loop"
+
+            assert not source.exists()
+            assert not plans_dir.exists()
+
+
+def test_project_sibling_files_to_references() -> None:
+    """Sibling files next to a loose YAML task land under the bundle's `references/`,
+    preserving filenames."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        source = Path(tmp) / "legacy.task.yaml"
         write_task_yaml(source, standard_fixture_mapping())
+        (Path(tmp) / "intent.md").write_text("# Intent\n", encoding="utf-8")
+        (Path(tmp) / "notes.txt").write_text("notes\n", encoding="utf-8")
+
+        with _pi_job_tasks_home(home):
+            run(str(PI_JOB), "--task", str(source), "project", "--to", "ref-slug")
+            bundle = home / "ref-slug"
+            assert (bundle / "references" / "intent.md").read_text(encoding="utf-8") == "# Intent\n"
+            assert (bundle / "references" / "notes.txt").read_text(encoding="utf-8") == "notes\n"
+
+
+def test_project_other_dirs_keep_names() -> None:
+    """Sibling directories other than `<stem>.plans/` are copied to the bundle root
+    under their own name (not merged into `plans/` or `references/`)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        source = Path(tmp) / "legacy.task.yaml"
+        write_task_yaml(source, standard_fixture_mapping())
+        extra_dir = Path(tmp) / "screenshots"
+        extra_dir.mkdir()
+        (extra_dir / "shot.png").write_bytes(b"data")
+        nested = extra_dir / "nested"
+        nested.mkdir()
+        (nested / "deep.txt").write_text("deep\n", encoding="utf-8")
+
+        with _pi_job_tasks_home(home):
+            run(str(PI_JOB), "--task", str(source), "project", "--to", "dirs-slug")
+            bundle = home / "dirs-slug"
+            assert (bundle / "screenshots" / "shot.png").is_file()
+            assert (bundle / "screenshots" / "nested" / "deep.txt").read_text(encoding="utf-8") == "deep\n"
+
+
+def test_project_deletes_yaml_and_plans_only() -> None:
+    """After a successful project, only the source yaml and its `<stem>.plans/` are
+    deleted; other copied sibling dirs/files remain at the source parent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        source = Path(tmp) / "legacy.task.yaml"
+        write_task_yaml(source, standard_fixture_mapping())
+        plans_dir = Path(tmp) / "legacy.task.plans"
+        plans_dir.mkdir()
+        (plans_dir / "notes.md").write_text("plan\n", encoding="utf-8")
+        extra_dir = Path(tmp) / "keepme"
+        extra_dir.mkdir()
+        (extra_dir / "file.txt").write_text("keep\n", encoding="utf-8")
+        extra_file = Path(tmp) / "sidecar.md"
+        extra_file.write_text("sidecar\n", encoding="utf-8")
+
+        with _pi_job_tasks_home(home):
+            out = run(str(PI_JOB), "--task", str(source), "project", "--to", "del-slug").stdout
+            assert_contains(out, f"removed {source.resolve()}")
+            assert_contains(out, f"removed {plans_dir.resolve()}")
+
+            assert not source.exists()
+            assert not plans_dir.exists()
+            assert extra_dir.is_dir()
+            assert (extra_dir / "file.txt").is_file()
+            assert extra_file.is_file()
+
+            bundle = home / "del-slug"
+            assert (bundle / "keepme" / "file.txt").is_file()
+            assert (bundle / "references" / "sidecar.md").is_file()
+
+
+def test_project_refuses_existing_dest() -> None:
+    """`project` refuses when the destination bundle's `task.yaml` already exists (no
+    `--force`); the existing bundle is left untouched and the source is not deleted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        with _pi_job_tasks_home(home):
+            run(str(PI_JOB), "--task", "existing-slug", "create", "--kind", "setup")
+            source = Path(tmp) / "legacy.task.yaml"
+            write_task_yaml(source, standard_fixture_mapping())
+
+            result = run(
+                str(PI_JOB), "--task", str(source), "project", "--to", "existing-slug", check=False,
+            )
+            assert result.returncode != 0
+            assert_contains(result.stderr, "already exists")
+            assert source.is_file()
+
+            status = run(str(PI_JOB), "--task", "existing-slug", "status").stdout
+            assert_contains(status, "Initialization: ok")
+
+
+def test_project_refuses_non_loose_source() -> None:
+    """`project` refuses a bundle or directory-store source; only loose YAML may be
+    converted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_source = Path(tmp) / "bundle-source"
+        run(str(PI_JOB), "--task", str(bundle_source), "create", "--kind", "setup")
         result = run(
-            str(PI_JOB), "--task", str(source), "project", "--to", str(destination), check=False
+            str(PI_JOB), "--task", str(bundle_source), "project", "--to", "wont-happen", check=False,
         )
         assert result.returncode != 0
-        assert_contains(result.stderr, "unsupported task storage")
-        assert not destination.exists()
+        assert_contains(result.stderr, "loose YAML")
+
+        fs_source = Path(tmp) / "fs-source"
+        fs_source.mkdir()
+        result2 = run(
+            str(PI_JOB), "--task", str(fs_source), "project", "--to", "wont-happen-either", check=False,
+        )
+        assert result2.returncode != 0
+        assert_contains(result2.stderr, "loose YAML")
+
+
+def test_project_rejects_loose_yaml_as_to() -> None:
+    """`--to` naming a loose `*.yaml` file (not `task.yaml`) is rejected with a slug or
+    bundle-directory hint; nothing is created and the source is left in place."""
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "legacy.task.yaml"
+        write_task_yaml(source, standard_fixture_mapping())
+        bad_to = Path(tmp) / "legacy-target.yaml"
+
+        result = run(
+            str(PI_JOB), "--task", str(source), "project", "--to", str(bad_to), check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "loose YAML file")
+        assert_contains(result.stderr, "legacy-target")
+        assert not bad_to.exists()
+        assert source.is_file()
+
+
+def test_project_semantic_mismatch_rolls_back() -> None:
+    """A forced semantic-equality failure after `project` rolls back the freshly
+    scaffolded destination bundle entirely and leaves the loose source untouched."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        source = Path(tmp) / "legacy.task.yaml"
+        write_task_yaml(source, module.example_task_mapping())
+
+        with _pi_job_tasks_home(home):
+            original = module.semantic_task_mapping
+            calls = {"n": 0}
+
+            def flaky(value, *, source):
+                calls["n"] += 1
+                if calls["n"] == 2:
+                    return {"forced": "mismatch"}
+                return original(value, source=source)
+
+            module.semantic_task_mapping = flaky
+            try:
+                args = argparse.Namespace(task=source.resolve(), to="mismatch-slug")
+                try:
+                    module.cmd_project(args)
+                    raise AssertionError("expected SystemExit for forced semantic mismatch")
+                except SystemExit as exc:
+                    assert exc.code != 0
+            finally:
+                module.semantic_task_mapping = original
+
+            bundle = home / "mismatch-slug"
+            assert not bundle.exists()
+            assert source.is_file()
 
 
 if __name__ == "__main__":
     test_cue_task_path_is_rejected_without_cue()
-    test_project_cue_destination_is_rejected_without_cue()
+    test_project_loose_to_slug_bundle()
+    test_project_sibling_files_to_references()
+    test_project_other_dirs_keep_names()
+    test_project_deletes_yaml_and_plans_only()
+    test_project_refuses_existing_dest()
+    test_project_refuses_non_loose_source()
+    test_project_rejects_loose_yaml_as_to()
+    test_project_semantic_mismatch_rolls_back()
     test_task_tasks_home_default()
     test_task_tasks_home_override()
     test_resolve_task_arg_slug()
