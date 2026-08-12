@@ -6857,6 +6857,82 @@ def test_list_home_bundles_only() -> None:
             assert_not_contains(out, "loose.yaml")
 
 
+def test_derived_task_status_ignores_stored_field() -> None:
+    """Overall status comes from slices; stale top-level task.status is ignored."""
+    module = load_pi_job_module()
+    mapping = standard_fixture_mapping()
+    mapping["status"] = "planned"
+    assert module.derived_task_status(mapping) == "in_progress"
+
+    mapping["plan"]["slices"][1]["status"] = "done"
+    for step in mapping["plan"]["slices"][1]["steps"]:
+        step["status"] = "done"
+    for step in mapping["plan"]["slices"][1]["final_steps"]:
+        step["status"] = "done"
+    mapping["status"] = "planned"
+    assert module.derived_task_status(mapping) == "done"
+
+    mapping["plan"]["slices"][0]["status"] = "skipped"
+    mapping["plan"]["slices"][1]["status"] = "skipped"
+    assert module.derived_task_status(mapping) == "skipped"
+
+    mapping["plan"]["slices"][0]["status"] = "blocked"
+    mapping["plan"]["slices"][1]["status"] = "done"
+    assert module.derived_task_status(mapping) == "blocked"
+
+    mapping["plan"]["slices"] = []
+    assert module.derived_task_status(mapping) == "planned"
+
+    mapping["plan"]["slices"] = [
+        {
+            "key": "only",
+            "kind": "implement",
+            "title": "Only",
+            "goal": "g",
+            "status": "planned",
+            "note": "",
+            "steps": [],
+            "final_steps": [],
+        },
+        {
+            "key": "done-one",
+            "kind": "implement",
+            "title": "Done",
+            "goal": "g",
+            "status": "done",
+            "note": "",
+            "steps": [],
+            "final_steps": [],
+        },
+    ]
+    assert module.derived_task_status(mapping) == "in_progress"
+
+
+def test_status_and_list_use_derived_task_status() -> None:
+    """status and list show derived overall status even when task.status is stale."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        mapping = standard_fixture_mapping(title="Derived Status Task")
+        mapping["status"] = "planned"
+        for task_slice in mapping["plan"]["slices"]:
+            task_slice["status"] = "done"
+            for step in task_slice.get("steps") or []:
+                step["status"] = "done"
+            for step in task_slice.get("final_steps") or []:
+                step["status"] = "done"
+        write_task_yaml(home / "derived-status" / "task.yaml", mapping)
+
+        with _pi_job_tasks_home(home):
+            status_out = run(str(PI_JOB), "--task", "derived-status", "status").stdout
+            assert_contains(status_out, "Status: done")
+            assert_not_contains(status_out, "Status: planned")
+
+            list_out = run(str(PI_JOB), "list").stdout
+            assert_contains(list_out, "derived-status")
+            assert_contains(list_out, "[done]")
+            assert_not_contains(list_out, "[planned]")
+
+
 def test_list_row_fields() -> None:
     """A `pi-job list` row includes the slug, title, status, a Ready slice key, and a
     cursor label (owner and derived position)."""
@@ -7519,6 +7595,8 @@ if __name__ == "__main__":
     test_create_invalid_slug()
     test_create_rejects_loose_yaml_path()
     test_list_home_bundles_only()
+    test_derived_task_status_ignores_stored_field()
+    test_status_and_list_use_derived_task_status()
     test_list_row_fields()
     test_list_empty_home()
     test_list_respects_PI_JOB_TASKS()

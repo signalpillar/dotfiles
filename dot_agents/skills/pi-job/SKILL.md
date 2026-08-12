@@ -59,6 +59,7 @@ Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
 Claims live in `orchestration.cursors[]` (`{owner, slice, claimed_at, last_seen}`).
 Active step is derived: first non-terminal step of the claimed slice.
+Overall `Status:` in `status` / `list` / `markdown` is derived from slice statuses; ignore top-level `task.status` in the file.
 Trust `status`/`show` for claims + Ready frontier.
 Array order of slices is not execution order.
 

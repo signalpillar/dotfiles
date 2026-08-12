@@ -247,7 +247,12 @@ class TaskDocument(StrictDocument):
     """Complete persisted task state shared by every storage backend."""
 
     title: str = Field(description="Human-readable task title.")
-    status: TaskStatus = Field(description="Overall task lifecycle state.")
+    status: TaskStatus = Field(
+        description=(
+            "Persisted overall status (schema compat). Display and reporting ignore this field "
+            "and derive overall status from plan.slices[].status."
+        ),
+    )
     source: SourceDocument = Field(default_factory=SourceDocument, description="Task discovery metadata.")
     project: ProjectDocument = Field(default_factory=ProjectDocument, description="Owning project metadata.")
     context: str = Field(default="", description="Free-form background required before acting on the task.")
@@ -3253,6 +3258,26 @@ def all_slices_done(task: dict[str, Any]) -> bool:
     return all(task_slice.status in STATUS_DONE for task_slice in task_slices(task))
 
 
+def derived_task_status(task: dict[str, Any]) -> TaskStatus:
+    """Overall task status from slice statuses. Stored task.status is ignored."""
+    slices = task_slices(task)
+    if not slices:
+        return "planned"
+    statuses = [task_slice.status for task_slice in slices]
+    if any(status == "blocked" for status in statuses):
+        return "blocked"
+    if any(status == "in_progress" for status in statuses):
+        return "in_progress"
+    if all(status in STATUS_DONE for status in statuses):
+        if all(status == "skipped" for status in statuses):
+            return "skipped"
+        return "done"
+    if any(status in STATUS_DONE for status in statuses):
+        return "in_progress"
+    return "planned"
+
+
+
 def slice_cursor(task_slice: TaskSlice) -> Cursor:
     """Return the first unfinished step cursor in a slice, or the slice itself if all steps are done."""
     for step in task_slice.steps:
@@ -3354,7 +3379,7 @@ def cursor_on_user_decision(task: Mapping[str, Any], cursor: Cursor | None) -> b
 def print_status(ref: str, task: dict[str, Any], task_path: Path | None = None) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
     print(f"Task: {ref}")
-    print(f"Status: {task.get('status', '<unknown>')}")
+    print(f"Status: {derived_task_status(task)}")
     print(f"Contract: {PROFILE}")
     if not task.get("orchestration"):
         print("Initialization: required")
@@ -5245,7 +5270,7 @@ def render_task_markdown(
 ) -> str:
     cursors = [claim_position(dict(task), claim) for claim in owned_cursors(dict(task))]
     title = escape_md_inline(str(task.get("title") or "<untitled>"))
-    status = str(task.get("status") or "")
+    status = derived_task_status(dict(task))
     lines = [f"# {title}", "", f"**Status:** {status}", ""]
 
     # Lean --slice: omit decisions/preamble unless opted in. Full/summary keep them.
@@ -6096,7 +6121,7 @@ def cmd_list(args: argparse.Namespace) -> None:
             print(f"warning: skipping unreadable bundle {slug!r} ({doc}): {exc}", file=sys.stderr)
             continue
         title = str(task.get("title") or "")
-        status = str(task.get("status") or "")
+        status = derived_task_status(task)
         ready_keys = [task_slice.key for task_slice in ready_slices(task)]
         cursor_labels = [claim_label(task, claim) for claim in owned_cursors(task)]
         print(format_list_row(slug, title, status, ready_keys, cursor_labels))

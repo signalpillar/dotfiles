@@ -669,7 +669,7 @@ Models use strict types and reject unknown fields.
 | Path | Type | Meaning |
 |---|---|---|
 | `title` | string | Human-readable task title. |
-| `status` | status enum | Overall task lifecycle state. |
+| `status` | status enum | Persisted overall status (compat only). Display ignores it and derives from slice statuses. |
 | `source` | object | Jira reference, discovery identifier, and discovery context. |
 | `project` | object | Stable project key, name, workflow route, and project context. |
 | `context` | string | Free-form background required before acting. |
@@ -691,7 +691,8 @@ Models use strict types and reject unknown fields.
 | `step.status` / `note` | status enum / string | Lifecycle state and evidence. |
 | `step.execution` | execution or null | Executor model, start timestamp, and optional end timestamp. |
 
-The task status enum is `planned`, `in_progress`, `blocked`, `done`, or `skipped`.
+The status enum is `planned`, `in_progress`, `blocked`, `done`, or `skipped`.
+`status` / `list` / `markdown` report overall task status derived from `plan.slices[].status` (blocked > in_progress > terminals > planned); the top-level `status` field is ignored.
 Pull-request status is `open`, `merged`, or `closed`.
 Profile models document configuration layering, artifact rules and gates, toolbelt aids, step kinds, slice policies, and slice kinds in the same way.
 
@@ -700,6 +701,7 @@ What `pi-job` cares about most:
 - `orchestration` - must exist after `create`; holds cursors, policy, and artifacts
 - `orchestration.cursors[]` - owned claims `{owner, slice, claimed_at, last_seen}` (hard cut; no single `cursor`)
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
+- `plan.slices[].status` - authority for overall task status in status/list/markdown
 - `plan.slices[].steps` plus `final_steps` - sequential work; active step is derived as first non-terminal
 - `decisions` and `orchestration.artifacts` - durable notes and artifact gates
 
