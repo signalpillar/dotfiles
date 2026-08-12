@@ -2590,13 +2590,11 @@ def format_list_row(
     slug: str,
     title: str,
     status: str,
-    ready_keys: Sequence[str],
     cursor_labels: Sequence[str],
 ) -> str:
-    """One `pi-job list` row: slug, title, status, Ready slice keys, and claim labels."""
-    ready = ", ".join(ready_keys) if ready_keys else "-"
+    """One `pi-job list` row: slug, title, status, and claim labels (Ready is in `status`)."""
     cursors = ", ".join(cursor_labels) if cursor_labels else "-"
-    return f"{slug}: {title} [{status}]  Ready: {ready}  Cursors: {cursors}"
+    return f"{slug}: {title} [{status}]  Cursors: {cursors}"
 
 
 def is_task_slug(text: str) -> bool:
@@ -6104,12 +6102,13 @@ def cmd_add_step(args: argparse.Namespace) -> None:
 
 
 def cmd_list(args: argparse.Namespace) -> None:
-    """List `$PI_JOB_TASKS` bundles (slug, title, status, Ready frontier, active claims).
+    """List `$PI_JOB_TASKS` bundles (slug, title, status, active claims).
 
     Scans only immediate child bundle directories of the task home; loose `*.yaml` files
     there are never listed (out of scope; use `project` to bundle them first). An
     individual bundle that fails to load (bad YAML, failed validation) is skipped with a
-    stderr warning rather than aborting the whole listing."""
+    stderr warning rather than aborting the whole listing.
+    Ready frontier stays on `pi-job status` / `show`, not on this overview."""
     home = task_tasks_home()
     for slug, doc in iter_home_bundle_docs(home):
         try:
@@ -6122,9 +6121,8 @@ def cmd_list(args: argparse.Namespace) -> None:
             continue
         title = str(task.get("title") or "")
         status = derived_task_status(task)
-        ready_keys = [task_slice.key for task_slice in ready_slices(task)]
         cursor_labels = [claim_label(task, claim) for claim in owned_cursors(task)]
-        print(format_list_row(slug, title, status, ready_keys, cursor_labels))
+        print(format_list_row(slug, title, status, cursor_labels))
 
 
 def cmd_set_worktree(args: argparse.Namespace) -> None:

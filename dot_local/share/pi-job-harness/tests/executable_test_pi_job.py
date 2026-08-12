@@ -6934,8 +6934,8 @@ def test_status_and_list_use_derived_task_status() -> None:
 
 
 def test_list_row_fields() -> None:
-    """A `pi-job list` row includes the slug, title, status, a Ready slice key, and a
-    cursor label (owner and derived position)."""
+    """A `pi-job list` row includes the slug, title, status, and a cursor label
+    (owner and derived position). Ready frontier is omitted (use `status`)."""
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "tasks-home"
         bundle = home / "row-fields-slug"
@@ -6946,8 +6946,10 @@ def test_list_row_fields() -> None:
             assert_contains(out, "row-fields-slug")
             assert_contains(out, "Row Fields Task")
             assert_contains(out, "in_progress")
-            assert_contains(out, "second-slice")
+            assert_contains(out, "Cursors:")
             assert_contains(out, DEFAULT_OWNER)
+            assert_contains(out, "old-slice")  # claim position from fixture
+            assert_not_contains(out, "Ready:")
 
 
 def test_list_empty_home() -> None:
