@@ -51,6 +51,7 @@ def dump_task_yaml(mapping: dict) -> str:
 
 
 def write_task_yaml(path: Path, mapping: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dump_task_yaml(mapping), encoding="utf-8")
 
 
@@ -621,7 +622,7 @@ def test_profiled_task() -> None:
 
 def test_uninitialized_task_requires_orchestration() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "uninitialized.yaml"
+        task = Path(tmp) / "uninitialized" / "task.yaml"
         write_task_yaml(
             task,
             standard_fixture_mapping(title="Uninitialized fixture task", uninitialized=True),
@@ -653,7 +654,7 @@ def test_uninitialized_task_requires_orchestration() -> None:
 
 def test_init_with_kind_setup_seeds_setup_slice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "empty-plan.yaml"
+        task = Path(tmp) / "empty-plan" / "task.yaml"
         write_task_yaml(task, {
             "title": "Empty plan",
             "status": "in_progress",
@@ -670,7 +671,7 @@ def test_init_with_kind_setup_seeds_setup_slice() -> None:
 
 def test_setup_template_includes_wayfinder_step() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "setup-wayfinder.yaml"
+        task = Path(tmp) / "setup-wayfinder" / "task.yaml"
         write_task_yaml(task, {
             "title": "Setup wayfinder",
             "status": "in_progress",
@@ -683,7 +684,7 @@ def test_setup_template_includes_wayfinder_step() -> None:
 
 def test_fog_slice_kind_seeds_template() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "fog.yaml"
+        task = Path(tmp) / "fog" / "task.yaml"
         write_task_yaml(task, {
             "title": "Fog kind",
             "status": "in_progress",
@@ -1020,7 +1021,7 @@ def test_bootstrap_then_claim_instruction_includes_next_action() -> None:
     """create no longer seeds a claim; the agent must claim before instruction has anything
     to derive a position from."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-next.yaml"
+        task = Path(tmp) / "bootstrap-next" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
         created = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
@@ -1467,24 +1468,30 @@ def test_missing_task_points_to_scaffold() -> None:
 
 
 def test_scaffold_creates_task_file() -> None:
+    """`create` always scaffolds a bundle: `task.yaml` plus `plans/` and `references/`."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "nested" / "new-task.yaml"
-        dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
+        bundle = Path(tmp) / "nested" / "new-task"
+        task = bundle / "task.yaml"
+        dry = run(str(PI_JOB), "--task", str(bundle), "create", "--dry-run").stdout
         assert_contains(dry, "title:")
         assert_contains(dry, "key: do-the-change")
         if task.exists():
             raise AssertionError("dry-run wrote a task file")
+        if (bundle / "plans").exists():
+            raise AssertionError("dry-run scaffolded bundle directories")
 
         out = run(
             str(PI_JOB),
             "--task",
-            str(task),
+            str(bundle),
             "create",
             "--title",
             "Scaffolded example",
         ).stdout
         assert_contains(out, f"created: {task.resolve()}")
         assert task.exists()
+        assert (bundle / "plans").is_dir()
+        assert (bundle / "references").is_dir()
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Task: Scaffolded example")
@@ -2268,7 +2275,7 @@ def test_scaffold_mirrors_implement_template() -> None:
     it never drifts from the contract. It should carry every template step (including
     wait-for-feedback) and must NOT carry retired keys like reconcile-artifacts."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "new.yaml"
+        task = Path(tmp) / "new" / "task.yaml"
         dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
         for key in (
             "create-plan", "grill-plan", "edit-code", "verify",
@@ -2291,7 +2298,7 @@ def test_scaffold_includes_create_plan_and_grill_plan_before_edit_code() -> None
     """The scaffold's steps must lead with create-plan then grill-plan, before edit-code -
     modeling the per-slice planning convention for anyone reading a fresh scaffold."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "new.yaml"
+        task = Path(tmp) / "new" / "task.yaml"
         dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
         assert_contains(dry, "key: create-plan")
         assert_contains(dry, "key: grill-plan")
@@ -2666,7 +2673,7 @@ def test_show_graph_rejects_slice_flag() -> None:
 def test_init_rejects_forward_reference_dependency() -> None:
     """create seeds cursors:[] (no auto-claim); forward-ref deps leave Ready empty and print guidance."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "forward-ref.yaml"
+        task = Path(tmp) / "forward-ref" / "task.yaml"
         write_task_yaml(task, {
             "title": "Forward reference dependency test",
             "status": "in_progress",
@@ -2708,7 +2715,7 @@ def test_init_rejects_forward_reference_dependency() -> None:
 def test_scaffold_output_still_validates_via_shared_schema() -> None:
     """Real (non-dry-run) scaffold, then pi-job status/show succeed against it."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "schema-validate.yaml"
+        task = Path(tmp) / "schema-validate" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create")
 
         # status and show should work without errors
@@ -2935,10 +2942,10 @@ def test_add_slice_rejects_unsupported_required_field() -> None:
 
 def test_validate_warns_when_persisted_slice_predates_template_addition() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "older-template.yaml"
+        task = Path(tmp) / "older-template" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         sl = task_data["plan"]["slices"][0]
         sl["steps"] = [s for s in sl["steps"] if s["key"] != "vulnerability-scan"]
@@ -2951,7 +2958,7 @@ def test_validate_warns_when_persisted_slice_predates_template_addition() -> Non
 def _scaffolded_task_with_long_step_note(task: Path, *, note_len: int = 2001) -> None:
     run(str(PI_JOB), "--task", str(task), "create")
     module = load_pi_job_module()
-    store = module.YamlTaskStore(module.YamlTaskLayout(task))
+    store = module.open_task_store(task)
     task_data = store.read()
     task_data["plan"]["slices"][0]["steps"][0]["note"] = "x" * note_len
     store.replace(task_data)
@@ -2959,7 +2966,7 @@ def _scaffolded_task_with_long_step_note(task: Path, *, note_len: int = 2001) ->
 
 def test_validate_warns_on_long_note() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "long_note_validate.yaml"
+        task = Path(tmp) / "long_note_validate" / "task.yaml"
         _scaffolded_task_with_long_step_note(task)
         result = run(str(PI_JOB), "--task", str(task), "validate")
         assert_contains(result.stdout, "warning:")
@@ -2969,7 +2976,7 @@ def test_validate_warns_on_long_note() -> None:
 
 def test_status_warns_on_long_note() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "long_note_status.yaml"
+        task = Path(tmp) / "long_note_status" / "task.yaml"
         _scaffolded_task_with_long_step_note(task)
         result = run(str(PI_JOB), "--task", str(task), "status")
         assert_contains(result.stdout, "warning:")
@@ -2979,10 +2986,10 @@ def test_status_warns_on_long_note() -> None:
 
 def test_validate_warns_on_large_task_file() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "large_task.yaml"
+        task = Path(tmp) / "large_task" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         task_data["context"] = "x" * 101_000
         store.replace(task_data)
@@ -4718,7 +4725,7 @@ def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
 
 def test_start_unqualified_model_error_includes_example() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "unqualified-start.yaml"
+        task = Path(tmp) / "unqualified-start" / "task.yaml"
         # create seeds cursors:[]; claim before start so the model-id check is reached.
         run(str(PI_JOB), "--task", str(task), "create", "--kind", "implement", "--force", "--title", "Model id")
         run(str(PI_JOB), "--task", str(task), "claim", "--slice", "implement-slice", "--owner", DEFAULT_OWNER)
@@ -4852,7 +4859,7 @@ def test_lifecycle_policy_is_step_key_agnostic() -> None:
 
 def test_scaffold_empty_plan_has_no_slices() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "empty.yaml"
+        task = Path(tmp) / "empty" / "task.yaml"
         out = run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--dry-run").stdout
         assert "slices: []" in out
         assert "do-the-change" not in out
@@ -4860,7 +4867,7 @@ def test_scaffold_empty_plan_has_no_slices() -> None:
 
 def test_scaffold_initial_kind_setup_seeds_setup_slice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "initial-kind.yaml"
+        task = Path(tmp) / "initial-kind" / "task.yaml"
         out = run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--dry-run").stdout
         assert "setup-slice" in out
         assert "explore-context" in out
@@ -4869,7 +4876,7 @@ def test_scaffold_initial_kind_setup_seeds_setup_slice() -> None:
 
 def test_bootstrap_creates_initialized_task() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap.yaml"
+        task = Path(tmp) / "bootstrap" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("""
 title: Bootstrap test
@@ -4910,7 +4917,7 @@ slices:
 
 def test_bootstrap_dry_run_prints_diff_and_does_not_write() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-dry.yaml"
+        task = Path(tmp) / "bootstrap-dry" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("title: Dry run test\nslices:\n  - key: only-slice\n    kind: implement\n    title: Only\n    goal: Test\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
         out = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), "--dry-run").stdout
@@ -4921,7 +4928,8 @@ def test_bootstrap_dry_run_prints_diff_and_does_not_write() -> None:
 
 def test_bootstrap_refuses_overwrite_without_force() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-exists.yaml"
+        task = Path(tmp) / "bootstrap-exists" / "task.yaml"
+        task.parent.mkdir(parents=True, exist_ok=True)
         task.write_text("title: existing\nstatus: planned\n", encoding="utf-8")
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("title: Bootstrap test\nslices:\n  - key: only-slice\n    kind: implement\n    title: Only\n    goal: Test\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
@@ -4932,7 +4940,7 @@ def test_bootstrap_refuses_overwrite_without_force() -> None:
 
 def test_bootstrap_rejects_unknown_kind() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-unknown-kind.yaml"
+        task = Path(tmp) / "bootstrap-unknown-kind" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("title: Bad kind\nslices:\n  - key: slice\n    kind: nonexistent\n    title: Bad\n    goal: Fail\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
         result = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), check=False)
@@ -4942,7 +4950,7 @@ def test_bootstrap_rejects_unknown_kind() -> None:
 
 def test_bootstrap_rejects_unresolved_dependency() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-bad-dep.yaml"
+        task = Path(tmp) / "bootstrap-bad-dep" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("title: Bad dep\nslices:\n  - key: slice\n    kind: implement\n    title: Slice\n    goal: Test\n    depends_on: [missing]\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
         result = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), check=False)
@@ -5080,11 +5088,11 @@ def test_validate_accepts_conformant_follow_work_fixture() -> None:
 
 def test_set_project_mutation() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "project-mutation.yaml"
+        task = Path(tmp) / "project-mutation" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "set-project", "--key", "new-key", "--name", "New Name")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         assert task_data["project"]["key"] == "new-key"
         assert task_data["project"]["name"] == "New Name"
@@ -5092,21 +5100,21 @@ def test_set_project_mutation() -> None:
 
 def test_set_project_title_updates_task_title() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "project-title.yaml"
+        task = Path(tmp) / "project-title" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force", "--title", "Old title")
         out = run(
             str(PI_JOB), "--task", str(task), "set-project", "--title", "Widened scope title",
         ).stdout
         assert_contains(out, "title=Widened scope title")
         module = load_pi_job_module()
-        assert module.YamlTaskStore(module.YamlTaskLayout(task)).read()["title"] == "Widened scope title"
+        assert module.open_task_store(task).read()["title"] == "Widened scope title"
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Widened scope title")
 
 
 def test_set_project_title_refuses_empty() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "project-title-empty.yaml"
+        task = Path(tmp) / "project-title-empty" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         res = run(str(PI_JOB), "--task", str(task), "set-project", "--title", "   ", check=False)
         if res.returncode == 0:
@@ -5116,22 +5124,22 @@ def test_set_project_title_refuses_empty() -> None:
 
 def test_set_context_mutation() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "context-mutation.yaml"
+        task = Path(tmp) / "context-mutation" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "set-context", "--context", "New context")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         assert task_data["context"] == "New context"
 
 
 def test_add_decision_mutation() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "decision-mutation.yaml"
+        task = Path(tmp) / "decision-mutation" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "add-decision", "--date", "2026-07-27", "--note", "Test decision", "--source", "test")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         assert len(task_data["decisions"]) == 1
         assert task_data["decisions"][0]["note"] == "Test decision"
@@ -5139,18 +5147,18 @@ def test_add_decision_mutation() -> None:
 
 def test_set_plan_note_mutation() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "plan-note-mutation.yaml"
+        task = Path(tmp) / "plan-note-mutation" / "task.yaml"
         run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
         run(str(PI_JOB), "--task", str(task), "set-plan-note", "--note", "Plan note text")
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         assert task_data["plan"]["note"] == "Plan note text"
 
 
 def test_remove_slice_removes_and_guards() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "remove-slice.yaml"
+        task = Path(tmp) / "remove-slice" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("title: Remove test\ninitial_slice_kind: setup\nslices:\n  - key: dependent\n    kind: implement\n    title: Dependent\n    goal: Test\n    depends_on: [task-setup]\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
         run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
@@ -5163,7 +5171,7 @@ def test_remove_slice_removes_and_guards() -> None:
         assert result.returncode == 0
         # Verify it's gone
         module = load_pi_job_module()
-        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        store = module.open_task_store(task)
         task_data = store.read()
         assert len(task_data["plan"]["slices"]) == 1
 
@@ -5181,7 +5189,7 @@ def test_create_from_requires_intent_path() -> None:
 def test_bootstrap_prints_seed_slice_plans_for_implement_not_setup() -> None:
     """After bootstrap, stdout lists qualifying implement slices in the seed block, not setup."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-seed.yaml"
+        task = Path(tmp) / "bootstrap-seed" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(
             minimal_bootstrap_input_yaml(
@@ -5199,7 +5207,7 @@ slices:
         )
         out = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
         seed = seed_block_after_marker(out)
-        assert_contains(seed, "bootstrap-seed.plans/implement-one.md")
+        assert_contains(seed, "plans/implement-one.md")
         assert_contains(seed, "Depends on: task-setup")
         if "- task-setup [" in seed:
             raise AssertionError(f"setup slice must not appear as a seed entry:\n{seed}")
@@ -5209,7 +5217,7 @@ slices:
 def test_add_slice_implement_prints_seed_block_for_new_slice_only() -> None:
     """add-slice for a qualifying kind prints the seed block for that slice only."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "add-slice-seed.yaml"
+        task = Path(tmp) / "add-slice-seed" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
         run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
@@ -5228,7 +5236,7 @@ def test_add_slice_implement_prints_seed_block_for_new_slice_only() -> None:
             "implement",
         ).stdout
         seed = seed_block_after_marker(out)
-        assert_contains(seed, "add-slice-seed.plans/wire-api.md")
+        assert_contains(seed, "plans/wire-api.md")
         if "- task-setup [" in seed:
             raise AssertionError(f"seed block must list only the new slice:\n{seed}")
         assert "task-setup.plans/" not in seed
@@ -5237,7 +5245,7 @@ def test_add_slice_implement_prints_seed_block_for_new_slice_only() -> None:
 def test_add_slice_setup_prints_no_seed_block() -> None:
     """add-slice for setup (no create-plan in template) must not print a seed block."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "add-slice-no-seed.yaml"
+        task = Path(tmp) / "add-slice-no-seed" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
         run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
@@ -5262,7 +5270,7 @@ def test_add_slice_setup_prints_no_seed_block() -> None:
 def test_bootstrap_dry_run_prints_no_seed_block() -> None:
     """bootstrap --dry-run must not print the seed block."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "bootstrap-dry-seed.yaml"
+        task = Path(tmp) / "bootstrap-dry-seed" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(
             minimal_bootstrap_input_yaml(
@@ -5294,7 +5302,7 @@ slices:
 def test_seed_block_uses_task_placeholder_not_absolute_path() -> None:
     """Seed block plan paths are relative; may use <TASK>; must not repeat absolute task path."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "my-task.yaml"
+        task = Path(tmp) / "my-task" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text(
             minimal_bootstrap_input_yaml(
@@ -5312,7 +5320,7 @@ slices:
         )
         out = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
         seed = seed_block_after_marker(out)
-        assert_contains(seed, "my-task.plans/feature-a.md")
+        assert_contains(seed, "plans/feature-a.md")
         absolute_task = str(task.resolve())
         if absolute_task in seed:
             raise AssertionError(
@@ -6280,6 +6288,182 @@ def test_resolve_task_arg_slug_ignores_loose_yaml_in_home() -> None:
                 os.environ["PI_JOB_TASKS"] = saved
 
 
+def test_layout_for_document_path_bundle_and_loose() -> None:
+    """A `task.yaml` document path resolves to `BundleTaskLayout`; anything else to `YamlTaskLayout`."""
+    module = load_pi_job_module()
+    bundle_layout = module.layout_for_document_path(Path("/tmp/demo/my-task/task.yaml"))
+    assert isinstance(bundle_layout, module.BundleTaskLayout)
+    assert bundle_layout.bundle_root == Path("/tmp/demo/my-task")
+
+    loose_layout = module.layout_for_document_path(Path("/tmp/demo/legacy.yaml"))
+    assert isinstance(loose_layout, module.YamlTaskLayout)
+    assert loose_layout.task_path == Path("/tmp/demo/legacy.yaml")
+
+
+def test_derive_bundle_root_task_yaml_parent_dir_self_and_loose_dies() -> None:
+    """`derive_bundle_root`: `task.yaml` -> parent; directory -> itself; loose `*.yaml`/`*.yml` -> die."""
+    module = load_pi_job_module()
+    assert module.derive_bundle_root(Path("/tmp/demo/my-task/task.yaml")) == Path("/tmp/demo/my-task")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        existing_dir = Path(tmp) / "bundle-root"
+        existing_dir.mkdir()
+        assert module.derive_bundle_root(existing_dir) == existing_dir
+
+        # A non-existent path with no recognized YAML suffix is treated as the bundle root itself.
+        fresh_dir = Path(tmp) / "not-yet-created"
+        assert module.derive_bundle_root(fresh_dir) == fresh_dir
+
+        for loose in (Path(tmp) / "legacy.yaml", Path(tmp) / "legacy.yml"):
+            try:
+                module.derive_bundle_root(loose)
+                raise AssertionError(f"expected SystemExit for loose YAML target {loose}")
+            except SystemExit as exc:
+                assert exc.code != 0
+
+
+def test_scaffold_bundle_dirs_idempotent_preserves_contents() -> None:
+    """`scaffold_bundle_dirs` is idempotent and never touches existing `plans/`/`references/` contents."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle_root = Path(tmp) / "bundle"
+        module.scaffold_bundle_dirs(bundle_root)
+        assert bundle_root.is_dir()
+        assert (bundle_root / "plans").is_dir()
+        assert (bundle_root / "references").is_dir()
+
+        marker = bundle_root / "plans" / "keep-me.md"
+        marker.write_text("keep this\n", encoding="utf-8")
+
+        module.scaffold_bundle_dirs(bundle_root)
+        assert marker.is_file()
+        assert marker.read_text(encoding="utf-8") == "keep this\n"
+
+
+def test_create_slug_scaffolds_bundle() -> None:
+    """`create` with a bare slug scaffolds `$PI_JOB_TASKS/<slug>/{task.yaml,plans/,references/}`."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            resolved = module.resolve_create_task_arg("demo-slug")
+            assert resolved == (home / "demo-slug" / "task.yaml").resolve()
+
+            out = run(str(PI_JOB), "--task", "demo-slug", "create", "--kind", "setup").stdout
+            assert_contains(out, "created:")
+            bundle = home / "demo-slug"
+            assert (bundle / "task.yaml").is_file()
+            assert (bundle / "plans").is_dir()
+            assert (bundle / "references").is_dir()
+
+            status = run(str(PI_JOB), "--task", "demo-slug", "status").stdout
+            assert_contains(status, "Initialization: ok")
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_create_path_scaffolds_bundle() -> None:
+    """`create` with a path (not a slug) scaffolds a bundle at that directory; seed pointers
+    use layout-relative `plans/…`, never a name-derived `<stem>.plans/…`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "out-of-home-bundle"
+        bundle.mkdir()
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            minimal_bootstrap_input_yaml(
+                slices_yaml="""
+slices:
+  - key: feature-x
+    kind: implement
+    title: Feature X
+    goal: Build feature X.
+    depends_on:
+      - task-setup
+""",
+            ),
+            encoding="utf-8",
+        )
+        out = run(str(PI_JOB), "--task", str(bundle), "create", "--from", str(bootstrap_input)).stdout
+        assert (bundle / "task.yaml").is_file()
+        assert (bundle / "plans").is_dir()
+        assert (bundle / "references").is_dir()
+        seed = seed_block_after_marker(out)
+        assert_contains(seed, "plans/feature-x.md")
+        if "out-of-home-bundle" in seed:
+            raise AssertionError(f"seed pointer must be layout-relative, not name-derived:\n{seed}")
+
+
+def test_create_duplicate_slug() -> None:
+    """A second `create` for an initialized slug dies; `--force` overwrites only `task.yaml`."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            run(str(PI_JOB), "--task", "dup-slug", "create", "--kind", "setup")
+            bundle = home / "dup-slug"
+            marker = bundle / "plans" / "keep-me.md"
+            marker.write_text("keep this\n", encoding="utf-8")
+
+            again = run(str(PI_JOB), "--task", "dup-slug", "create", check=False)
+            assert again.returncode != 0
+            assert_contains(again.stderr, "already exists")
+            assert marker.is_file()
+
+            forced = run(str(PI_JOB), "--task", "dup-slug", "create", "--force", "--title", "Forced retitle")
+            assert forced.returncode == 0
+            assert marker.is_file()
+            assert marker.read_text(encoding="utf-8") == "keep this\n"
+            status = run(str(PI_JOB), "--task", "dup-slug", "status").stdout
+            assert_contains(status, "Forced retitle")
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_create_invalid_slug() -> None:
+    """`create` with a malformed bare slug dies with the same charset hint as non-create commands."""
+    module = load_pi_job_module()
+    for bad in ("Bad_Slug", "task.yaml"):
+        try:
+            module.resolve_create_task_arg(bad)
+            raise AssertionError(f"expected SystemExit for invalid slug {bad!r}")
+        except SystemExit as exc:
+            assert exc.code != 0
+
+    result = run(str(PI_JOB), "--task", "Bad_Slug", "create", check=False)
+    assert result.returncode != 0
+    assert_contains(result.stderr, "invalid task slug")
+
+    result_bare_yaml = run(str(PI_JOB), "--task", "task.yaml", "create", check=False)
+    assert result_bare_yaml.returncode != 0
+    assert_contains(result_bare_yaml.stderr, "invalid task slug")
+
+
+def test_create_rejects_loose_yaml_path() -> None:
+    """`create` refuses a loose `*.yaml` target with a bundle hint, and never writes it."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        loose = Path(tmp) / "x.yaml"
+        try:
+            module.resolve_create_task_arg(str(loose))
+            raise AssertionError("expected SystemExit for a loose YAML create target")
+        except SystemExit as exc:
+            assert exc.code != 0
+
+        result = run(str(PI_JOB), "--task", str(loose), "create", check=False)
+        assert result.returncode != 0
+        assert_contains(result.stderr, "not a loose YAML file")
+        assert not loose.exists()
+
+
 def test_add_decision_spills_long_note_to_plan_file() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "spill.yaml"
@@ -6766,4 +6950,12 @@ if __name__ == "__main__":
     test_resolve_task_arg_path_loose_yaml_unchanged()
     test_resolve_task_arg_path_bundle_dir_unchanged()
     test_resolve_task_arg_slug_ignores_loose_yaml_in_home()
+    test_layout_for_document_path_bundle_and_loose()
+    test_derive_bundle_root_task_yaml_parent_dir_self_and_loose_dies()
+    test_scaffold_bundle_dirs_idempotent_preserves_contents()
+    test_create_slug_scaffolds_bundle()
+    test_create_path_scaffolds_bundle()
+    test_create_duplicate_slug()
+    test_create_invalid_slug()
+    test_create_rejects_loose_yaml_path()
     main()

@@ -2553,6 +2553,73 @@ def resolve_task_arg(raw: str | Path) -> Path:
     return Path(raw).expanduser().resolve()
 
 
+def layout_for_document_path(doc: Path) -> YamlTaskLayout | BundleTaskLayout:
+    """Return the read layout that matches a task document path.
+
+    A document literally named `task.yaml` lives in a bundle root (`plans/`,
+    `references/` as siblings of the bundle root, not of a `<stem>`); anything
+    else is a loose YAML file using the sibling `<stem>.plans/` layout.
+    """
+    if doc.name == BundleTaskLayout.DOCUMENT_NAME:
+        return BundleTaskLayout(doc.parent)
+    return YamlTaskLayout(doc)
+
+
+def resolve_create_task_arg(raw: str | Path) -> Path:
+    """Resolve a `--task` CLI value for `create`, before any bundle may exist.
+
+    Slug resolution mirrors `resolve_task_arg` (same charset, same invalid-token
+    die), except an unknown slug is the *scaffold target*, not an error: it
+    always resolves to `task_tasks_home()/<slug>/task.yaml`, whether or not
+    that bundle exists yet. A path argument resolves to a bundle root via
+    `derive_bundle_root` and then to that root's `task.yaml`; `create` never
+    targets a loose YAML file.
+    """
+    text = str(raw)
+    if is_task_slug(text):
+        return (task_tasks_home() / text / BundleTaskLayout.DOCUMENT_NAME).resolve()
+    if "/" not in text and "\\" not in text:
+        die(
+            f"invalid task slug {text!r}; slugs must match {TASK_SLUG_RE.pattern} "
+            f"(use ./{text} or an absolute/~ path to open a file)"
+        )
+    resolved = Path(raw).expanduser().resolve()
+    bundle_root = derive_bundle_root(resolved)
+    return bundle_root / BundleTaskLayout.DOCUMENT_NAME
+
+
+def derive_bundle_root(resolved: Path) -> Path:
+    """Given an expanded `create` `--task` path, return the bundle root to scaffold.
+
+    `…/task.yaml` resolves to its parent directory; an existing directory
+    resolves to itself; a loose `*.yaml`/`*.yml` file (any other name) is
+    rejected outright, since `create` never writes loose YAML task files or
+    their sibling `<stem>.plans/` directories.
+    """
+    if resolved.name == BundleTaskLayout.DOCUMENT_NAME:
+        return resolved.parent
+    if resolved.is_dir():
+        return resolved
+    if resolved.suffix.lower() in {".yaml", ".yml"}:
+        die(
+            f"create requires a task bundle directory or its {BundleTaskLayout.DOCUMENT_NAME}, "
+            f"not a loose YAML file: {resolved}"
+        )
+    return resolved
+
+
+def scaffold_bundle_dirs(bundle_root: Path) -> None:
+    """Create the bundle root, `plans/`, and `references/` (idempotent).
+
+    Never removes or overwrites existing contents; `create --force` relies on
+    this to leave `plans/` / `references/` intact while only `task.yaml` is
+    overwritten.
+    """
+    bundle_root.mkdir(parents=True, exist_ok=True)
+    (bundle_root / "plans").mkdir(exist_ok=True)
+    (bundle_root / "references").mkdir(exist_ok=True)
+
+
 def _bundle_root_for(task_arg: Path) -> Path | None:
     """Return the bundle root if `task_arg` is a bundle dir or its `task.yaml`, else None."""
     if task_arg.is_dir():
@@ -3824,13 +3891,13 @@ def build_plan(task_file: Path, task: dict[str, Any]) -> str:
 
 
 def slice_plan_file(task_file: Path, slice_key: str) -> Path:
-    """Sibling Markdown plan path via YamlTaskLayout (pure)."""
-    return YamlTaskLayout(task_file).slice_plan_file(slice_key)
+    """Layout-aware Markdown plan path (pure): bundle `plans/` or loose `<stem>.plans/`."""
+    return layout_for_document_path(task_file).slice_plan_file(slice_key)
 
 
 def slice_plan_note_pointer(task_file: Path, slice_key: str) -> str:
-    """create-plan step note value: path relative to the task file's directory."""
-    return YamlTaskLayout(task_file).slice_plan_pointer(slice_key)
+    """create-plan step note value: layout-aware pointer relative to the task dir."""
+    return layout_for_document_path(task_file).slice_plan_pointer(slice_key)
 
 
 def slice_kind_requires_plan_file(kind: str) -> bool:
@@ -5558,6 +5625,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
         return
     if task_file.exists() and not args.force:
         die(f"destination YAML task already exists: {task_file}\npass --force to overwrite, or choose another --task path")
+    scaffold_bundle_dirs(task_file.parent)
     store = open_task_store(task_file)
     if not isinstance(store, YamlTaskStore):
         die("create --from requires a YAML task file")
@@ -5611,6 +5679,7 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
         preview = {"orchestration": _fresh_orchestration()}
         print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
         return
+    scaffold_bundle_dirs(task_file.parent)
     task = _seed_kind_if_empty(store, task, args.kind)
     store.init_orchestration()
     task = store.read()
@@ -5647,7 +5716,7 @@ def cmd_create(args: argparse.Namespace) -> None:
         if args.dry_run:
             print(content, end="" if content.endswith("\n") else "\n")
             return
-        task_file.parent.mkdir(parents=True, exist_ok=True)
+        scaffold_bundle_dirs(task_file.parent)
         atomic_write_text(task_file, content)
         print(f"created empty plan: {task_file}")
         print("next: add slices with pi-job add-slice, then run:")
@@ -5661,7 +5730,7 @@ def cmd_create(args: argparse.Namespace) -> None:
         print(content, end="" if content.endswith("\n") else "\n")
         return
 
-    task_file.parent.mkdir(parents=True, exist_ok=True)
+    scaffold_bundle_dirs(task_file.parent)
     atomic_write_text(task_file, content)
     store = open_task_store(task_file)
     task = store.read()
@@ -6765,7 +6834,10 @@ def main() -> None:
 
     args = ap.parse_args()
     if args.task is not None:
-        args.task = resolve_task_arg(args.task)
+        if args.cmd == "create":
+            args.task = resolve_create_task_arg(args.task)
+        else:
+            args.task = resolve_task_arg(args.task)
     args.fn(args)
 
 
