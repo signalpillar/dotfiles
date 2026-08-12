@@ -2513,6 +2513,46 @@ def unsupported_storage(task_arg: Path) -> NoReturn:
     die(f"unsupported task storage for {task_arg}; use a .yaml/.yml file or a directory")
 
 
+TASK_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def task_tasks_home(*, env: Mapping[str, str] | None = None) -> Path:
+    """Central pi-job task home; `PI_JOB_TASKS` overrides the default location."""
+    source = os.environ if env is None else env
+    raw = source.get("PI_JOB_TASKS", "~/.local/share/pi-job/tasks")
+    return Path(raw).expanduser().resolve()
+
+
+def is_task_slug(text: str) -> bool:
+    return TASK_SLUG_RE.fullmatch(text) is not None
+
+
+def resolve_task_arg(raw: str | Path) -> Path:
+    """Resolve a `--task` CLI value to a concrete path, before `open_task_store` runs.
+
+    A bare slug (charset `^[a-z0-9]+(?:-[a-z0-9]+)*$`) resolves only inside
+    `task_tasks_home()`, to that slug's bundle `task.yaml`; nothing else about a
+    slug is special-cased (no directory scan, no loose-YAML slug map). Anything
+    that is not a valid slug and contains no path separator is rejected outright
+    rather than silently falling back to a `cwd`-relative path (use `./name` or an
+    absolute/`~` path for a real file next to the slug charset). Everything else
+    is a path and defers unchanged to `open_task_store`'s existing bundle/YAML/
+    directory detection.
+    """
+    text = str(raw)
+    if is_task_slug(text):
+        doc = task_tasks_home() / text / BundleTaskLayout.DOCUMENT_NAME
+        if not doc.is_file():
+            die(f"unknown task slug {text!r}; expected {doc}")
+        return doc.resolve()
+    if "/" not in text and "\\" not in text:
+        die(
+            f"invalid task slug {text!r}; slugs must match {TASK_SLUG_RE.pattern} "
+            f"(use ./{text} or an absolute/~ path to open a file)"
+        )
+    return Path(raw).expanduser().resolve()
+
+
 def _bundle_root_for(task_arg: Path) -> Path | None:
     """Return the bundle root if `task_arg` is a bundle dir or its `task.yaml`, else None."""
     if task_arg.is_dir():
@@ -3488,7 +3528,7 @@ def resolve_owner_for_claim(args: argparse.Namespace) -> str:
 
 
 def cmd_claim(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     if not isinstance(store, YamlTaskStore):
         die("claim requires a YAML task file (owned cursors are a YAML-only feature)")
@@ -3538,7 +3578,7 @@ def cmd_claim(args: argparse.Namespace) -> None:
 
 
 def cmd_release(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     if not isinstance(store, YamlTaskStore):
         die("release requires a YAML task file (owned cursors are a YAML-only feature)")
@@ -3553,7 +3593,7 @@ def cmd_release(args: argparse.Namespace) -> None:
 
 
 def cmd_start(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     with lifecycle_lock(store):
         task = store.read()
@@ -3602,7 +3642,7 @@ def cmd_start(args: argparse.Namespace) -> None:
 
 
 def cmd_finish(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     with lifecycle_lock(store):
         task = store.read()
@@ -4182,7 +4222,7 @@ def build_instruction(task_file: Path, task: dict[str, Any], cursor: Cursor) -> 
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     print_status(str(task_file), store.read(), task_path=task_file)
 
@@ -4202,7 +4242,7 @@ def cmd_advance(args: argparse.Namespace) -> None:
 
 
 def cmd_instruction(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     with lifecycle_lock(store):
         task = store.read()
@@ -4219,7 +4259,7 @@ def cmd_instruction(args: argparse.Namespace) -> None:
 
 
 def cmd_plan(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
@@ -4290,7 +4330,7 @@ def build_wayfinder_context(task_file: Path, task: dict[str, Any]) -> str:
 
 
 def cmd_wayfinder_context(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
@@ -4298,7 +4338,7 @@ def cmd_wayfinder_context(args: argparse.Namespace) -> None:
 
 
 def cmd_sync(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
@@ -4995,7 +5035,7 @@ def cmd_markdown(args: argparse.Namespace) -> None:
         die("markdown: --summary and --slice are mutually exclusive")
     if (args.with_decisions or args.with_preamble) and not args.slice:
         die("markdown: --with-decisions / --with-preamble require --slice")
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     plan_bodies: dict[str, str] = {}
@@ -5123,7 +5163,7 @@ class SliceDependencyMermaid:
 
 
 def cmd_show(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     require_initialized(task_file, task)
@@ -5290,9 +5330,9 @@ def cmd_show(args: argparse.Namespace) -> None:
 
 
 def cmd_toolbelt(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task.resolve())
+    store = open_task_store(args.task)
     task = store.read()
-    task_file = args.task.resolve()
+    task_file = args.task
     require_initialized(task_file, task)
     if args.action == "add":
         toolbelt_add(store, task, args)
@@ -5643,7 +5683,7 @@ CLI_FILLABLE_SLICE_FIELDS = {"repos": lambda args: split_csv(args.repos), "depen
 
 
 def cmd_add_slice(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
 
@@ -5711,7 +5751,7 @@ BASELINE_STEP_FIELDS = {"key", "title", "status", "note"}
 
 
 def cmd_add_step(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
 
@@ -5741,7 +5781,7 @@ def cmd_add_step(args: argparse.Namespace) -> None:
 
 
 def cmd_set_worktree(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     slices = task.get("plan", {}).get("slices", [])
@@ -5770,7 +5810,7 @@ def cmd_set_worktree(args: argparse.Namespace) -> None:
 
 
 def cmd_add_pr(args: argparse.Namespace) -> None:
-    task_file = args.task.resolve()
+    task_file = args.task
     store = open_task_store(task_file)
     task = store.read()
     slices = task.get("plan", {}).get("slices", [])
@@ -5788,7 +5828,7 @@ def cmd_add_pr(args: argparse.Namespace) -> None:
 
 
 def cmd_project(args: argparse.Namespace) -> None:
-    src_store = open_task_store(args.task.resolve())
+    src_store = open_task_store(args.task)
     to_path = args.to.resolve()
     suffix = to_path.suffix.lower()
     created_destination = False
@@ -5819,7 +5859,7 @@ def cmd_project(args: argparse.Namespace) -> None:
 
 def cmd_validate(args: argparse.Namespace) -> None:
     """Validate storage syntax, the Pydantic task contract, and profile structure."""
-    task_arg = args.task.resolve()
+    task_arg = args.task
     store = open_task_store(task_arg)
     task = store.read()
     slice_key = getattr(args, "slice", None)
@@ -5871,9 +5911,10 @@ def cmd_validate(args: argparse.Namespace) -> None:
 
 
 def require_task(task_arg: Path | None, *, cmd: str) -> Path:
+    """`task_arg` is already resolved by `resolve_task_arg` in `main()`; just gate on presence."""
     if task_arg is None:
         die(f"--task is required for `pi-job {cmd}`")
-    return task_arg.resolve()
+    return task_arg
 
 
 def cmd_set_slice(args: argparse.Namespace) -> None:
@@ -6260,9 +6301,12 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--task",
-        type=Path,
+        type=str,
         default=None,
-        help="YAML task file or existing directory store to orchestrate",
+        help=(
+            "task slug (resolves under $PI_JOB_TASKS, default ~/.local/share/pi-job/tasks) "
+            "or a YAML task file / existing directory store to orchestrate"
+        ),
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -6720,6 +6764,8 @@ def main() -> None:
     project_cmd.set_defaults(fn=cmd_project)
 
     args = ap.parse_args()
+    if args.task is not None:
+        args.task = resolve_task_arg(args.task)
     args.fn(args)
 
 

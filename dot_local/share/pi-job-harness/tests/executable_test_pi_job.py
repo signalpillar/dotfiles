@@ -6137,6 +6137,149 @@ def test_store_describe_uses_layout() -> None:
         assert "file" not in bundle_store.describe()
 
 
+def test_task_tasks_home_default() -> None:
+    """With `PI_JOB_TASKS` unset, the home defaults to `~/.local/share/pi-job/tasks`."""
+    module = load_pi_job_module()
+    saved = os.environ.pop("PI_JOB_TASKS", None)
+    try:
+        expected = Path("~/.local/share/pi-job/tasks").expanduser().resolve()
+        assert module.task_tasks_home() == expected
+    finally:
+        if saved is not None:
+            os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_task_tasks_home_override() -> None:
+    """`PI_JOB_TASKS` overrides the default home, expanded and resolved."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        custom = Path(tmp) / "custom-tasks"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(custom)
+        try:
+            assert module.task_tasks_home() == custom.resolve()
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_resolve_task_arg_slug() -> None:
+    """A bare slug resolves to `$PI_JOB_TASKS/<slug>/task.yaml`; the CLI accepts the slug too."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        bundle = home / "demo-slug"
+        bundle.mkdir(parents=True)
+        write_task_yaml(bundle / "task.yaml", module.example_task_mapping())
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            resolved = module.resolve_task_arg("demo-slug")
+            assert resolved == (bundle / "task.yaml").resolve()
+
+            result = run(str(PI_JOB), "--task", "demo-slug", "status")
+            assert_contains(result.stdout, "Task:")
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_resolve_task_arg_unknown_slug() -> None:
+    """A well-formed but absent slug dies naming the slug and the expected `task.yaml` path."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        home.mkdir()
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            try:
+                module.resolve_task_arg("no-such-slug")
+                raise AssertionError("expected SystemExit for unknown slug")
+            except SystemExit as exc:
+                assert exc.code != 0
+
+            result = run(str(PI_JOB), "--task", "no-such-slug", "status", check=False)
+            assert result.returncode != 0
+            assert_contains(result.stderr, "no-such-slug")
+            assert_contains(result.stderr, str(home / "no-such-slug" / "task.yaml"))
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_resolve_task_arg_invalid_charset() -> None:
+    """Relative non-slug tokens with no path separator die before ever touching `cwd`."""
+    module = load_pi_job_module()
+    for bad in ("Bad_Slug", "UPPER", "", "-leading", "my.task.yaml", "task.yaml"):
+        try:
+            module.resolve_task_arg(bad)
+            raise AssertionError(f"expected SystemExit for invalid slug {bad!r}")
+        except SystemExit as exc:
+            assert exc.code != 0
+
+    result = run(str(PI_JOB), "--task", "Bad_Slug", "status", check=False)
+    assert result.returncode != 0
+    assert_contains(result.stderr, "invalid task slug")
+
+
+def test_resolve_task_arg_path_loose_yaml_unchanged() -> None:
+    """A path (not a slug) to a loose YAML file still opens via `YamlTaskLayout`."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "legacy.task.yaml"
+        write_task_yaml(task, module.example_task_mapping())
+
+        resolved = module.resolve_task_arg(str(task))
+
+        assert resolved == task.resolve()
+        store = module.open_task_store(resolved)
+        assert isinstance(store.layout, module.YamlTaskLayout)
+
+
+def test_resolve_task_arg_path_bundle_dir_unchanged() -> None:
+    """A path (not a slug) to a bundle directory still opens via `BundleTaskLayout`."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "some-bundle"
+        bundle.mkdir()
+        write_task_yaml(bundle / "task.yaml", module.example_task_mapping())
+
+        resolved = module.resolve_task_arg(str(bundle))
+
+        assert resolved == bundle.resolve()
+        store = module.open_task_store(resolved)
+        assert isinstance(store.layout, module.BundleTaskLayout)
+
+
+def test_resolve_task_arg_slug_ignores_loose_yaml_in_home() -> None:
+    """A loose `<slug>.yaml` sitting directly under the home is not a slug target."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        home.mkdir()
+        write_task_yaml(home / "demo-slug.yaml", module.example_task_mapping())
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            try:
+                module.resolve_task_arg("demo-slug")
+                raise AssertionError("expected SystemExit: loose yaml must not satisfy slug lookup")
+            except SystemExit as exc:
+                assert exc.code != 0
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
 def test_add_decision_spills_long_note_to_plan_file() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "spill.yaml"
@@ -6615,4 +6758,12 @@ def test_project_cue_destination_is_rejected_without_cue() -> None:
 if __name__ == "__main__":
     test_cue_task_path_is_rejected_without_cue()
     test_project_cue_destination_is_rejected_without_cue()
+    test_task_tasks_home_default()
+    test_task_tasks_home_override()
+    test_resolve_task_arg_slug()
+    test_resolve_task_arg_unknown_slug()
+    test_resolve_task_arg_invalid_charset()
+    test_resolve_task_arg_path_loose_yaml_unchanged()
+    test_resolve_task_arg_path_bundle_dir_unchanged()
+    test_resolve_task_arg_slug_ignores_loose_yaml_in_home()
     main()
