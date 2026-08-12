@@ -2233,11 +2233,18 @@ def test_show_slice_includes_deps_when_present() -> None:
         task = Path(tmp) / "slice_includes_deps_when_present.yaml"
         write_task_yaml(task, fixture_with_dependencies_mapping(title="Slice deps test", cursor=('only-slice', 'create-plan')))
 
-        out = run(
+        waiting = run(
+            str(PI_JOB), "--task", str(task), "show", "--slice", "blocked-dependent"
+        ).stdout
+        assert_contains(waiting, "deps:")
+        assert_contains(waiting, "not-yet-done")
+        assert_not_contains(waiting, "base:done")
+
+        satisfied = run(
             str(PI_JOB), "--task", str(task), "show", "--slice", "ready-dependent"
         ).stdout
-        assert_contains(out, "deps:")
-        assert_contains(out, "base:done")
+        if "deps:" in satisfied:
+            raise AssertionError(f"satisfied deps must be omitted from show:\n{satisfied}")
 
 
 def test_show_slice_multiline_note_indents_continuation() -> None:
@@ -2567,9 +2574,11 @@ def test_show_renders_deps_with_mixed_statuses() -> None:
         show = run(str(PI_JOB), "--task", str(task), "show").stdout
         if "deps:" not in show:
             raise AssertionError(f"expected 'deps:' line in show output:\n{show}")
-        # ready-dependent should show deps with base:done
-        if "base:done" not in show:
-            raise AssertionError(f"expected 'base:done' in deps line:\n{show}")
+        # Satisfied deps are omitted; only open/missing deps remain.
+        if "base:done" in show:
+            raise AssertionError(f"done deps must be omitted from show:\n{show}")
+        if "not-yet-done" not in show:
+            raise AssertionError(f"expected open dep 'not-yet-done' in deps line:\n{show}")
         # blocked-dependent should show not ready annotation
         if "not ready" not in show:
             raise AssertionError(f"expected '(not ready)' annotation:\n{show}")
@@ -6934,8 +6943,7 @@ def test_status_and_list_use_derived_task_status() -> None:
 
 
 def test_list_row_fields() -> None:
-    """A `pi-job list` row includes the slug, title, status, and a cursor label
-    (owner and derived position). Ready frontier is omitted (use `status`)."""
+    """A `pi-job list` block includes readable task metadata and cursor positions."""
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "tasks-home"
         bundle = home / "row-fields-slug"
@@ -6943,13 +6951,93 @@ def test_list_row_fields() -> None:
 
         with _pi_job_tasks_home(home):
             out = run(str(PI_JOB), "list").stdout
-            assert_contains(out, "row-fields-slug")
-            assert_contains(out, "Row Fields Task")
-            assert_contains(out, "in_progress")
-            assert_contains(out, "Cursors:")
+            assert_contains(out, "row-fields-slug [in_progress]")
+            assert_contains(out, "  Title: Row Fields Task")
+            assert_contains(out, "  Updated:")
+            assert_contains(out, "  Cursor:")
             assert_contains(out, DEFAULT_OWNER)
             assert_contains(out, "old-slice")  # claim position from fixture
             assert_not_contains(out, "Ready:")
+
+
+def test_list_orders_status_groups_then_cursor_activity() -> None:
+    """Status groups are fixed; tasks within a group use newest cursor heartbeat first."""
+
+    def with_status(status: str, *, last_seen: str) -> dict:
+        mapping = standard_fixture_mapping()
+        for task_slice in mapping["plan"]["slices"]:
+            task_slice["status"] = status
+        mapping["orchestration"]["cursors"][0]["last_seen"] = last_seen
+        return mapping
+
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        tasks = [
+            ("active-old", "in_progress", "2099-01-01T00:00:00+00:00"),
+            ("done-newest", "done", "2099-12-01T00:00:00+00:00"),
+            ("planned", "planned", "2099-06-01T00:00:00+00:00"),
+            ("blocked", "blocked", "2099-07-01T00:00:00+00:00"),
+            ("skipped", "skipped", "2099-08-01T00:00:00+00:00"),
+            ("active-new", "in_progress", "2099-02-01T00:00:00+00:00"),
+        ]
+        for slug, status, last_seen in tasks:
+            mapping = with_status(status, last_seen=last_seen)
+            write_task_yaml(home / slug / "task.yaml", mapping)
+
+        with _pi_job_tasks_home(home):
+            out = run(str(PI_JOB), "list").stdout
+
+        headers = [line for line in out.splitlines() if line and not line.startswith(" ")]
+        expected = [
+            "active-new [in_progress]",
+            "active-old [in_progress]",
+            "blocked [blocked]",
+            "planned [planned]",
+            "skipped [skipped]",
+            "done-newest [done]",
+        ]
+        if headers != expected:
+            raise AssertionError(f"unexpected list ordering:\n{out}")
+
+
+def test_list_activity_falls_back_to_mtime_and_ties_use_slug() -> None:
+    """Missing or malformed cursor timestamps use mtime; slug breaks exact ties."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task_file = Path(tmp) / "task.yaml"
+        task_file.write_text("placeholder", encoding="utf-8")
+        mtime = 1_700_000_000
+        os.utime(task_file, (mtime, mtime))
+
+        no_cursor = standard_fixture_mapping()
+        no_cursor["orchestration"]["cursors"] = []
+        malformed = standard_fixture_mapping()
+        malformed["orchestration"]["cursors"][0]["last_seen"] = "not-a-timestamp"
+        expected = datetime.fromtimestamp(mtime, UTC)
+        assert module.task_list_updated(no_cursor, task_file) == expected
+        assert module.task_list_updated(malformed, task_file) == expected
+
+        alpha = module.TaskListEntry("alpha", "A", "planned", expected, ())
+        beta = module.TaskListEntry("beta", "B", "planned", expected, ())
+        assert sorted([beta, alpha], key=module.task_list_sort_key) == [alpha, beta]
+
+
+def test_list_renders_each_cursor_on_its_own_line() -> None:
+    mapping = standard_fixture_mapping()
+    mapping["orchestration"]["cursors"] = [
+        claim_dict("first", owner="owner-a", last_seen="2099-01-01T00:00:00+00:00"),
+        claim_dict("second-slice", owner="owner-b", last_seen="2099-02-01T00:00:00+00:00"),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        write_task_yaml(home / "multi-cursor" / "task.yaml", mapping)
+        with _pi_job_tasks_home(home):
+            out = run(str(PI_JOB), "list").stdout
+
+        assert_contains(out, "  Cursor: owner-a")
+        assert_contains(out, "  Cursor: owner-b")
+        if out.count("  Cursor:") != 2:
+            raise AssertionError(f"expected one line per cursor:\n{out}")
 
 
 def test_list_empty_home() -> None:
@@ -7600,6 +7688,9 @@ if __name__ == "__main__":
     test_derived_task_status_ignores_stored_field()
     test_status_and_list_use_derived_task_status()
     test_list_row_fields()
+    test_list_orders_status_groups_then_cursor_activity()
+    test_list_activity_falls_back_to_mtime_and_ties_use_slug()
+    test_list_renders_each_cursor_on_its_own_line()
     test_list_empty_home()
     test_list_respects_PI_JOB_TASKS()
     test_list_skips_unreadable_bundle_with_warning()

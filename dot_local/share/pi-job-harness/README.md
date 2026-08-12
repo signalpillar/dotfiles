@@ -41,7 +41,7 @@ It does **not** run the agent session and does **not** spawn subagents.
 
 Given a YAML task file and package-local `profile.yaml`, it can:
 
-- `list` - list task bundles under the central task home (slug, title, status, active claims); no `--task` needed
+- `list` - show readable, activity-sorted task blocks from the central task home (slug, title, status, updated time, active claims); no `--task` needed
 - `create` - create and initialize a task file (`--from` intent YAML, or `--kind`/`--empty-plan` skeleton; also finishes init on an existing uninitialized file)
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
@@ -402,7 +402,12 @@ These commands write task metadata and durable state without editing the YAML by
 
 These commands do not require `--task`.
 
-- `pi-job list` - one row per task bundle under `$PI_JOB_TASKS` (default `~/.local/share/pi-job/tasks`): slug, title, status, and active claim labels (Ready frontier is on `status` / `show`).
+- `pi-job list` - one readable block per task bundle under `$PI_JOB_TASKS` (default `~/.local/share/pi-job/tasks`): slug, title, derived status, updated time, and active claim labels.
+  Status groups are ordered `in_progress`, `blocked`, `planned`, `skipped`, then `done`.
+  Within each group, newest activity appears first.
+  Activity is the newest valid cursor `last_seen`, falling back to the `task.yaml` modification time when no cursor heartbeat is available.
+  Exact ties use slug order.
+  Ready frontier remains on `status` / `show`.
   Scans only immediate child bundle directories with a `task.yaml`; loose `*.yaml` files directly under the task home are never listed (`project` them into a bundle first).
   A bundle that fails to load is skipped with a stderr warning instead of aborting the whole listing.
 - `pi-job profile [--json]` - show the active execution profile. Human output lists slice/step/toolbelt counts; `--json` dumps the full validated profile.

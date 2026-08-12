@@ -2586,15 +2586,57 @@ def iter_home_bundle_docs(home: Path) -> list[tuple[str, Path]]:
     return sorted(found, key=lambda pair: pair[0])
 
 
-def format_list_row(
-    slug: str,
-    title: str,
-    status: str,
-    cursor_labels: Sequence[str],
-) -> str:
-    """One `pi-job list` row: slug, title, status, and claim labels (Ready is in `status`)."""
-    cursors = ", ".join(cursor_labels) if cursor_labels else "-"
-    return f"{slug}: {title} [{status}]  Cursors: {cursors}"
+LIST_STATUS_ORDER = {
+    "in_progress": 0,
+    "blocked": 1,
+    "planned": 2,
+    "skipped": 3,
+    "done": 4,
+}
+
+
+@dataclass(frozen=True)
+class TaskListEntry:
+    slug: str
+    title: str
+    status: TaskStatus
+    updated: datetime
+    cursor_labels: tuple[str, ...]
+
+
+def task_list_updated(task: Mapping[str, Any], document_path: Path) -> datetime:
+    """Latest valid cursor heartbeat, falling back to the task document mtime."""
+    cursor_updates = [
+        parsed
+        for claim in owned_cursors(task)
+        if (parsed := parse_utc_timestamp(claim.last_seen)) is not None
+    ]
+    if cursor_updates:
+        return max(cursor_updates)
+    return datetime.fromtimestamp(document_path.stat().st_mtime, UTC)
+
+
+def task_list_sort_key(entry: TaskListEntry) -> tuple[int, float, str]:
+    """Status group first, newest activity first, then stable slug order."""
+    return (
+        LIST_STATUS_ORDER[entry.status],
+        -entry.updated.timestamp(),
+        entry.slug,
+    )
+
+
+def format_task_list_entry(entry: TaskListEntry) -> str:
+    """Render one readable `pi-job list` block."""
+    lines = [
+        f"{entry.slug} [{entry.status}]",
+        f"  Title: {entry.title}",
+        f"  Updated: {entry.updated.astimezone(UTC):%Y-%m-%d %H:%M UTC}",
+    ]
+    if entry.cursor_labels:
+        lines.extend(f"  Cursor: {label}" for label in entry.cursor_labels)
+    else:
+        lines.append("  Cursor: -")
+    return "\n".join(lines)
 
 
 def is_task_slug(text: str) -> bool:
@@ -4786,14 +4828,18 @@ def append_slice_work_lines(
     status_map: Mapping[str, str],
 ) -> None:
     if task_slice.depends_on:
+        # Done/skipped deps are satisfied noise; only print open or missing ones.
         dep_strs = []
         for dep_key in task_slice.depends_on:
             dep_status = status_map.get(dep_key, "missing")
+            if dep_status in STATUS_DONE:
+                continue
             dep_strs.append(f"{dep_key}:{dep_status}")
-        deps_line = f"    deps: [{', '.join(dep_strs)}]"
-        if not is_actionable(task_slice, status_map):
-            deps_line += "  (not ready)"
-        lines.append(deps_line)
+        if dep_strs:
+            deps_line = f"    deps: [{', '.join(dep_strs)}]"
+            if not is_actionable(task_slice, status_map):
+                deps_line += "  (not ready)"
+            lines.append(deps_line)
 
     repo_work = task_slice.repo_work or {}
     for repo_name in sorted(repo_work):
@@ -6110,19 +6156,30 @@ def cmd_list(args: argparse.Namespace) -> None:
     stderr warning rather than aborting the whole listing.
     Ready frontier stays on `pi-job status` / `show`, not on this overview."""
     home = task_tasks_home()
+    entries: list[TaskListEntry] = []
     for slug, doc in iter_home_bundle_docs(home):
         try:
             task = open_task_store(doc).read()
+            entries.append(
+                TaskListEntry(
+                    slug=slug,
+                    title=str(task.get("title") or ""),
+                    status=derived_task_status(task),
+                    updated=task_list_updated(task, doc),
+                    cursor_labels=tuple(
+                        claim_label(task, claim) for claim in owned_cursors(task)
+                    ),
+                )
+            )
         except SystemExit:
             print(f"warning: skipping unreadable bundle {slug!r} ({doc})", file=sys.stderr)
             continue
         except (OSError, yaml.YAMLError, ValueError) as exc:
             print(f"warning: skipping unreadable bundle {slug!r} ({doc}): {exc}", file=sys.stderr)
             continue
-        title = str(task.get("title") or "")
-        status = derived_task_status(task)
-        cursor_labels = [claim_label(task, claim) for claim in owned_cursors(task)]
-        print(format_list_row(slug, title, status, cursor_labels))
+    if entries:
+        ordered = sorted(entries, key=task_list_sort_key)
+        print("\n\n".join(format_task_list_entry(entry) for entry in ordered))
 
 
 def cmd_set_worktree(args: argparse.Namespace) -> None:
@@ -6686,8 +6743,8 @@ def main() -> None:
     list_cmd = sub.add_parser(
         "list",
         help=(
-            "list task bundles under $PI_JOB_TASKS (slug, title, status, Ready frontier, "
-            "cursors); does not take --task, and ignores loose YAML in the task home"
+            "show task bundles under $PI_JOB_TASKS as readable activity-sorted blocks; "
+            "does not take --task, and ignores loose YAML in the task home"
         ),
     )
     list_cmd.set_defaults(fn=cmd_list)
