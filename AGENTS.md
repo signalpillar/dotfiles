@@ -3,6 +3,21 @@
 Common principles for all agents, across every project.
 Project-level `AGENTS.md` files may extend or override these.
 
+## Writing style
+
+Technical text (docs, READMEs, runbooks, procedures, error messages, release notes, reports, and agent-facing instructions): ASD-STE100 style.
+
+- Max 20 words per instruction sentence, 25 for descriptions.
+- Active voice.
+- Condition before command.
+- Simple tenses only.
+- No should / would / may / might.
+- One word per meaning.
+- Delete filler: simply, seamlessly, robust, leverage.
+- For product docs, also follow https://developers.google.com/style (second person, no weasel words).
+- Do not apply these rules to marketing or brand copy.
+- Leave code, identifiers, CLI commands, paths, and quoted errors unchanged.
+
 ## General Guidelines
 
 - For durable multi-step work tracked in a task file, use the `pi-job` skill (`~/.agents/skills/pi-job`) and `pi-job --task <file> status`.
