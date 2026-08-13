@@ -29,6 +29,17 @@ This repo ships a portable deterministic job harness for machine-owned YAML task
 Full docs live in the package README: [`dot_local/share/pi-job-harness/README.md`](dot_local/share/pi-job-harness/README.md)
 (what it does, orchestrator loop, principles, agent self-install, example task shape).
 
+## Cursor CLI status line
+
+Managed files:
+
+- `~/.cursor/statusline.sh` (source: `dot_cursor/executable_statusline.sh`)
+- `statusLine` key merged into `~/.cursor/cli-config.json` by `run_onchange_cursor-statusline.sh`
+
+Do not `chezmoi add ~/.cursor/cli-config.json`.
+That file holds account, team, and company MCP/permission state.
+
+
 ## Emacs
 
 - [Config of Gergely Nagy](https://github.com/algernon/emacs.d/blob/master/.spacemacs)

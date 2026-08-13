@@ -10,3 +10,7 @@ dockerise
 .screenlayout/vm.sh
 .config/i3
 {{- end }}
+
+# Do not ship Cursor account/machine state (auth, team, MCP allowlists).
+dot_cursor/cli-config.json
+dot_cursor/**/cli-config.json
