@@ -19,7 +19,6 @@ metadata:
 
 ## What I do
 
-- **First, ask**: "Do you want me to run a `volod-style` review of the staged changes first?" Point at `../volod-style/SKILL.md` and wait for an answer before doing anything else. If yes, run that review pass and surface findings before continuing; let the user decide whether to address them now or proceed as-is.
 - Check which branch you are on.
 - If you are on `main`/`master` (or any non-feature branch), create a feature branch BEFORE committing.
   - Use `feat/` for feature work and `bug/` for fixes.

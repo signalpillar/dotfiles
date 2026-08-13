@@ -537,6 +537,29 @@ step_kinds:
     validators:
       - relevant-tests-or-gap-recorded
     guidance: Run the relevant tests/checks for what changed, or record the gap.
+  code-review:
+    key: code-review
+    title: Run a distinct volod-style review
+    owner: orchestrator
+    record_channels: [step_note]
+    different_model_from_step: edit-code
+    validators:
+      - review-is-a-separate-pass-not-style-applied-while-coding
+      - reviewer-model-differs-from-code-author-model
+      - findings-resolved-or-risk-accepted
+    skip_rule: skip only for a trivial single-file edit (record a one-line reason)
+    guidance: |-
+      Run one distinct final review of the actual diff with the volod-style skill
+      (skills/volod-style/SKILL.md). Applying volod-style while planning or coding
+      does NOT satisfy this step; this is a separate pass on the finished change.
+      - Use a different, higher-reasoning model than edit-code; do not reuse the
+        fast/low-cost coding model to review its own output.
+      - Check volod-style concerns: service boundaries, explicit contracts and type
+        strictness, fail-closed safety, decision/edge-case comments, kebab-case
+        logging, and test quality (test.each, fixture reuse).
+      - Record the verdict and findings in finish --note. Fix must-fix findings in
+        the worktree and re-verify, or explicitly accept remaining risk before
+        share-with-team.
   e2e-evidence:
     key: e2e-evidence
     title: Provide e2e/acceptance evidence or record the gap
@@ -782,6 +805,7 @@ slice_kinds:
       - grill-plan
       - edit-code
       - verify
+      - code-review
       - vulnerability-scan
       - share-with-team
       - update-task-file
@@ -794,6 +818,7 @@ slice_kinds:
       - grill-plan
       - edit-code
       - verify
+      - code-review
       - share-with-team
       - update-task-file
       - wait-for-feedback

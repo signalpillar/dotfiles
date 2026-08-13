@@ -2288,7 +2288,7 @@ def test_scaffold_mirrors_implement_template() -> None:
         task = Path(tmp) / "new" / "task.yaml"
         dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
         for key in (
-            "create-plan", "grill-plan", "edit-code", "verify",
+            "create-plan", "grill-plan", "edit-code", "verify", "code-review",
             "vulnerability-scan", "share-with-team", "update-task-file", "pi-job-feedback",
             "wait-for-feedback", "e2e-evidence", "ready-for-release",
         ):
@@ -3055,6 +3055,7 @@ def test_validate_allows_extra_steps_beyond_template() -> None:
                     {"key": "extra-domain-step", "title": "Extra", "status": "planned", "note": ""},
                     {"key": "edit-code", "title": "Edit", "status": "planned", "note": ""},
                     {"key": "verify", "title": "Verify", "status": "planned", "note": ""},
+                    {"key": "code-review", "title": "Review", "status": "planned", "note": ""},
                 ],
                 "final_steps": [
                     {"key": "e2e-evidence", "title": "Evidence", "status": "planned", "note": ""},
