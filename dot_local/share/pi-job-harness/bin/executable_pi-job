@@ -4836,10 +4836,7 @@ def append_slice_work_lines(
                 continue
             dep_strs.append(f"{dep_key}:{dep_status}")
         if dep_strs:
-            deps_line = f"    deps: [{', '.join(dep_strs)}]"
-            if not is_actionable(task_slice, status_map):
-                deps_line += "  (not ready)"
-            lines.append(deps_line)
+            lines.append(f"    deps: [{', '.join(dep_strs)}]")
 
     repo_work = task_slice.repo_work or {}
     for repo_name in sorted(repo_work):
@@ -5621,8 +5618,6 @@ def cmd_show(args: argparse.Namespace) -> None:
 
         d, t = slice_counts(task_slice)
         is_current = task_slice.key in claimed_slices
-        status_map_ready = status_map
-        is_ready = is_actionable(task_slice, status_map_ready)
         glyph_status = "in_progress" if is_current else st
         glyph = paint_glyph(GLYPH.get(glyph_status, "○"), glyph_status, color=color)
         repos = ", ".join(task_slice.repos)
@@ -5633,8 +5628,7 @@ def cmd_show(args: argparse.Namespace) -> None:
             if include_model and task_slice.execution and task_slice.execution.model
             else ""
         )
-        ready_tag = " ready" if is_ready and not is_current else ""
-        header = f"{glyph} {task_slice.key:<{key_width}}{kind_counts}{ready_tag}"
+        header = f"{glyph} {task_slice.key:<{key_width}}{kind_counts}"
         if repos:
             header += f" {repos}"
         header += execution_suffix

@@ -2377,24 +2377,6 @@ def test_status_ready_skips_unready_head_of_array() -> None:
         assert_not_contains(status, "Ready: blocked-dependent")
 
 
-def test_show_ready_tag_lists_only_ready_slices() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "all_lists_only_ready_slices.yaml"
-        write_task_yaml(task, fixture_with_dependencies_mapping(title="Dependency test all", cursor=('only-slice', 'create-plan')))
-
-        show = run(str(PI_JOB), "--task", str(task), "show").stdout
-        ready_line = next(
-            (line for line in show.splitlines() if "ready-dependent" in line),
-            "",
-        )
-        if " ready" not in ready_line:
-            raise AssertionError(f"expected ready tag on ready-dependent line in show:\n{show}")
-        if any("blocked-dependent" in line and " ready" in line for line in show.splitlines()):
-            raise AssertionError(f"blocked-dependent should not be marked ready in show:\n{show}")
-        if any("blocked-status-slice" in line and " ready" in line for line in show.splitlines()):
-            raise AssertionError(f"blocked-status-slice should not be marked ready in show:\n{show}")
-
-
 def test_status_ready_line_matches_ready_slices() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "ready_line_matches_ready_slices.yaml"
@@ -2436,10 +2418,6 @@ def test_blocked_status_slice_is_skipped() -> None:
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Ready: none")
-
-        show = run(str(PI_JOB), "--task", str(task), "show").stdout
-        if "only-blocked ready" in show:
-            raise AssertionError(f"blocked slice should not be marked ready in show:\n{show}")
 
         pick_next = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
         if pick_next.returncode != 0:
@@ -2582,9 +2560,10 @@ def test_show_renders_deps_with_mixed_statuses() -> None:
             raise AssertionError(f"done deps must be omitted from show:\n{show}")
         if "not-yet-done" not in show:
             raise AssertionError(f"expected open dep 'not-yet-done' in deps line:\n{show}")
-        # blocked-dependent should show not ready annotation
-        if "not ready" not in show:
-            raise AssertionError(f"expected '(not ready)' annotation:\n{show}")
+        if "not ready" in show:
+            raise AssertionError(f"show must not print redundant ready/not-ready tags:\n{show}")
+        if any(line.rstrip().endswith(" ready") for line in show.splitlines()):
+            raise AssertionError(f"show must not print redundant ready tags:\n{show}")
 
 
 def test_show_omits_deps_line_when_absent() -> None:
@@ -7235,7 +7214,6 @@ def main() -> None:
     test_scaffold_includes_create_plan_and_grill_plan_before_edit_code()
     test_derived_position_walks_create_plan_then_grill_plan_before_edit_code()
     test_status_ready_skips_unready_head_of_array()
-    test_show_ready_tag_lists_only_ready_slices()
     test_status_ready_line_matches_ready_slices()
     test_blocked_status_slice_is_skipped()
     test_pick_next_when_nothing_ready()
