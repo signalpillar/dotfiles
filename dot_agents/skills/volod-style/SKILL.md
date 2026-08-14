@@ -23,13 +23,28 @@ metadata:
 - **Model over filter**: when a category of behavior needs special handling (e.g., expected errors, known event types), express it in the type system (class hierarchy, enum, tagged union) rather than adding string-based or convention-based runtime checks. Others will copy the pattern — make the right thing the easy thing.
 - **Type strictness**: types must reflect the actual domain state, not the weakest type a library returns. Narrow external/library types at the boundary (resolver, converter, data loader); inner functions receive already-validated strict types with no unnecessary optionality. Never propagate `| undefined` or `?` on fields that are always present at runtime — it forces every consumer to re-check and clutters business logic with defensive guards.
 - **Domain-first contracts**: model the valid, expected state of our domain rather than the loosest state an external SDK or provider accepts. If our flow requires a stricter contract (for example a required system prompt), express that in our code and fail closed at the boundary instead of mirroring optional provider fields throughout the implementation.
+- **Collective domain policy**: when a domain rule needs several related facts (identifiers, eligible statuses, terminal write shape), put them in one named object or module next to that domain. Do not leave duplicated allow-lists or status arrays across services for reviewers to reconstruct.
+- **Orchestrator vs capability service**: flow or orchestrator services coordinate transitions and inject capability services. They do not open the platform or client for another domain's read or write loop.
+- **Domain package and fixtures**: new capability domains get a folder (`services/<domain>/`) with policy, service, and `__tests__/fixtures` owned by that package. Callers mock the service. Callers do not grow parallel fixture copies of domain rules.
+- **Trust explicit search contracts**: when a client/API search is called with filters (group, status, reason, …), return that result. Do not re-assert the same filters on the response unless there is concrete evidence the client violates those filters. Speculative "broad/malformed response" re-filters are noise and hide the real contract under test (the search call).
+
+### Architecture review checklist
+
+When using this skill for review, also ask:
+
+- Is there a single place that answers what counts as this domain entity and how we terminate it?
+- Does the parent flow still talk to the client for that subdomain?
+- Do the new package's fixtures encode the policy, or does the policy live only in the caller's tests?
+- Is any post-search / post-read re-filter justified by evidence of a broken client contract, or is it speculative mistrust? If speculative, request removal.
+- Are new/changed request, response, and internal contract types documenting each field?
 
 ## API and service behavior practices
 
 - Return only what consumers need now; avoid leaking internal details.
-- Re-check preconditions before executing side effects (do not trust stale state).
+- Re-check **business preconditions that can go stale** before side effects (e.g. gate still held, resource still in expected status). That is not a license to re-validate query filters already applied by the search/read you just issued.
 - Make safety decisions explicit in code comments when behavior is non-obvious.
 - Prefer deterministic behavior over silent fallbacks when correctness is at risk.
+- Document accepted partial-failure trade-offs next to the write loop when multi-step updates are intentionally non-transactional.
 
 ## Documentation requirements
 
@@ -48,8 +63,16 @@ When using this skill for implementation or review, explicitly scan for edge-cas
   - what data source is preferred vs fallback,
   - what correctness trade-off is accepted.
 - For metadata/time fallbacks, explicitly call out temporal risk (for example, `meta.lastUpdated` can be later than the true business event time because storage updates are unrelated to the original event).
+- For sequential multi-write loops without a transaction, document the accepted partial-update trade-off next to the loop.
 - Ensure each documented edge-case has at least one test named after that decision.
 - Treat missing edge-case comments as a review finding and request/update docs in the same change.
+
+### Type-contract documentation review checklist
+
+When using this skill for implementation or review, explicitly scan new and changed contract types.
+
+- Every field on request, response, and internal contract types has a field-level docstring stating intent (not restating the TypeScript type).
+- Treat missing field docs on new contract types as a review finding and add them in the same change.
 
 ## Logging style
 
@@ -67,6 +90,7 @@ When using this skill for implementation or review, explicitly scan for edge-cas
 - Ensure tests cover both business-success and safety-failure modes.
 - Keep tests aligned with current contracts; update fixtures first when interfaces change.
 - Add at least one test for each documented edge-case decision.
+- When extracting a domain service, move scenario fixtures with it. Leave orchestrator tests asserting call contracts only.
 
 ### Test review checklist
 
@@ -76,6 +100,7 @@ When using this skill for review, explicitly scan changed tests for avoidable du
 - Request reuse of an existing fixture when duplicated setup already has a shared representation.
 - Request a new focused fixture when repeated setup has no suitable reusable fixture.
 - Keep separate tests when parameterization would hide materially different behavior or make failures harder to understand.
+- Request fixture ownership under the new domain package when domain scenarios still live only under the orchestrator test folder.
 
 ## Code style preferences
 
