@@ -477,8 +477,12 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 ## Toolbelt and visualization
 
+- `pi-job --task <t> layers [show|add|set|remove|rename|reorder]` - manage ordered `task.layers` bands (`name`, `description`, `references`).
+  When non-empty, implement/spike/research slices need exactly one `--layer`.
+  `layers add` creates `references/bigpicture.txt` stub when missing; later edits print a slice survival report (agent updates the bigpicture call spine).
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
+  Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
 - `pi-job --task <t> show [--all] [--started] [--full] [--short] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
   `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`); skipped breaks the run; ignored with `--all`.
   By default only the current cursor slice expands.
@@ -488,9 +492,10 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   `--all` expands every slice including finished ones.
   `--status` filters which slices are listed (and surfaces set worktrees on done/skipped; see above).
   `--color` tints status glyphs for humans (`✓` green, `✗` red, `▸` cyan, `⊘` yellow, `○`/`·` dim); default `auto` (TTY only, respects `NO_COLOR`).
-- `pi-job --task <t> show --graph [--status s1,s2]` - emit a Mermaid `flowchart TD` of slice `depends_on` edges on stdout (no tree chrome).
+- `pi-job --task <t> show --graph [--by-layer] [--status s1,s2]` - emit a Mermaid `flowchart TD` of slice `depends_on` edges on stdout (no tree chrome).
   Intended for terminal viewers via stdin, e.g. `pi-job --task <t> show --graph | uvx termaid`.
   `classDef` colors: green `done`, blue `in_progress` (and the non-done cursor slice), gray `planned`, red `blocked`, yellow `skipped`; unknown dep keys are orange `missing`.
+  `--by-layer` groups nodes into subgraphs by `task.layers` order; unlayered kinds sit outside.
   Mutually exclusive with `--slice`; tree flags are ignored.
 - `pi-job --task <t> show --slice KEY` - render one slice in full: goal, slice note, every step (key, status, model, note), and repo_work.
   Does not dump task-level context, plan note, or decisions.
@@ -717,6 +722,17 @@ Notes for agents (and humans) changing the harness Python, not for orchestrating
 Prefer this shape when extending interrupt / sidecar / render behaviour.
 Put side effects on the edge; keep the middle pure.
 
+### Functional style
+
+Write new `pi-job` Python in a functional style.
+
+- Prefer pure functions that take data in and return new data out.
+- Keep transforms immutable: build new mappings, lists, and dataclasses; do not mutate task dicts or slice objects in place outside the store write path.
+- Put I/O, clocks, argparse, printing, and process exits only at the edge (`cmd_*`, store open/close, `atomic_write_*`).
+- Prefer small named helpers over a static utility class when the surface is a set of transforms (example: layer registry helpers, not a `TaskLayers` class).
+- Use a `@dataclass(frozen=True)` (or plain dataclass) for grouped return values when a tuple is unclear.
+- Avoid hidden mutable module state for feature logic; cache only for loaders such as `load_profile_contract()`.
+
 ### Shape
 
 | Layer | Owns | Does not |
@@ -752,8 +768,9 @@ Opt in with `--with-decisions` / `--with-preamble`.
 
 ### Class boundaries
 
-Prefer a named class as the boundary for a coherent feature surface (formatting, export, layout, policy).
-Keep free functions for thin wiring (`cmd_*`, argparse, store open/close).
+Default to pure free functions (see Functional style).
+Use a named class only when one object owns a coherent feature surface (formatting, export, layout, policy) with shared construction state.
+Keep free functions for thin wiring (`cmd_*`, argparse, store open/close) and for pure transforms.
 Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
 Do not scatter matching helpers (`node_id`, `classDef`, edge assembly) beside unrelated `show` tree code.
 Follow the same pattern when adding similar exporters or viewers.

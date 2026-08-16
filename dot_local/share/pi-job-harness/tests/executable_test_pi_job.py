@@ -1659,6 +1659,140 @@ def test_toolbelt_block_in_plan() -> None:
         assert_contains(plan, "config-flag-matrix")
 
 
+def test_layers_add_stub_bind_graph_and_remove_guard() -> None:
+    """layers registry + stub + slice bind + --by-layer subgraphs + remove refuse."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "layers-task" / "task.yaml"
+        write_task_yaml(task, {
+            "title": "Layers smoke",
+            "status": "in_progress",
+            "plan": {"note": "", "slices": []},
+        })
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+
+        out = run(
+            str(PI_JOB), "--task", str(task), "layers", "add",
+            "--name", "hold", "--description", "Hold gate",
+        ).stdout
+        assert_contains(out, "added layer: hold")
+        assert_contains(out, "created bigpicture stub")
+        stub = task.parent / "references" / "bigpicture.txt"
+        if not stub.is_file():
+            raise AssertionError(f"expected stub at {stub}")
+        assert_contains(stub.read_text(encoding="utf-8"), "# pi-job-bigpicture-stub")
+        assert_contains(stub.read_text(encoding="utf-8"), "LAYER: hold")
+
+        run(
+            str(PI_JOB), "--task", str(task), "layers", "add",
+            "--name", "webhooks", "--description", "Webhooks",
+        )
+        run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "hold-api", "--kind", "implement",
+            "--title", "Hold API", "--goal", "Ship hold", "--layer", "hold",
+        )
+        bad = run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "orphan", "--kind", "implement",
+            "--title", "Orphan", "--goal", "Missing layer",
+            check=False,
+        )
+        if bad.returncode == 0:
+            raise AssertionError("add-slice without --layer should fail when layers set")
+        assert_contains(bad.stderr, "--layer is required")
+
+        graph = run(
+            str(PI_JOB), "--task", str(task), "show", "--graph", "--by-layer",
+        ).stdout
+        assert_contains(graph, 'subgraph layer_hold["hold"]')
+        assert_contains(graph, 'hold_api["hold-api"]')
+        assert_contains(graph, 'setup_slice["setup-slice"]')
+
+        refused = run(
+            str(PI_JOB), "--task", str(task), "layers", "remove", "--name", "hold",
+            check=False,
+        )
+        if refused.returncode == 0:
+            raise AssertionError("remove should refuse while slices bind the layer")
+        assert_contains(refused.stderr, "still bound")
+
+        run(str(PI_JOB), "--task", str(task), "set-slice", "--key", "hold-api", "--layer", "webhooks")
+        run(str(PI_JOB), "--task", str(task), "layers", "remove", "--name", "hold")
+        listed = run(str(PI_JOB), "--task", str(task), "layers", "show").stdout
+        assert_contains(listed, "webhooks")
+        assert_not_contains(listed, "\n  1. hold")
+
+
+def test_setup_template_includes_confirm_layers_step() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "setup-layers" / "task.yaml"
+        write_task_yaml(task, {
+            "title": "Setup layers step",
+            "status": "in_progress",
+            "plan": {"note": "", "slices": []},
+        })
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+        show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
+        assert_contains(show, "confirm-layers")
+        # confirm-layers must sit after explore-context
+        explore_at = show.index("explore-context")
+        confirm_at = show.index("confirm-layers")
+        if confirm_at < explore_at:
+            raise AssertionError("confirm-layers must follow explore-context")
+
+
+def test_confirm_layers_packet_pauses_for_user_and_points_at_catalog() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "confirm-layers.yaml"
+        write_task_yaml(task, {
+            "title": "Confirm layers",
+            "status": "in_progress",
+            "orchestration": {
+                "cursors": [claim_dict("setup-slice")],
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "setup-slice",
+                    "kind": "setup",
+                    "title": "Setup",
+                    "goal": "Confirm bands",
+                    "status": "in_progress",
+                    "note": "",
+                    "steps": [
+                        {"key": "explore-context", "title": "Explore", "status": "done", "note": ""},
+                        {"key": "confirm-layers", "title": "Confirm layers", "status": "planned", "note": ""},
+                    ],
+                    "final_steps": [],
+                }],
+            },
+        })
+
+        instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instr, "Step kind: confirm-layers")
+        assert_contains(instr, "Ask the user whether to run this step")
+        assert_contains(instr, "canonical catalog of systems and domains")
+        assert_contains(instr, "not delivery phases")
+        assert_contains(instr, "explicit confirmation before you register")
+
+
+def test_bigpicture_stub_states_call_arrow_contract() -> None:
+    module = load_pi_job_module()
+    stub = module.bigpicture_stub_text({"layers": [{"name": "comms", "description": "Braze"}]})
+    assert_contains(stub, "`A -> B` means A calls B")
+    assert_contains(stub, "It never means A happens before B")
+    assert_contains(stub, "LAYER: comms")
+
+
+def test_bigpicture_toolbelt_aid_in_catalog() -> None:
+    module = load_pi_job_module()
+    catalog = module.contract_toolbelt()
+    if "bigpicture" not in catalog:
+        raise AssertionError(f"bigpicture missing from toolbelt: {sorted(catalog)}")
+    assert_contains(str(catalog["bigpicture"].get("purpose") or ""), "bigpicture.txt")
+
+
 def test_show_renders_tree_and_footer() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "show.yaml"
@@ -4581,7 +4715,7 @@ def test_set_slice_requires_one_field() -> None:
             check=False,
         )
         assert res.returncode != 0
-        assert_contains(res.stderr, "at least one of --title or --goal is required")
+        assert_contains(res.stderr, "at least one of --title, --goal, --layer, or --clear-layer is required")
 
 
 def test_set_slice_refuses_done_slice() -> None:
@@ -7197,6 +7331,11 @@ def main() -> None:
     test_toolbelt_add_records_artifact()
     test_select_toolbelt_step_and_instruction()
     test_toolbelt_block_in_plan()
+    test_layers_add_stub_bind_graph_and_remove_guard()
+    test_setup_template_includes_confirm_layers_step()
+    test_confirm_layers_packet_pauses_for_user_and_points_at_catalog()
+    test_bigpicture_stub_states_call_arrow_contract()
+    test_bigpicture_toolbelt_aid_in_catalog()
     test_show_renders_tree_and_footer()
     test_show_work_first_puts_open_before_done_newest_completed_last_block()
     test_show_aligns_kind_counts_after_longest_key()

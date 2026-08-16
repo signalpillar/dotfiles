@@ -49,6 +49,10 @@ SliceKindKey = Literal["setup", "implement", "closing", "research", "spike", "fo
 ExecutionOwner = Literal["orchestrator", "subagent", "external_tool"]
 TASK_STATUSES = ("planned", "in_progress", "blocked", "done", "skipped")
 PULL_REQUEST_STATUSES = ("open", "merged", "closed")
+# Slice kinds that must bind to exactly one task.layers entry when the registry is non-empty.
+LAYERED_SLICE_KINDS = frozenset({"implement", "spike", "research"})
+BIGPICTURE_STUB_MARKER = "# pi-job-bigpicture-stub"
+BIGPICTURE_DEFAULT_RELPATH = "references/bigpicture.txt"
 GLYPH = {"done": "✓", "skipped": "⊘", "in_progress": "▸", "blocked": "✗", "planned": "○"}
 # ANSI styles for human-facing show glyphs only (default off unless TTY / --color).
 _RESET = "\033[0m"
@@ -105,6 +109,17 @@ class DecisionDocument(StrictDocument):
     source: str = Field(description="Origin of the decision, such as a chat, issue, or review.")
 
 
+class LayerDocument(StrictDocument):
+    """Ordered business or tech band the task touches (not a repository name)."""
+
+    name: str = Field(description="Stable layer slug used by slices and diagram order.")
+    description: str = Field(description="One-line description of what this band covers.")
+    references: list[str] = Field(
+        default_factory=list,
+        description="Optional paths or URLs that ground this layer for agents.",
+    )
+
+
 class ArtifactDocument(StrictDocument):
     """A durable planning or delivery artifact tracked by the harness."""
 
@@ -140,6 +155,13 @@ class SliceDocument(StrictDocument):
     execution: ExecutionDocument | None = Field(default=None, description="Slice-level orchestrator provenance.")
     repos: list[str] = Field(default_factory=list, description="Repositories whose state this slice changes.")
     depends_on: list[str] = Field(default_factory=list, description="Slice keys that must finish before this slice is actionable.")
+    layer: str | None = Field(
+        default=None,
+        description=(
+            "Registered task.layers name when the registry is non-empty and this slice "
+            "kind is implement, spike, or research."
+        ),
+    )
     repo_work: dict[str, RepositoryWorkDocument] = Field(
         default_factory=dict,
         description="Worktrees and pull requests keyed by repository name.",
@@ -261,6 +283,13 @@ class TaskDocument(StrictDocument):
         default_factory=list,
         description="Product/scope decisions in chronological order - not step evidence (use finish --note).",
     )
+    layers: list[LayerDocument] = Field(
+        default_factory=list,
+        description=(
+            "Ordered business/tech bands this task touches. Empty means N/A "
+            "(single-band or no cross-cutting flow)."
+        ),
+    )
     plan: PlanDocument = Field(default_factory=PlanDocument, description="Ordered slice and step plan.")
 
     @model_validator(mode="after")
@@ -269,6 +298,39 @@ class TaskDocument(StrictDocument):
         duplicates = sorted({key for key in keys if keys.count(key) > 1})
         if duplicates:
             raise ValueError(f"task has duplicate slice keys: {', '.join(duplicates)}")
+        return self
+
+    @model_validator(mode="after")
+    def validate_layer_bindings(self) -> TaskDocument:
+        names = [layer.name for layer in self.layers]
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"task has duplicate layer names: {', '.join(duplicates)}")
+        known = set(names)
+        if not known:
+            for task_slice in self.plan.slices:
+                if task_slice.layer:
+                    raise ValueError(
+                        f"slice {task_slice.key!r} has layer {task_slice.layer!r} "
+                        "but task.layers is empty"
+                    )
+            return self
+        for task_slice in self.plan.slices:
+            if task_slice.kind in LAYERED_SLICE_KINDS:
+                if not task_slice.layer:
+                    raise ValueError(
+                        f"slice {task_slice.key!r} kind {task_slice.kind!r} requires "
+                        "a layer when task.layers is set"
+                    )
+                if task_slice.layer not in known:
+                    raise ValueError(
+                        f"slice {task_slice.key!r} layer {task_slice.layer!r} "
+                        "is not in task.layers"
+                    )
+            elif task_slice.layer:
+                raise ValueError(
+                    f"slice {task_slice.key!r} kind {task_slice.kind!r} must not set layer"
+                )
         return self
 
 
@@ -700,7 +762,11 @@ def validate_task_mapping(
 def canonical_task_mapping(value: Mapping[str, Any], *, source: str) -> dict[str, Any]:
     """Return deterministic JSON-compatible task data after strict validation."""
 
-    return validate_task_mapping(value, source=source).model_dump(mode="json", exclude_none=True)
+    data = validate_task_mapping(value, source=source).model_dump(mode="json", exclude_none=True)
+    # Omit empty layers so upgrades do not dirty content digests of tasks without layers.
+    if not data.get("layers"):
+        data.pop("layers", None)
+    return data
 
 
 def _task_mapping_for_content_digest(task: Mapping[str, Any]) -> dict[str, Any]:
@@ -950,11 +1016,14 @@ class TaskSlice:
     final_steps: tuple[TaskStep, ...]
     repos: tuple[str, ...] = ()
     depends_on: tuple[str, ...] = ()
+    layer: str | None = None
     repo_work: Mapping[str, Any] | None = None
     execution: ExecutionRecord | None = None
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> TaskSlice:
+        layer_raw = value.get("layer")
+        layer = str(layer_raw) if layer_raw else None
         return cls(
             key=str(value.get("key") or ""),
             kind=str(value.get("kind") or ""),
@@ -966,6 +1035,7 @@ class TaskSlice:
             final_steps=tuple(TaskStep.from_mapping(step) for step in value.get("final_steps", [])),
             repos=tuple(str(repo) for repo in value.get("repos", [])),
             depends_on=tuple(str(key) for key in value.get("depends_on", [])),
+            layer=layer,
             repo_work=value.get("repo_work") or None,
             execution=ExecutionRecord.from_mapping(value.get("execution")),
         )
@@ -1034,11 +1104,13 @@ class TaskStore(Protocol):
         after: str | None,
         status: str = "planned",
         note: str = "",
+        layer: str | None = None,
     ) -> None:
         """Add a new slice to the task plan. extra_fields maps a non-baseline
         #Slice field name to its plain string values - backend-neutral, no
         pre-rendered backend-specific syntax. steps/final_steps are
-        [(step_key, title), ...] tuples."""
+        [(step_key, title), ...] tuples. layer binds implement/spike/research
+        when task.layers is non-empty."""
         ...
 
     def add_step(
@@ -1111,9 +1183,15 @@ class TaskStore(Protocol):
         ...
 
     def set_slice_fields(
-        self, *, slice_key: str, title: str | None = None, goal: str | None = None
+        self,
+        *,
+        slice_key: str,
+        title: str | None = None,
+        goal: str | None = None,
+        layer: str | None = None,
+        clear_layer: bool = False,
     ) -> None:
-        """Update a slice's title and/or goal."""
+        """Update a slice's title, goal, and/or layer binding."""
         ...
 
     def set_slice_status(
@@ -1450,6 +1528,7 @@ class YamlTaskStore:
         after: str | None,
         status: str = "planned",
         note: str = "",
+        layer: str | None = None,
     ) -> None:
         task_slice: dict[str, Any] = {
             "key": key,
@@ -1468,6 +1547,8 @@ class YamlTaskStore:
                 for step_key, step_title in final_steps
             ],
         }
+        if layer is not None:
+            task_slice["layer"] = layer
 
         def mutation(task: dict[str, Any]) -> None:
             slices = task.setdefault("plan", {}).setdefault("slices", [])
@@ -1625,7 +1706,13 @@ class YamlTaskStore:
         self._mutate(mutation)
 
     def set_slice_fields(
-        self, *, slice_key: str, title: str | None = None, goal: str | None = None
+        self,
+        *,
+        slice_key: str,
+        title: str | None = None,
+        goal: str | None = None,
+        layer: str | None = None,
+        clear_layer: bool = False,
     ) -> None:
         def mutation(task: dict[str, Any]) -> None:
             task_slice = self._slice(task, slice_key)
@@ -1633,6 +1720,10 @@ class YamlTaskStore:
                 task_slice["title"] = title
             if goal is not None:
                 task_slice["goal"] = goal
+            if clear_layer:
+                task_slice.pop("layer", None)
+            elif layer is not None:
+                task_slice["layer"] = layer
 
         self._mutate(mutation)
 
@@ -1710,6 +1801,77 @@ class YamlTaskStore:
             # Task lock serializes .plans/ writers; atomic replace avoids partial stubs.
             atomic_write_text(path, body)
         return path
+
+    def add_layer(
+        self,
+        *,
+        name: str,
+        description: str,
+        references: list[str] | None = None,
+        after: str | None = None,
+    ) -> None:
+        entry = make_layer_entry(name=name, description=description, references=references)
+
+        def mutation(task: dict[str, Any]) -> None:
+            task["layers"] = layers_with_added(
+                task.get("layers") or [],
+                entry,
+                after=after,
+            )
+
+        self._mutate(mutation)
+
+    def set_layer(
+        self,
+        *,
+        name: str,
+        description: str | None = None,
+        references: list[str] | None = None,
+    ) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task["layers"] = layers_with_updated(
+                task.get("layers") or [],
+                name=name,
+                description=description,
+                references=references,
+            )
+
+        self._mutate(mutation)
+
+    def remove_layer(self, *, name: str) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            bound = slice_keys_bound_to_layer(task, name)
+            if bound:
+                die(
+                    f"cannot remove layer {name!r}: still bound by slices "
+                    f"{', '.join(bound)}; rebind with set-slice --layer first"
+                )
+            task["layers"] = layers_without(task.get("layers") or [], name=name)
+
+        self._mutate(mutation)
+
+    def rename_layer(self, *, old: str, new: str) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task["layers"] = layers_with_renamed(
+                task.get("layers") or [],
+                old=old,
+                new=new,
+            )
+            plan = task.setdefault("plan", {})
+            plan["slices"] = slices_with_layer_renamed(
+                plan.get("slices") or [],
+                old=old,
+                new=new,
+            )
+
+        self._mutate(mutation)
+
+    def reorder_layers(self, *, names: list[str]) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task["layers"] = layers_reordered(task.get("layers") or [], names)
+
+        self._mutate(mutation)
+
 
     def add_decision(
         self,
@@ -2181,6 +2343,9 @@ class FsTaskStore:
         deps = L.slice_dependency_keys(key)
         if deps:
             entry["depends_on"] = deps
+        layer_val = self._read_optional_text(L.slice_dir(key) / "layer")
+        if layer_val:
+            entry["layer"] = layer_val
         repo_work = self._read_repo_work(key)
         if repo_work:
             entry["repo_work"] = repo_work
@@ -2283,6 +2448,7 @@ class FsTaskStore:
         after: str | None,
         status: str = "planned",
         note: str = "",
+        layer: str | None = None,
     ) -> None:
         L = self.layout
 
@@ -2309,6 +2475,8 @@ class FsTaskStore:
             (staging / "goal").write_text(goal + "\n")
             (staging / "status").write_text(status + "\n")
             (staging / "note").write_text((note or "") + "\n")
+            if layer:
+                (staging / "layer").write_text(layer + "\n")
             if repos:
                 (staging / "repos").write_text("".join(f"{r}\n" for r in repos))
             if steps:
@@ -4148,6 +4316,8 @@ def build_plan(store: TaskStore, task: dict[str, Any]) -> str:
             marker = "  <-- ready"
         kind_entry = get_slice_kind(kind) if kind in valid_slice_kinds() else {}
         lines.append(f"{index:2}. {slice_key} [kind:{kind}/{st}] {task_slice.title}{marker}")
+        if task_slice.layer:
+            lines.append(f"    layer: {task_slice.layer}")
         if kind_entry.get("description"):
             lines.append(f"    kind: {kind_entry.get('title', kind)} — {kind_entry.get('description')}")
         for step in task_slice.all_steps:
@@ -4563,6 +4733,9 @@ def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], c
         f"- lower_power_model_preferred: {lower_power}",
         f"- orchestrator_reviews_subagent: {reviews}",
     ]
+    if step and step.key in ("confirm-layers", "select-toolbelt", "plan-slices"):
+        lines.append("")
+        lines.extend(format_layer_list_lines(task))
     if step and step.key in ("select-toolbelt", "plan-slices"):
         lines += toolbelt_block(task, task_slice_kinds(task))
 
@@ -4827,6 +5000,8 @@ def append_slice_work_lines(
     task_slice: TaskSlice,
     status_map: Mapping[str, str],
 ) -> None:
+    if task_slice.layer:
+        lines.append(f"    layer: {task_slice.layer}")
     if task_slice.depends_on:
         # Done/skipped deps are satisfied noise; only print open or missing ones.
         dep_strs = []
@@ -4891,6 +5066,8 @@ def render_slice_scoped(
     )
     if task_slice.goal:
         lines.append(f"goal: {task_slice.goal}")
+    if task_slice.layer:
+        lines.append(f"layer: {task_slice.layer}")
     append_multiline_note(lines, "note: ", task_slice.note, "    ")
     append_slice_work_lines(lines, task_slice, status_map)
     current = positions.get(task_slice.key)
@@ -5166,6 +5343,23 @@ def render_artifacts_markdown(task: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def render_layers_markdown(task: Mapping[str, Any]) -> list[str]:
+    entries = task_layers(task)
+    if not entries:
+        return []
+    lines = ["## Layers", ""]
+    for index, entry in enumerate(entries, start=1):
+        name = escape_md_inline(str(entry.get("name") or ""))
+        desc = escape_md_inline(str(entry.get("description") or "").strip())
+        if desc:
+            lines.append(f"{index}. **{name}** - {desc}")
+        else:
+            lines.append(f"{index}. **{name}**")
+        for ref in entry.get("references") or []:
+            lines.append(f"   - ref: `{ref}`")
+    return lines
+
+
 def render_step_markdown(
     step: TaskStep,
     *,
@@ -5231,6 +5425,9 @@ def render_slice_markdown(
     ]
     if task_slice.goal:
         lines.append(f"**Goal:** {escape_md_inline(task_slice.goal)}")
+        lines.append("")
+    if task_slice.layer:
+        lines.append(f"**Layer:** {escape_md_inline(task_slice.layer)}")
         lines.append("")
     if summary:
         while lines and lines[-1] == "":
@@ -5356,6 +5553,11 @@ def render_task_markdown(
             lines.extend(artifact_lines)
             lines.append("")
 
+        layers_lines = render_layers_markdown(task)
+        if layers_lines:
+            lines.extend(layers_lines)
+            lines.append("")
+
     slice_items = ordered_slices_for_markdown(task, chronological=chronological)
     if slice_key:
         matched = tuple(s for s in slice_items if s.key == slice_key)
@@ -5423,6 +5625,305 @@ def cmd_markdown(args: argparse.Namespace) -> None:
     )
 
 
+
+def task_layers(task: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Return task.layers entries as plain dict copies in registry order."""
+    raw = task.get("layers") or []
+    return tuple(dict(entry) for entry in raw if isinstance(entry, Mapping))
+
+
+def layer_names(task: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(str(entry.get("name") or "") for entry in task_layers(task) if entry.get("name"))
+
+
+def slice_requires_layer(kind: str) -> bool:
+    return kind in LAYERED_SLICE_KINDS
+
+
+def validate_slice_layer(task: Mapping[str, Any], kind: str, layer: str | None) -> str | None:
+    """Return the layer to persist, or die when the binding is invalid."""
+    names = layer_names(task)
+    if not names:
+        if layer:
+            die(
+                f"--layer {layer!r} not allowed when task.layers is empty; "
+                "register layers first with `pi-job layers add`"
+            )
+        return None
+    if kind in LAYERED_SLICE_KINDS:
+        if not layer:
+            die(
+                f"--layer is required for kind {kind!r} when task.layers is set; "
+                f"known layers: {', '.join(names)}"
+            )
+        if layer not in names:
+            die(
+                f"layer {layer!r} is not in task.layers; "
+                f"known: {', '.join(names)}"
+            )
+        return layer
+    if layer:
+        die(
+            f"--layer is not allowed for kind {kind!r}; "
+            f"only {', '.join(sorted(LAYERED_SLICE_KINDS))} use layers"
+        )
+    return None
+
+
+def task_bundle_root(store: YamlTaskStore) -> Path:
+    layout = store.layout
+    return layout.bundle_root if hasattr(layout, "bundle_root") else layout.task_path.parent
+
+
+@dataclass(frozen=True)
+class LayerSliceGroups:
+    """Pure partition of slices against the layer registry (order preserved)."""
+
+    by_layer: tuple[tuple[str, tuple[TaskSlice, ...]], ...]
+    unlayered: tuple[TaskSlice, ...]
+    unknown: tuple[TaskSlice, ...]
+
+
+def group_slices_by_layer(
+    slices: Sequence[TaskSlice],
+    names: Sequence[str],
+) -> LayerSliceGroups:
+    """Partition slices into registry bands, unlayered kinds, and unknown bindings."""
+    name_set = set(names)
+    buckets: dict[str, list[TaskSlice]] = {name: [] for name in names}
+    unlayered: list[TaskSlice] = []
+    unknown: list[TaskSlice] = []
+    for task_slice in slices:
+        if not slice_requires_layer(task_slice.kind):
+            unlayered.append(task_slice)
+            continue
+        if not task_slice.layer or task_slice.layer not in name_set:
+            unknown.append(task_slice)
+            continue
+        buckets[task_slice.layer].append(task_slice)
+    return LayerSliceGroups(
+        by_layer=tuple((name, tuple(buckets[name])) for name in names),
+        unlayered=tuple(unlayered),
+        unknown=tuple(unknown),
+    )
+
+
+def format_layer_survival_report(task: Mapping[str, Any]) -> tuple[str, ...]:
+    """How planned/done slices map to the current layer registry (pure)."""
+    names = layer_names(task)
+    if not names:
+        unbound = tuple(
+            s for s in task_slices(task)
+            if slice_requires_layer(s.kind) and s.layer
+        )
+        lines = ["Layer survival report:", "  (no layers registered)"]
+        if unbound:
+            lines.append("  slices with layer but empty registry:")
+            lines.extend(
+                f"    - {s.key} [{s.status}] layer={s.layer}" for s in unbound
+            )
+        return tuple(lines)
+
+    groups = group_slices_by_layer(task_slices(task), names)
+    lines = ["Layer survival report:"]
+    for name, members in groups.by_layer:
+        lines.append(f"  {name}: {len(members)} slice(s)")
+        lines.extend(f"    - {s.key} [{s.status}]" for s in members)
+    if groups.unlayered:
+        lines.append(f"  (unlayered kinds): {len(groups.unlayered)} slice(s)")
+        lines.extend(
+            f"    - {s.key} [{s.kind}/{s.status}]" for s in groups.unlayered
+        )
+    if groups.unknown:
+        lines.append("  MISSING or unknown layer binding:")
+        lines.extend(
+            f"    - {s.key} [{s.kind}/{s.status}] layer={s.layer!r}"
+            for s in groups.unknown
+        )
+    lines.append(
+        "Amend references/bigpicture.txt to match the registry "
+        "(cross-layer call stacktrace); harness does not rewrite an enriched file."
+    )
+    return tuple(lines)
+
+
+def format_layer_list_lines(task: Mapping[str, Any]) -> tuple[str, ...]:
+    """Human list of registered layers (pure)."""
+    entries = task_layers(task)
+    if not entries:
+        return ("Layers: (none - N/A or not confirmed)",)
+    lines = ["Layers (order = diagram bands):"]
+    for index, entry in enumerate(entries, start=1):
+        name = str(entry.get("name") or "")
+        desc = str(entry.get("description") or "").strip()
+        suffix = f" - {desc}" if desc else ""
+        lines.append(f"  {index}. {name}{suffix}")
+        lines.extend(f"      ref: {ref}" for ref in (entry.get("references") or []))
+    return tuple(lines)
+
+
+def bigpicture_stub_text(task: Mapping[str, Any]) -> str:
+    """Stub body for references/bigpicture.txt from the layer registry (pure)."""
+    header = (
+        BIGPICTURE_STUB_MARKER,
+        "# Cross-layer call stacktrace. Bands run top to bottom in layer order.",
+        "# Arrow contract: `A -> B` means A calls B. It never means A happens before B.",
+        "# This is not a plan. Do not add phases, milestones, or open questions here.",
+        f"# Register: pi-job toolbelt add bigpicture --path {BIGPICTURE_DEFAULT_RELPATH} --status done",
+        "# Drop this stub marker when the spine is real content.",
+        "",
+    )
+    bands = []
+    for entry in task_layers(task):
+        name = str(entry.get("name") or "")
+        desc = str(entry.get("description") or "").strip()
+        bands.append(f"LAYER: {name}")
+        if desc:
+            bands.append(f"  {desc}")
+        bands.append("  (call stack across this band - TODO)")
+        bands.append("")
+    return "\n".join((*header, *bands))
+
+
+def ensure_bigpicture_stub(bundle_root: Path, task: Mapping[str, Any]) -> Path | None:
+    """Write bigpicture stub once when layers exist and the file is missing (I/O edge)."""
+    if not layer_names(task):
+        return None
+    path = bundle_root / BIGPICTURE_DEFAULT_RELPATH
+    if path.exists():
+        return None
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, bigpicture_stub_text(task))
+    return path
+
+
+def print_layer_survival_report(task: Mapping[str, Any]) -> None:
+    print()
+    for line in format_layer_survival_report(task):
+        print(line)
+
+
+def make_layer_entry(
+    *,
+    name: str,
+    description: str,
+    references: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "description": description,
+        "references": list(references or ()),
+    }
+
+
+def layers_with_added(
+    layers: Sequence[Mapping[str, Any]],
+    entry: Mapping[str, Any],
+    *,
+    after: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return a new layers list with entry appended or inserted after `after`."""
+    name = str(entry.get("name") or "")
+    current = [dict(item) for item in layers]
+    if any(str(item.get("name") or "") == name for item in current):
+        die(f"layer already exists: {name!r}")
+    if after is None:
+        return [*current, dict(entry)]
+    for index, item in enumerate(current):
+        if str(item.get("name") or "") == after:
+            return [*current[: index + 1], dict(entry), *current[index + 1 :]]
+    die(f"--after layer not found: {after!r}")
+
+
+def layers_with_updated(
+    layers: Sequence[Mapping[str, Any]],
+    *,
+    name: str,
+    description: str | None = None,
+    references: Sequence[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return a new layers list with one entry's fields updated."""
+    found = False
+    updated: list[dict[str, Any]] = []
+    for item in layers:
+        copy = dict(item)
+        if str(copy.get("name") or "") == name:
+            found = True
+            if description is not None:
+                copy["description"] = description
+            if references is not None:
+                copy["references"] = list(references)
+        updated.append(copy)
+    if not found:
+        die(f"layer not found: {name!r}")
+    return updated
+
+
+def slice_keys_bound_to_layer(task: Mapping[str, Any], name: str) -> tuple[str, ...]:
+    return tuple(
+        str(sl.get("key") or "")
+        for sl in (task.get("plan") or {}).get("slices") or []
+        if str(sl.get("layer") or "") == name
+    )
+
+
+def layers_without(
+    layers: Sequence[Mapping[str, Any]],
+    *,
+    name: str,
+) -> list[dict[str, Any]]:
+    """Return layers with `name` removed; die when absent."""
+    kept = [dict(item) for item in layers if str(item.get("name") or "") != name]
+    if len(kept) == len(tuple(layers)):
+        die(f"layer not found: {name!r}")
+    return kept
+
+
+def layers_with_renamed(
+    layers: Sequence[Mapping[str, Any]],
+    *,
+    old: str,
+    new: str,
+) -> list[dict[str, Any]]:
+    """Return layers with one name rewritten; die on collision or missing old."""
+    current = tuple(dict(item) for item in layers)
+    if any(str(item.get("name") or "") == new for item in current):
+        die(f"layer already exists: {new!r}")
+    if not any(str(item.get("name") or "") == old for item in current):
+        die(f"layer not found: {old!r}")
+    return [
+        {**item, "name": new} if str(item.get("name") or "") == old else dict(item)
+        for item in current
+    ]
+
+
+def slices_with_layer_renamed(
+    slices: Sequence[Mapping[str, Any]],
+    *,
+    old: str,
+    new: str,
+) -> list[dict[str, Any]]:
+    """Return slice dicts with layer bindings rewritten from old to new."""
+    return [
+        {**dict(sl), "layer": new} if str(sl.get("layer") or "") == old else dict(sl)
+        for sl in slices
+    ]
+
+
+def layers_reordered(
+    layers: Sequence[Mapping[str, Any]],
+    names: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Return layers in `names` order; die unless names are a permutation."""
+    by_name = {str(item.get("name") or ""): dict(item) for item in layers}
+    if set(names) != set(by_name):
+        die(
+            "reorder must list each layer name exactly once; "
+            f"have={sorted(by_name)} got={list(names)}"
+        )
+    return [by_name[name] for name in names]
+
+
 class SliceDependencyMermaid:
     """Mermaid flowchart export of slice `depends_on` for termaid/stdin viewers.
 
@@ -5447,9 +5948,11 @@ class SliceDependencyMermaid:
         *,
         claimed_slices: set[str] | None = None,
         status_filter: set[str] | None = None,
+        by_layer: bool = False,
     ) -> None:
         self._claimed_slices = claimed_slices or set()
         self._status_filter = status_filter
+        self._by_layer = by_layer
         self._node_ids: dict[str, str] = {}
         self._used_ids: set[str] = set()
 
@@ -5498,11 +6001,22 @@ class SliceDependencyMermaid:
         all_plan_keys = {s.key for s in task_slices(task)}
 
         lines: list[str] = ["flowchart TD", *self.CLASS_DEFS]
-        for task_slice in slices:
-            nid = self._allocate_id(task_slice.key)
-            label = self.node_label(task_slice.key)
-            style = self.style_status(task_slice)
-            lines.append(f'  {nid}["{label}"]:::{style}')
+        names = layer_names(task)
+        if self._by_layer and names:
+            groups = group_slices_by_layer(slices, names)
+            # Unlayered kinds and unbound work slices float above bands.
+            for task_slice in (*groups.unlayered, *groups.unknown):
+                lines.append(self._node_line(task_slice, indent="  "))
+            for layer_name, members in groups.by_layer:
+                if not members:
+                    continue
+                sg = self._allocate_id(f"layer_{layer_name}")
+                sg_label = self.node_label(layer_name)
+                lines.append(f'  subgraph {sg}["{sg_label}"]')
+                lines.extend(self._node_line(s, indent="    ") for s in members)
+                lines.append("  end")
+        else:
+            lines.extend(self._node_line(s, indent="  ") for s in slices)
 
         emitted_missing: set[str] = set()
         for task_slice in slices:
@@ -5521,6 +6035,12 @@ class SliceDependencyMermaid:
                 lines.append(f"  {self._allocate_id(dep_key)} --> {dependent_id}")
 
         return "\n".join(lines) + "\n"
+
+    def _node_line(self, task_slice: TaskSlice, *, indent: str) -> str:
+        nid = self._allocate_id(task_slice.key)
+        label = self.node_label(task_slice.key)
+        style = self.style_status(task_slice)
+        return f'{indent}{nid}["{label}"]:::{style}'
 
 
 def cmd_show(args: argparse.Namespace) -> None:
@@ -5542,6 +6062,7 @@ def cmd_show(args: argparse.Namespace) -> None:
             SliceDependencyMermaid(
                 claimed_slices=claimed_slices,
                 status_filter=status_filter,
+                by_layer=bool(getattr(args, "by_layer", False)),
             ).render(task),
             end="",
         )
@@ -5685,6 +6206,69 @@ def cmd_show(args: argparse.Namespace) -> None:
             g = paint_glyph(GLYPH.get(art_st, "○"), art_st, color=color)
             lines.append(f"{g} {key}   {art.get('path', '')}".rstrip())
     print("\n".join(lines))
+
+
+def cmd_layers(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="layers")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore):
+        die("layers requires a YAML task file")
+    task = store.read()
+    require_initialized(task_file, task)
+    action = args.layers_action
+
+    if action == "show":
+        updated = store.read()
+        for line in format_layer_list_lines(updated):
+            print(line)
+        print_layer_survival_report(updated)
+        return
+
+    if action == "add":
+        refs = split_csv(getattr(args, "references", None))
+        store.add_layer(
+            name=args.name,
+            description=args.description,
+            references=refs or None,
+            after=getattr(args, "after", None),
+        )
+        print(f"added layer: {args.name}")
+    elif action == "set":
+        if args.description is None and args.references is None:
+            die("layers set requires at least one of --description or --references")
+        refs = split_csv(args.references) if args.references is not None else None
+        store.set_layer(
+            name=args.name,
+            description=args.description,
+            references=refs,
+        )
+        print(f"updated layer: {args.name}")
+    elif action == "remove":
+        store.remove_layer(name=args.name)
+        print(f"removed layer: {args.name}")
+    elif action == "rename":
+        store.rename_layer(old=args.old, new=args.new)
+        print(f"renamed layer: {args.old} -> {args.new}")
+    elif action == "reorder":
+        names = split_csv(args.order)
+        if not names:
+            die("layers reorder requires --order with comma-separated layer names")
+        store.reorder_layers(names=names)
+        print(f"reordered layers: {', '.join(names)}")
+    else:
+        die(f"unknown layers action: {action!r}")
+
+    updated = store.read()
+    if action == "add":
+        stub_path = ensure_bigpicture_stub(task_bundle_root(store), updated)
+        if stub_path is not None:
+            root = task_bundle_root(store)
+            try:
+                rel = stub_path.relative_to(root)
+                print(f"created bigpicture stub: {rel}")
+            except ValueError:
+                print(f"created bigpicture stub: {stub_path}")
+    print_layer_survival_report(updated)
 
 
 def cmd_toolbelt(args: argparse.Namespace) -> None:
@@ -6057,6 +6641,8 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
     if args.after and args.after not in status_map:
         die(f"--after slice not found: {args.after!r}; known: {', '.join(status_map)}")
 
+    layer_value = validate_slice_layer(task, args.kind, getattr(args, "layer", None))
+
     extra_fields: dict[str, list[str]] = {}
     for field_name, getter in CLI_FILLABLE_SLICE_FIELDS.items():
         values = getter(args)
@@ -6077,12 +6663,15 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
             "steps": [{"key": key, "title": title, "status": "planned", "note": ""} for key, title in steps],
             "final_steps": [],
         }
+        if layer_value is not None:
+            preview["layer"] = layer_value
         print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
         return
 
     store.add_slice(
         key=args.key, kind=args.kind, title=args.title, goal=args.goal,
         extra_fields=extra_fields, steps=steps, final_steps=final_steps, after=args.after,
+        layer=layer_value,
     )
     print(f"added slice: {args.key}")
     stub: Path | None = None
@@ -6343,8 +6932,15 @@ def require_task(task_arg: Path | None, *, cmd: str) -> Path:
 
 def cmd_set_slice(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="set-slice")
-    if args.title is None and args.goal is None:
-        die("at least one of --title or --goal is required")
+    if args.layer and args.clear_layer:
+        die("--layer and --clear-layer are mutually exclusive")
+    if (
+        args.title is None
+        and args.goal is None
+        and args.layer is None
+        and not args.clear_layer
+    ):
+        die("at least one of --title, --goal, --layer, or --clear-layer is required")
     store = open_task_store(task_file)
     if not isinstance(store, YamlTaskStore):
         die("set-slice requires a YAML task file")
@@ -6355,12 +6951,34 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
         die(f"slice not found: {key!r}")
     if status_map[key] in STATUS_DONE:
         die(f"cannot update completed slice: {key} [{status_map[key]}]")
-    store.set_slice_fields(slice_key=key, title=args.title, goal=args.goal)
+    slices = task.get("plan", {}).get("slices", [])
+    slice_dict = next((s for s in slices if s.get("key") == key), None)
+    kind = str(slice_dict.get("kind") or "") if slice_dict else ""
+    layer_value: str | None = None
+    if args.clear_layer:
+        if layer_names(task) and kind in LAYERED_SLICE_KINDS:
+            die(
+                f"cannot --clear-layer on kind {kind!r} when task.layers is set; "
+                "rebind with --layer instead"
+            )
+    elif args.layer is not None:
+        layer_value = validate_slice_layer(task, kind, args.layer)
+    store.set_slice_fields(
+        slice_key=key,
+        title=args.title,
+        goal=args.goal,
+        layer=layer_value,
+        clear_layer=bool(args.clear_layer),
+    )
     parts = [f"key={key}"]
     if args.title is not None:
         parts.append(f"title={args.title}")
     if args.goal is not None:
         parts.append(f"goal={args.goal}")
+    if args.clear_layer:
+        parts.append("layer=<cleared>")
+    elif args.layer is not None:
+        parts.append(f"layer={args.layer}")
     print(f"updated slice: {', '.join(parts)}")
 
 
@@ -6875,6 +7493,36 @@ def main() -> None:
     sync.add_argument("--status", help="comma-separated slice statuses to check instead of the default in_progress/blocked-or-open-PR selection")
     sync.set_defaults(fn=cmd_sync)
 
+    layers_cmd = sub.add_parser("layers", help="show or mutate the task.layers registry")
+    layers_sub = layers_cmd.add_subparsers(dest="layers_action", required=True)
+    layers_show = layers_sub.add_parser("show", help="list registered layers and slice survival report")
+    layers_show.set_defaults(fn=cmd_layers)
+    layers_add = layers_sub.add_parser("add", help="register a layer band")
+    layers_add.add_argument("--name", required=True, help="stable layer slug")
+    layers_add.add_argument("--description", required=True, help="one-line band description")
+    layers_add.add_argument("--references", help="comma-separated paths or URLs")
+    layers_add.add_argument("--after", help="insert after this existing layer name")
+    layers_add.set_defaults(fn=cmd_layers)
+    layers_set = layers_sub.add_parser("set", help="update a layer description and/or references")
+    layers_set.add_argument("--name", required=True, help="existing layer name")
+    layers_set.add_argument("--description", help="new one-line description")
+    layers_set.add_argument("--references", help="comma-separated paths or URLs (replaces the list)")
+    layers_set.set_defaults(fn=cmd_layers)
+    layers_remove = layers_sub.add_parser("remove", help="remove a layer (refuses when slices still bind it)")
+    layers_remove.add_argument("--name", required=True, help="layer name to remove")
+    layers_remove.set_defaults(fn=cmd_layers)
+    layers_rename = layers_sub.add_parser("rename", help="rename a layer and rebind bound slices")
+    layers_rename.add_argument("--old", required=True, help="current layer name")
+    layers_rename.add_argument("--new", required=True, help="new layer name")
+    layers_rename.set_defaults(fn=cmd_layers)
+    layers_reorder = layers_sub.add_parser("reorder", help="set registry order (Mermaid band order)")
+    layers_reorder.add_argument(
+        "--order",
+        required=True,
+        help="comma-separated layer names listing each registry entry exactly once",
+    )
+    layers_reorder.set_defaults(fn=cmd_layers)
+
     tb = sub.add_parser("toolbelt", help="list toolbelt aids for slice kind(s), or add one")
     tb.add_argument("action", nargs="?", choices=["add"], help="'add' to register an aid")
     tb.add_argument("key", nargs="?", help="aid key when using add")
@@ -6915,6 +7563,14 @@ def main() -> None:
             "emit a Mermaid flowchart of slice depends_on (stdout only; pipe to termaid). "
             "classDef colors: green done, blue in_progress/cursor, gray planned, red blocked, yellow skipped. "
             "Ignores tree flags; mutually exclusive with --slice"
+        ),
+    )
+    show.add_argument(
+        "--by-layer",
+        action="store_true",
+        help=(
+            "with --graph: group slices into Mermaid subgraphs by task.layers order; "
+            "unlayered kinds sit outside subgraphs. Ignored without --graph or when layers empty."
         ),
     )
     show.add_argument(
@@ -6996,6 +7652,13 @@ def main() -> None:
     add_slice.add_argument("--goal", required=True)
     add_slice.add_argument("--repos", help="comma-separated; required if this file's #Slice schema declares repos as non-optional")
     add_slice.add_argument("--depends-on", help="comma-separated slice keys this slice depends on")
+    add_slice.add_argument(
+        "--layer",
+        help=(
+            "task.layers name for implement/spike/research slices; required when "
+            "task.layers is non-empty"
+        ),
+    )
     add_slice.add_argument("--after", help="insert after this existing slice key; default: end of plan.slices")
     add_slice.add_argument("--dry-run", action="store_true")
     add_slice.set_defaults(fn=cmd_add_slice)
@@ -7112,6 +7775,16 @@ def main() -> None:
     set_slice.add_argument("--key", required=True, help="slice key to update")
     set_slice.add_argument("--title", help="new slice title")
     set_slice.add_argument("--goal", help="new slice goal")
+    set_slice_layer = set_slice.add_mutually_exclusive_group()
+    set_slice_layer.add_argument(
+        "--layer",
+        help="bind slice to a task.layers name (implement/spike/research when registry set)",
+    )
+    set_slice_layer.add_argument(
+        "--clear-layer",
+        action="store_true",
+        help="remove slice layer binding (not allowed for layered kinds when registry set)",
+    )
     set_slice.set_defaults(fn=cmd_set_slice)
 
     block_slice = sub.add_parser("block-slice", help="mark a slice blocked and append a reason to its note")
