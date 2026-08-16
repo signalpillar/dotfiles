@@ -483,6 +483,8 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
+  Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
+  Aid `decision-review-deck` is the async decision deck (skill `decision-review-deck`; dated project markdown).
 - `pi-job --task <t> show [--all] [--started] [--full] [--short] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
   `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`); skipped breaks the run; ignored with `--all`.
   By default only the current cursor slice expands.

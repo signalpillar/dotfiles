@@ -117,6 +117,88 @@ toolbelt:
     suits:
       - setup
       - research
+  domain-vocabulary:
+    key: domain-vocabulary
+    title: Domain vocabulary
+    purpose: >-
+      Shared glossary of the task's domain language; lives at references/glossary.yaml
+      (machine-readable YAML). Grow it from explore-context, research slices, and grill answers.
+      Register with `pi-job toolbelt add domain-vocabulary --path references/glossary.yaml --status planned`.
+    suits:
+      - setup
+      - research
+      - spike
+    example: |-
+      Build a **domain vocabulary** for this task.
+
+      ## Output
+      `references/glossary.yaml` (or the path registered on the toolbelt aid).
+      YAML only - no parallel markdown glossary unless the user asks.
+
+      ## Schema
+      ```yaml
+      version: 1
+      terms:
+        - id: valued-member-discount   # kebab-case stable key
+          term: Valued Member Discount # canonical display spelling
+          aliases: [VMD, "valued member"]
+          rejects: ["founding member"] # phrases that must NOT mean this
+          means: >
+            Named tiered discount on commitment prices for non-clinical
+            cancellation starts; once per customer per 12 months.
+          layer: payments               # task.layers name or catalog system/domain id
+          evidence:
+            - https://babylonpartners.atlassian.net/browse/SHEMED-2403
+            - grill:2026-08-16
+          open: []                      # omit or [] when settled
+      ```
+
+      ## Method
+      1. Collect candidate terms from explore-context, research notes, tickets, and grill answers.
+      2. Keep only terms the team must share to plan or ship (product, billing, clinical, platform).
+      3. Append or amend one `terms[]` object per term; keep `id` stable across edits.
+      4. After each grill or research finish, add or amend terms; do not leave slang undefined.
+      5. Flip the aid to `--status done` when the file exists and covers the terms in scope.
+
+      ## Do not
+      - Treat delivery phases, metric sets, or repo names as vocabulary unless they are domain nouns.
+      - Copy entire PRD paragraphs; define the word, then point at evidence.
+      - Invent definitions when a grill or catalog already settled the meaning - record that settlement.
+      - Hand-edit free prose outside the schema fields.
+  decision-review-deck:
+    key: decision-review-deck
+    title: Decision review deck
+    purpose: >-
+      Short async decision deck for team review; follow the decision-review-deck skill
+      (~/.agents/skills/decision-review-deck/SKILL.md). Output a dated markdown file under
+      the project (temporary review artifact). Register with
+      `pi-job toolbelt add decision-review-deck --path <project>/<YYYY-MM-DD>-<topic>-review.md --status planned`.
+    suits:
+      - setup
+      - research
+      - spike
+      - closing
+    example: |-
+      Build a **decision review deck** for this task.
+
+      ## Skill
+      Follow `~/.agents/skills/decision-review-deck/SKILL.md` exactly.
+
+      ## Source
+      Pull from `pi-job` decisions (and grill settlements), not from the code diff.
+
+      ## Output
+      One dated markdown file: `<project>/<YYYY-MM-DD>-<topic>-review.md`.
+      First line marks it a temporary review artifact.
+
+      ## Shape
+      6–9 slides separated by `---`. One idea per slide.
+      Title + problem tension, then one slide per decision (`Decision · <claim>`),
+      then sequencing map. ASCII for flow; tables for structure. Name the rejected alternative.
+
+      ## Do not
+      - Put file names, function names, or test counts on slides.
+      - Exceed a 2-minute skim budget on the slide body.
   endpoint-status-map:
     key: endpoint-status-map
     title: Endpoint status map
@@ -496,7 +578,11 @@ step_kinds:
     validators:
       - grill-done-or-user-declined
     skip_rule: only when user explicitly declines
-    guidance: 'Interrogate overall task scope using the grill-me skill (skills/grill-me/SKILL.md). note records what was challenged and what changed. Loop: revise, grill again, until it survives - not a one-shot rubber stamp.'
+    guidance: >-
+      Interrogate overall task scope using the grill-me skill (skills/grill-me/SKILL.md).
+      note records what was challenged and what changed.
+      Loop: revise, grill again, until it survives - not a one-shot rubber stamp.
+      When domain-vocabulary is on the toolbelt, add or amend glossary terms that the grill settles.
   select-toolbelt:
     key: select-toolbelt
     title: Select planning aids from the toolbelt
@@ -703,7 +789,9 @@ step_kinds:
     record_channels: [step_note, slice_note]
     validators:
       - open-questions-called-out
-    guidance: Produce the answer or doc; call out open questions.
+    guidance: >-
+      Produce the answer or doc; call out open questions.
+      When domain-vocabulary is registered, fold settled terms into references/glossary.yaml.
   collect-references:
     key: collect-references
     title: Collect references

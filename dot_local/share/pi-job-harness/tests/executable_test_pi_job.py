@@ -1520,6 +1520,7 @@ def test_toolbelt_lists_for_slice_kinds() -> None:
         assert_contains(out_setup, "setup")
         assert_contains(out_setup, "config-flag-matrix")
         assert_contains(out_setup, "endpoint-status-map")
+        assert_contains(out_setup, "domain-vocabulary")
 
         research_task = Path(tmp) / "research.yaml"
         write_task_yaml(research_task, {
@@ -1547,6 +1548,8 @@ def test_toolbelt_lists_for_slice_kinds() -> None:
         assert_contains(out_research, "sequence-diagram")
         assert_contains(out_research, "state-transition-table")
         assert_contains(out_research, "endpoint-status-map")
+        assert_contains(out_research, "domain-vocabulary")
+        assert_contains(out_research, "bigpicture")
 
 
 def test_endpoint_status_map_catalog_has_build_example() -> None:
@@ -1791,6 +1794,39 @@ def test_bigpicture_toolbelt_aid_in_catalog() -> None:
     if "bigpicture" not in catalog:
         raise AssertionError(f"bigpicture missing from toolbelt: {sorted(catalog)}")
     assert_contains(str(catalog["bigpicture"].get("purpose") or ""), "bigpicture.txt")
+
+
+def test_domain_vocabulary_toolbelt_aid_in_catalog() -> None:
+    module = load_pi_job_module()
+    catalog = module.contract_toolbelt()
+    if "domain-vocabulary" not in catalog:
+        raise AssertionError(f"domain-vocabulary missing from toolbelt: {sorted(catalog)}")
+    aid = catalog["domain-vocabulary"]
+    assert_contains(str(aid.get("purpose") or ""), "glossary.yaml")
+    example = str(aid.get("example") or "")
+    assert_contains(example, "domain vocabulary")
+    assert_contains(example, "version: 1")
+    assert_contains(example, "terms:")
+    assert_contains(example, "rejects:")
+    assert_contains(example, "means:")
+    suits = set(aid.get("suits") or [])
+    if not {"setup", "research", "spike"} <= suits:
+        raise AssertionError(f"unexpected suits: {suits}")
+
+
+def test_decision_review_deck_toolbelt_aid_in_catalog() -> None:
+    module = load_pi_job_module()
+    catalog = module.contract_toolbelt()
+    if "decision-review-deck" not in catalog:
+        raise AssertionError(f"decision-review-deck missing from toolbelt: {sorted(catalog)}")
+    aid = catalog["decision-review-deck"]
+    assert_contains(str(aid.get("purpose") or ""), "decision-review-deck")
+    example = str(aid.get("example") or "")
+    assert_contains(example, "decision review deck")
+    assert_contains(example, "Decision ·")
+    suits = set(aid.get("suits") or [])
+    if not {"setup", "research", "spike", "closing"} <= suits:
+        raise AssertionError(f"unexpected suits: {suits}")
 
 
 def test_show_renders_tree_and_footer() -> None:
@@ -7336,6 +7372,8 @@ def main() -> None:
     test_confirm_layers_packet_pauses_for_user_and_points_at_catalog()
     test_bigpicture_stub_states_call_arrow_contract()
     test_bigpicture_toolbelt_aid_in_catalog()
+    test_domain_vocabulary_toolbelt_aid_in_catalog()
+    test_decision_review_deck_toolbelt_aid_in_catalog()
     test_show_renders_tree_and_footer()
     test_show_work_first_puts_open_before_done_newest_completed_last_block()
     test_show_aligns_kind_counts_after_longest_key()
