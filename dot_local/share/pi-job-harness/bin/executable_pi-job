@@ -561,6 +561,14 @@ class InstructionPacketsDocument(StrictDocument):
             "body; path ownership is YamlTaskLayout / YamlTaskStore."
         )
     )
+    bigpicture_stub: str = Field(
+        description=(
+            "Body written once as references/bigpicture.txt when layers are first "
+            "registered and the file is missing. Supports {stub_marker}, {top_layer}, "
+            "{bottom_layer}, {layer_names}, {layer_bands}, {bigpicture_path}. "
+            "Profile is the only body; Python must not hardcode the spine shape."
+        )
+    )
     status_interrupt_hint: str = Field(
         description=(
             "One-line status coaching when the saved cursor sits on an interrupt-park "
@@ -5762,27 +5770,37 @@ def format_layer_list_lines(task: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(lines)
 
 
-def bigpicture_stub_text(task: Mapping[str, Any]) -> str:
-    """Stub body for references/bigpicture.txt from the layer registry (pure)."""
-    header = (
-        BIGPICTURE_STUB_MARKER,
-        "# Cross-layer call stacktrace. Bands run top to bottom in layer order.",
-        "# Arrow contract: `A -> B` means A calls B. It never means A happens before B.",
-        "# This is not a plan. Do not add phases, milestones, or open questions here.",
-        f"# Register: pi-job toolbelt add bigpicture --path {BIGPICTURE_DEFAULT_RELPATH} --status done",
-        "# Drop this stub marker when the spine is real content.",
-        "",
-    )
-    bands = []
+def format_bigpicture_layer_bands(task: Mapping[str, Any]) -> str:
+    """Per-layer TODO blocks for the bigpicture stub (pure)."""
+    bands: list[str] = []
     for entry in task_layers(task):
         name = str(entry.get("name") or "")
         desc = str(entry.get("description") or "").strip()
         bands.append(f"LAYER: {name}")
         if desc:
-            bands.append(f"  {desc}")
-        bands.append("  (call stack across this band - TODO)")
+            bands.append(f"  # {desc}")
+        bands.append("  # TODO: hops that enter or run inside this band")
+        bands.append("  #   N. METHOD /path")
+        bands.append("  #      (Caller / Service)")
+        bands.append("  #   resulting state lines…")
         bands.append("")
-    return "\n".join((*header, *bands))
+    return "\n".join(bands)
+
+
+def bigpicture_stub_text(task: Mapping[str, Any]) -> str:
+    """Stub body for references/bigpicture.txt from profile + layer registry (pure)."""
+    layer_entries = task_layers(task)
+    names = [str(entry.get("name") or "") for entry in layer_entries if entry.get("name")]
+    template = str(load_profile_contract()["instruction_packets"]["bigpicture_stub"])
+    body = template.format(
+        stub_marker=BIGPICTURE_STUB_MARKER,
+        top_layer=names[0] if names else "<layer>",
+        bottom_layer=names[-1] if names else "<downstream-layer>",
+        layer_names=", ".join(names) or "<layer-a>, <layer-b>",
+        layer_bands=format_bigpicture_layer_bands(task).rstrip(),
+        bigpicture_path=BIGPICTURE_DEFAULT_RELPATH,
+    )
+    return body if body.endswith("\n") else body + "\n"
 
 
 def ensure_bigpicture_stub(bundle_root: Path, task: Mapping[str, Any]) -> Path | None:

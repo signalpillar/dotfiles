@@ -112,6 +112,7 @@ toolbelt:
     title: Cross-layer call stacktrace
     purpose: >-
       Who calls whom across task.layers bands; lives at references/bigpicture.txt.
+      Stub shape lives in profile instruction_packets.bigpicture_stub (not hardcoded in Python).
       Register with `pi-job toolbelt add bigpicture --path references/bigpicture.txt --status done`.
       pi-job layers add creates a stub on first registration when the file is missing.
     suits:
@@ -466,6 +467,68 @@ instruction_packets:
 
     Append-only RCA / evidence log for this task.
     Do not put long findings in the task YAML.
+  bigpicture_stub: |-
+    {stub_marker}
+    # Cross-layer call stacktrace (causal spine, top → bottom).
+    #
+    # Shape (required):
+    #   - Vertical spine only. Each hop is a real call (HTTP / UI / event / job).
+    #   - After each hop, show the resulting resource/state lines.
+    #   - Number hops in causal order: `N. METHOD path` then `(Caller / Service)`.
+    #   - Mark band crossings with `LAYER: <name>` (names from task.layers).
+    #   - Branch only for alternate inbound paths that share the same next state.
+    #   - Annotate policy / ticket refs on the hop that owns them (short).
+    #
+    # Arrow contract: the spine means A calls / triggers B. Never "A happens before B".
+    # This is not a plan. No phases, milestones, open questions, or decision backlogs.
+    #
+    # Fictional shape example (replace with this task's spine; do not keep placeholders):
+    #
+    #     Resource A (state-1) + Resource B (state-2)
+    #             │
+    #             │ 1. POST /example/v1/{{id}}/hold
+    #             │    (Orchestrator / HoldService)
+    #             ▼
+    #     Resource A: state-held + reason
+    #     Resource B: state-held
+    #     Resource C: draft created (no requester)
+    #             │
+    #             │ 2. POST /example/v1/{{id}}/respond  {{ action: "decline" }}
+    #             │    (Client / patient) - or timeout → same table as decline
+    #             ▼
+    #     Resource B: stopped (+ reason decline|timeout)
+    #     Resource C: on-hold   ← winner
+    #     Resource A: active again
+    #             │
+    #             │ 3. Approve in external UI
+    #             │    then expected inbound:
+    #             │    POST /example/v1/events/external
+    #             │    UpdateService
+    #             ▼
+    #     Winner (intended): active + requester
+    #             │
+    #             │ 4–N. Post-approval jobs
+    #             │    LAYER: {top_layer}
+    #             │    live-resource policy: exclude terminals (stopped / cancelled)
+    #             ▼
+    #     4. POST /example/v2/orders/preparation
+    #        PrepService - live resources under parent → active + asset
+    #     5. POST /example/v2/orders
+    #        OrderService - needs ≥1 live resource with requester
+    #             │
+    #             │ partner fulfils / cancels / completes
+    #             ▼
+    #     N+. Inbound partner webhooks
+    #         LAYER: {bottom_layer}
+    #         ├─ partner-a webhook → PartnerAWebhookService
+    #         └─ partner-b webhook → PartnerBWebhookService
+    #
+    # Register: pi-job toolbelt add bigpicture --path {bigpicture_path} --status done
+    # Drop this stub marker when the spine is real content.
+    #
+    # task.layers (order = bands top → bottom): {layer_names}
+
+    {layer_bands}
   status_interrupt_hint: >-
     A claim is parked on a user-decision step; interrupt work OK via investigate / add-finding / add-slice / block-slice
   investigate_interrupt: |-

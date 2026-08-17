@@ -1782,10 +1782,30 @@ def test_confirm_layers_packet_pauses_for_user_and_points_at_catalog() -> None:
 
 def test_bigpicture_stub_states_call_arrow_contract() -> None:
     module = load_pi_job_module()
-    stub = module.bigpicture_stub_text({"layers": [{"name": "comms", "description": "Braze"}]})
-    assert_contains(stub, "`A -> B` means A calls B")
-    assert_contains(stub, "It never means A happens before B")
-    assert_contains(stub, "LAYER: comms")
+    stub = module.bigpicture_stub_text({
+        "layers": [
+            {"name": "order", "description": "Order prep"},
+            {"name": "webhooks", "description": "Partner inbound"},
+        ],
+    })
+    assert_contains(stub, "the spine means A calls / triggers B")
+    assert_contains(stub, "Never \"A happens before B\"")
+    assert_contains(stub, "Fictional shape example")
+    assert_contains(stub, "N. METHOD path")
+    assert_contains(stub, "(Caller / Service)")
+    assert_contains(stub, "LAYER: order")
+    assert_contains(stub, "LAYER: webhooks")
+    assert_contains(stub, "task.layers (order = bands top → bottom): order, webhooks")
+    assert_contains(stub, "TODO: hops that enter or run inside this band")
+    assert_contains(stub, "POST /example/v1/{id}/hold")
+    # Must not leak the private company example the user pasted.
+    assert_not_contains(stub, "treatment-change")
+    assert_not_contains(stub, "SHEMED-")
+    assert_not_contains(stub, "TipOrderPreparationService")
+    # Body lives in profile, not hardcoded only in Python.
+    profile_stub = module.load_profile_contract()["instruction_packets"]["bigpicture_stub"]
+    assert_contains(profile_stub, "Fictional shape example")
+    assert_contains(profile_stub, "{layer_bands}")
 
 
 def test_bigpicture_toolbelt_aid_in_catalog() -> None:

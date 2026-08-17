@@ -479,7 +479,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 - `pi-job --task <t> layers [show|add|set|remove|rename|reorder]` - manage ordered `task.layers` bands (`name`, `description`, `references`).
   When non-empty, implement/spike/research slices need exactly one `--layer`.
-  `layers add` creates `references/bigpicture.txt` stub when missing; later edits print a slice survival report (agent updates the bigpicture call spine).
+  `layers add` creates `references/bigpicture.txt` stub when missing (shape contract + fictional spine example + per-layer TODOs); later edits print a slice survival report (agent updates the bigpicture call spine).
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
@@ -760,7 +760,7 @@ Clocks (`utc_now`) and path stamps live in the store/cmd edge, not in layout.
 
 Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `cli_help`, `interrupt_park_steps`).
 Python loads and formats them; it must not hardcode parallel copy.
-Examples: `status_interrupt_hint`, `investigate_interrupt`, `orchestrator_heartbeat`, `slice_plan_stub`, `findings_file_header`.
+Examples: `status_interrupt_hint`, `investigate_interrupt`, `orchestrator_heartbeat`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
 
 ### Render
 
