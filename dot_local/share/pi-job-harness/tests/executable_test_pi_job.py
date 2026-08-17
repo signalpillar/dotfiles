@@ -912,7 +912,7 @@ def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
     assert_contains(instruction, "constraint-and-behaviour contract")
     assert_contains(
         instruction,
-        "intent, types and composition, call stacks, system behaviour",
+        "brief, intent, types and composition, call stacks, system behaviour",
     )
     assert_contains(instruction, "constraints, verification")
     assert_contains(instruction, "optional short touch surface")
@@ -1629,8 +1629,11 @@ def test_select_toolbelt_step_and_instruction() -> None:
 
         instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instr, "Step kind: select-toolbelt")
+        assert_contains(instr, "Ask the user whether to run this step")
         assert_contains(instr, "Toolbelt (planning aids)")
         assert_contains(instr, "config-flag-matrix")
+        assert_contains(instr, "Bigpicture is mandatory when task.layers is non-empty")
+        assert_contains(instr, "understand current behaviour")
 
 
 def test_toolbelt_block_in_plan() -> None:
@@ -1726,7 +1729,7 @@ def test_layers_add_stub_bind_graph_and_remove_guard() -> None:
         assert_not_contains(listed, "\n  1. hold")
 
 
-def test_setup_template_includes_confirm_layers_step() -> None:
+def test_setup_maps_current_state_before_clarify_and_grill() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "setup-layers" / "task.yaml"
         write_task_yaml(task, {
@@ -1736,12 +1739,29 @@ def test_setup_template_includes_confirm_layers_step() -> None:
         })
         run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
-        assert_contains(show, "confirm-layers")
-        # confirm-layers must sit after explore-context
-        explore_at = show.index("explore-context")
-        confirm_at = show.index("confirm-layers")
-        if confirm_at < explore_at:
-            raise AssertionError("confirm-layers must follow explore-context")
+        expected = [
+            "explore-context",
+            "confirm-layers",
+            "select-toolbelt",
+            "map-current-state",
+            "clarify-scope",
+            "grill",
+            "wayfinder",
+            "plan-slices",
+        ]
+        positions = []
+        for step in expected:
+            assert_contains(show, step)
+            positions.append(show.index(step))
+        if positions != sorted(positions):
+            raise AssertionError(f"setup understanding order is wrong: {positions}")
+
+        module = load_pi_job_module()
+        setup = module.get_slice_kind("setup")
+        required = [str(step) for step in (setup.get("required_steps") or [])]
+        for step in ("confirm-layers", "select-toolbelt", "map-current-state"):
+            if step not in required:
+                raise AssertionError(f"{step} must be required: {required!r}")
 
 
 def test_confirm_layers_packet_pauses_for_user_and_points_at_catalog() -> None:
@@ -1777,7 +1797,46 @@ def test_confirm_layers_packet_pauses_for_user_and_points_at_catalog() -> None:
         assert_contains(instr, "Ask the user whether to run this step")
         assert_contains(instr, "canonical catalog of systems and domains")
         assert_contains(instr, "not delivery phases")
-        assert_contains(instr, "explicit confirmation before you register")
+        assert_contains(instr, "List every available catalog band")
+        assert_contains(instr, "complete current-journey order")
+        assert_contains(instr, "Do not reduce task.layers to repositories expected to change")
+        assert_contains(instr, "explicit confirmation before registration")
+
+
+def test_map_current_state_packet_requires_as_is_cross_layer_spine() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "map-current-state.yaml"
+        write_task_yaml(task, {
+            "title": "Map current state",
+            "status": "in_progress",
+            "orchestration": {
+                "cursors": [claim_dict("setup-slice")],
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "setup-slice",
+                    "kind": "setup",
+                    "title": "Setup",
+                    "goal": "Understand before grill",
+                    "status": "in_progress",
+                    "note": "",
+                    "steps": [
+                        {"key": "map-current-state", "title": "Map current state", "status": "planned", "note": ""},
+                    ],
+                    "final_steps": [],
+                }],
+            },
+        })
+
+        instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instr, "Step kind: map-current-state")
+        assert_contains(instr, "before asking the user implementation or scope questions")
+        assert_contains(instr, "always replace the bigpicture stub with an AS-IS causal spine")
+        assert_contains(instr, "every confirmed layer")
+        assert_contains(instr, "mark an idle layer explicitly")
+        assert_contains(instr, "Keep proposed TO-BE behaviour out")
 
 
 def test_bigpicture_stub_states_call_arrow_contract() -> None:
@@ -6861,10 +6920,12 @@ def test_add_slice_creates_plan_stub() -> None:
         # Stub body must come from the profile template, not a Python hardcode.
         assert_contains(template, "## Types and composition")
         assert_contains(template, "## Call stacks")
+        assert_contains(template, "## Brief")
         assert_contains(template, "## Intent")
         assert_contains(template, "## Open questions")
         assert_contains(body, "## Types and composition")
         assert_contains(body, "## Call stacks")
+        assert_contains(body, "## Brief")
         assert_contains(body, "## Intent")
         assert_contains(body, "## Open questions")
         assert_contains(body, "## Goal")
@@ -7266,6 +7327,125 @@ def test_list_skips_unreadable_bundle_with_warning() -> None:
             assert_contains(result.stderr, "bad-slug")
 
 
+def test_archive_moves_home_bundle_out_of_list() -> None:
+    """`archive` moves a home bundle into the archive home and frees the slug."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        home = root / "tasks"
+        archive = root / "archive"
+        write_task_yaml(
+            home / "demo-task" / "task.yaml",
+            standard_fixture_mapping(title="Demo archive"),
+        )
+        (home / "demo-task" / "plans").mkdir()
+        (home / "demo-task" / "plans" / "note.md").write_text("# note\n", encoding="utf-8")
+        (home / "demo-task" / "references").mkdir()
+
+        with _pi_job_tasks_home(home):
+            assert module.task_archive_home() == archive.resolve()
+            dry = run(str(PI_JOB), "--task", "demo-task", "archive", "--dry-run").stdout
+            assert_contains(dry, "would archive demo-task ->")
+            assert (home / "demo-task" / "task.yaml").is_file()
+
+            out = run(str(PI_JOB), "--task", "demo-task", "archive").stdout
+            assert_contains(out, "archived demo-task ->")
+            assert_contains(out, str(archive / "demo-task"))
+
+            assert not (home / "demo-task").exists()
+            assert (archive / "demo-task" / "task.yaml").is_file()
+            assert (archive / "demo-task" / "plans" / "note.md").is_file()
+
+            listed = run(str(PI_JOB), "list").stdout
+            assert_not_contains(listed, "demo-task")
+
+            missing = run(str(PI_JOB), "--task", "demo-task", "status", check=False)
+            if missing.returncode == 0:
+                raise AssertionError("archived slug should no longer resolve")
+            assert_contains(missing.stderr, "unknown task slug 'demo-task'")
+
+
+def test_archive_to_renames_and_refuses_collision() -> None:
+    """`--to` renames on archive; an existing archive destination fails closed."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        home = root / "tasks"
+        archive = root / "archive"
+        write_task_yaml(home / "old-slug" / "task.yaml", standard_fixture_mapping(title="Old"))
+        write_task_yaml(
+            archive / "taken-slug" / "task.yaml",
+            standard_fixture_mapping(title="Taken"),
+        )
+
+        with _pi_job_tasks_home(home):
+            out = run(
+                str(PI_JOB), "--task", "old-slug", "archive", "--to", "fresh-slug",
+            ).stdout
+            assert_contains(out, "archived old-slug ->")
+            assert_contains(out, str(archive / "fresh-slug"))
+            assert (archive / "fresh-slug" / "task.yaml").is_file()
+            assert not (home / "old-slug").exists()
+
+            write_task_yaml(
+                home / "another" / "task.yaml",
+                standard_fixture_mapping(title="Another"),
+            )
+            collided = run(
+                str(PI_JOB),
+                "--task",
+                "another",
+                "archive",
+                "--to",
+                "taken-slug",
+                check=False,
+            )
+            if collided.returncode == 0:
+                raise AssertionError("archive should refuse an existing destination")
+            assert_contains(collided.stderr, "archive destination already exists")
+            assert (home / "another" / "task.yaml").is_file()
+
+
+def test_archive_refuses_non_home_bundle() -> None:
+    """Path-opened bundles outside `$PI_JOB_TASKS` cannot archive."""
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks"
+        outside = Path(tmp) / "elsewhere" / "side-bundle"
+        write_task_yaml(outside / "task.yaml", standard_fixture_mapping(title="Side"))
+        home.mkdir()
+
+        with _pi_job_tasks_home(home):
+            refused = run(
+                str(PI_JOB), "--task", str(outside / "task.yaml"), "archive", check=False,
+            )
+            if refused.returncode == 0:
+                raise AssertionError("archive should refuse a non-home bundle")
+            assert_contains(refused.stderr, "immediate child of the task home")
+            assert (outside / "task.yaml").is_file()
+
+
+def test_archive_respects_PI_JOB_ARCHIVE() -> None:
+    """`PI_JOB_ARCHIVE` overrides the default sibling archive home."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks"
+        custom = Path(tmp) / "custom-archive"
+        write_task_yaml(home / "env-slug" / "task.yaml", standard_fixture_mapping(title="Env"))
+        saved = os.environ.get("PI_JOB_ARCHIVE")
+        os.environ["PI_JOB_ARCHIVE"] = str(custom)
+        try:
+            with _pi_job_tasks_home(home):
+                assert module.task_archive_home() == custom.resolve()
+                out = run(str(PI_JOB), "--task", "env-slug", "archive").stdout
+                assert_contains(out, str(custom / "env-slug"))
+                assert (custom / "env-slug" / "task.yaml").is_file()
+                assert not (home / "env-slug").exists()
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_ARCHIVE", None)
+            else:
+                os.environ["PI_JOB_ARCHIVE"] = saved
+
+
 def test_set_worktree_recommend_missing_path() -> None:
     """set-worktree without `--path`/`--clear` prints a recommendation and dies non-zero
     without writing to the task file."""
@@ -7388,8 +7568,9 @@ def main() -> None:
     test_select_toolbelt_step_and_instruction()
     test_toolbelt_block_in_plan()
     test_layers_add_stub_bind_graph_and_remove_guard()
-    test_setup_template_includes_confirm_layers_step()
+    test_setup_maps_current_state_before_clarify_and_grill()
     test_confirm_layers_packet_pauses_for_user_and_points_at_catalog()
+    test_map_current_state_packet_requires_as_is_cross_layer_spine()
     test_bigpicture_stub_states_call_arrow_contract()
     test_bigpicture_toolbelt_aid_in_catalog()
     test_domain_vocabulary_toolbelt_aid_in_catalog()
@@ -7873,6 +8054,10 @@ if __name__ == "__main__":
     test_list_empty_home()
     test_list_respects_PI_JOB_TASKS()
     test_list_skips_unreadable_bundle_with_warning()
+    test_archive_moves_home_bundle_out_of_list()
+    test_archive_to_renames_and_refuses_collision()
+    test_archive_refuses_non_home_bundle()
+    test_archive_respects_PI_JOB_ARCHIVE()
     test_set_worktree_recommend_missing_path()
     test_set_worktree_recommend_under_home()
     test_set_worktree_recommend_loose_yaml()

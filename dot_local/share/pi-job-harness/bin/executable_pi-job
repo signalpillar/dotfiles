@@ -2704,6 +2704,15 @@ def task_tasks_home(*, env: Mapping[str, str] | None = None) -> Path:
     return Path(raw).expanduser().resolve()
 
 
+def task_archive_home(*, env: Mapping[str, str] | None = None) -> Path:
+    """Archived task home; `PI_JOB_ARCHIVE` overrides, else sibling `archive/` of the tasks home."""
+    source = os.environ if env is None else env
+    raw = source.get("PI_JOB_ARCHIVE")
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return task_tasks_home(env=env).parent / "archive"
+
+
 def bundle_slug_under_home(layout: BundleTaskLayout) -> str | None:
     """Bundle slug when `layout.bundle_root` is an immediate child of `task_tasks_home()`.
 
@@ -2760,6 +2769,41 @@ def iter_home_bundle_docs(home: Path) -> list[tuple[str, Path]]:
         if doc.is_file():
             found.append((child.name, doc))
     return sorted(found, key=lambda pair: pair[0])
+
+
+def archive_home_bundle(
+    *,
+    bundle_root: Path,
+    archive_home: Path,
+    dest_slug: str,
+    dry_run: bool = False,
+) -> Path:
+    """Move a task-home bundle directory into `archive_home` under `dest_slug`.
+
+    Home-level store operation: `list` / slug resolve only see `$PI_JOB_TASKS`, so moving
+    the bundle out of the tasks home is how archive works. Returns the destination path.
+    Refuses when the destination already exists (no overwrite).
+    """
+    if not is_task_slug(dest_slug):
+        die(
+            f"invalid archive slug {dest_slug!r}; slugs must match {TASK_SLUG_RE.pattern}"
+        )
+    if not bundle_root.is_dir():
+        die(f"archive source is not a bundle directory: {bundle_root}")
+    doc = bundle_root / BundleTaskLayout.DOCUMENT_NAME
+    if not doc.is_file():
+        die(f"archive source is missing {BundleTaskLayout.DOCUMENT_NAME}: {bundle_root}")
+    dest = archive_home / dest_slug
+    if dest.exists():
+        die(
+            f"archive destination already exists: {dest}; "
+            "pass --to <new-slug> to choose a free name"
+        )
+    if dry_run:
+        return dest
+    archive_home.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(bundle_root), str(dest))
+    return dest
 
 
 LIST_STATUS_ORDER = {
@@ -6783,6 +6827,44 @@ def cmd_list(args: argparse.Namespace) -> None:
         print("\n\n".join(format_task_list_entry(entry) for entry in ordered))
 
 
+def cmd_archive(args: argparse.Namespace) -> None:
+    """Move a home task bundle into the archive home so `list` / slug create stay clear.
+
+    Only immediate children of `$PI_JOB_TASKS` archive. Loose YAML and path-opened
+    bundles outside the home are refused. Destination defaults to the same slug under
+    `$PI_JOB_ARCHIVE` (or `<tasks-home-parent>/archive`); `--to` renames on move.
+    """
+    task_file = require_task(args.task, cmd="archive")
+    store = open_task_store(task_file)
+    if not isinstance(store, YamlTaskStore) or not isinstance(store.layout, BundleTaskLayout):
+        die("archive requires a task bundle under $PI_JOB_TASKS, not a loose YAML file")
+    slug = bundle_slug_under_home(store.layout)
+    if slug is None:
+        die(
+            "archive requires a bundle that is an immediate child of the task home "
+            f"({task_tasks_home()}); got {store.describe()}"
+        )
+    dest_slug = args.to or slug
+    archive_home = task_archive_home()
+    if args.dry_run:
+        dest = archive_home_bundle(
+            bundle_root=store.layout.bundle_root,
+            archive_home=archive_home,
+            dest_slug=dest_slug,
+            dry_run=True,
+        )
+        print(f"would archive {slug} -> {dest}")
+        return
+    with store.exclusive():
+        dest = archive_home_bundle(
+            bundle_root=store.layout.bundle_root,
+            archive_home=archive_home,
+            dest_slug=dest_slug,
+            dry_run=False,
+        )
+    print(f"archived {slug} -> {dest}")
+
+
 def cmd_set_worktree(args: argparse.Namespace) -> None:
     task_file = args.task
     store = open_task_store(task_file)
@@ -7378,6 +7460,26 @@ def main() -> None:
         ),
     )
     list_cmd.set_defaults(fn=cmd_list)
+
+    archive_cmd = sub.add_parser(
+        "archive",
+        help=(
+            "move a $PI_JOB_TASKS home bundle into the archive home "
+            "($PI_JOB_ARCHIVE or <tasks-parent>/archive); frees the slug for create"
+        ),
+    )
+    archive_cmd.add_argument(
+        "--to",
+        default=None,
+        metavar="SLUG",
+        help="archive under this slug (default: keep the current slug)",
+    )
+    archive_cmd.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the destination path without moving the bundle",
+    )
+    archive_cmd.set_defaults(fn=cmd_archive)
 
     status = sub.add_parser("status", help="show task status, saved cursor, and Ready frontier")
     status.set_defaults(fn=cmd_status)

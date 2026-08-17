@@ -42,6 +42,7 @@ It does **not** run the agent session and does **not** spawn subagents.
 Given a YAML task file and package-local `profile.yaml`, it can:
 
 - `list` - show readable, activity-sorted task blocks from the central task home (slug, title, status, updated time, active claims); no `--task` needed
+- `archive` - move a home task bundle into the archive home (`$PI_JOB_ARCHIVE` or sibling `archive/`); frees the slug for a fresh `create`
 - `create` - create and initialize a task file (`--from` intent YAML, or `--kind`/`--empty-plan` skeleton; also finishes init on an existing uninitialized file)
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
@@ -190,7 +191,7 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 - Session todos should track the slice/step plan from `plan`, not a separate profile phase list.
 - Prefer small context: `status` / `show --slice` / `markdown --slice` / `instruction` over loading the whole task file.
   Token smell: if a step needs a huge dump, shrink the contract or the slice.
-- Sibling slice plans are succinct constraint-and-behaviour contracts (intent, types and composition, call stacks, behaviour, constraints, verification).
+- Sibling slice plans are succinct constraint-and-behaviour contracts (brief, intent, types and composition, call stacks, behaviour, constraints, verification).
   Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
   Step evidence belongs in `finish --note`, not `add-decision`.
   Full wording lives in profile `plan_and_grill_guardrail` (thin pointer only here).
@@ -410,6 +411,11 @@ These commands do not require `--task`.
   Ready frontier remains on `status` / `show`.
   Scans only immediate child bundle directories with a `task.yaml`; loose `*.yaml` files directly under the task home are never listed (`project` them into a bundle first).
   A bundle that fails to load is skipped with a stderr warning instead of aborting the whole listing.
+- `pi-job --task <slug> archive [--to SLUG] [--dry-run]` - move a home bundle out of `$PI_JOB_TASKS` into the archive home.
+  Archive home is `$PI_JOB_ARCHIVE` when set, otherwise `<parent of $PI_JOB_TASKS>/archive` (default `~/.local/share/pi-job/archive`).
+  Only immediate children of the task home archive; loose YAML and path-opened bundles outside the home are refused.
+  Destination keeps the slug unless `--to` renames it; existing destinations fail closed (no overwrite).
+  After archive, `list` no longer shows the task and the slug is free for `create`.
 - `pi-job profile [--json]` - show the active execution profile. Human output lists slice/step/toolbelt counts; `--json` dumps the full validated profile.
 - `pi-job schema [--json]` - show the task document and create-intent input schemas. Human output summarizes model counts; `--json` dumps a complete JSON Schema object with `task` and `create` keys.
 - `pi-job kinds list [--json]` - list all slice kinds with their step templates. `--json` dumps the full slice_kinds catalog.
@@ -480,6 +486,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 - `pi-job --task <t> layers [show|add|set|remove|rename|reorder]` - manage ordered `task.layers` bands (`name`, `description`, `references`).
   When non-empty, implement/spike/research slices need exactly one `--layer`.
   `layers add` creates `references/bigpicture.txt` stub when missing (shape contract + fictional spine example + per-layer TODOs); later edits print a slice survival report (agent updates the bigpicture call spine).
+  Setup selects layers for the complete current journey, including unchanged or idle systems that explain a handoff.
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
@@ -521,17 +528,24 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   For sibling-step evidence after decisions are loaded, the subagent prompt points at `pi-job --task <t> show --slice <key>`.
   Orchestrators dispatch subagents with the markdown --slice command; they do not paste a decisions dump.
 
-The setup slice's `select-toolbelt` step picks aids suited to the task's slice kinds; `plan-slices` produces them.
+The setup slice builds understanding before it asks the user to clarify or grill scope:
+
+1. `confirm-layers` lists all catalog bands and confirms the complete current-journey stack.
+2. `select-toolbelt` recommends aids, separates current-state aids from planning-only aids, and confirms the selection with the user.
+3. `map-current-state` always fills the AS-IS bigpicture when layers exist and produces the other selected understanding aids.
+4. `clarify-scope` and `grill` ask decisions grounded in those aids, not factual questions that repository evidence can answer.
+5. `plan-slices` produces planning-only aids and can add clearly labelled TO-BE content without replacing the AS-IS baseline.
+
 The catalog lives in `profile.yaml` under `toolbelt`.
 Catalog entries may include an `example` build instruction; follow it when writing the aid file.
 
 ## Planning before code changes: create-plan / grill-plan / grill
 
-**Setup slice** uses step key `grill` to interrogate overall task scope before implement slices exist.
+**Setup slice** maps current behaviour before step `grill` interrogates overall task scope.
 
 **Implement and spike slices** must lead with `create-plan` then `grill-plan` before other work in that slice.
 Sibling plan files are succinct constraint-and-behaviour contracts
-(intent, types and composition, call stacks, behaviour, constraints, verification).
+(brief, intent, types and composition, call stacks, behaviour, constraints, verification).
 Full wording (required sections, grill axes, task-store boundary, naming, skip exception) lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
 Do not restate that contract here.
 

@@ -273,8 +273,10 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
   Before other implement/spike steps, lead with create-plan then grill-plan:
   (1) create-plan - sibling Markdown plan file as a constraint-and-behaviour contract
       (not a how-to essay or delivery journal).
-      Required sections: intent, types and composition, call stacks, system behaviour,
+      Required sections: brief, intent, types and composition, call stacks, system behaviour,
       constraints, verification; optional short touch surface.
+      Brief: one short paragraph - who uses it, what they get, why it exists.
+      Intent binds behaviour; do not put must/must-not rules only in Brief.
       Types and composition: prefer pseudo-code (fenced type/interface sketch, any
       language tag) plus prose boundaries.
       Call stacks: one indented stack (e.g. handler -> service -> store); note
@@ -430,6 +432,9 @@ instruction_packets:
 
     ## Depends on
     {depends_on}
+
+    ## Brief
+    - (who uses it / what they get / why it exists)
 
     ## Intent
     -
@@ -601,7 +606,10 @@ step_kinds:
     record_channels: [step_note, slice_note]
     validators:
       - repos-or-explicitly-not-applicable
-    guidance: Read the adjacent code/docs needed to act. Record known repos and adjacent context - or explicitly note none apply.
+    guidance: >-
+      Read the adjacent code and documents needed to act.
+      Record known repositories, primary user journeys, and adjacent context - or explicitly note none apply.
+      Locate the canonical systems and domains catalog for confirm-layers.
   confirm-layers:
     key: confirm-layers
     title: Confirm task.layers bands
@@ -619,11 +627,50 @@ step_kinds:
       A layer is a position in the call stack. Band A must be able to call band B below it.
       Layers are not delivery phases, not workstreams, not decision buckets, not repo names.
       Reject any band named after a phase, a milestone, a metric set, or a backlog of open questions.
-      Show the proposed ordered list to the user and get explicit confirmation before you register.
+      List every available catalog band, identify the relevant candidates, then propose the complete current-journey order.
+      Include read-only, unchanged, and currently idle systems when they explain a handoff or user journey.
+      Do not reduce task.layers to repositories expected to change.
+      Show the candidates and proposed order to the user, then get explicit confirmation before registration.
       Register each with `pi-job layers add --name ... --description ...` (optional --references, --after).
       Record the confirmed set with `pi-job add-decision`.
       Skip with reason when layers are N/A. First add creates references/bigpicture.txt stub when missing.
-      Register the bigpicture aid with `pi-job toolbelt add bigpicture` when you will maintain the spine.
+      When layers are confirmed, register bigpicture because map-current-state always maintains its spine.
+  select-toolbelt:
+    key: select-toolbelt
+    title: Select understanding and planning aids
+    owner: orchestrator
+    record_channels: [step_note, slice_note]
+    requires_user_decision: true
+    validators:
+      - toolbelt-selection-recorded
+    guidance: >-
+      Review aids whose suits includes a relevant slice kind with `pi-job toolbelt`.
+      Separate aids needed to understand current behaviour from aids needed only for later design or verification.
+      Bigpicture is mandatory when task.layers is non-empty; do not present it as optional.
+      Recommend a small task-specific set, show each aid's immediate purpose, and get user confirmation.
+      Treat an explicit aid selection in the task source or current conversation as confirmation.
+      Register each selected aid with `pi-job toolbelt add <key> --status planned` plus a one-line why.
+      Do not build the files in this step; map-current-state builds understanding aids next.
+  map-current-state:
+    key: map-current-state
+    title: Map how it works now
+    owner: orchestrator
+    record_channels: [step_note, slice_note]
+    validators:
+      - current-state-aids-produced-or-gap-recorded
+      - cross-layer-spine-completed-or-not-applicable
+    guidance: >-
+      Build the selected understanding aids before asking the user implementation or scope questions.
+      Investigate facts in code, manifests, APIs, and trusted documents; use parallel subagents when useful.
+      When task.layers is non-empty, always replace the bigpicture stub with an AS-IS causal spine.
+      Cover each primary journey across every confirmed layer; mark an idle layer explicitly when it has no hop.
+      Each arrow must mean a real call or trigger, not only chronology.
+      Keep proposed TO-BE behaviour out, except for short and clearly labelled gaps.
+      Build other selected understanding aids now, such as vocabulary, lifecycles, data shapes, and endpoint maps.
+      Follow each catalog aid's example when present.
+      Mark each completed aid done with an AS-IS note; leave planning-only aids planned.
+      Record evidence gaps instead of inventing behaviour.
+      Before finishing, give the user a short reading order and the facts that will ground clarify-scope and grill.
   clarify-scope:
     key: clarify-scope
     title: Clarify scope
@@ -631,8 +678,13 @@ step_kinds:
     record_channels: [decision, step_note, slice_note]
     validators:
       - blocking-ambiguity-resolved
-    skip_rule: skip when exploration answers the implementation-relevant questions
-    guidance: Resolve blocking ambiguity with the user before planning. Skip only when exploration already answered the implementation-relevant questions.
+    skip_rule: skip when current-state mapping answers the implementation-relevant questions
+    guidance: >-
+      Resolve blocking ambiguity with the user before planning.
+      Read the completed current-state aids first.
+      Look up factual questions instead of asking the user.
+      Ask only for decisions that materially affect scope or behaviour.
+      Skip when current-state mapping already answers the implementation-relevant questions.
   grill:
     key: grill
     title: Grill overall scope
@@ -643,17 +695,11 @@ step_kinds:
     skip_rule: only when user explicitly declines
     guidance: >-
       Interrogate overall task scope using the grill-me skill (skills/grill-me/SKILL.md).
+      Ground recommendations in the completed current-state aids and cite the relevant aid.
+      Do not quiz the user about facts that code, manifests, APIs, or the aids can answer.
       note records what was challenged and what changed.
       Loop: revise, grill again, until it survives - not a one-shot rubber stamp.
       When domain-vocabulary is on the toolbelt, add or amend glossary terms that the grill settles.
-  select-toolbelt:
-    key: select-toolbelt
-    title: Select planning aids from the toolbelt
-    owner: orchestrator
-    record_channels: [step_note, slice_note]
-    validators:
-      - toolbelt-selection-recorded
-    guidance: From the aids whose suits includes a relevant slice kind (see `pi-job toolbelt`), select the subset that will help write the plan. Register each with `pi-job toolbelt add <key> --status planned` plus a one-line why. Do not produce the aid files yet - they are written during plan-slices and flipped to done when the file exists.
   plan-slices:
     key: plan-slices
     title: Plan slices
@@ -662,7 +708,15 @@ step_kinds:
     validators:
       - at-least-one-slice
       - slices-repo-scoped-and-atomic
-    guidance: Prefer one slice per repository. Make each slice atomic - self-contained end to end - ordered by dependency. Add implement slices with `pi-job add-slice --kind implement`. When task.layers is set, pass `--layer <name>` on implement/spike/research slices. When producing a registered toolbelt aid, if the catalog entry has an `example`, follow that as the build instruction for the aid file.
+    guidance: >-
+      Prefer one slice per repository.
+      Make each slice atomic - self-contained end to end - ordered by dependency.
+      Add implement slices with `pi-job add-slice --kind implement`.
+      When task.layers is set, pass `--layer <name>` on implement/spike/research slices.
+      Produce registered planning-only aids now.
+      Extend current-state aids with clearly labelled TO-BE content only when it improves the plan.
+      Preserve the AS-IS baseline; do not replace evidence with intended behaviour.
+      When producing an aid, follow its catalog example when present.
   wayfinder:
     key: wayfinder
     title: Chart the fog
@@ -956,23 +1010,25 @@ slice_kinds:
   setup:
     key: setup
     title: Task setup
-    description: Explore, clarify, grill scope, pick toolbelt, plan the implementation slices. Runs once, first.
+    description: Explore, confirm the complete journey, map current behaviour, then clarify, grill, and plan. Runs once, first.
     policies: {}
     step_template:
       - explore-context
       - confirm-layers
+      - select-toolbelt
+      - map-current-state
       - clarify-scope
       - grill
       - wayfinder
-      - select-toolbelt
       - plan-slices
       - pi-job-feedback
     required_steps:
       - explore-context
       - confirm-layers
+      - select-toolbelt
+      - map-current-state
       - clarify-scope
       - grill
-      - select-toolbelt
       - plan-slices
   implement:
     key: implement
