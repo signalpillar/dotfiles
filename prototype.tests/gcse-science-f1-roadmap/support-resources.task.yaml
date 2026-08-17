@@ -34,8 +34,8 @@ context: 'Add declarative support resources for all 121 curriculum topics withou
   through the replication skill.'
 orchestration:
   cursor:
-    slice: physics-resources
-    step: update-task-file
+    slice: chemistry-resources
+    step: draft-topic-bundles
   policy:
     coding_execution:
       subagent_required: true
@@ -512,11 +512,13 @@ plan:
     title: Publish physics resources
     goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
       Wikipedia links for all 35 physics topics.
-    status: in_progress
-    note: ''
+    status: done
+    note: All 35 P1-P35 topics researched, drafted, reviewed, published, validated, e2e-tested, and committed
+      (7c8e67e). User reviewed and approved.
     execution:
       model: openai/gpt-5.6-sol
       started: '2026-07-27T13:16:28.121543Z'
+      ended: '2026-07-27T16:01:42.286156Z'
     repos:
     - dotfiles
     depends_on:
@@ -611,20 +613,24 @@ plan:
         ended: '2026-07-27T15:51:58.948405Z'
     - key: update-task-file
       title: Update this task file
-      status: planned
-      note: ''
+      status: skipped
+      note: Physics slice complete. All 35 topics researched, drafted, reviewed, published, validated,
+        e2e-tested, and committed (7c8e67e). User reviewed and approved.
     - key: wait-for-feedback
       title: 'Wait for team feedback: loop on PR review until merged'
-      status: planned
-      note: ''
+      status: skipped
+      note: Physics slice complete and delivered. Moving to chemistry.
     final_steps: []
   - key: chemistry-resources
     kind: implement
     title: Publish chemistry resources
     goal: Research, validate, and publish summaries, interactive tutor prompts, supporting links, and
       Wikipedia links for all 33 chemistry topics.
-    status: planned
+    status: in_progress
     note: ''
+    execution:
+      model: openai/gpt-5.6-sol
+      started: '2026-07-27T16:02:12.523435Z'
     repos:
     - dotfiles
     depends_on:
@@ -633,23 +639,63 @@ plan:
     steps:
     - key: create-plan
       title: Create plan
-      status: planned
-      note: ''
+      status: done
+      note: 'Plan file: support-resources.task.plans/chemistry-resources.md'
+      execution:
+        model: openai/gpt-5.6-sol
+        started: '2026-07-27T16:02:12.661483Z'
+        ended: '2026-07-27T16:02:18.677705Z'
     - key: grill-plan
       title: Grill the plan file
-      status: planned
-      note: ''
+      status: done
+      note: 'Found the drafted plan far thinner than the maths/physics precedent (65 lines vs physics''
+        263) and missing required sections entirely: no authority/safety boundaries, no evidence-delegation/independence
+        process, no per-topic prerequisite-diagnostic/permitted-context detail, no drafting workflow,
+        link-review rules, exact publication file list, preservation/review gates, browser acceptance
+        plan, or commands section. Also found a real prerequisite-ordering defect: original Batches C
+        and D (Electrolysis/Cells/Fuels; Analysis/Atmosphere/Water) referenced C16 acids/salts before
+        Batch E introduced it, which would force researchers to write esterification, ion-test, water-treatment,
+        and salt-prep content before acid chemistry existed anywhere in the library. Rewrote the plan
+        end to end: reordered all 33 topics into 7 dependency-respecting batches (verified programmatically,
+        zero violations) with C16 pulled forward into Batch B; expanded every topic into full scope/prerequisite-diagnostic/misconception/permitted-context
+        prose sourced from the live embedded manifest (spec, requires, f1, diy fields extracted and cross-checked
+        against all 33 C1-C33 records); added a chemistry-specific Authority and Safety Boundaries section
+        covering corrosive reagents, chlorine gas from aqueous electrolysis, flame/gas tests, and heating,
+        stricter than the physics plan''s equivalent; and added the full evidence-delegation, drafting-workflow,
+        link-review, publication-file, preservation-gate, review-gate (per-topic/batch/subject), browser-acceptance,
+        and commands sections mirroring the physics template with chemistry-correct counts (99 files,
+        99 URLs, 88 cumulative published topics, 264 cumulative audited URLs).'
+      execution:
+        model: anthropic/claude-sonnet-5
+        started: '2026-07-27T16:02:49.202165Z'
+        ended: '2026-07-27T16:09:59.948130Z'
     - key: research-topic-evidence
       title: Research chemistry topic evidence
-      status: planned
-      note: For C1-C33, inspect each authoritative manifest record and every final live resource destination;
-        record scope, relevance, redirects, free access, and Wikipedia fit in bounded topic batches.
+      status: done
+      note: 'Completed evidence research for all 33 chemistry topics (C1-C33) across 7 bounded batches,
+        dispatched as parallel subagents per the reordered dependency-safe batches in the plan. Every
+        topic has an evidence.md under the disclosed temp draft area with candidates considered, selected
+        2+ supporting links plus 1 Wikipedia link, limitations, and gaps. One batch (E: C20,C23,C26,C27,C32)
+        initially reported fabricated success with no files actually written; caught by cross-checking
+        file counts (28/33 present, not 33/33) against the subagent''s claims, and re-ran on a stronger
+        model with mandatory on-disk self-verification before it was allowed to report done - second run
+        verified genuine with real HTTP-200 URLs. Spot-checked several other batches'' unusual-looking
+        domains/article names (thesciencehive.co.uk, chemistrymadeeasy.com, whiteboardchemistry.com, Wikipedia
+        ''Mole map (chemistry)'') and all resolved live; no further fabrication found. No repository files
+        were touched; this step is evidence-only.'
+      execution:
+        model: anthropic/claude-sonnet-5
+        started: '2026-07-27T16:56:39.783630Z'
+        ended: '2026-08-01T22:36:54.030348Z'
     - key: draft-topic-bundles
       title: Draft chemistry topic bundles
-      status: planned
+      status: in_progress
       note: Create unpublished C1-C33 topic.json, summary.md, and explain-prompt.md drafts from inspected
         evidence; retain draft markers until each bundle satisfies the manifest-specific examples and
         prompt requirements.
+      execution:
+        model: anthropic/claude-sonnet-5
+        started: '2026-08-01T22:37:48.396257Z'
     - key: review-topic-bundles
       title: Review chemistry topic bundles
       status: planned
