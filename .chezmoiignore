@@ -14,3 +14,8 @@ dockerise
 # Do not ship Cursor account/machine state (auth, team, MCP allowlists).
 dot_cursor/cli-config.json
 dot_cursor/**/cli-config.json
+
+# Never manage installed dependencies. These are rebuilt by the package manager,
+# and a stray `chezmoi add` of one pulls thousands of files into the source state.
+**/node_modules
+**/node_modules/**
