@@ -489,6 +489,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Setup selects layers for the complete current journey, including unchanged or idle systems that explain a handoff.
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
+  Artifact statuses are `planned`, `in_progress`, `blocked`, `done`, `skipped`, and `keep-current` (`keep-current` means keep this aid refreshed against current reality).
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
   Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
   Aid `decision-review-deck` is the async decision deck (skill `decision-review-deck`; dated project markdown).

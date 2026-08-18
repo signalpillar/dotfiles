@@ -1589,6 +1589,10 @@ def test_toolbelt_add_records_artifact() -> None:
             raise AssertionError(f"expected one httpyac-api-spec entry, got {artifacts!r}")
         assert artifacts["httpyac-api-spec"]["status"] == "planned"
 
+        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "httpyac-api-spec", "--status", "keep-current")
+        listed = run(str(PI_JOB), "--task", str(task), "toolbelt").stdout
+        assert_contains(listed, "httpyac-api-spec [keep-current]")
+
         # unknown key fails closed
         bad = run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "not-a-real-aid", check=False)
         if bad.returncode == 0:
@@ -1704,6 +1708,12 @@ def test_select_toolbelt_step_and_instruction() -> None:
             "orchestration": {
                 "cursors": [claim_dict("setup-slice")],
                 "policy": _orchestration_policy(),
+                "artifacts": {
+                    "httpyac-api-spec": {
+                        "status": "keep-current",
+                        "note": "",
+                    },
+                },
             },
             "plan": {
                 "note": "",
@@ -1733,6 +1743,7 @@ def test_select_toolbelt_step_and_instruction() -> None:
         assert_contains(instr, "config-flag-matrix")
         assert_contains(instr, "Bigpicture is mandatory when task.layers is non-empty")
         assert_contains(instr, "understand current behaviour")
+        assert_contains(instr, "Keep refreshed: httpyac-api-spec")
 
 
 def test_toolbelt_block_in_plan() -> None:
