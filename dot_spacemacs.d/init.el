@@ -212,7 +212,11 @@ This function should only modify configuration layer settings."
                                       jest-test-mode
                                       ob-restclient
                                       ob-graphql
-                                      pbcopy)
+                                      pbcopy
+                                      ;; https://github.com/borkdude/cljbang.el
+                                      (cljbang :location (recipe :fetcher github :repo "borkdude/cljbang.el"))
+                                      ;; https://github.com/jaketothepast/codetutor
+                                      (codetutor :location (recipe :fetcher github :repo "jaketothepast/codetutor")))
 
    ;; A list of packages that cannot be updated.
    dotspacemacs-frozen-packages '()
@@ -718,6 +722,14 @@ This function is called immediately after `dotspacemacs/init', before layer
 configuration.
 It is mostly for variables that should be set before packages are loaded.
 If you are unsure, try setting them in `dotspacemacs/user-config' first."
+  ;; macOS bsdtar embeds AppleDouble `._*' entries for any file carrying an
+  ;; xattr (git clones get `com.apple.provenance'). quelpa's git-recipe
+  ;; packages ship such files, and Emacs's `package-tar-file-info' blindly
+  ;; trusts the first tar entry as the package's top-level directory, so an
+  ;; AppleDouble entry there breaks package installation with
+  ;; "(wrong-type-argument arrayp nil)". Must be set before quelpa builds
+  ;; any package, hence here rather than `user-config'.
+  (setenv "COPYFILE_DISABLE" "1")
   (setq-default
    line-spacing 7
 
@@ -747,6 +759,39 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
    x-select-enable-clipboard t
    undo-tree-auto-save-history nil
    )
+
+  ;; Smartparens 1.11 predates Emacs 32's explicit Lisp dialect warning.
+  ;; Suppress it only for that third-party package's files.
+  (require 'warnings)
+  (dolist (file (file-expand-wildcards
+                 (expand-file-name
+                  "elpa/*/*/smartparens-*/*.el" user-emacs-directory)))
+    (add-to-list 'warning-suppress-log-types
+                 `(files missing-lexbind-cookie
+                         ,(abbreviate-file-name file))))
+
+  ;; Emacs 32 warns when loading generated Elisp without an explicit dialect.
+  ;; Keep company-statistics' cache valid across both loading and rewriting.
+  (defun my/company-statistics-ensure-cache-cookie (&rest _)
+    (when (and (boundp 'company-statistics-file)
+               (file-exists-p company-statistics-file))
+      (with-temp-buffer
+        (set-buffer-multibyte nil)
+        (insert-file-contents-literally company-statistics-file)
+        (unless (looking-at-p ";;; -\\*- lexical-binding: t; -\\*-")
+          (goto-char (point-min))
+          (insert ";;; -*- lexical-binding: t; -*-\n")
+          (let ((coding-system-for-write 'binary))
+            (write-region nil nil company-statistics-file nil 'silent))))))
+  (with-eval-after-load 'company-statistics
+    (unless (advice-member-p #'my/company-statistics-ensure-cache-cookie
+                             'company-statistics--load)
+      (advice-add 'company-statistics--load :before
+                  #'my/company-statistics-ensure-cache-cookie))
+    (unless (advice-member-p #'my/company-statistics-ensure-cache-cookie
+                             'company-statistics--save)
+      (advice-add 'company-statistics--save :after
+                  #'my/company-statistics-ensure-cache-cookie)))
   )
 
 (defface my/ts-signature-type-face
@@ -935,7 +980,8 @@ before packages are loaded."
       (with-temp-buffer
         (insert text)
         (call-process-region (point-min) (point-max) "osc52-yank"))))
-  (unless (display-graphic-p)
+  (when (and (not (display-graphic-p))
+             (not (eq system-type 'darwin)))
     (setq interprogram-cut-function #'my/osc52-yank-to-host))
 
   (spacemacs/set-leader-keys
@@ -986,6 +1032,7 @@ before packages are loaded."
 
   (use-package fontaine
     :ensure t
+    :if (or (daemonp) (display-graphic-p))
     :config
     (setq fontaine-presets
           '((regular
@@ -1024,6 +1071,50 @@ before packages are loaded."
           fancy-compilation-quiet-prelude nil)
     (with-eval-after-load 'compile
       (fancy-compilation-mode)))
+
+  ;; Cljbang: Clojure-like language compiled to elisp (https://github.com/borkdude/cljbang.el)
+  (use-package cljbang
+    :commands (cljbang-load-file cljbang-require)
+    :init
+    (spacemacs/declare-prefix "oc" "cljbang")
+    (spacemacs/set-leader-keys
+      "oc l" #'cljbang-load-file
+      "oc r" #'cljbang-require)
+    :config
+    (require 'cljbang-mode))
+
+  ;; CodeTutor: AI pair-programming tutor (https://github.com/jaketothepast/codetutor)
+  (use-package codetutor
+    :commands (codetutor-mode codetutor-open codetutor-what-next codetutor-ask
+               codetutor-follow-up codetutor-refresh-architecture-memory
+               codetutor-new-spec codetutor-open-spec codetutor-scratch
+               codetutor-inline-tips codetutor-clear-inline-tips)
+    :init
+    (setq codetutor-backend 'auto
+          codetutor-review-on-save nil)
+    (spacemacs/declare-prefix "ot" "codetutor")
+    (spacemacs/set-leader-keys
+      "ot o" #'codetutor-open
+      "ot n" #'codetutor-what-next
+      "ot a" #'codetutor-ask
+      "ot f" #'codetutor-follow-up
+      "ot m" #'codetutor-refresh-architecture-memory
+      "ot s" #'codetutor-new-spec
+      "ot S" #'codetutor-open-spec
+      "ot t" #'codetutor-scratch
+      "ot i" #'codetutor-inline-tips)
+    :config
+    (codetutor-mode 1)
+    ;; Upstream bug: the pi.dev backend command never sets :stdin (only the
+    ;; codex backend does), so `codetutor--request' never calls
+    ;; `process-send-eof' and the `pi' subprocess hangs forever waiting for
+    ;; stdin to close. Force EOF by giving that backend an empty :stdin;
+    ;; the actual prompt already travels via the `@promptfile' argument.
+    (advice-add 'codetutor--backend-command :filter-return
+                (lambda (backend)
+                  (if (equal (plist-get backend :name) "pi.dev")
+                      (plist-put backend :stdin "")
+                    backend))))
 
                                         ; (use-package spacious-padding
   ;;   :config
