@@ -492,6 +492,9 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
   Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
   Aid `decision-review-deck` is the async decision deck (skill `decision-review-deck`; dated project markdown).
+- `pi-job --task <t> files [--relative]` - print artifact paths one per line (absolute by default): everything under `references/` and `plans/`, plus registered `orchestration.artifacts` paths (including files outside the bundle).
+  With `--relative`, in-bundle paths are bundle-relative; out-of-bundle registered paths stay absolute.
+  Pipe to `grep`, `fzf`, or `$EDITOR "$(...)"`.
 - `pi-job --task <t> show [--all] [--started] [--full] [--short] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
   `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`); skipped breaks the run; ignored with `--all`.
   By default only the current cursor slice expands.

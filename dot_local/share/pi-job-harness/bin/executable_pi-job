@@ -5727,6 +5727,75 @@ def task_bundle_root(store: YamlTaskStore) -> Path:
     return layout.bundle_root if hasattr(layout, "bundle_root") else layout.task_path.parent
 
 
+def resolve_task_relative_path(bundle_root: Path, path_text: str) -> Path:
+    """Resolve a task-relative or absolute registered artifact path."""
+    raw = path_text.strip()
+    if not raw:
+        die("artifact path must be non-empty")
+    path = Path(raw)
+    if path.is_absolute():
+        return path.resolve()
+    return (bundle_root / path).resolve()
+
+
+def _iter_tree_files(root: Path) -> Iterator[Path]:
+    if not root.is_dir():
+        return
+    for path in sorted(root.rglob("*")):
+        if path.is_file():
+            yield path.resolve()
+
+
+@dataclass(frozen=True)
+class TaskFileListing:
+    """Resolved task artifact paths for grep-friendly CLI listing."""
+
+    bundle_root: Path
+    paths: tuple[Path, ...]
+
+    @classmethod
+    def from_store(cls, store: YamlTaskStore, task: Mapping[str, Any]) -> TaskFileListing:
+        bundle_root = task_bundle_root(store).resolve()
+        layout = store.layout
+        seen: set[Path] = set()
+        collected: list[Path] = []
+
+        def add(path: Path) -> None:
+            resolved = path.resolve()
+            if resolved in seen:
+                return
+            seen.add(resolved)
+            collected.append(resolved)
+
+        if isinstance(layout, BundleTaskLayout):
+            for path in _iter_tree_files(layout.references_dir):
+                add(path)
+            for path in _iter_tree_files(layout.plans_dir):
+                add(path)
+        else:
+            for path in _iter_tree_files(layout.plans_dir):
+                add(path)
+
+        for artifact in task_artifacts(task).values():
+            path_text = str(artifact.get("path") or "").strip()
+            if path_text:
+                add(resolve_task_relative_path(bundle_root, path_text))
+
+        return cls(bundle_root=bundle_root, paths=tuple(sorted(collected)))
+
+    def formatted_lines(self, *, relative: bool) -> tuple[str, ...]:
+        lines: list[str] = []
+        for path in self.paths:
+            if relative:
+                try:
+                    lines.append(str(path.relative_to(self.bundle_root)))
+                except ValueError:
+                    lines.append(str(path))
+            else:
+                lines.append(str(path))
+        return tuple(lines)
+
+
 @dataclass(frozen=True)
 class LayerSliceGroups:
     """Pure partition of slices against the layer registry (order preserved)."""
@@ -6331,6 +6400,16 @@ def cmd_layers(args: argparse.Namespace) -> None:
             except ValueError:
                 print(f"created bigpicture stub: {stub_path}")
     print_layer_survival_report(updated)
+
+
+def cmd_files(args: argparse.Namespace) -> None:
+    store = open_task_store(args.task)
+    if not isinstance(store, YamlTaskStore):
+        die("files requires a YAML task file or bundle store")
+    task = store.read()
+    listing = TaskFileListing.from_store(store, task)
+    for line in listing.formatted_lines(relative=args.relative):
+        print(line)
 
 
 def cmd_toolbelt(args: argparse.Namespace) -> None:
@@ -7642,6 +7721,17 @@ def main() -> None:
         help="comma-separated layer names listing each registry entry exactly once",
     )
     layers_reorder.set_defaults(fn=cmd_layers)
+
+    files_cmd = sub.add_parser(
+        "files",
+        help="list task artifact paths (references/, plans/, registered artifacts) one per line",
+    )
+    files_cmd.add_argument(
+        "--relative",
+        action="store_true",
+        help="print bundle-relative paths; paths outside the bundle stay absolute",
+    )
+    files_cmd.set_defaults(fn=cmd_files)
 
     tb = sub.add_parser("toolbelt", help="list toolbelt aids for slice kind(s), or add one")
     tb.add_argument("action", nargs="?", choices=["add"], help="'add' to register an aid")

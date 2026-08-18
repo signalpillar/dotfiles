@@ -1596,6 +1596,105 @@ def test_toolbelt_add_records_artifact() -> None:
         assert_contains(bad.stderr, "unknown toolbelt aid")
 
 
+def test_files_lists_bundle_references_and_plans() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            run(str(PI_JOB), "--task", "demo-files", "create", "--kind", "setup")
+            bundle = home / "demo-files"
+            bigpicture = bundle / "references" / "bigpicture.txt"
+            bigpicture.parent.mkdir(parents=True, exist_ok=True)
+            bigpicture.write_text("spine\n", encoding="utf-8")
+            plan = bundle / "plans" / "setup-slice.md"
+            plan.write_text("# setup\n", encoding="utf-8")
+
+            out = run(str(PI_JOB), "--task", "demo-files", "files").stdout
+            lines = [line for line in out.strip().splitlines() if line]
+            assert str(bigpicture.resolve()) in lines
+            assert str(plan.resolve()) in lines
+            assert len(lines) == len(set(lines))
+
+            filtered = run(
+                str(PI_JOB), "--task", "demo-files", "files",
+            ).stdout
+            assert "bigpicture" in filtered
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_files_relative_uses_bundle_root() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            run(str(PI_JOB), "--task", "rel-files", "create", "--kind", "setup")
+            bundle = home / "rel-files"
+            stub = bundle / "references" / "bigpicture.txt"
+            stub.parent.mkdir(parents=True, exist_ok=True)
+            stub.write_text("spine\n", encoding="utf-8")
+
+            out = run(str(PI_JOB), "--task", "rel-files", "files", "--relative").stdout
+            lines = out.strip().splitlines()
+            assert "references/bigpicture.txt" in lines
+            assert all(not line.startswith("/") for line in lines if "bigpicture" in line)
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
+def test_files_includes_external_registered_artifact() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "full.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        outside_bundle = Path(tmp) / ".." / "outside-deck.md"
+        outside_bundle = outside_bundle.resolve()
+        outside_bundle.write_text("# deck\n", encoding="utf-8")
+
+        run(
+            str(PI_JOB), "--task", str(task), "toolbelt", "add", "decision-review-deck",
+            "--path", str(outside_bundle), "--status", "planned",
+        )
+
+        lines = run(str(PI_JOB), "--task", str(task), "files").stdout.strip().splitlines()
+        assert str(outside_bundle) in lines
+
+        rel_lines = run(str(PI_JOB), "--task", str(task), "files", "--relative").stdout.strip().splitlines()
+        assert str(outside_bundle) in rel_lines
+
+
+def test_files_dedupes_registered_in_tree_paths() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp) / "tasks-home"
+        saved = os.environ.get("PI_JOB_TASKS")
+        os.environ["PI_JOB_TASKS"] = str(home)
+        try:
+            run(str(PI_JOB), "--task", "dedupe-files", "create", "--kind", "setup")
+            bundle = home / "dedupe-files"
+            bigpicture = bundle / "references" / "bigpicture.txt"
+            bigpicture.parent.mkdir(parents=True, exist_ok=True)
+            bigpicture.write_text("spine\n", encoding="utf-8")
+            run(
+                str(PI_JOB), "--task", "dedupe-files", "toolbelt", "add", "bigpicture",
+                "--path", "references/bigpicture.txt", "--status", "done",
+            )
+
+            lines = run(str(PI_JOB), "--task", "dedupe-files", "files").stdout.strip().splitlines()
+            assert lines.count(str(bigpicture.resolve())) == 1
+        finally:
+            if saved is None:
+                os.environ.pop("PI_JOB_TASKS", None)
+            else:
+                os.environ["PI_JOB_TASKS"] = saved
+
+
 def test_select_toolbelt_step_and_instruction() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "setup.yaml"
