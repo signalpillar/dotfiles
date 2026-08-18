@@ -591,8 +591,16 @@ class InstructionPacketsDocument(StrictDocument):
     )
     orchestrator_heartbeat: str = Field(
         description=(
-            "Body printed by `pi-job loop` as one physical line. "
+            "Body printed by `pi-job loop` as one physical line (manager fleet metronome). "
             "No format placeholders. Use literal TASK in command hints (not {task_file}). "
+            "Profile is the only body; Python must not hardcode the packet."
+        )
+    )
+    slice_worker_boot: str = Field(
+        description=(
+            "Body printed by `pi-job loop --worker` as one physical line "
+            "(first prompt for a spawned slice-worker window). "
+            "No format placeholders. Use literal OWNER / SLICE / TASK in command hints. "
             "Profile is the only body; Python must not hardcode the packet."
         )
     )
@@ -7342,7 +7350,16 @@ def render_orchestrator_heartbeat() -> str:
     return " ".join(template.split())
 
 
+def render_slice_worker_boot() -> str:
+    """Pure: load slice_worker_boot packet collapsed to one physical line."""
+    template = str(load_profile_contract()["instruction_packets"]["slice_worker_boot"])
+    return " ".join(template.split())
+
+
 def cmd_loop(args: argparse.Namespace) -> None:
+    if getattr(args, "worker", False):
+        print(render_slice_worker_boot())
+        return
     print(render_orchestrator_heartbeat())
 
 
@@ -7980,9 +7997,15 @@ def main() -> None:
     loop = sub.add_parser(
         "loop",
         help=(
-            "print the orchestrator heartbeat instruction from profile.yaml "
-            "(no --task; agents arm their own /loop)"
+            "print the manager orchestrator heartbeat from profile.yaml "
+            "(no --task; agents arm their own /loop); "
+            "use --worker for the slice-worker boot prompt"
         ),
+    )
+    loop.add_argument(
+        "--worker",
+        action="store_true",
+        help="print slice_worker_boot instead of the manager heartbeat",
     )
     loop.set_defaults(fn=cmd_loop)
 

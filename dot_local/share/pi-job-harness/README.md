@@ -51,7 +51,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
-- `loop` - print the orchestrator heartbeat instruction from `profile.yaml` as one line (no `--task`; agents arm their own `/loop`)
+- `loop` - print the manager fleet heartbeat from `profile.yaml` as one line (no `--task`; agents arm their own `/loop`); `loop --worker` prints `slice_worker_boot` for a spawned window
 - `instruction` - emit a deterministic packet for the claim's derived active step (or pick-next when the claimed slice is exhausted)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
@@ -71,6 +71,8 @@ Assumption: a smart orchestrator model keeps calling `pi-job` instead of freelan
 **Role:** while a task file is active, the agent is the **orchestrator** (CLI-only for the store; pause on grill/clarify).
 This supersedes any default workspace role such as Product Owner.
 
+### Classic single-session loop
+
 1. `pi-job --task <slug> status` (and usually `plan` / `show`)
 2. `pi-job --task <slug> claim --slice KEY --owner ID` (Ready slice; one claim per owner)
 3. `pi-job --task <slug> instruction` (derived active step, or pick-next when exhausted)
@@ -78,6 +80,15 @@ This supersedes any default workspace role such as Product Owner.
 5. Do that step in the orchestrator session, or launch a subagent when the packet says so
 6. Record evidence / decisions / blockers, then run `finish [--note ...]`
 7. Repeat from `instruction`; on pick-next: `finish --slice-only` → `show` → claim next Ready → `instruction`
+
+### Fleet mode (manager + slice workers)
+
+Two loops, two packets (no tmux spawn code in the harness):
+
+- **Manager:** run `pi-job loop` and arm `/loop` from that text. Watch Ready slices, keep a tmux session of worker windows, spawn/recover windows, inject worker boot. Do not execute slice steps in the manager session.
+- **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not pick-next or claim other slices.
+
+Classic `instruction` → pick-next stays valid when no fleet is in use.
 
 During every step, capture discovered future work, revisitable issues, technical debt, and unresolved doubts as explicit bounded slices with the appropriate kind and dependencies.
 Do not leave actionable follow-up work only in notes.
@@ -778,7 +789,7 @@ Clocks (`utc_now`) and path stamps live in the store/cmd edge, not in layout.
 
 Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `cli_help`, `interrupt_park_steps`).
 Python loads and formats them; it must not hardcode parallel copy.
-Examples: `status_interrupt_hint`, `investigate_interrupt`, `orchestrator_heartbeat`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
+Examples: `status_interrupt_hint`, `investigate_interrupt`, `orchestrator_heartbeat`, `slice_worker_boot`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
 
 ### Render
 

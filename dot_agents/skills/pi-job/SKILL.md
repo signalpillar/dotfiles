@@ -75,6 +75,9 @@ Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SL
 the packet header shows `Task:` as slug when under the home, else a path).
 After create, run `pi-job loop` and arm your own `/loop` from that instruction (resolve TASK).
 
+Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
+Classic single-session pick-next loop stays unchanged when no fleet is in use.
+
 ## Orchestrator loop
 
 1. `status` / `plan` / `show` - where you are; align session todos with `plan`
@@ -88,6 +91,8 @@ After create, run `pi-job loop` and arm your own `/loop` from that instruction (
 
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 `advance` is deprecated; do not use it.
+
+Slice-worker windows follow `pi-job loop --worker`: one owner, one slice, stop after `finish --slice-only`; do not pick-next.
 
 ## Reads (do not open the store)
 

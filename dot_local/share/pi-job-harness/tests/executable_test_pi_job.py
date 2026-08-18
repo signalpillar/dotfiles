@@ -7056,9 +7056,20 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     heartbeat = packets["orchestrator_heartbeat"]
     assert_contains(heartbeat, "TASK")
     assert "Manager metronome" in heartbeat
+    assert "tmux" in heartbeat
+    assert "slice_worker_boot" in heartbeat
     assert "{interval}" not in heartbeat
     assert "{task_file}" not in heartbeat
     assert not heartbeat.lstrip().startswith("/loop")
+    worker_boot = packets["slice_worker_boot"]
+    assert_contains(worker_boot, "OWNER")
+    assert_contains(worker_boot, "SLICE")
+    assert_contains(worker_boot, "TASK")
+    assert_contains(worker_boot, "finish --slice-only")
+    assert_contains(worker_boot, "do not claim another Ready slice")
+    assert "{owner}" not in worker_boot
+    assert "{task_file}" not in worker_boot
+    assert not worker_boot.lstrip().startswith("/loop")
     park = module.load_profile_contract()["interrupt_park_steps"]
     assert "grill-plan" in park
     assert "clarify-scope" in park
@@ -7068,6 +7079,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "status_interrupt_hint",
         "investigate_interrupt",
         "orchestrator_heartbeat",
+        "slice_worker_boot",
     ):
         profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
         del profile["instruction_packets"][field]
@@ -7136,13 +7148,34 @@ def _normalized_orchestrator_heartbeat(module) -> str:
     return " ".join(str(body).split())
 
 
+def _normalized_slice_worker_boot(module) -> str:
+    body = module.load_profile_contract()["instruction_packets"]["slice_worker_boot"]
+    return " ".join(str(body).split())
+
+
 def test_render_orchestrator_heartbeat() -> None:
     module = load_pi_job_module()
     rendered = module.render_orchestrator_heartbeat()
     expected = _normalized_orchestrator_heartbeat(module)
     assert rendered == expected
     assert_contains(rendered, "TASK")
+    assert_contains(rendered, "tmux")
     assert_not_contains(rendered, "{interval}")
+    assert_not_contains(rendered, "{task_file}")
+    assert not rendered.lstrip().startswith("/loop")
+    assert len(rendered.splitlines()) == 1
+
+
+def test_render_slice_worker_boot() -> None:
+    module = load_pi_job_module()
+    rendered = module.render_slice_worker_boot()
+    expected = _normalized_slice_worker_boot(module)
+    assert rendered == expected
+    assert_contains(rendered, "OWNER")
+    assert_contains(rendered, "SLICE")
+    assert_contains(rendered, "finish --slice-only")
+    assert_contains(rendered, "do not claim another Ready slice")
+    assert_not_contains(rendered, "{owner}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
     assert len(rendered.splitlines()) == 1
@@ -7155,7 +7188,20 @@ def test_loop_command_prints_heartbeat_without_task() -> None:
     stdout = res.stdout.rstrip("\n")
     assert stdout == expected
     assert_contains(stdout, "TASK")
+    assert_contains(stdout, "tmux")
     assert not stdout.lstrip().startswith("/loop")
+    assert len(stdout.splitlines()) == 1
+
+
+def test_loop_worker_prints_slice_worker_boot() -> None:
+    module = load_pi_job_module()
+    expected = _normalized_slice_worker_boot(module)
+    res = run(str(PI_JOB), "loop", "--worker")
+    stdout = res.stdout.rstrip("\n")
+    assert stdout == expected
+    assert_contains(stdout, "slice worker")
+    assert_contains(stdout, "finish --slice-only")
+    assert_contains(stdout, "do not claim another Ready slice")
     assert len(stdout.splitlines()) == 1
 
 
@@ -7867,7 +7913,9 @@ def main() -> None:
     test_profile_requires_slice_plan_stub_and_findings_header()
     test_status_shows_blocked_and_interrupt_hint()
     test_render_orchestrator_heartbeat()
+    test_render_slice_worker_boot()
     test_loop_command_prints_heartbeat_without_task()
+    test_loop_worker_prints_slice_worker_boot()
     test_loop_rejects_interval_flag()
     test_investigate_does_not_move_claim()
     print("pi-job tests passed")
