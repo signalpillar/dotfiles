@@ -22,10 +22,24 @@ Turn a chunk of work into a 2-minute, skim-friendly deck a colleague reads async
 - **Name the fork, not just the choice.** Every decision states the alternative you rejected and the
   trade-off ("app-version gating is all-or-nothing"). A decision with no visible alternative reads
   as a fact, not a decision.
-- **Headline every decision.** `Decision · <punchy claim>` — the reader should get the gist from the
-  titles alone.
-- **Coin a mantra.** One short, memorable phrase per idea sticks better than a paragraph
-  ("narrow, never widen", "B = A minus the token", "cheaper to change a decision than a diff").
+- **Headline every decision in one clause, under ~10 words.** `Decision · <literal statement of what
+  was decided>` — a reader gets the decision from the title alone, in one breath, no decoding. Prefer
+  `Decision · Add a new hold reason instead of reusing the US one` over a slogan or metaphor like
+  `New reason, never reuse the US one`. Equally bad: cramming two decisions into one title with a
+  semicolon or a leading qualifier clause — `Decision · During the PPRE MVP, the gate stays after
+  pharmacist approval; PPRE runs alongside the pharmacist, not instead of it` is two decisions and a
+  scope note stacked into one sentence. It should have been `Decision · Gate placement unchanged for
+  the PPRE MVP`, with the PPRE-alongside detail as a body bullet and the MVP scope in a status line,
+  not the title. A reviewer who has to reread a title to find the verb will skim past it instead.
+- **Optional one-line takeaway, stated plainly.** If a slide ends with a summary line, make it a direct
+  restatement of the point ("Do the comparison once, in the integration layer"), not a slogan or
+  wordplay ("compare once, react everywhere"). Skip it if it only repeats the title.
+- **Simple technical English throughout.** Follow ASD-STE100, as the global agent instructions require.
+  Short sentences, active voice, simple tenses, one word per meaning. Never coin a mantra, slogan, or
+  memorable catchphrase for a decision - state the decision instead. Prefer the plain word over the
+  domain word when both are accurate: "give the discount to one patient" beats "per-patient grant",
+  "can be repeated safely" beats "idempotent", "settings" beats "configuration". Keep the precise term
+  only where the reader needs it to search the code or talk to another team, and then use it once.
 - **Frame the problem as tension.** Open with two forces that pull apart (new apps want X; old apps
   want not-X). The decisions are how you resolved the tension.
 - **One visual vocabulary.** Reuse the same glyphs everywhere — `──▶` flow, `[ ]` decision point,
@@ -44,13 +58,20 @@ Turn a chunk of work into a 2-minute, skim-friendly deck a colleague reads async
 
 - **Slides, not prose.** Separate each slide with `---`. Aim for 6–9 slides total.
 - **One idea per slide.** A title, a small ASCII diagram, and ≤3 bullets. If it needs more, split it.
-- **Tables beat prose for structure.** Prefer markdown tables for layers, API fields, lifecycle
-  matrices, and rejected-vs-chosen comparisons. Use ASCII for flow/causality; tables for shape.
+- **Tables for contracts and comparisons.** When a slide (or appendix) lists layers, API fields,
+  lifecycle events, or rejected alternatives, prefer a markdown table over bullets or prose.
+  Tables skim faster async and stay DRY - one row per fact. Use ASCII diagrams for *flow*;
+  use tables for *structure* (who/what/when/shape).
 - **ASCII first for causality.** Prefer a diagram over a paragraph for before→after and sequencing.
-  Every decision slide gets a before→after, a flow, **or** a comparison table - not a wall of text.
-- **High level only (slides).** Decisions + trade-offs + sequencing. NO file names, function names, code, or test counts on slides. Appendices may use httpyac and field tables.
-- **2-minute budget.** If it can't be read in 2 minutes, cut slides. Front-load the punchline.
-  Appendices are exempt but should still be table-first.
+  Every decision slide gets a before→after or a flow **or** a comparison table - not a wall of text.
+- **High level only (slides).** Decisions + trade-offs + sequencing. NO file names, function names, code, or test counts on slides. Appendices may include httpyac / field tables.
+- **Plain language, no wordplay.** Titles and bullets state what was decided literally. No metaphors,
+  slogans, puns, or "clever" phrasing. If a reader has to interpret a title to know the decision, rewrite it.
+- **One decision, one clause, per title.** No semicolons, "and", or leading qualifiers ("During X, ...",
+  "Given Y, ...") joining two decisions into one title. If you need a conjunction to state it, it's two
+  slides. Move scope/timing to a status line in the body, not the headline.
+- **2-minute budget.** If it can't be read in 2 minutes, cut slides. Front-load the main point.
+  Appendices are exempt from the 2-minute budget but should still be table-first.
 
 ## Slide skeleton
 
@@ -88,7 +109,20 @@ S2 ─┘
 2. For each: write the one-liner + the alternative that was rejected.
 3. Draw the smallest ASCII that conveys it.
 4. Read top to bottom; if over ~9 slides or 2 minutes, cut.
-5. Tell the user the path and that it's a temp artifact.
+5. Read every title alone, with no body text visible. If it takes more than one breath to say, or you
+   can't tell which part is *the* decision, rewrite it - usually by cutting a clause to a bullet.
+6. Tell the user the path and that it's a temp artifact.
+
+## When decisions keep arriving (multi-week / living review)
+
+If the same deck gets reopened across many sessions instead of reviewed once and deleted - the team
+keeps adding decisions as work continues - the per-decision rules above still apply in full (one
+clause per title, no semicolons, name the rejected alternative). Drop only the slide-count and 2-minute
+budget for the whole document; keep them for anything a reviewer is pointed at in one sitting. Mark
+superseded decisions inline (`SUPERSEDED <date>: ...`) rather than deleting them, so the history of
+*why* stays intact - but don't let "it's a living doc now" become an excuse to let titles or bullets
+drift back into prose. Every new decision added later still gets the same one-breath-title treatment
+as the first nine.
 
 ## When to use me
 
