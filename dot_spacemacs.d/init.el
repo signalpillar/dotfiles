@@ -100,10 +100,9 @@ This function should only modify configuration layer settings."
           org-enable-appear-support nil
           org-enable-sticky-header nil
           org-enable-modern-support nil
-          org-hide-emphasis-markers t
 
           ;; org-descriptive-links nil
-          org-fontify-emphasized-text nil
+          org-fontify-emphasized-text t
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
           org-refile-targets '((nil :maxlevel . 10))
           org-download-method 'attach
@@ -129,7 +128,6 @@ This function should only modify configuration layer settings."
           org-log-done (quote time)
           org-log-into-drawer t
           org-log-state-notes-insert-after-drawers nil
-          org-hide-emphasis-markers t
           ;; Syntax highlighting in #+BEGIN_SRC blocks
           org-src-fontify-natively t
           ;; Don't prompt before running code in org
@@ -168,7 +166,7 @@ This function should only modify configuration layer settings."
      ;; version-control
 
      (typescript :variables
-                 typescript-linter 'tslint
+                 typescript-linter 'eslint
                  typescript-fmt-tool 'prettier
                  typescript-fmt-on-save t
                  ;; typescript-backend 'tide
@@ -199,10 +197,10 @@ This function should only modify configuration layer settings."
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
-                                       paper-theme
+                                      vs-light-theme
+                                      paper-theme
                                       naysayer-theme
                                       cue-mode
-                                      alabaster-themes
                                       hyperbole
                                       ;; based on https://github.com/d12frosted/environment/blob/master/emacs/lisp/init-ui.el
                                       fontaine
@@ -214,11 +212,7 @@ This function should only modify configuration layer settings."
                                       jest-test-mode
                                       ob-restclient
                                       ob-graphql
-                                      pbcopy
-                                      ;; https://github.com/borkdude/cljbang.el
-                                      (cljbang :location (recipe :fetcher github :repo "borkdude/cljbang.el"))
-                                      ;; https://github.com/jaketothepast/codetutor
-                                      (codetutor :location (recipe :fetcher github :repo "jaketothepast/codetutor")))
+                                      pbcopy)
 
    ;; A list of packages that cannot be updated.
    dotspacemacs-frozen-packages '()
@@ -366,14 +360,11 @@ It should only modify the values of Spacemacs settings."
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
                          paper
+                         vs-light
                          leuven
-                         ;; Without :package, Spacemacs looks for `alabaster-themes-light-bg-theme'.
-                         (alabaster-themes-light :package alabaster-themes)
                          doom-acario-light
                          modus-operandi
                          spacemacs-light
-                         ;; Without :package, Spacemacs looks for `alabaster-themes-light-bg-theme'.
-                         (alabaster-themes-light-bg :package alabaster-themes)
                          default
                          doom-monokai-classic
                          doom-opera-light
@@ -727,14 +718,6 @@ This function is called immediately after `dotspacemacs/init', before layer
 configuration.
 It is mostly for variables that should be set before packages are loaded.
 If you are unsure, try setting them in `dotspacemacs/user-config' first."
-  ;; macOS bsdtar embeds AppleDouble `._*' entries for any file carrying an
-  ;; xattr (git clones get `com.apple.provenance'). quelpa's git-recipe
-  ;; packages ship such files, and Emacs's `package-tar-file-info' blindly
-  ;; trusts the first tar entry as the package's top-level directory, so an
-  ;; AppleDouble entry there breaks package installation with
-  ;; "(wrong-type-argument arrayp nil)". Must be set before quelpa builds
-  ;; any package, hence here rather than `user-config'.
-  (setenv "COPYFILE_DISABLE" "1")
   (setq-default
    line-spacing 7
 
@@ -764,39 +747,6 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
    x-select-enable-clipboard t
    undo-tree-auto-save-history nil
    )
-
-  ;; Smartparens 1.11 predates Emacs 32's explicit Lisp dialect warning.
-  ;; Suppress it only for that third-party package's files.
-  (require 'warnings)
-  (dolist (file (file-expand-wildcards
-                 (expand-file-name
-                  "elpa/*/*/smartparens-*/*.el" user-emacs-directory)))
-    (add-to-list 'warning-suppress-log-types
-                 `(files missing-lexbind-cookie
-                         ,(abbreviate-file-name file))))
-
-  ;; Emacs 32 warns when loading generated Elisp without an explicit dialect.
-  ;; Keep company-statistics' cache valid across both loading and rewriting.
-  (defun my/company-statistics-ensure-cache-cookie (&rest _)
-    (when (and (boundp 'company-statistics-file)
-               (file-exists-p company-statistics-file))
-      (with-temp-buffer
-        (set-buffer-multibyte nil)
-        (insert-file-contents-literally company-statistics-file)
-        (unless (looking-at-p ";;; -\\*- lexical-binding: t; -\\*-")
-          (goto-char (point-min))
-          (insert ";;; -*- lexical-binding: t; -*-\n")
-          (let ((coding-system-for-write 'binary))
-            (write-region nil nil company-statistics-file nil 'silent))))))
-  (with-eval-after-load 'company-statistics
-    (unless (advice-member-p #'my/company-statistics-ensure-cache-cookie
-                             'company-statistics--load)
-      (advice-add 'company-statistics--load :before
-                  #'my/company-statistics-ensure-cache-cookie))
-    (unless (advice-member-p #'my/company-statistics-ensure-cache-cookie
-                             'company-statistics--save)
-      (advice-add 'company-statistics--save :after
-                  #'my/company-statistics-ensure-cache-cookie)))
   )
 
 (defface my/ts-signature-type-face
@@ -985,8 +935,7 @@ before packages are loaded."
       (with-temp-buffer
         (insert text)
         (call-process-region (point-min) (point-max) "osc52-yank"))))
-  (when (and (not (display-graphic-p))
-             (not (eq system-type 'darwin)))
+  (unless (display-graphic-p)
     (setq interprogram-cut-function #'my/osc52-yank-to-host))
 
   (spacemacs/set-leader-keys
@@ -1037,7 +986,6 @@ before packages are loaded."
 
   (use-package fontaine
     :ensure t
-    :if (or (daemonp) (display-graphic-p))
     :config
     (setq fontaine-presets
           '((regular
@@ -1077,50 +1025,6 @@ before packages are loaded."
     (with-eval-after-load 'compile
       (fancy-compilation-mode)))
 
-  ;; Cljbang: Clojure-like language compiled to elisp (https://github.com/borkdude/cljbang.el)
-  (use-package cljbang
-    :commands (cljbang-load-file cljbang-require)
-    :init
-    (spacemacs/declare-prefix "oc" "cljbang")
-    (spacemacs/set-leader-keys
-      "oc l" #'cljbang-load-file
-      "oc r" #'cljbang-require)
-    :config
-    (require 'cljbang-mode))
-
-  ;; CodeTutor: AI pair-programming tutor (https://github.com/jaketothepast/codetutor)
-  (use-package codetutor
-    :commands (codetutor-mode codetutor-open codetutor-what-next codetutor-ask
-               codetutor-follow-up codetutor-refresh-architecture-memory
-               codetutor-new-spec codetutor-open-spec codetutor-scratch
-               codetutor-inline-tips codetutor-clear-inline-tips)
-    :init
-    (setq codetutor-backend 'auto
-          codetutor-review-on-save nil)
-    (spacemacs/declare-prefix "ot" "codetutor")
-    (spacemacs/set-leader-keys
-      "ot o" #'codetutor-open
-      "ot n" #'codetutor-what-next
-      "ot a" #'codetutor-ask
-      "ot f" #'codetutor-follow-up
-      "ot m" #'codetutor-refresh-architecture-memory
-      "ot s" #'codetutor-new-spec
-      "ot S" #'codetutor-open-spec
-      "ot t" #'codetutor-scratch
-      "ot i" #'codetutor-inline-tips)
-    :config
-    (codetutor-mode 1)
-    ;; Upstream bug: the pi.dev backend command never sets :stdin (only the
-    ;; codex backend does), so `codetutor--request' never calls
-    ;; `process-send-eof' and the `pi' subprocess hangs forever waiting for
-    ;; stdin to close. Force EOF by giving that backend an empty :stdin;
-    ;; the actual prompt already travels via the `@promptfile' argument.
-    (advice-add 'codetutor--backend-command :filter-return
-                (lambda (backend)
-                  (if (equal (plist-get backend :name) "pi.dev")
-                      (plist-put backend :stdin "")
-                    backend))))
-
                                         ; (use-package spacious-padding
   ;;   :config
   ;;   (setq spacious-padding-widths
@@ -1135,6 +1039,7 @@ before packages are loaded."
   ;;   (spacious-padding-mode 1))
 
   (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+
   (custom-set-faces
    '(org-link ((t (:underline nil :weight normal :slant normal :background nil))))
    )
@@ -1237,7 +1142,7 @@ This function is called at the very end of Spacemacs initialization."
    '(jest-test-command-string
      " yarn run jest --coverage=false %s %s --testPathPattern %s")
    '(package-selected-packages
-     '(ace-link ace-window aggressive-indent all-the-icons auto-compile
+     '(ace-link ace-window acme-theme aggressive-indent all-the-icons auto-compile
                 auto-highlight-symbol auto-yasnippet avy-jump-helm-line
                 centered-cursor-mode clean-aindent-mode code-review
                 column-enforce-mode company company-web compleseus-spacemacs-help
@@ -1264,29 +1169,45 @@ This function is called at the very end of Spacemacs initialization."
                 indent-guide info+ inspector jest-test-mode js-doc js2-refactor
                 json-mode json-navigator json-reformat json-snatcher launchctl
                 link-hint livid-mode lorem-ipsum lsp-origami lsp-ui macrostep
-                marginalia multi-line multi-term multi-vterm nameless neotree
-                nodejs-repl npm-mode ob-graphql ob-restclient open-junk-file
-                orderless org-cliplink org-contrib org-download org-mime
-                org-pomodoro org-present org-projectile org-rich-yank
-                org-superstar orgit-forge osx-clipboard osx-dictionary osx-trash
-                overseer ox-twbs page-break-lines paradox password-generator
-                pbcopy pcre2el persp-mode popwin posframe prettier-js pug-mode
-                quickrun rainbow-delimiters request restart-emacs restclient
-                reveal-in-osx-finder sass-mode scss-mode selectrum shell-pop
-                slim-mode smeargle space-doc spaceline spacemacs-purpose-popwin
-                spacemacs-whitespace-cleanup string-edit-at-point
-                string-inflection symbol-overlay symon tagedit term-cursor
-                terminal-here toc-org toml-mode tree-sitter tree-sitter-langs tsc
-                typescript-mode undo-fu undo-fu-session vertico vi-tilde-fringe
-                volatile-highlights vterm vundo web-beautify web-completion-data
-                web-mode wgrep winum writeroom-mode ws-butler yaml-mode
-                yasnippet-snippets)))
+                marginalia multi-line multi-term multi-vterm nameless nano-theme
+                neotree nodejs-repl nofrils-acme-theme npm-mode ob-graphql
+                ob-restclient open-junk-file orderless org-cliplink org-contrib
+                org-download org-mime org-pomodoro org-present org-projectile
+                org-rich-yank org-superstar orgit-forge osx-clipboard
+                osx-dictionary osx-trash overseer ox-twbs page-break-lines paradox
+                password-generator pbcopy pcre2el persp-mode popwin posframe
+                prettier-js pug-mode quickrun rainbow-delimiters request
+                restart-emacs restclient reveal-in-osx-finder sass-mode scss-mode
+                selectrum shell-pop slim-mode smeargle space-doc spaceline
+                spacemacs-purpose-popwin spacemacs-whitespace-cleanup
+                string-edit-at-point string-inflection symbol-overlay symon
+                tagedit term-cursor terminal-here toc-org toml-mode tree-sitter
+                tree-sitter-langs tsc typescript-mode undo-fu undo-fu-session
+                vertico vi-tilde-fringe volatile-highlights vs-light-theme vterm
+                vundo web-beautify web-completion-data web-mode wgrep winum
+                writeroom-mode ws-butler yaml-mode yasnippet-snippets))
+   '(safe-local-variable-values
+     '((eval let*
+             ((root (locate-dominating-file default-directory ".dir-locals.el"))
+              (file
+               (and root (expand-file-name "emacs/work-journal-agent.el" root))))
+             (when (and file (file-exists-p file)) (load file nil t)))
+       (typescript-backend . tide) (typescript-backend . lsp)
+       (javascript-backend . tide) (javascript-backend . tern)
+       (javascript-backend . lsp))))
   (custom-set-faces
    ;; custom-set-faces was added by Custom.
    ;; If you edit it by hand, you could mess it up, so be careful.
    ;; Your init file should contain only one such instance.
    ;; If there is more than one, they won't work right.
-   )
+   '(font-lock-comment-face ((t (:inherit shadow))))
+   '(font-lock-constant-face ((t (:inherit default))))
+   '(font-lock-function-name-face ((t (:box (:line-width -1) :weight normal))))
+   '(font-lock-keyword-face ((t (:inherit default))))
+   '(font-lock-string-face ((t (:inherit default))))
+   '(font-lock-type-face ((t (:inherit default))))
+   '(font-lock-variable-name-face ((t (:inherit default))))
+   '(org-link ((t (:underline nil :weight normal :slant normal :background nil)))))
   )
 
 (defun sp/compile-line-or-prompt ()
