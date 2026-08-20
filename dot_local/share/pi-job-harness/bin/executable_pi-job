@@ -44,12 +44,12 @@ NOTE_WARN_CHARS = 2000
 TASK_FILE_WARN_BYTES = 100_000
 NOTE_WARN_TOP_N = 5
 TaskStatus = Literal["planned", "in_progress", "blocked", "done", "skipped"]
-ArtifactStatus = Literal["planned", "in_progress", "blocked", "done", "skipped", "keep-current"]
+ArtifactStatus = TaskStatus
 PullRequestStatus = Literal["open", "merged", "closed"]
 SliceKindKey = Literal["setup", "implement", "closing", "research", "spike", "follow-work", "fog"]
 ExecutionOwner = Literal["orchestrator", "subagent", "external_tool"]
 TASK_STATUSES = ("planned", "in_progress", "blocked", "done", "skipped")
-ARTIFACT_STATUSES = (*TASK_STATUSES, "keep-current")
+ARTIFACT_STATUSES = TASK_STATUSES
 PULL_REQUEST_STATUSES = ("open", "merged", "closed")
 # Slice kinds that must bind to exactly one task.layers entry when the registry is non-empty.
 LAYERED_SLICE_KINDS = frozenset({"implement", "spike", "research"})
@@ -125,14 +125,20 @@ class LayerDocument(StrictDocument):
 class ArtifactDocument(StrictDocument):
     """A durable planning or delivery artifact tracked by the harness."""
 
-    status: ArtifactStatus = Field(
-        description=(
-            "Current lifecycle state of the artifact. "
-            "`keep-current` means the aid must be refreshed against current reality."
-        )
-    )
+    status: ArtifactStatus = Field(description="Current lifecycle state of the artifact.")
     path: str | None = Field(default=None, description="Repository-relative artifact path, when applicable.")
     note: str = Field(description="Evidence, rationale, or an explicit reason the artifact was skipped.")
+
+
+class MaintainItemDocument(StrictDocument):
+    """A surface the orchestrator must keep aligned with current task reality."""
+
+    uri: str = Field(
+        description="Path, pull-request URL, or ticket URL the orchestrator must keep current."
+    )
+    note: str = Field(
+        description="What current means and when to update this surface. One sentence. Not a journal."
+    )
 
 
 class PullRequestDocument(StrictDocument):
@@ -259,10 +265,28 @@ class OrchestrationDocument(StrictDocument):
         default_factory=dict,
         description="Planning and delivery artifacts keyed by profile artifact identifier.",
     )
+    maintain: list[MaintainItemDocument] = Field(
+        default_factory=list,
+        description=(
+            "Surfaces the orchestrator must keep current (aid files, PR bodies, Jira comments). "
+            "Keyed by uri. Empty means none registered."
+        ),
+    )
     content_digest: str | None = Field(
         default=None,
         description="SHA-256 hex of last pi-job semantic write; excludes this field from the hash input.",
     )
+
+    @model_validator(mode="after")
+    def unique_maintain_uris(self) -> OrchestrationDocument:
+        for item in self.maintain:
+            if not item.uri.strip() or not item.note.strip():
+                raise ValueError("orchestration.maintain items require non-empty uri and note")
+        uris = [item.uri for item in self.maintain]
+        duplicates = sorted({uri for uri in uris if uris.count(uri) > 1})
+        if duplicates:
+            raise ValueError(f"orchestration.maintain has duplicate uri values: {', '.join(duplicates)}")
+        return self
 
 
 class PlanDocument(StrictDocument):
@@ -604,6 +628,23 @@ class InstructionPacketsDocument(StrictDocument):
             "Profile is the only body; Python must not hardcode the packet."
         )
     )
+    maintain_header: str = Field(
+        description=(
+            "Heading for the keep-current inventory in plan/instruction packets. "
+            "Profile is the only body."
+        )
+    )
+    maintain_empty: str = Field(
+        description=(
+            "Body when orchestration.maintain is empty. "
+            "Use literal TASK_FILE command hints. Profile is the only body."
+        )
+    )
+    maintain_item: str = Field(
+        description=(
+            "One maintain row. Supports {uri} and {note}. Profile is the only body."
+        )
+    )
 
 
 class ProfileDocument(StrictDocument):
@@ -789,6 +830,9 @@ def canonical_task_mapping(value: Mapping[str, Any], *, source: str) -> dict[str
     # Omit empty layers so upgrades do not dirty content digests of tasks without layers.
     if not data.get("layers"):
         data.pop("layers", None)
+    orchestration = data.get("orchestration")
+    if isinstance(orchestration, dict) and not orchestration.get("maintain"):
+        orchestration.pop("maintain", None)
     return data
 
 
@@ -1703,6 +1747,52 @@ class YamlTaskStore:
             if path is not None:
                 artifact["path"] = path
             orchestration.setdefault("artifacts", {})[key] = artifact
+
+        self._mutate(mutation)
+
+    def upsert_maintain(self, *, uri: str, note: str) -> str:
+        """Add or replace a keep-current surface by uri. Returns 'added' or 'updated'."""
+        cleaned_uri = uri.strip()
+        cleaned_note = note.strip()
+        if not cleaned_uri:
+            die("maintain add requires a non-empty --uri")
+        if not cleaned_note:
+            die("maintain add requires a non-empty --note (what current means / when to update)")
+        action = "added"
+
+        def mutation(task: dict[str, Any]) -> None:
+            nonlocal action
+            orchestration = task.get("orchestration")
+            if not orchestration:
+                die("cannot register maintain item: task has no orchestration block (run init first)")
+            items = list(orchestration.get("maintain") or [])
+            replacement = {"uri": cleaned_uri, "note": cleaned_note}
+            for index, item in enumerate(items):
+                if str(item.get("uri") or "") == cleaned_uri:
+                    items[index] = replacement
+                    action = "updated"
+                    orchestration["maintain"] = items
+                    return
+            items.append(replacement)
+            orchestration["maintain"] = items
+
+        self._mutate(mutation)
+        return action
+
+    def remove_maintain(self, *, uri: str) -> None:
+        cleaned_uri = uri.strip()
+        if not cleaned_uri:
+            die("maintain remove requires a non-empty --uri")
+
+        def mutation(task: dict[str, Any]) -> None:
+            orchestration = task.get("orchestration")
+            if not orchestration:
+                die("cannot remove maintain item: task has no orchestration block (run init first)")
+            items = list(orchestration.get("maintain") or [])
+            kept = [item for item in items if str(item.get("uri") or "") != cleaned_uri]
+            if len(kept) == len(items):
+                die(f"maintain uri not found: {cleaned_uri!r}")
+            orchestration["maintain"] = kept
 
         self._mutate(mutation)
 
@@ -3407,6 +3497,40 @@ def task_artifacts(task: dict[str, Any]) -> dict[str, Any]:
     return task.get("orchestration", {}).get("artifacts", {}) or {}
 
 
+def task_maintain(task: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Registered keep-current surfaces, in persisted order."""
+    raw = (task.get("orchestration") or {}).get("maintain") or []
+    return [item for item in raw if isinstance(item, dict)]
+
+
+def is_remote_uri(uri: str) -> bool:
+    """True for http(s) URLs (PR/Jira). Local paths stay in `files` listings."""
+    value = uri.strip().lower()
+    return value.startswith(("http://", "https://"))
+
+
+def maintain_block(task: Mapping[str, Any], *, include_empty: bool = True) -> list[str]:
+    """Packet lines for orchestration.maintain. Copy lives in profile packets."""
+    packets = load_profile_contract()["instruction_packets"]
+    items = task_maintain(task)
+    if not items:
+        if not include_empty:
+            return []
+        return ["", *render_packet_lines(packets["maintain_empty"], defaults={})]
+    lines = ["", *render_packet_lines(packets["maintain_header"], defaults={})]
+    for item in items:
+        lines.extend(
+            render_packet_lines(
+                packets["maintain_item"],
+                defaults={
+                    "uri": str(item.get("uri") or ""),
+                    "note": str(item.get("note") or ""),
+                },
+            )
+        )
+    return lines
+
+
 def status_value(item: TaskSlice | TaskStep | Mapping[str, Any]) -> str:
     if isinstance(item, (TaskSlice, TaskStep)):
         return item.status
@@ -3845,20 +3969,11 @@ def toolbelt_block(task: dict[str, Any], kind_keys: set[str] | None = None) -> l
         return ["", "Toolbelt (planning aids): none suited to this task's slice kinds."]
     artifacts = task_artifacts(task)
     lines = ["", "Toolbelt (planning aids) — register with `pi-job toolbelt add <key>`:"]
-    keep_current: list[str] = []
     for aid in aids:
         key = str(aid.get("key") or "")
         registered = artifacts.get(key)
         status = str(registered.get("status")) if registered else "not registered"
         lines.append(f"- {key} [{status}] — {aid.get('purpose', '')}")
-        if status == "keep-current":
-            keep_current.append(key)
-    if keep_current:
-        lines.append(
-            "- Keep refreshed: "
-            + ", ".join(sorted(keep_current))
-            + " (run mapping work, then mark done with `pi-job toolbelt add <key> --status done`)."
-        )
     return lines
 
 
@@ -4429,6 +4544,7 @@ def build_plan(store: TaskStore, task: dict[str, Any]) -> str:
         "Note: within-slice advance walks steps linearly; across slices the orchestrator picks from Ready (array order is not schedule).",
     ]
     lines += toolbelt_block(task)
+    lines += maintain_block(task)
     return "\n".join(lines)
 
 
@@ -4703,6 +4819,7 @@ def build_pick_next_instruction(
     lines.append("")
     lines.append("NEXT ACTION")
     lines.extend(render_packet_lines(packets["pick_next_slice"], defaults=packet_defaults))
+    lines += maintain_block(task, include_empty=False)
     return "\n".join(lines)
 
 
@@ -4829,6 +4946,7 @@ def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], c
         lines.extend(format_layer_list_lines(task))
     if step and step.key in ("select-toolbelt", "plan-slices"):
         lines += toolbelt_block(task, task_slice_kinds(task))
+    lines += maintain_block(task, include_empty=False)
 
     lines.append("")
     lines.extend(render_record_results_lines(profile, step_kind, defaults=packet_defaults))
@@ -5434,6 +5552,21 @@ def render_artifacts_markdown(task: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def render_maintain_markdown(task: Mapping[str, Any]) -> list[str]:
+    items = task_maintain(task)
+    if not items:
+        return []
+    lines = ["## Keep current", ""]
+    for item in items:
+        uri = escape_md_inline(str(item.get("uri") or ""))
+        note = str(item.get("note") or "")
+        lines.append(f"- `{uri}`")
+        if note:
+            lines.append("")
+            append_blockquote(lines, note, indent="  ")
+    return lines
+
+
 def render_layers_markdown(task: Mapping[str, Any]) -> list[str]:
     entries = task_layers(task)
     if not entries:
@@ -5644,6 +5777,11 @@ def render_task_markdown(
             lines.extend(artifact_lines)
             lines.append("")
 
+        maintain_lines = render_maintain_markdown(task)
+        if maintain_lines:
+            lines.extend(maintain_lines)
+            lines.append("")
+
         layers_lines = render_layers_markdown(task)
         if layers_lines:
             lines.extend(layers_lines)
@@ -5817,6 +5955,14 @@ class TaskFileListing:
 
         for artifact in task_artifacts(task).values():
             path_text = str(artifact.get("path") or "").strip()
+            if path_text:
+                add(resolve_task_relative_path(bundle_root, path_text))
+
+        for item in task_maintain(task):
+            uri = str(item.get("uri") or "").strip()
+            if not uri or is_remote_uri(uri):
+                continue
+            path_text = uri.split("#", 1)[0]
             if path_text:
                 add(resolve_task_relative_path(bundle_root, path_text))
 
@@ -6375,6 +6521,16 @@ def cmd_show(args: argparse.Namespace) -> None:
             art_st = str(art.get("status") or "")
             g = paint_glyph(GLYPH.get(art_st, "○"), art_st, color=color)
             lines.append(f"{g} {key}   {art.get('path', '')}".rstrip())
+    items = task_maintain(task)
+    lines += ["", "— keep current —"]
+    if not items:
+        lines.append("none registered")
+    else:
+        for item in items:
+            uri = str(item.get("uri") or "")
+            note = str(item.get("note") or "").strip()
+            suffix = f"  {note}" if note else ""
+            lines.append(f"○ {uri}{suffix}")
     print("\n".join(lines))
 
 
@@ -6476,6 +6632,26 @@ def cmd_toolbelt(args: argparse.Namespace) -> None:
         registered = artifacts.get(key)
         status = str(registered.get("status")) if registered else "not registered"
         print(f"  {key} [{status}] — {aid.get('title')}: {aid.get('purpose')}")
+
+
+def cmd_maintain(args: argparse.Namespace) -> None:
+    store = open_task_store(args.task)
+    if not isinstance(store, YamlTaskStore):
+        die("maintain requires a YAML task file or bundle store")
+    task = store.read()
+    require_initialized(args.task, task)
+    action = args.action
+    if action == "add":
+        result = store.upsert_maintain(uri=args.uri or "", note=args.note or "")
+        print(f"{result} maintain item: {args.uri.strip()}")
+        return
+    if action == "remove":
+        store.remove_maintain(uri=args.uri or "")
+        print(f"removed maintain item: {args.uri.strip()}")
+        return
+    for line in maintain_block(task):
+        if line:
+            print(line)
 
 
 def _default_coding_policy() -> dict[str, Any]:
@@ -7790,10 +7966,28 @@ def main() -> None:
         "--status",
         default="planned",
         choices=ARTIFACT_STATUSES,
-        help="artifact status (default planned; use keep-current to keep aids refreshed)",
+        help="artifact status (default planned)",
     )
     tb.add_argument("--note", default="", help="artifact note")
     tb.set_defaults(fn=cmd_toolbelt)
+
+    maintain_cmd = sub.add_parser(
+        "maintain",
+        help="list or register surfaces the orchestrator must keep current",
+    )
+    maintain_cmd.add_argument(
+        "action",
+        nargs="?",
+        choices=["add", "remove"],
+        help="'add' to register/update a uri, 'remove' to drop one; omit to list",
+    )
+    maintain_cmd.add_argument("--uri", help="path, PR URL, or ticket URL")
+    maintain_cmd.add_argument(
+        "--note",
+        default="",
+        help="what current means and when to update (required for add)",
+    )
+    maintain_cmd.set_defaults(fn=cmd_maintain)
 
     show = sub.add_parser("show", help="render the task as a cursor-focused slice/step tree")
     show.add_argument("--all", action="store_true", help="expand every slice (including done/skipped detail)")

@@ -58,6 +58,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `advance` - **deprecated**; always fails with claim/instruction guidance (position is claim + derived step)
 - `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
 - `toolbelt` - list or register planning aids
+- `maintain` - list or register surfaces the orchestrator must keep current (`uri` + `note`)
 - `sync` - print last-recorded slices to re-verify; orchestrator must run live checks (sync never calls gh/Jira)
 - `set-worktree` / `add-pr` - manage worktree paths and pull request records
 - YAML writes store a semantic `orchestration.content_digest`; hand-edits produce a loud warning until `acknowledge-edit --reason`
@@ -500,7 +501,11 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Setup selects layers for the complete current journey, including unchanged or idle systems that explain a handoff.
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
 - `pi-job --task <t> toolbelt add <key> [--path P] [--status S] [--note N]` - register/update a planning aid as an `#Artifact` under `task.orchestration.artifacts` (idempotent; validates `<key>` against the catalog).
-  Artifact statuses are `planned`, `in_progress`, `blocked`, `done`, `skipped`, and `keep-current` (`keep-current` means keep this aid refreshed against current reality).
+  Artifact statuses are `planned`, `in_progress`, `blocked`, `done`, and `skipped`.
+  Keep aid files, PR bodies, and Jira comments current via `maintain`, not artifact status.
+- `pi-job --task <t> maintain [add|remove] [--uri U] [--note N]` - list or upsert `orchestration.maintain[]` (`{uri, note}`).
+  `uri` is a path, PR URL, or ticket URL. `note` says what current means and when to update.
+  Plan and instruction packets print this list on every step.
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
   Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
   Aid `decision-review-deck` is the async decision deck (skill `decision-review-deck`; dated project markdown).
@@ -714,7 +719,7 @@ Models use strict types and reject unknown fields.
 | `source` | object | Jira reference, discovery identifier, and discovery context. |
 | `project` | object | Stable project key, name, workflow route, and project context. |
 | `context` | string | Free-form background required before acting. |
-| `orchestration` | object or null | Saved cursor, persisted execution policy, and artifacts. |
+| `orchestration` | object or null | Saved cursors, policy, artifacts, maintain list, and content digest. |
 | `decisions[]` | decision | Date, product/scope rationale, and source for a binding decision (not step evidence). |
 | `plan.note` | string | High-level plan context. |
 | `plan.slices[]` | slice | Ordered atomic delivery units. |
@@ -739,12 +744,13 @@ Profile models document configuration layering, artifact rules and gates, toolbe
 
 What `pi-job` cares about most:
 
-- `orchestration` - must exist after `create`; holds cursors, policy, and artifacts
+- `orchestration` - must exist after `create`; holds cursors, policy, artifacts, and maintain
 - `orchestration.cursors[]` - owned claims `{owner, slice, claimed_at, last_seen}` (hard cut; no single `cursor`)
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
 - `plan.slices[].status` - authority for overall task status in status/list/markdown
 - `plan.slices[].steps` plus `final_steps` - sequential work; active step is derived as first non-terminal
 - `decisions` and `orchestration.artifacts` - durable notes and artifact gates
+- `orchestration.maintain[]` - `{uri, note}` surfaces the orchestrator must keep current
 
 ## Agent dev notes
 

@@ -341,8 +341,8 @@ instruction_packets:
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
-    Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction.
-    Writes: pi-job mutation commands (claim, release, start, finish [--replace], add-slice, add-step, set-slice, block-slice, unblock-slice, layers, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
+    Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction | maintain.
+    Writes: pi-job mutation commands (claim, release, start, finish [--replace], add-slice, add-step, set-slice, block-slice, unblock-slice, layers, maintain, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
     When task.layers is set: bind implement/spike/research slices with add-slice --layer or set-slice --layer; maintain the registry with `pi-job layers` (show/add/set/remove/rename/reorder).
     Write notes and decisions as Markdown so `pi-job markdown` can render them formatted (decisions as blockquotes; context/notes as Markdown prose or quotes).
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
@@ -561,6 +561,12 @@ instruction_packets:
     Manager metronome for TASK: stay in manager mode for the tmux fleet; do not execute slice steps here. Keep one live window per active owner/slice. Session name: TASK-orchestrators (create if missing). Window name: OWNER-SLICE-short. On Ready and unowned: spawn a window, inject slice_worker_boot (pi-job loop --worker), start the same agent/harness used today. On dead pane with live claim: recover same owner/slice. On slice terminal or claim gone: leave or close the window; do not reclaim as manager. Tick: status/show, reconcile desired vs live windows, spawn/recover, sleep. Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs. On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
   slice_worker_boot: >-
     ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo. Loop: pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal. When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice. Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
+  maintain_header: |-
+    Keep current (update these surfaces when task reality changes):
+  maintain_empty: |-
+    Keep current: none. Register with `pi-job maintain add --uri URI --note 'when to update'`.
+  maintain_item: |-
+    - {uri} - {note}
 interrupt_park_steps:
   - grill
   - grill-plan

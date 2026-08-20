@@ -1589,10 +1589,6 @@ def test_toolbelt_add_records_artifact() -> None:
             raise AssertionError(f"expected one httpyac-api-spec entry, got {artifacts!r}")
         assert artifacts["httpyac-api-spec"]["status"] == "planned"
 
-        run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "httpyac-api-spec", "--status", "keep-current")
-        listed = run(str(PI_JOB), "--task", str(task), "toolbelt").stdout
-        assert_contains(listed, "httpyac-api-spec [keep-current]")
-
         # unknown key fails closed
         bad = run(str(PI_JOB), "--task", str(task), "toolbelt", "add", "not-a-real-aid", check=False)
         if bad.returncode == 0:
@@ -1708,12 +1704,6 @@ def test_select_toolbelt_step_and_instruction() -> None:
             "orchestration": {
                 "cursors": [claim_dict("setup-slice")],
                 "policy": _orchestration_policy(),
-                "artifacts": {
-                    "httpyac-api-spec": {
-                        "status": "keep-current",
-                        "note": "",
-                    },
-                },
             },
             "plan": {
                 "note": "",
@@ -1743,7 +1733,77 @@ def test_select_toolbelt_step_and_instruction() -> None:
         assert_contains(instr, "config-flag-matrix")
         assert_contains(instr, "Bigpicture is mandatory when task.layers is non-empty")
         assert_contains(instr, "understand current behaviour")
-        assert_contains(instr, "Keep refreshed: httpyac-api-spec")
+
+
+def test_maintain_upserts_and_appears_in_instruction() -> None:
+    """maintain add upserts by uri and instruction packets print Keep current rows."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "maintain.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+
+        listed = run(str(PI_JOB), "--task", str(task), "maintain").stdout
+        assert_contains(listed, "Keep current: none")
+
+        added = run(
+            str(PI_JOB), "--task", str(task), "maintain", "add",
+            "--uri", "references/bigpicture.txt",
+            "--note", "Update when layers or grant flow change",
+        ).stdout
+        assert_contains(added, "added maintain item: references/bigpicture.txt")
+
+        updated = run(
+            str(PI_JOB), "--task", str(task), "maintain", "add",
+            "--uri", "references/bigpicture.txt",
+            "--note", "Update when the AS-IS spine changes",
+        ).stdout
+        assert_contains(updated, "updated maintain item: references/bigpicture.txt")
+
+        run(
+            str(PI_JOB), "--task", str(task), "maintain", "add",
+            "--uri", "https://github.com/emed-labs/platform-integrations/pull/3539",
+            "--note", "PR body must match grant-strategy scope",
+        )
+
+        listed = run(str(PI_JOB), "--task", str(task), "maintain").stdout
+        assert_contains(listed, "Keep current (update these surfaces")
+        assert_contains(listed, "references/bigpicture.txt - Update when the AS-IS spine changes")
+        assert_contains(listed, "https://github.com/emed-labs/platform-integrations/pull/3539")
+
+        instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instr, "Keep current (update these surfaces")
+        assert_contains(instr, "references/bigpicture.txt - Update when the AS-IS spine changes")
+
+        plan = run(str(PI_JOB), "--task", str(task), "plan").stdout
+        assert_contains(plan, "Keep current (update these surfaces")
+
+        show = run(str(PI_JOB), "--task", str(task), "show").stdout
+        assert_contains(show, "— keep current —")
+        assert_contains(show, "references/bigpicture.txt")
+
+        md = run(str(PI_JOB), "--task", str(task), "markdown").stdout
+        assert_contains(md, "## Keep current")
+        assert_contains(md, "references/bigpicture.txt")
+
+        files_out = run(str(PI_JOB), "--task", str(task), "files").stdout
+        assert_contains(files_out, "bigpicture.txt")
+        assert_not_contains(files_out, "https://github.com/emed-labs/platform-integrations/pull/3539")
+
+        empty_note = run(
+            str(PI_JOB), "--task", str(task), "maintain", "add",
+            "--uri", "references/other.txt", "--note", "  ",
+            check=False,
+        )
+        if empty_note.returncode == 0:
+            raise AssertionError("maintain add unexpectedly accepted an empty note")
+        assert_contains(empty_note.stderr, "non-empty --note")
+
+        run(
+            str(PI_JOB), "--task", str(task), "maintain", "remove",
+            "--uri", "references/bigpicture.txt",
+        )
+        listed = run(str(PI_JOB), "--task", str(task), "maintain").stdout
+        assert_not_contains(listed, "references/bigpicture.txt")
+        assert_contains(listed, "https://github.com/emed-labs/platform-integrations/pull/3539")
 
 
 def test_toolbelt_block_in_plan() -> None:
@@ -4320,6 +4380,7 @@ def test_persisted_models_document_every_field() -> None:
     module = load_pi_job_module()
     model_names = (
         "ExecutionDocument", "StepDocument", "DecisionDocument", "ArtifactDocument",
+        "MaintainItemDocument",
         "PullRequestDocument", "RepositoryWorkDocument", "SliceDocument", "SourceDocument",
         "ProjectDocument", "CodingExecutionPolicyDocument", "OrchestrationPolicyDocument",
         "OwnedCursorDocument", "OrchestrationDocument", "PlanDocument", "TaskDocument",
@@ -7080,6 +7141,9 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "investigate_interrupt",
         "orchestrator_heartbeat",
         "slice_worker_boot",
+        "maintain_header",
+        "maintain_empty",
+        "maintain_item",
     ):
         profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
         del profile["instruction_packets"][field]
@@ -7722,6 +7786,7 @@ def main() -> None:
     test_endpoint_status_map_catalog_has_build_example()
     test_toolbelt_add_records_artifact()
     test_select_toolbelt_step_and_instruction()
+    test_maintain_upserts_and_appears_in_instruction()
     test_toolbelt_block_in_plan()
     test_layers_add_stub_bind_graph_and_remove_guard()
     test_setup_maps_current_state_before_clarify_and_grill()
