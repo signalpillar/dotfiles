@@ -1,6 +1,9 @@
 # UTF8 is autodetected in 2.2 onwards, but errors if explicitly set
 # some configuration is taken from https://gist.github.com/NickLaMuro/1687643
-new-session -n $HOST
+#
+# Do not call new-session here. Continuum restores saved sessions only when
+# the tmux server starts with no sessions. Use `tmux new-session -A` to attach
+# or create.
 
 set -g status on
 set -g status-keys emacs
@@ -142,3 +145,22 @@ set -g message-command-style bg=default,fg=default
 
 # Mode
 set -g mode-style bg=red,fg=default
+
+# Session persistence. resurrect writes on-disk state. continuum saves on a
+# timer and restores when the tmux server starts. No prefix key is required.
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+
+set -g @resurrect-capture-pane-contents 'on'
+set -g @resurrect-strategy-nvim 'session'
+set -g @continuum-restore 'on'
+set -g @continuum-save-interval '5'
+set -g @continuum-boot 'on'
+{{- if eq .chezmoi.os "linux" }}
+# start-server avoids the empty session that `new-session -d` would create
+# before restore.
+set -g @continuum-systemd-start-cmd 'start-server'
+{{- end }}
+
+run '~/.tmux/plugins/tpm/tpm'
