@@ -315,6 +315,9 @@ pi-job --task projects/example/tasks/task.yaml finish --note "Verification evide
 pi-job --task projects/example/tasks/task.yaml advance
 ```
 
+Every command that reads a task needs `--task`.
+Without it, the command fails closed and prints the invocation to repeat.
+Only `list`, `kinds`, `schema`, `profile`, `channels`, `loop`, and the deprecated `advance` run without `--task`.
 If `--task` points at a missing file, commands fail closed and tell the agent how to `create` one.
 A task without `task.orchestration` is not initialized; run `create` (with `--kind` if needed) before `plan`, `show`, `advance`, or `instruction`.
 

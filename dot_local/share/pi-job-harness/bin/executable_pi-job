@@ -7317,10 +7317,27 @@ def cmd_validate(args: argparse.Namespace) -> None:
 
 
 
+TASK_OPTIONAL_COMMANDS = frozenset({"advance", "channels", "kinds", "list", "loop", "profile", "schema"})
+"""Subcommands that read no task document, so `--task` stays optional for them.
+
+Every other subcommand needs a task; `main()` gates on this set before dispatch, so a
+missing `--task` fails with an actionable error instead of a `None` path traceback deep
+in `open_task_store`. A new task-reading subcommand needs no entry here."""
+
+
+def missing_task_message(cmd: str) -> str:
+    """Actionable `--task` error, shared by the `main()` gate and `require_task`."""
+    return (
+        f"--task is required for `pi-job {cmd}`\n"
+        f"run: pi-job --task <slug|path> {cmd}\n"
+        "known task slugs: pi-job list"
+    )
+
+
 def require_task(task_arg: Path | None, *, cmd: str) -> Path:
     """`task_arg` is already resolved by `resolve_task_arg` in `main()`; just gate on presence."""
     if task_arg is None:
-        die(f"--task is required for `pi-job {cmd}`")
+        die(missing_task_message(cmd))
     return task_arg
 
 
@@ -8344,11 +8361,13 @@ def main() -> None:
     project_cmd.set_defaults(fn=cmd_project)
 
     args = ap.parse_args()
-    if args.task is not None:
-        if args.cmd == "create":
-            args.task = resolve_create_task_arg(args.task)
-        else:
-            args.task = resolve_task_arg(args.task)
+    if args.task is None:
+        if args.cmd not in TASK_OPTIONAL_COMMANDS:
+            die(missing_task_message(args.cmd))
+    elif args.cmd == "create":
+        args.task = resolve_create_task_arg(args.task)
+    else:
+        args.task = resolve_task_arg(args.task)
     args.fn(args)
 
 

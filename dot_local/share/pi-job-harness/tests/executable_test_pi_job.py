@@ -8230,6 +8230,57 @@ def test_project_semantic_mismatch_rolls_back() -> None:
             assert source.is_file()
 
 
+def cli_subcommands() -> list[str]:
+    """Top-level subcommand names, read from the argparse usage line."""
+    usage = run(str(PI_JOB), "--help").stdout
+    start = usage.index("{")
+    end = usage.index("}", start)
+    return [name for name in usage[start + 1 : end].split(",") if name]
+
+
+def test_missing_task_never_tracebacks() -> None:
+    """No subcommand crashes when `--task` is absent.
+
+    Regression: `pi-job maintain` (and every other task-reading command) raised
+    `AttributeError: 'NoneType' object has no attribute 'is_dir'` inside `open_task_store`,
+    because only some commands gated on the optional `--task` value."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp, _pi_job_tasks_home(Path(tmp) / "tasks-home"):
+        for cmd in cli_subcommands():
+            result = run(str(PI_JOB), cmd, check=False)
+            assert_not_contains(result.stderr, "Traceback")
+            if cmd in module.TASK_OPTIONAL_COMMANDS:
+                assert_not_contains(result.stderr, "--task is required")
+
+
+def test_missing_task_message_is_actionable() -> None:
+    """A task-reading command without `--task` exits 1 and names the command plus the fix."""
+    for cmd in (
+        "status",
+        "maintain",
+        "show",
+        "plan",
+        "instruction",
+        "validate",
+        "files",
+        "markdown",
+        "sync",
+        "wayfinder-context",
+        "toolbelt",
+    ):
+        result = run(str(PI_JOB), cmd, check=False)
+        assert result.returncode == 1
+        assert_contains(result.stderr, f"--task is required for `pi-job {cmd}`")
+        assert_contains(result.stderr, "known task slugs: pi-job list")
+
+
+def test_task_optional_commands_run_without_task() -> None:
+    """Every `TASK_OPTIONAL_COMMANDS` entry still works with no `--task` (`run` checks exit)."""
+    with tempfile.TemporaryDirectory() as tmp, _pi_job_tasks_home(Path(tmp) / "tasks-home"):
+        for argv in (["list"], ["profile"], ["schema"], ["channels"], ["loop"], ["kinds", "list"]):
+            run(str(PI_JOB), *argv)
+
+
 if __name__ == "__main__":
     test_cue_task_path_is_rejected_without_cue()
     test_project_loose_to_slug_bundle()
@@ -8285,4 +8336,7 @@ if __name__ == "__main__":
     test_set_worktree_recommend_under_home()
     test_set_worktree_recommend_loose_yaml()
     test_set_worktree_help_mentions_worktree_convention()
+    test_missing_task_never_tracebacks()
+    test_missing_task_message_is_actionable()
+    test_task_optional_commands_run_without_task()
     main()
