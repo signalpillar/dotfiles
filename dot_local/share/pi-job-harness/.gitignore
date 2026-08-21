@@ -2,3 +2,6 @@
 uv.lock
 .venv/
 .ruff_cache/
+build/
+*.egg-info/
+

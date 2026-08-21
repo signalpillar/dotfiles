@@ -36,14 +36,14 @@ ROOT = Path(__file__).resolve().parents[3]
 PI_JOB = Path(__file__).resolve().parents[1] / "bin" / "pi-job"
 if not PI_JOB.exists():
     PI_JOB = PI_JOB.with_name("executable_pi-job")
+APP_PY = Path(__file__).resolve().parents[1] / "pi_job_harness" / "app.py"
 
 
 def load_pi_job_module():
-    """Import pi-job (no .py suffix, chezmoi's executable_ naming) as a module so tests
-    can exercise YamlTaskStore, FsTaskStore, and TaskLayout directly instead of only via
-    subprocess. Safe: `main()` only runs under `if __name__ == "__main__":`."""
-    loader = importlib.machinery.SourceFileLoader("pi_job_under_test", str(PI_JOB))
-    spec = importlib.util.spec_from_file_location("pi_job_under_test", PI_JOB, loader=loader)
+    """Import `pi_job_harness.app` as `pi_job_under_test` so tests can patch
+    module globals that `cmd_*` actually uses. The bin shim is only for subprocess CLI."""
+    loader = importlib.machinery.SourceFileLoader("pi_job_under_test", str(APP_PY))
+    spec = importlib.util.spec_from_file_location("pi_job_under_test", APP_PY, loader=loader)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module  # dataclasses needs the module registered before exec
     loader.exec_module(module)
@@ -4377,24 +4377,31 @@ def test_fs_task_store_invalid_status_dies_on_read() -> None:
 
 
 def test_persisted_models_document_every_field() -> None:
-    module = load_pi_job_module()
-    model_names = (
+    from pi_job_harness import profile as profile_models
+    from pi_job_harness import task as task_models
+
+    task_model_names = (
         "ExecutionDocument", "StepDocument", "DecisionDocument", "ArtifactDocument",
         "MaintainItemDocument",
         "PullRequestDocument", "RepositoryWorkDocument", "SliceDocument", "SourceDocument",
         "ProjectDocument", "CodingExecutionPolicyDocument", "OrchestrationPolicyDocument",
         "OwnedCursorDocument", "OrchestrationDocument", "PlanDocument", "TaskDocument",
         "BootstrapSliceDocument", "BootstrapDocument",
+    )
+    profile_model_names = (
         "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
         "SliceKindDocument", "InstructionPacketsDocument", "CliHelpDocument",
         "CliHelpAddDecisionDocument", "CliHelpFinishDocument", "ProfileDocument",
-        "OrchestrationDefaultsDocument",
+        "OrchestrationDefaultsDocument", "RecordChannelsDocument",
     )
     missing = [
         f"{model_name}.{field_name}"
-        for model_name in model_names
-        for field_name, field in getattr(module, model_name).model_fields.items()
+        for owner, model_name in (
+            *[(task_models, name) for name in task_model_names],
+            *[(profile_models, name) for name in profile_model_names],
+        )
+        for field_name, field in getattr(owner, model_name).model_fields.items()
         if not field.description
     ]
     if missing:

@@ -1,11 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "pi-job-harness"
 version = "0.0.0"
-description = "Local package metadata for ruff and contributor tooling (not published)."
+description = "Deterministic task harness for pi-agent jobs."
 requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.11,<3",
+  "PyYAML>=6.0.2,<7",
+]
+
+[project.scripts]
+pi-job = "pi_job_harness.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pi_job_harness*"]
+
+[tool.setuptools.package-data]
+pi_job_harness = ["profile.yaml"]
 
 [tool.ruff]
 target-version = "py312"
+extend-exclude = ["build"]
 # Chezmoi names scripts executable_* without a .py suffix; include them explicitly.
 include = [
   "pyproject.toml",
@@ -17,5 +36,9 @@ include = [
 
 [tool.ruff.lint.per-file-ignores]
 # Source tree is not chmod +x; chezmoi apply installs executables.
-"bin/executable_*" = ["EXE001"]
+"bin/executable_*" = ["EXE001", "E402", "F403"]
 "tests/executable_*" = ["EXE001"]
+# Store backends lazy-import CLI/profile helpers to avoid import cycles.
+"pi_job_harness/store/yaml.py" = ["PLC0415"]
+"pi_job_harness/store/yaml_io.py" = ["PLC0415"]
+"pi_job_harness/profile.py" = ["PLC0415"]

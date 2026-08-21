@@ -11,19 +11,20 @@ The main pain was updating CUE from pi-job through fragile regex rewrites, so it
 ## Contents
 
 ```text
-bin/pi-job              CLI entrypoint
-profile.yaml            validated step kinds, slice kinds, toolbelt, and artifact rules
-pyproject.toml          ruff config (includes extensionless chezmoi scripts)
-tests/executable_test_pi_job.py   regression tests (may install as tests/test_pi_job.py)
+pi_job_harness/         installable package (`cli:main`, task, profile, store, stats, report, app)
+bin/pi-job              thin shim that imports the package (tests / PATH copies)
+profile.yaml            copy of the contract (canonical file is pi_job_harness/profile.yaml)
+pyproject.toml          package metadata, uvx entry, ruff
+tests/                  regression tests
 ```
 
 ## Dependencies
 
 - Python 3.12+
-- `uv`, which resolves the script's PEP 723 dependencies
+- `uv` / `uvx`
 
-The executable declares compatible Pydantic and PyYAML versions in its inline PEP 723 metadata.
-No separate virtual environment or package installation command is required when invoking it through `uv run`.
+Install with `uvx --from <this-directory> pi-job`.
+Dependencies are pydantic and PyYAML from `pyproject.toml`.
 
 Recommended: use [`uv`](https://docs.astral.sh/uv/) to install and pin the Python version.
 `uv` also keeps a working Python available across machines without fighting system Python.
@@ -51,6 +52,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
+- `stats` / `report --since YYYY-MM-DD` - read-only markdown (or `--json`) from store execution / repo_work; optional `-o PATH` writes without printing
 - `loop` - print the manager fleet heartbeat from `profile.yaml` as one line (no `--task`; agents arm their own `/loop`); `loop --worker` prints `slice_worker_boot` for a spawned window
 - `instruction` - emit a deterministic packet for the claim's derived active step (or pick-next when the claimed slice is exhausted)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
@@ -247,28 +249,23 @@ Short examples:
 
 ## Agent self-install (no full repo clone)
 
-If `pi-job` is missing, an agent can pull only the harness files from the public raw GitHub tree and install them under `~/.local` - no need to clone `signalpillar/dotfiles`.
+If `pi-job` is missing, run it from the public git tree with `uvx`.
+Do not curl individual files.
 
 ```bash
-# Prefer uv so Python 3.11+ is managed for you:
 #   curl -LsSf https://astral.sh/uv/install.sh | sh
 #   uv python install 3.12
 
-BASE=https://raw.githubusercontent.com/signalpillar/dotfiles/master/dot_local/share/pi-job-harness
-mkdir -p ~/.local/share/pi-job-harness/bin ~/.local/bin
-curl -fsSL "$BASE/bin/executable_pi-job" -o ~/.local/share/pi-job-harness/bin/pi-job
-curl -fsSL "$BASE/profile.yaml" -o ~/.local/share/pi-job-harness/profile.yaml
-curl -fsSL "$BASE/README.md" -o ~/.local/share/pi-job-harness/README.md
-chmod +x ~/.local/share/pi-job-harness/bin/pi-job
-printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
-  'exec uv run --script "$HOME/.local/share/pi-job-harness/bin/pi-job" "$@"' \
-  > ~/.local/bin/pi-job
-chmod +x ~/.local/bin/pi-job
-# requires: uv with Python 3.12
+uvx --from git+https://github.com/signalpillar/dotfiles.git#subdirectory=dot_local/share/pi-job-harness pi-job --help
 ```
 
-Direct system-Python execution requires compatible Pydantic and PyYAML packages to be installed manually.
-The `uv run` wrapper is preferred because it honors the executable's declared dependency versions.
+Local wrapper after chezmoi apply:
+
+```bash
+uvx --from ~/.local/share/pi-job-harness pi-job --help
+```
+
+`~/.local/bin/pi-job` execs that local `uvx --from` command.
 
 ## Install (chezmoi / local copy)
 
@@ -775,6 +772,8 @@ Write new `pi-job` Python in a functional style.
 
 ### Shape
 
+Layouts and stores live in the `pi_job_harness.store` package.
+
 | Layer | Owns | Does not |
 |---|---|---|
 | `YamlTaskLayout` / `TaskLayout` | Pure path arithmetic under `<stem>.plans/` and task siblings | Clock, I/O, profile text |
@@ -840,7 +839,8 @@ uvx ruff@latest check .
 ```bash
 # from this package directory (chezmoi source):
 uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
+uv run --with pydantic --with pyyaml python tests/test_stats_report.py
 # installed copy may name this tests/test_pi_job.py:
 uv run --with pydantic --with pyyaml python tests/test_pi_job.py
-uv run --script bin/executable_pi-job --task /tmp/example.yaml --help
+uvx --from . pi-job --help
 ```
