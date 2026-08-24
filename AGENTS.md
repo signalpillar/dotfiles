@@ -5,7 +5,11 @@ Project-level `AGENTS.md` files may extend or override these.
 
 ## Writing style
 
-Technical text (docs, READMEs, runbooks, procedures, error messages, release notes, reports, and agent-facing instructions): ASD-STE100 style.
+Use ASD-STE100 style in all conversation replies and in all technical text.
+
+Technical text includes docs, READMEs, runbooks, procedures, error messages, release notes, reports, and agent-facing instructions.
+
+Do not switch to a casual register unless the user asks.
 
 - Max 20 words per instruction sentence, 25 for descriptions.
 - Active voice.
