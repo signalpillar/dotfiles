@@ -4427,6 +4427,19 @@ def test_setup_grill_guidance_failure_first() -> None:
         assert_contains(instruction, "decision-access")
 
 
+def test_pi_job_feedback_guidance_sqlite_store() -> None:
+    module = load_pi_job_module()
+    guidance = module.get_step_kind("pi-job-feedback")["guidance"]
+    assert_contains(guidance, "~/pi-job.feedback.sqlite")
+    assert_contains(guidance, "Explore:")
+    assert_contains(guidance, "Write:")
+    assert_contains(guidance, "DESCRIBE fb.items")
+    assert_contains(guidance, "INSERT INTO fb.items")
+    lower = guidance.lower()
+    if "yml" in lower or "yaml" in lower:
+        raise AssertionError("pi-job-feedback guidance must not mention YAML")
+
+
 def test_grill_plan_guidance_mentions_set_slice_on_supersede() -> None:
     module = load_pi_job_module()
     guidance = module.get_step_kind("grill-plan")["guidance"]
@@ -9027,6 +9040,7 @@ def main() -> None:
     test_plan_slices_setup_only_keeps_add_slice_guidance()
     test_plan_slices_seeded_banner_when_non_setup_exists()
     test_setup_grill_guidance_failure_first()
+    test_pi_job_feedback_guidance_sqlite_store()
     test_grill_plan_guidance_mentions_set_slice_on_supersede()
     test_update_task_file_guidance_charter_followups()
     test_add_slice_still_works_with_repo_work_in_schema()

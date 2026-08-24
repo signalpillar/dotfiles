@@ -1068,8 +1068,9 @@ step_kinds:
     validators:
       - feedback-recorded
     guidance: |-
-      Append any gotchas, friction points, or recommendations that would make the
-      pi-job experience easier next time to ~/pi-job.feedback.yml (create if absent).
+      Record gotchas, friction, or recommendations in ~/pi-job.feedback.sqlite.
+      Explore: duckdb -c "ATTACH '${HOME}/pi-job.feedback.sqlite' AS fb (TYPE SQLITE); DESCRIBE fb.items; SELECT date, task, kind, summary FROM fb.items WHERE bucket = 'ungrilled';"
+      Write: duckdb -c "ATTACH '${HOME}/pi-job.feedback.sqlite' AS fb (TYPE SQLITE); INSERT INTO fb.items (id, bucket, kind, date, task, summary, detail) VALUES ('inbox:YYYY-MM-DD:task-slug:00:00', 'ungrilled', 'friction', 'YYYY-MM-DD', 'task-slug', 'one-line summary', 'detail');"
       Skip only when the session produced no actionable feedback.
 slice_kinds:
   setup:
