@@ -9,12 +9,17 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from pi_job_harness.project_validation import (
+    normalize_real_goal,
+    normalize_slice_kind_key,
+)
 
 TaskStatus = Literal["planned", "in_progress", "blocked", "done", "skipped"]
 ArtifactStatus = TaskStatus
 PullRequestStatus = Literal["open", "merged", "closed"]
-SliceKindKey = Literal["setup", "implement", "closing", "research", "spike", "follow-work", "fog"]
+SliceKindKey = str  # Profile-validated slice kind key; see profile.yaml slice_kinds.
 ExecutionOwner = Literal["orchestrator", "subagent", "external_tool"]
 TASK_STATUSES = ("planned", "in_progress", "blocked", "done", "skipped")
 ARTIFACT_STATUSES = TASK_STATUSES
@@ -331,12 +336,26 @@ class BootstrapSliceDocument(StrictDocument):
     depends_on: list[str] = Field(default_factory=list, description="Slice keys that must finish before this slice is actionable.")
     repos: list[str] = Field(default_factory=list, description="Repositories whose state this slice changes.")
 
+    @field_validator("goal")
+    @classmethod
+    def goal_must_be_real(cls, value: str) -> str:
+        return normalize_real_goal(value, label="slice goal")
+
+    @field_validator("kind")
+    @classmethod
+    def kind_must_be_known(cls, value: str) -> str:
+        return normalize_slice_kind_key(value, label="slice kind")
+
 
 class BootstrapDocument(StrictDocument):
     """Input document for the transactional bootstrap command."""
 
     title: str = Field(description="Human-readable task title.")
     status: TaskStatus = Field(default="in_progress", description="Overall task lifecycle state.")
+    goal: str | None = Field(
+        default=None,
+        description="Goal for the seeded initial slice; required when initial_slice_kind is set.",
+    )
     initial_slice_kind: str | None = Field(default=None, description="When set, bootstrap seeds a slice of this kind (from profile step_template) before the declared slices.")
     initial_slice_key: str | None = Field(default=None, description="Key for the seeded initial slice; defaults to task-{kind}.")
     source: SourceDocument = Field(default_factory=SourceDocument, description="Task discovery metadata.")
@@ -355,6 +374,10 @@ class BootstrapDocument(StrictDocument):
             raise ValueError("initial_slice_key requires initial_slice_kind")
         if not self.initial_slice_kind and not self.slices:
             raise ValueError("create intent must declare initial_slice_kind or at least one slice")
+        if self.initial_slice_kind:
+            if self.goal is None or not str(self.goal).strip():
+                raise ValueError("goal is required when initial_slice_kind is set")
+            normalize_real_goal(str(self.goal), label="goal")
         return self
 
 

@@ -635,6 +635,27 @@ class YamlTaskStore:
     def set_context(self, context: str) -> None:
         self._mutate(lambda task: task.update({"context": context}))
 
+    def set_step_note(
+        self, *, slice_key: str, step_key: str, note: str, replace: bool
+    ) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            step = self._step(task, slice_key, step_key)
+            existing = str(step.get("note") or "")
+            step["note"] = merge_note(existing, note, replace=replace)
+
+        self._mutate(mutation)
+
+    def set_slice_note(self, *, slice_key: str, note: str, replace: bool) -> None:
+        def mutation(task: dict[str, Any]) -> None:
+            task_slice = self._slice(task, slice_key)
+            existing = str(task_slice.get("note") or "")
+            task_slice["note"] = merge_note(existing, note, replace=replace)
+
+        self._mutate(mutation)
+
+    def set_source(self, fields: Mapping[str, str]) -> None:
+        self._mutate(lambda task: task.setdefault("source", {}).update(fields))
+
     def remove_slice(self, *, key: str) -> None:
         def mutation(task: dict[str, Any]) -> None:
             slices = task.get("plan", {}).get("slices", [])

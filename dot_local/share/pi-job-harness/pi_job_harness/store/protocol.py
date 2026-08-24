@@ -131,6 +131,20 @@ class TaskStore(Protocol):
         """Replace task.context."""
         ...
 
+    def set_step_note(
+        self, *, slice_key: str, step_key: str, note: str, replace: bool
+    ) -> None:
+        """Merge or replace a step note without changing status or execution."""
+        ...
+
+    def set_slice_note(self, *, slice_key: str, note: str, replace: bool) -> None:
+        """Merge or replace a slice note without changing status or execution."""
+        ...
+
+    def set_source(self, fields: Mapping[str, str]) -> None:
+        """Merge into task.source (jira, discovered, context)."""
+        ...
+
     def remove_slice(self, *, key: str) -> None:
         """Remove a slice from the task plan. Must validate that no other slice
         depends on it and that no owned cursor claims it before removing."""

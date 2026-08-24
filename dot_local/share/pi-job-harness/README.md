@@ -47,7 +47,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `create` - create and initialize a task file (`--from` intent YAML, or `--kind`/`--empty-plan` skeleton; also finishes init on an existing uninitialized file)
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
-- `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
+- `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `set-step-note` / `set-slice-note` / `set-source` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
 - `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
@@ -332,6 +332,10 @@ A task without `task.orchestration` is not initialized; run `create` (with `--ki
 ### create
 
 `create` is the only way to bring a task file into existence and/or initialize orchestration.
+Slice kinds come from the active profile (`pi-job profile`); Python does not hardcode the kind list.
+When `create` seeds slices (`--kind` or the default implement scaffold), `--goal` is required and must be a real outcome (boilerplate seeded text is rejected).
+When `project.route` is set (`create --from` or `set-project --route`), the path must exist relative to the repository root (`cwd`); missing paths fail closed with a nearest-existing hint under `projects/`.
+When the route is under `projects/<key>/`, `project.key` must match that segment.
 
 ```bash
 # Intent document
@@ -340,8 +344,8 @@ pi-job --task projects/example/tasks/task.yaml create --from task.intent.yaml --
 pi-job --task projects/example/tasks/task.yaml create --from task.intent.yaml --force
 
 # Skeleton + initialize in one shot
-pi-job --task projects/example/tasks/task.yaml create --kind setup
-pi-job --task projects/example/tasks/task.yaml create   # default implement example
+pi-job --task projects/example/tasks/task.yaml create --kind setup --goal "Prepare the environment"
+pi-job --task projects/example/tasks/task.yaml create --goal "Ship the bounded change"   # default implement example
 
 # Empty plan (no orchestration yet)
 pi-job --task projects/example/tasks/task.yaml create --empty-plan
@@ -349,13 +353,14 @@ pi-job --task projects/example/tasks/task.yaml create --empty-plan
 pi-job --task projects/example/tasks/task.yaml create
 
 # Existing uninitialized file: finish init in place
-pi-job --task projects/example/tasks/task.yaml create [--kind setup]
+pi-job --task projects/example/tasks/task.yaml create --kind setup --goal "Prepare the environment"
 ```
 
 Intent document shape (`--from`):
 
 ```yaml
 title: Add GCSE roadmap support resources
+goal: Prepare repository scaffolding before implement slices
 initial_slice_kind: setup
 source:
   discovered: "2026-07-27"
@@ -363,7 +368,7 @@ source:
 project:
   key: gcse-science-f1-roadmap
   name: GCSE Science F1 Roadmap
-  route: prototypes/gcse-science-f1-roadmap.html
+  route: projects/gcse-science-f1-roadmap/workflow.md
 context: Background required before acting.
 decisions:
   - date: "2026-07-27"
@@ -377,6 +382,15 @@ slices:
     depends_on:
       - task-setup
 ```
+
+Route validation (`create --from` with non-empty `project.route`, and `set-project` only when `--route` or `--key` is supplied):
+
+- Resolves `route` relative to `cwd` (the owning product repository root).
+- Does not create missing paths or scaffold project folders.
+- When the route is missing, stderr includes a nearest-existing hint when candidates exist under `projects/` (files and directories).
+- When `route` is `projects/acme/...`, non-empty `project.key` must be `acme`; routes outside `projects/` skip the key segment rule.
+- Empty `project.route` skips filesystem validation.
+- `set-project --title`, `--name`, or `--context` alone does not re-check a stored route (cwd-independent title/name/context updates).
 
 Safety guarantees:
 
@@ -394,19 +408,42 @@ Safety guarantees:
 
 - `add-slice --kind K --key … --title … --goal …` is required for every new slice; steps are filled from the template.
 - After a successful non-dry-run `add-slice` for a qualifying kind, prints the same seed reminder for that slice only.
+- Decisions footer (stdout, not markdown): when no prior slice exists or every prior slice is kind `setup`, prints the full decision list; later adds print `N decisions unchanged` plus a pointer to `pi-job --task TASK_FILE markdown`. Each command invocation reads visible task state only; no hidden cross-run state.
+
+### Grill before cursor
+
+When scope is grilled before a task file exists:
+
+1. Run grill-me until scope survives.
+2. Run `pi-job --task <slug> create --kind setup --goal "…"` (or `create --from` intent YAML).
+3. Backfill setup steps already satisfied in chat with reconcile, one step at a time:
+
+```bash
+pi-job --task TASK claim --slice setup-slice --owner ID
+pi-job --task TASK finish --reconcile --slice setup-slice --step explore-context \
+  --model cursor/auto --note 'Mapped repo layout in chat before create.'
+# repeat for map-current-state, clarify-scope, grill, …
+```
+
+Reconcile closes an `in_progress` step never started via pi-job; it refuses `planned`/`done`/`skipped`.
+Record chat/grill evidence in `--note`, not a synthetic `start` timestamp.
+Full packet text: `profile.yaml` `instruction_packets.grill_before_cursor`.
 
 ### Task mutation commands
 
 These commands write task metadata and durable state without editing the YAML by hand:
 
-- `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty).
+- `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty; route/key checks run only when `--route` or `--key` is passed).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
-- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note`; date defaults to today UTC; source defaults to `pi-job add-decision`).
+- `pi-job --task <t> set-source [--jira J] [--discovered D] [--context C]` - merge into `task.source` (at least one flag required; omitted fields are preserved).
+- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
 - `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and append the reason to the current cursor slice note (YAML only; not a decision).
-- `pi-job --task <t> set-slice --key K [--title T] [--goal G]` - update slice metadata (at least one of `--title` or `--goal` required; YAML only; refuses `done`/`skipped` slices).
-- `pi-job --task <t> block-slice --key K --reason R` - mark a slice `blocked` and append the reason to its note (YAML only; refuses `done`/`skipped`; re-block appends again).
-- `pi-job --task <t> unblock-slice --key K` - restore a `blocked` slice to `planned` without changing its note (YAML only).
+- `pi-job --task <t> set-slice --slice K [--title T] [--goal G]` - update slice metadata (at least one of `--title` or `--goal` required; YAML only; refuses `done`/`skipped` slices).
+- `pi-job --task <t> set-slice-note --slice K --note TEXT [--replace]` - append or replace a slice note without changing slice status or execution (unlike `finish --slice-only` or `block-slice`).
+- `pi-job --task <t> set-step-note --slice K --step S --note TEXT [--replace]` - append or replace a step note without changing step status or execution (mid-wait progress without `finish`).
+- `pi-job --task <t> block-slice --slice K --reason R` - mark a slice `blocked` and append the reason to its note (YAML only; refuses `done`/`skipped`; re-block appends again).
+- `pi-job --task <t> unblock-slice --slice K` - restore a `blocked` slice to `planned` without changing its note (YAML only).
 - `pi-job --task <t> remove-slice --key K` - remove a slice from the plan. Refuses when:
   - another slice declares a `depends_on` reference to it
   - the orchestration cursor points at it (advance to another slice first)
@@ -466,9 +503,10 @@ execution:
 - `finish --note '<evidence>'` appends completion evidence with a blank line when a note already exists; omitted preserves the existing note.
 - `finish --replace --note '<evidence>'` overwrites the existing note instead of appending (`--replace` requires `--note` and cannot combine with `--skip`).
 - `finish --reconcile --model <id> --note '<evidence>'` records completion for an `in_progress` target that was never started via pi-job; refuses `planned`/`done`/`skipped`.
-- When more than one unfinished step exists anywhere in the task, finishing a step requires explicit `--slice` and `--step` (bare claim finish is allowed only when exactly one unfinished step remains).
-- Normal `finish` without `--reconcile` still requires a prior `start` (unless `--skip`).
-- `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice` first for slice-level blocks.
+- Bare `finish` targets the resolved claim's derived active step; claim-default finish never one-shots a never-started step.
+- Explicit `--slice KEY --step KEY --model <id> --note '<evidence>'` may one-shot finish a never-started step in one write (non-empty note; same blocked/terminal guards as `start`).
+- Policy-governed scan steps may `start` with the edit-code author model, then `finish --model <scanner>`; finish resets `execution.started` to scan time so provenance does not cover the decision wait.
+- `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice --slice K` first for slice-level blocks.
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
 - Slice kinds may declare `required_steps` separately from `step_template`: persisted slices must satisfy the stable structural minimum, while later template additions produce migration warnings instead of invalidating old tasks.
 
@@ -478,12 +516,13 @@ Every new implement slice includes `vulnerability-scan` after verify and before 
 Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
-2. If accepted, the orchestrator selects a scanner model whose fully qualified ID differs from `edit-code.execution.model`, and prefers a higher-reasoning / higher-capability model than the code author (not a second fast coding model).
+2. If accepted, the orchestrator may `start` with the edit-code author model to record the decision point, then `finish --model <scanner>` when the scan completes.
+   Finish stores the scanner model and resets `execution.started` to scan time (not the decision wait).
 3. The scanner reviews changed/generated code for vulnerabilities and records findings in the step note.
-4. The step finishes only after findings are resolved or the remaining risk is explicitly accepted.
+4. The step finishes only after findings are resolved or the remaining risk is explicitly accepted (finish model must differ from `edit-code.execution.model` and prefer higher-reasoning capability).
 5. If the user declines, the orchestrator records `finish --skip --model <id> --reason '<user decision>'`.
 
-`start` rejects the code-author model for this step, and `advance` rechecks recorded provenance so externally modified status cannot bypass the model-separation rule.
+`finish --skip` with user-declined wording satisfies the scan without a distinct scanner model.
 The CLI does not recognize `vulnerability-scan` by name; it applies the generic `requires_user_decision` and `different_model_from_step` fields declared on any step kind.
 
 ### Migrating from v1 profile/phase model
@@ -555,6 +594,7 @@ The setup slice builds understanding before it asks the user to clarify or grill
 3. `map-current-state` always fills the AS-IS bigpicture when layers exist and produces the other selected understanding aids.
 4. `clarify-scope` and `grill` ask decisions grounded in those aids, not factual questions that repository evidence can answer.
 5. `plan-slices` produces planning-only aids and can add clearly labelled TO-BE content without replacing the AS-IS baseline.
+   When a non-setup slice already exists in `plan.slices`, confirm layers + toolbelt only - do not treat primary `add-slice` as the main action. Setup-only tasks keep primary `add-slice` guidance.
 
 The catalog lives in `profile.yaml` under `toolbelt`.
 Catalog entries may include an `example` build instruction; follow it when writing the aid file.
@@ -587,6 +627,7 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 ## Syncing recorded state with reality: sync
 
 - `pi-job --task <t> sync [--status s1,s2]` - print a structured pipeline of slices worth re-verifying: by default, any `in_progress`/`blocked` slice, or any slice carrying an open PR; `--status` overrides the selection.
+- Slices whose only open step is `pi-job-feedback` are non-blocking leftovers: they may appear under `Feedback leftover (non-blocking, no live verification required)` and do not count toward the ACTION REQUIRED slice total. Slices with any open recorded PR stay blocking even when only `pi-job-feedback` remains open. When zero blocking slices match, leftovers still print for awareness.
 - `sync` is a pure task-file read: it never calls GitHub or Jira.
   The printed list is last-recorded state, not live remote status.
   The orchestrator (or per-slice subagents) must immediately run the pipeline for each listed slice; do not treat the listing alone as current status:
@@ -652,6 +693,7 @@ Task data from every backend passes through the documented Pydantic task contrac
 | `follow-work` | Observe a peer's Jira item until landing; capture understanding; spawn or decline follow-ups (no code changes) |
 
 Machine-readable templates and policies live under `slice_kinds` and `step_kinds` in `profile.yaml`.
+Run `pi-job profile` or `pi-job kinds list` for the authoritative kind catalog (kinds can change without Python edits).
 
 ## Example task file shape
 
@@ -737,6 +779,23 @@ Models use strict types and reject unknown fields.
 | `step.status` / `note` | status enum / string | Lifecycle state and evidence. |
 | `step.execution` | execution or null | Executor model, start timestamp, and optional end timestamp. |
 
+### Source vs context vs maintain
+
+Three distinct homes for prose and metadata.
+Do not store Jira keys only in `task.context` or `maintain`; use `set-source --jira`.
+
+| Home | Path | Purpose | Mutation command |
+|---|---|---|---|
+| Discovery metadata | `task.source.{jira,discovered,context}` | Where/when/why the task was discovered | `set-source` (merge) |
+| Task background | `task.context` | Free-form prose agents read before acting | `set-context` (replace) |
+| Live surfaces | `orchestration.maintain[]` | URIs the orchestrator must keep current (PR bodies, Jira comments, aid files) | `maintain add/remove` |
+
+Naming collision:
+
+- `task.source.context` = brief discovery note ("why we opened this task").
+- `task.context` = durable background for execution.
+- `task.project.context` = where the work lives in the repo (set via `set-project --context`).
+
 The status enum is `planned`, `in_progress`, `blocked`, `done`, or `skipped`.
 `status` / `list` / `markdown` report overall task status derived from `plan.slices[].status` (blocked > in_progress > terminals > planned); the top-level `status` field is ignored.
 Pull-request status is `open`, `merged`, or `closed`.
@@ -820,9 +879,59 @@ Follow the same pattern when adding similar exporters or viewers.
 - Findings append is read-modify-write under the task lock (required for append-only markdown).
 - Nested `exclusive()` reuses `_lock_depth` (spill write + YAML mutate in one outer lock).
 
+### Verify harness changes
+
+Contributors verify harness edits in the chezmoi source tree or a slice worktree.
+Do not use `~/.local/bin/pi-job` until `chezmoi apply` lands the change.
+
+| Target | Path | When |
+|---|---|---|
+| Verify (pre-apply) | `dot_local/share/pi-job-harness/` in chezmoi source, or slice `repo_work.worktree` when set | After Python, profile, or test edits |
+| Apply (publish) | explicit `--source-path` for changed harness files only | After verify passes |
+| PATH wrapper | `~/.local/bin/pi-job` → applied copy | Optional smoke after apply; not pre-apply verify |
+
+From the harness package directory:
+
+```bash
+uvx ruff@latest check .
+env -u PI_JOB_OWNER uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
+uvx --from . pi-job --help
+```
+
+Tests resolve `PI_JOB` to `bin/executable_pi-job` beside this package.
+They never call `shutil.which("pi-job")` or `~/.local/bin/pi-job`.
+
+The test runner `run()` strips `$PI_JOB_OWNER` before every subprocess.
+When you invoke tests or CLI commands manually, prefix with `env -u PI_JOB_OWNER` for the same behaviour.
+
+#### Chezmoi apply
+
+After verify passes, apply only explicit source paths for files you changed.
+Do not run unattended `chezmoi apply` on the whole dotfiles tree.
+Run these commands from the chezmoi source root (the directory that contains `dot_local/`).
+
+```bash
+chezmoi apply --source-path dot_local/share/pi-job-harness/README.md
+chezmoi apply --source-path dot_local/share/pi-job-harness/tests/executable_test_pi_job.py
+chezmoi apply --source-path dot_agents/skills/pi-job/SKILL.md
+chezmoi apply --source-path AGENTS.md
+```
+
+Expect TTY prompts when the applied destination is dirty.
+`__pycache__` under `~/.local/share/pi-job-harness/` can block or pollute apply.
+Clean those directories or apply explicit paths instead of a blind full apply.
+
+#### Docs-with-model-cuts
+
+When you change store code, task Pydantic models, or CLI behaviour, update these surfaces together (docs-with-model-cuts):
+
+- README **Agent dev notes** and **Test** (this file)
+- pi-job skill **Harness Python contributions** (`dot_agents/skills/pi-job/SKILL.md`)
+- Root `AGENTS.md` pi-job harness note
+
 ### Check
 
-Run `uvx ruff@latest check .` from this package directory after Python edits (see Test below).
+Run the commands in **Verify harness changes** after Python edits (see Test below).
 
 ## Test
 
@@ -836,11 +945,14 @@ uvx ruff@latest check .
 
 `pyproject.toml` configures ruff so extensionless chezmoi scripts (`bin/executable_pi-job`, `tests/executable_test_pi_job.py`) are included.
 
+Do not use `~/.local/bin/pi-job` or PATH `pi-job` for pre-apply verify.
+The test suite uses the package-local `bin/executable_pi-job` shim, not the applied wrapper.
+
 ```bash
 # from this package directory (chezmoi source):
-uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
-uv run --with pydantic --with pyyaml python tests/test_stats_report.py
+env -u PI_JOB_OWNER uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
+env -u PI_JOB_OWNER uv run --with pydantic --with pyyaml python tests/test_stats_report.py
 # installed copy may name this tests/test_pi_job.py:
-uv run --with pydantic --with pyyaml python tests/test_pi_job.py
+env -u PI_JOB_OWNER uv run --with pydantic --with pyyaml python tests/test_pi_job.py
 uvx --from . pi-job --help
 ```

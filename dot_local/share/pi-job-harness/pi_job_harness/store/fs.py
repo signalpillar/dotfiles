@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from pi_job_harness.errors import die
+from pi_job_harness.store.text import merge_note
 from pi_job_harness.store.yaml_io import validate_task_mapping
 from pi_job_harness.task import ARTIFACT_STATUSES, PULL_REQUEST_STATUSES, TASK_STATUSES
 
@@ -728,6 +729,34 @@ class FsTaskStore:
 
     def set_context(self, context: str) -> None:
         self._write_text(self.layout.context_file(), context)
+
+    def set_step_note(
+        self, *, slice_key: str, step_key: str, note: str, replace: bool
+    ) -> None:
+        L = self.layout
+        for terminal in (False, True):
+            for step_dir in L.step_dirs(slice_key, terminal=terminal):
+                if step_dir.name.split("-", 1)[-1] != step_key:
+                    continue
+                existing = self._read_text(L.step_note_file(step_dir))
+                merged = merge_note(existing, note, replace=replace)
+                self._write_text(L.step_note_file(step_dir), merged)
+                return
+        die(f"could not find step {step_key!r} in slice {slice_key!r} to update note")
+
+    def set_slice_note(self, *, slice_key: str, note: str, replace: bool) -> None:
+        L = self.layout
+        if not L.slice_dir(slice_key).is_dir():
+            die(f"slice not found: {slice_key!r}")
+        existing = self._read_text(L.slice_note_file(slice_key))
+        merged = merge_note(existing, note, replace=replace)
+        self._write_text(L.slice_note_file(slice_key), merged)
+
+    def set_source(self, fields: Mapping[str, str]) -> None:
+        L = self.layout
+        existing = self._read_record(L.source_file())
+        existing.update(fields)
+        self._write_record(L.source_file(), existing)
 
     def remove_slice(self, *, key: str) -> None:
         L = self.layout

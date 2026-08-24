@@ -29,6 +29,10 @@ from pi_job_harness.profile import (
     ProfileDocument,  # noqa: F401 - tests getattr this on the app module
     load_profile_contract,
 )
+from pi_job_harness.project_validation import (
+    validate_project_route_and_key,
+    validate_real_goal,
+)
 from pi_job_harness.store import (
     BundleTaskLayout,
     FsTaskStore,  # noqa: F401 - tests getattr this on the app module
@@ -108,6 +112,30 @@ def paint_glyph(glyph: str, status: str, *, color: bool) -> str:
 
 
 
+
+
+CREATE_MODES_HINT = (
+    "Supported create modes:\n"
+    "  pi-job --task TASK create --from intent.yaml\n"
+    "  pi-job --task TASK create --empty-plan\n"
+    "  pi-job --task TASK create --kind K --goal \"…\""
+)
+
+
+def _require_create_goal(args: argparse.Namespace) -> str:
+    raw = getattr(args, "goal", None)
+    if raw is None or not str(raw).strip():
+        die("--goal is required when seeding slices\n" + CREATE_MODES_HINT)
+    return validate_real_goal(str(raw), label="--goal")
+
+
+def _validate_task_project_route(task: Mapping[str, Any], *, repo_root: Path | None = None) -> None:
+    project = task.get("project") or {}
+    validate_project_route_and_key(
+        str(project.get("route") or ""),
+        str(project.get("key") or ""),
+        repo_root=repo_root or Path.cwd(),
+    )
 
 
 def example_task_mapping(*, title: str = "Example bounded change") -> dict[str, Any]:
@@ -833,7 +861,7 @@ def require_initialized(task_file: Path, task: dict[str, Any]) -> None:
     if not task.get("orchestration"):
         die(
             "task is not initialized for pi-job: missing task.orchestration\n"
-            f"run: pi-job --task {task_file} create [--kind setup|implement|...]"
+            f"run: pi-job --task {task_file} create [--kind setup|implement|... --goal \"…\"]"
         )
 
 
@@ -1002,7 +1030,7 @@ def print_status(ref: str, task: dict[str, Any], task_path: Path | None = None) 
     print(f"Contract: {PROFILE}")
     if not task.get("orchestration"):
         print("Initialization: required")
-        print(f"Next: initialize with pi-job --task {ref} create [--kind setup|implement|...]")
+        print(f"Next: initialize with pi-job --task {ref} create [--kind setup|implement|... --goal \"…\"]")
     else:
         print("Initialization: ok")
         structure_issues = slice_structure_issues(task)
@@ -1294,39 +1322,37 @@ def execution_issues(task: dict[str, Any]) -> list[str]:
     return issues
 
 
-def unfinished_step_labels(task: dict[str, Any]) -> list[str]:
-    """Return `slice/step` labels for every step not done/skipped, across the task."""
-    labels: list[str] = []
-    for task_slice in task_slices(task):
-        for step in task_slice.all_steps:
-            if step.status not in STATUS_DONE:
-                labels.append(f"{task_slice.key}/{step.key}")
-    return labels
+def policy_author_model(task_slice: TaskSlice, step: TaskStep) -> str | None:
+    """Return the referenced author execution.model when step kind declares different_model_from_step."""
+    source_step_key = str(step_execution_policy(step).get("different_model_from_step") or "")
+    if not source_step_key:
+        return None
+    author_step = find_step(task_slice, source_step_key)
+    if not author_step or not author_step.execution:
+        return None
+    author_model = author_step.execution.model.strip()
+    return author_model or None
 
 
-def enforce_finish_step_explicitness(
-    task: dict[str, Any], args: argparse.Namespace, *, step_key: str | None
+def enforce_lifecycle_mutate_guards(
+    task_file: Path,
+    task_slice: TaskSlice,
+    item: TaskSlice | TaskStep,
+    label: str,
+    *,
+    verb: str,
 ) -> None:
-    """Fail closed when bare finish could attach evidence to the wrong step.
-
-    Grill rule: when more than one unfinished step exists anywhere, finishing a
-    step requires explicit --slice and --step. Bare finish (cursor defaults) is
-    allowed only when exactly one unfinished step remains. Slice-only finishes
-    are exempt (they already refuse unfinished steps inside the target slice).
-    """
-    if step_key is None:
-        return
-    if args.slice and args.step:
-        return
-    unfinished = unfinished_step_labels(task)
-    if len(unfinished) <= 1:
-        return
-    sample = ", ".join(unfinished[:5])
-    extra = "" if len(unfinished) <= 5 else f" (+{len(unfinished) - 5} more)"
-    die(
-        f"finish target ambiguous: {len(unfinished)} unfinished steps "
-        f"({sample}{extra}); pass --slice KEY --step KEY"
-    )
+    """Blocked slice/target and terminal target guards shared by start and one-shot finish."""
+    if task_slice.status == "blocked":
+        die(
+            f"slice is blocked: {task_slice.key}; "
+            f"run pi-job --task {task_file} unblock-slice --slice {task_slice.key} first"
+        )
+    status = item.status
+    if status == "blocked":
+        die(f"cannot {verb} blocked work: {label} [blocked]")
+    if status in STATUS_DONE:
+        die(f"cannot {verb} completed work: {label} [{status}]")
 
 
 def resolve_lifecycle_target(
@@ -1397,6 +1423,8 @@ def step_policy_issue(
         return f"{source_step_key} has no recorded execution.model; record the code-author model before scanning"
     if not is_fully_qualified_model(author_model):
         return f"{source_step_key} execution.model is not fully qualified as provider/model (for example {MODEL_ID_EXAMPLE})"
+    if status != "done":
+        return None
     if model == author_model:
         return (
             f"{step_key} model must differ from {source_step_key} model "
@@ -1518,16 +1546,7 @@ def cmd_start(args: argparse.Namespace) -> None:
         claim = resolve_claim_for_command(task, args, cmd="start", required=not bool(args.slice))
         task_slice, item, step_key = resolve_lifecycle_target(task, args, claim=claim)
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
-        status = item.status
-        if task_slice.status == "blocked":
-            die(
-                f"slice is blocked: {task_slice.key}; "
-                f"run pi-job --task {task_file} unblock-slice --key {task_slice.key} first"
-            )
-        if status == "blocked":
-            die(f"cannot start blocked work: {label} [blocked]")
-        if status in STATUS_DONE:
-            die(f"cannot start completed work: {label} [{status}]")
+        enforce_lifecycle_mutate_guards(task_file, task_slice, item, label, verb="start")
         model = require_fully_qualified_model(args.model)
         existing = item.execution
         if existing:
@@ -1566,7 +1585,6 @@ def cmd_finish(args: argparse.Namespace) -> None:
         require_initialized(task_file, task)
         claim = resolve_claim_for_command(task, args, cmd="finish", required=not bool(args.slice))
         task_slice, item, step_key = resolve_lifecycle_target(task, args, claim=claim)
-        enforce_finish_step_explicitness(task, args, step_key=step_key)
         label = f"{task_slice.key}/{step_key}" if step_key else task_slice.key
         target_status = "skipped" if args.skip else "done"
         existing = item.execution
@@ -1586,18 +1604,78 @@ def cmd_finish(args: argparse.Namespace) -> None:
             return
         if args.skip and not args.reason:
             die("--skip requires --reason '<why>'")
+        if args.reconcile and args.note is None:
+            die("finish --reconcile requires --note '<evidence>'")
+        one_shot = (
+            not existing
+            and not args.skip
+            and not args.reconcile
+            and args.slice
+            and args.step
+            and args.model
+            and args.note is not None
+            and str(args.note).strip()
+        )
+        if one_shot:
+            enforce_lifecycle_mutate_guards(task_file, task_slice, item, label, verb="finish")
+            model = require_fully_qualified_model(str(args.model))
+            note = str(args.note).strip()
+            if step_key is not None:
+                if not isinstance(item, TaskStep):
+                    die(f"internal lifecycle target mismatch for step {step_key!r}")
+                issue = step_policy_issue(task_slice, item, model=str(model), status="done", note=note)
+                if issue:
+                    die(issue)
+            now = utc_now()
+            execution = {"model": str(model), "started": now, "ended": now}
+            store.set_execution(
+                slice_key=task_slice.key, step_key=step_key, status="done",
+                note=note, execution=execution,
+            )
+            print(f"finished: {label} [done] at {now}")
+            if claim is not None and isinstance(store, YamlTaskStore):
+                store.touch_claim(owner=claim.owner, now=now)
+            print("tip: prefer Markdown in --note; `pi-job markdown` renders notes formatted")
+            return
+        if (
+            not existing
+            and not args.skip
+            and not args.reconcile
+            and args.slice
+            and args.step
+            and args.model
+            and args.note is not None
+            and not str(args.note).strip()
+        ):
+            die("one-shot finish requires a non-empty --note")
+        if not existing and not args.skip and not args.reconcile:
+            die(
+                f"work was not started: {label}; run pi-job start --model <id> first, "
+                "or one-shot with --slice KEY --step KEY --model <id> --note '<evidence>'"
+            )
         model = args.model or (existing.model if existing else None)
         if not model:
             die("finish requires an existing started execution or --model <fully-qualified-model-id>")
         model = require_fully_qualified_model(str(model))
+        allow_model_change = False
         if existing and existing.model and args.model and existing.model != model:
-            die(f"execution started by {existing.model!r}; refusing to finish it as {model!r}")
-        if args.reconcile and args.note is None:
-            die("finish --reconcile requires --note '<evidence>'")
-        if not existing and not args.skip and not args.reconcile:
-            die(f"work was not started: {label}; run pi-job start --model <id> first")
+            author_model = (
+                policy_author_model(task_slice, item)
+                if step_key is not None and isinstance(item, TaskStep)
+                else None
+            )
+            # Decision-point start uses the author model; scanner finish resets started so
+            # provenance reflects scan execution, not the wait before dispatch.
+            allow_model_change = (
+                target_status == "done"
+                and author_model is not None
+                and existing.model == author_model
+                and model != author_model
+            )
+            if not allow_model_change:
+                die(f"execution started by {existing.model!r}; refusing to finish it as {model!r}")
         now = utc_now()
-        started = existing.started if existing else now
+        started = now if allow_model_change else (existing.started if existing else now)
         if parse_utc_timestamp(started) is None:
             die(f"execution.started is not a valid UTC ISO 8601 timestamp: {label}")
         note = item.note
@@ -1990,7 +2068,7 @@ def build_pick_next_instruction(
         f"Task: {task_display_ref(store)}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
-        f"Owner: {claim.owner}",
+        f"Claim: {claim.owner}",
         f"Exhausted claim: {cursor.label()}",
         (
             "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
@@ -2018,7 +2096,9 @@ def build_pick_next_instruction(
     return "\n".join(lines)
 
 
-def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], cursor: Cursor) -> str:
+def build_instruction(
+    store: TaskStore, task_file: Path, task: dict[str, Any], cursor: Cursor, *, claim: OwnedCursor
+) -> str:
     require_initialized(task_file, task)
     task_slice = find_current_slice(task, cursor)
     step = find_current_step(task_slice, cursor)
@@ -2052,7 +2132,7 @@ def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], c
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
-        f"Owner: {owner}",
+        f"Claim: {claim.owner}",
         (
             "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
             if owner == "orchestrator"
@@ -2119,7 +2199,10 @@ def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], c
                 source_model = source_step.execution.model if source_step and source_step.execution else "<missing>"
                 lines += [
                     f"- Model recorded on {source_step_key}: {source_model}",
-                    "- Choose a different fully qualified model ID for this step.",
+                    (
+                        "- When this step completes as done, choose a different fully qualified "
+                        "model ID than that author model."
+                    ),
                     (
                         "- Prefer a higher-reasoning / higher-capability model than that author model "
                         "(do not reuse a fast coding or low-cost edit model for review/scan)."
@@ -2141,6 +2224,13 @@ def build_instruction(store: TaskStore, task_file: Path, task: dict[str, Any], c
         lines.extend(format_layer_list_lines(task))
     if step and step.key in ("select-toolbelt", "plan-slices"):
         lines += toolbelt_block(task, task_slice_kinds(task))
+    if step and step.key == "plan-slices":
+        plan_slices = (task.get("plan") or {}).get("slices") or []
+        if any(str(sl.get("kind") or "") != "setup" for sl in plan_slices):
+            banner = packets.get("plan_slices_seeded_banner")
+            if banner:
+                lines.append("")
+                lines.extend(render_packet_lines(str(banner), defaults=packet_defaults))
     lines += maintain_block(task, include_empty=False)
 
     lines.append("")
@@ -2192,7 +2282,7 @@ def cmd_instruction(args: argparse.Namespace) -> None:
             return
         if isinstance(store, YamlTaskStore):
             store.touch_claim(owner=claim.owner, now=utc_now())
-    print(build_instruction(store, task_file, task, within))
+    print(build_instruction(store, task_file, task, within, claim=claim))
 
 
 def cmd_plan(args: argparse.Namespace) -> None:
@@ -2283,11 +2373,14 @@ def cmd_sync(args: argparse.Namespace) -> None:
     print(build_sync_instruction(store, task, status_filter))
 
 
-def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) -> list[TaskSlice]:
+def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) -> SyncCandidateSlices:
     """Slices worth re-verifying: with an explicit status_filter, exactly those statuses;
     otherwise any in_progress/blocked slice, or any slice carrying an open PR (its recorded
-    state could have changed - e.g. merged - since last checked)."""
-    candidates = []
+    state could have changed - e.g. merged - since last checked).
+
+    Slices whose only open remainder is pi-job-feedback are listed separately as
+    feedback leftovers and excluded from blocking ACTION REQUIRED work."""
+    candidates: list[TaskSlice] = []
     for task_slice in task_slices(task):
         st = task_slice.status
         if status_filter is not None:
@@ -2300,7 +2393,43 @@ def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) 
         repo_work = task_slice.repo_work or {}
         if any(pr.get("status") == "open" for work in repo_work.values() for pr in (work.get("prs") or [])):
             candidates.append(task_slice)
-    return candidates
+    blocking: list[TaskSlice] = []
+    feedback_leftovers: list[TaskSlice] = []
+    for task_slice in candidates:
+        if slice_feedback_only_tail(task_slice):
+            feedback_leftovers.append(task_slice)
+        else:
+            blocking.append(task_slice)
+    return SyncCandidateSlices(
+        blocking=tuple(blocking),
+        feedback_leftovers=tuple(feedback_leftovers),
+    )
+
+
+def _slice_has_open_pr(task_slice: TaskSlice) -> bool:
+    repo_work = task_slice.repo_work or {}
+    return any(
+        pr.get("status") == "open"
+        for work in repo_work.values()
+        for pr in (work.get("prs") or [])
+    )
+
+
+def _append_sync_slice_lines(lines: list[str], task_slice: TaskSlice, *, prefix: str) -> None:
+    lines.append(f"{prefix}{task_slice.key} ({task_slice.status})")
+    repo_work = task_slice.repo_work or {}
+    for repo_name, work in repo_work.items():
+        worktree = work.get("worktree")
+        suffix = f"  worktree: {worktree}" if worktree else ""
+        lines.append(f"   repo: {repo_name}{suffix}")
+        for pr in work.get("prs") or []:
+            lines.append(f"   pr: {pr.get('url')} [{pr.get('status')}]")
+    current = slice_cursor(task_slice)
+    if current.step:
+        step = find_current_step(task_slice, current)
+        step_status = status_value(step) if step else "?"
+        lines.append(f"   current step: {current.step} ({step_status})")
+    lines.append("")
 
 
 def build_sync_instruction(
@@ -2314,29 +2443,28 @@ def build_sync_instruction(
         "",
         f"Task: {task_display_ref(store)}",
         f"Repository root: {ROOT}",
-        f"{len(candidates)} slice(s) to verify.",
+        f"{len(candidates.blocking)} slice(s) to verify.",
         "",
     ]
-    if not candidates:
+    if not candidates.blocking and not candidates.feedback_leftovers:
         lines.append("Nothing matched the sync criteria (in_progress/blocked slices, or slices with an open PR).")
         return "\n".join(lines)
 
-    lines += [pipeline_text, ""]
-    for i, task_slice in enumerate(candidates, start=1):
-        lines.append(f"{i}. {task_slice.key} ({task_slice.status})")
-        repo_work = task_slice.repo_work or {}
-        for repo_name, work in repo_work.items():
-            worktree = work.get("worktree")
-            suffix = f"  worktree: {worktree}" if worktree else ""
-            lines.append(f"   repo: {repo_name}{suffix}")
-            for pr in work.get("prs") or []:
-                lines.append(f"   pr: {pr.get('url')} [{pr.get('status')}]")
-        current = slice_cursor(task_slice)
-        if current.step:
-            step = find_current_step(task_slice, current)
-            step_status = status_value(step) if step else "?"
-            lines.append(f"   current step: {current.step} ({step_status})")
-        lines.append("")
+    if candidates.blocking:
+        lines += [pipeline_text, ""]
+        for i, task_slice in enumerate(candidates.blocking, start=1):
+            _append_sync_slice_lines(lines, task_slice, prefix=f"{i}. ")
+
+    if candidates.feedback_leftovers:
+        if not candidates.blocking:
+            lines.append(
+                "No blocking slices require live verification. "
+                "Feedback leftover slices below are informational only."
+            )
+            lines.append("")
+        lines.append("Feedback leftover (non-blocking, no live verification required):")
+        for task_slice in candidates.feedback_leftovers:
+            _append_sync_slice_lines(lines, task_slice, prefix="- ")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -2660,6 +2788,82 @@ def ordered_slices_for_markdown(
 
     indexed.sort(key=sort_key)
     return tuple(task_slice for _, task_slice in indexed)
+
+
+def _prior_slices_all_setup(slices: Sequence[Mapping[str, Any]], prior_count: int) -> bool:
+    """True when no prior slices exist or every prior slice is kind setup."""
+    if prior_count <= 0:
+        return True
+    prior = list(slices)[:prior_count]
+    return all(str(sl.get("kind") or "") == "setup" for sl in prior)
+
+
+def render_decisions_cli(task: Mapping[str, Any]) -> str:
+    """Compact stdout decisions footer (not markdown)."""
+    decisions = task.get("decisions") or []
+    lines = ["Decisions:"]
+    for decision in decisions:
+        date = str(decision.get("date") or "")
+        source = str(decision.get("source") or "").strip()
+        note = str(decision.get("note") or "").strip()
+        header = f"- {date}"
+        if source:
+            header += f" ({source})"
+        lines.append(header)
+        if note:
+            for note_line in note.split("\n"):
+                lines.append(f"  {note_line}")
+    return "\n".join(lines)
+
+
+def print_decisions_after_slice_add(
+    task: Mapping[str, Any],
+    *,
+    prior_slice_count: int,
+    decisions_count: int,
+) -> None:
+    """Print decisions footer after add-slice or create seed paths.
+
+    Uses visible task state at command start (prior slices and kinds). Each public
+    command path calls this exactly once at the end of its stdout output.
+    """
+    if decisions_count <= 0:
+        print("no decisions recorded")
+        return
+
+    slices = (task.get("plan") or {}).get("slices") or []
+    show_full = _prior_slices_all_setup(slices, prior_slice_count)
+
+    if show_full:
+        print()
+        print(render_decisions_cli(task))
+        return
+
+    print(f"{decisions_count} decisions unchanged")
+    print("Full list: pi-job --task TASK_FILE markdown")
+
+
+def slice_feedback_only_tail(task_slice: TaskSlice) -> bool:
+    """True when every step except pi-job-feedback is terminal and feedback is still open."""
+    if _slice_has_open_pr(task_slice):
+        return False
+    feedback = task_slice.find_step("pi-job-feedback")
+    if feedback is None:
+        return False
+    if feedback.status not in ("planned", "in_progress"):
+        return False
+    for step in task_slice.all_steps:
+        if step.key == "pi-job-feedback":
+            continue
+        if step.status not in STATUS_DONE:
+            return False
+    return True
+
+
+@dataclass(frozen=True)
+class SyncCandidateSlices:
+    blocking: tuple[TaskSlice, ...]
+    feedback_leftovers: tuple[TaskSlice, ...]
 
 
 def render_decisions_markdown(task: Mapping[str, Any]) -> list[str]:
@@ -3872,6 +4076,7 @@ def _scaffold_task_mapping(
     title: str,
     kind: str | None,
     empty_plan: bool,
+    goal: str,
 ) -> dict[str, Any]:
     if empty_plan and kind:
         die("--empty-plan and --kind are mutually exclusive")
@@ -3902,7 +4107,7 @@ def _scaffold_task_mapping(
                     "key": slice_key,
                     "kind": kind,
                     "title": kind_title,
-                    "goal": f"Initial {kind} slice seeded by pi-job create",
+                    "goal": goal,
                     "status": "planned",
                     "note": "",
                     "steps": [
@@ -3913,10 +4118,15 @@ def _scaffold_task_mapping(
                 }],
             },
         }
-    return example_task_mapping(title=title)
+    mapping = example_task_mapping(title=title)
+    mapping["project"] = {"key": "", "name": "", "route": "", "context": ""}
+    mapping["plan"]["slices"][0]["goal"] = goal
+    mapping["status"] = "planned"
+    mapping["plan"]["slices"][0]["status"] = "planned"
+    return mapping
 
 
-def _seed_kind_if_empty(store: TaskStore, task: dict[str, Any], kind: str | None) -> dict[str, Any]:
+def _seed_kind_if_empty(store: TaskStore, task: dict[str, Any], kind: str | None, goal: str) -> dict[str, Any]:
     if not kind:
         return task
     get_slice_kind(kind)
@@ -3926,7 +4136,7 @@ def _seed_kind_if_empty(store: TaskStore, task: dict[str, Any], kind: str | None
         key=f"{kind}-slice",
         kind=kind,
         title=get_slice_kind(kind).get("title", kind),
-        goal=f"Initial {kind} slice seeded by pi-job create",
+        goal=goal,
         extra_fields={},
         steps=steps_from_kind_template(kind),
         final_steps=[],
@@ -3967,6 +4177,9 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     kind = bootstrap.initial_slice_kind
     if kind:
         get_slice_kind(kind)
+        initial_goal = validate_real_goal(str(bootstrap.goal or ""), label="goal")
+    else:
+        initial_goal = None
     assembled_slices: list[dict[str, Any]] = []
     if kind:
         seed_key = bootstrap.initial_slice_key or f"task-{kind}"
@@ -3975,7 +4188,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
             "key": seed_key,
             "kind": kind,
             "title": kind_title,
-            "goal": f"Initial {kind} slice seeded by pi-job create",
+            "goal": initial_goal,
             "status": "planned",
             "note": "",
             "repos": [],
@@ -4035,6 +4248,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
                 missing_deps.append(f"  {sl['key']!r} depends on unknown slice key {dep!r}")
     if missing_deps:
         die("create: unresolved dependency references:\n" + "\n".join(missing_deps))
+    _validate_task_project_route(prospective)
     validate_task_mapping(prospective, source=str(input_path))
     prospective["orchestration"] = _fresh_orchestration()
     full_task = canonical_task_mapping(prospective, source=str(input_path))
@@ -4072,6 +4286,12 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     if seed_block:
         print()
         print(seed_block, end="")
+    decisions_count = len(canonical_repr.get("decisions") or [])
+    print_decisions_after_slice_add(
+        canonical_repr,
+        prior_slice_count=0,
+        decisions_count=decisions_count,
+    )
 
 
 def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
@@ -4088,12 +4308,13 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
         # preview seed without writing
         kind = args.kind
         if kind and not task.get("plan", {}).get("slices"):
+            seed_goal = _require_create_goal(args)
             get_slice_kind(kind)
             task.setdefault("plan", {})["slices"] = [{
                 "key": f"{kind}-slice",
                 "kind": kind,
                 "title": get_slice_kind(kind).get("title", kind),
-                "goal": f"Initial {kind} slice seeded by pi-job create",
+                "goal": seed_goal,
                 "status": "planned",
                 "note": "",
                 "steps": [
@@ -4106,7 +4327,9 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
         print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
         return
     scaffold_bundle_dirs(task_file.parent)
-    task = _seed_kind_if_empty(store, task, args.kind)
+    seed_goal = _require_create_goal(args) if args.kind else ""
+    prior_slice_count = len(task.get("plan", {}).get("slices") or [])
+    task = _seed_kind_if_empty(store, task, args.kind, seed_goal)
     store.init_orchestration()
     task = store.read()
     print(f"initialized: {task_file}")
@@ -4114,6 +4337,12 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
     print(f"next: {_suggest_first_claim(task)}")
     print()
     print(build_plan(store, task))
+    if args.kind and prior_slice_count == 0:
+        print_decisions_after_slice_add(
+            task,
+            prior_slice_count=0,
+            decisions_count=len(task.get("decisions") or []),
+        )
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -4126,17 +4355,24 @@ def cmd_create(args: argparse.Namespace) -> None:
     suffix = task_file.suffix.lower()
 
     if task_file.exists() and not args.force:
+        if args.kind:
+            _require_create_goal(args)
         _init_existing_task(args, task_file)
         return
 
     if suffix not in {".yaml", ".yml"}:
         unsupported_storage(task_file)
 
+    seeding_slices = bool(args.kind) or not args.empty_plan
+    seed_goal = _require_create_goal(args) if seeding_slices else ""
     mapping = _scaffold_task_mapping(
         title=args.title or "Example bounded change",
         kind=args.kind,
         empty_plan=bool(args.empty_plan),
+        goal=seed_goal,
     )
+    if not args.empty_plan:
+        _validate_task_project_route(mapping)
     if args.empty_plan:
         content = render_yaml_task(mapping, source=str(task_file))
         if args.dry_run:
@@ -4171,6 +4407,12 @@ def cmd_create(args: argparse.Namespace) -> None:
     if seed_block:
         print()
         print(seed_block, end="")
+    decisions_count = len(task.get("decisions") or [])
+    print_decisions_after_slice_add(
+        task,
+        prior_slice_count=0,
+        decisions_count=decisions_count,
+    )
 
 
 BASELINE_SLICE_FIELDS = {"key", "kind", "title", "goal", "status", "note", "steps", "final_steps"}
@@ -4219,6 +4461,7 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
         print(yaml.safe_dump(preview, allow_unicode=True, sort_keys=False), end="")
         return
 
+    prior_slice_count = len(task.get("plan", {}).get("slices") or [])
     store.add_slice(
         key=args.key, kind=args.kind, title=args.title, goal=args.goal,
         extra_fields=extra_fields, steps=steps, final_steps=final_steps, after=args.after,
@@ -4246,6 +4489,12 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
         if seed_block:
             print()
             print(seed_block, end="")
+    decisions_count = len(updated.get("decisions") or [])
+    print_decisions_after_slice_add(
+        task,
+        prior_slice_count=prior_slice_count,
+        decisions_count=decisions_count,
+    )
 
 
 BASELINE_STEP_FIELDS = {"key", "title", "status", "note"}
@@ -4551,7 +4800,7 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
     if not isinstance(store, YamlTaskStore):
         die("set-slice requires a YAML task file")
     task = store.read()
-    key = args.key
+    key = args.slice
     status_map = slice_status_map(task)
     if key not in status_map:
         die(f"slice not found: {key!r}")
@@ -4594,7 +4843,7 @@ def cmd_block_slice(args: argparse.Namespace) -> None:
     if not isinstance(store, YamlTaskStore):
         die("block-slice requires a YAML task file")
     task = store.read()
-    key = args.key
+    key = args.slice
     status_map = slice_status_map(task)
     if key not in status_map:
         die(f"slice not found: {key!r}")
@@ -4621,7 +4870,7 @@ def cmd_unblock_slice(args: argparse.Namespace) -> None:
     if not isinstance(store, YamlTaskStore):
         die("unblock-slice requires a YAML task file")
     task = store.read()
-    key = args.key
+    key = args.slice
     status_map = slice_status_map(task)
     if key not in status_map:
         die(f"slice not found: {key!r}")
@@ -4629,6 +4878,58 @@ def cmd_unblock_slice(args: argparse.Namespace) -> None:
         die(f"slice is not blocked: {key} [{status_map[key]}]")
     store.set_slice_status(slice_key=key, status="planned")
     print(f"unblocked slice: {key} [planned]")
+
+
+def cmd_set_step_note(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-step-note")
+    if args.replace and args.note is None:
+        die("set-step-note --replace requires --note")
+    if args.note is None:
+        die("set-step-note requires --note")
+    store = open_task_store(task_file)
+    task = store.read()
+    task_slice = find_slice(task, args.slice)
+    if task_slice is None:
+        die(f"slice not found: {args.slice!r}")
+    step = find_step(task_slice, args.step)
+    if step is None:
+        die(f"step not found: {args.slice}/{args.step}")
+    store.set_step_note(
+        slice_key=args.slice,
+        step_key=args.step,
+        note=args.note,
+        replace=args.replace,
+    )
+    print(f"updated step note: {args.slice}/{args.step}")
+
+
+def cmd_set_slice_note(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-slice-note")
+    if args.replace and args.note is None:
+        die("set-slice-note --replace requires --note")
+    if args.note is None:
+        die("set-slice-note requires --note")
+    store = open_task_store(task_file)
+    task = store.read()
+    task_slice = find_slice(task, args.slice)
+    if task_slice is None:
+        die(f"slice not found: {args.slice!r}")
+    store.set_slice_note(slice_key=args.slice, note=args.note, replace=args.replace)
+    print(f"updated slice note: {args.slice}")
+
+
+def cmd_set_source(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="set-source")
+    fields: dict[str, str] = {}
+    for attr in ("jira", "discovered", "context"):
+        value = getattr(args, attr, None)
+        if value is not None:
+            fields[attr] = value
+    if not fields:
+        die("at least one field is required (--jira, --discovered, --context)")
+    store = open_task_store(task_file)
+    store.set_source(fields)
+    print(f"updated source: {', '.join(f'{k}={v}' for k, v in fields.items())}")
 
 
 def cmd_set_project(args: argparse.Namespace) -> None:
@@ -4644,6 +4945,20 @@ def cmd_set_project(args: argparse.Namespace) -> None:
     if not fields and title is None:
         die("at least one field is required (--title, --key, --name, --route, --context)")
     store = open_task_store(task_file)
+    route_supplied = getattr(args, "route", None) is not None
+    key_supplied = getattr(args, "key", None) is not None
+    if route_supplied or key_supplied:
+        task = store.read()
+        merged_project = dict(task.get("project") or {})
+        for attr in ("key", "name", "route", "context"):
+            value = getattr(args, attr, None)
+            if value is not None:
+                merged_project[attr] = value
+        validate_project_route_and_key(
+            str(merged_project.get("route") or ""),
+            str(merged_project.get("key") or ""),
+            repo_root=Path.cwd(),
+        )
     updated: list[str] = []
     if title is not None:
         store.set_title(str(title).strip())
@@ -4999,6 +5314,12 @@ def main() -> None:
     cli_help = load_profile_contract()["cli_help"]
     add_decision_help = str(cli_help["add_decision"]["command"])
     add_decision_note_help = str(cli_help["add_decision"]["note"])
+    set_step_note_help = str(cli_help["set_step_note"]["command"])
+    set_step_note_note_help = str(cli_help["set_step_note"]["note"])
+    set_slice_note_help = str(cli_help["set_slice_note"]["command"])
+    set_slice_note_note_help = str(cli_help["set_slice_note"]["note"])
+    set_source_help = str(cli_help["set_source"]["command"])
+    set_source_note_help = str(cli_help["set_source"]["note"])
     finish_note_help = str(cli_help["finish"]["note"])
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -5073,6 +5394,10 @@ def main() -> None:
         action="store_true",
         help="write a task with no slices and no orchestration yet; add slices then re-run create",
     )
+    create.add_argument(
+        "--goal",
+        help="real slice outcome when seeding slices (--kind or default implement scaffold); required unless --empty-plan or --from",
+    )
     create.add_argument("--force", action="store_true", help="overwrite an existing task file")
     create.add_argument("--dry-run", action="store_true", help="print the would-be task (or intent diff) without writing")
     create.set_defaults(fn=cmd_create)
@@ -5128,7 +5453,13 @@ def main() -> None:
         help="record end time and mark the current step or selected slice done/skipped",
         description="record end time and mark the current step or selected slice done/skipped",
     )
-    finish.add_argument("--model", help="model ID; required only for an atomic skip that was not started")
+    finish.add_argument(
+        "--model",
+        help=(
+            "fully qualified model ID; required for atomic skip/finish on a never-started step "
+            "(explicit --slice --step one-shot finish also requires --model and --note)"
+        ),
+    )
     finish.add_argument("--slice", help="explicit slice key; without --step this targets the slice itself")
     finish.add_argument("--step", help="explicit step key (uses the current slice unless --slice is supplied)")
     finish.add_argument("--slice-only", action="store_true", help="target the current slice instead of its current step")
@@ -5524,7 +5855,7 @@ def main() -> None:
     set_plan_note.set_defaults(fn=cmd_set_plan_note_cli)
 
     set_slice = sub.add_parser("set-slice", help="update a slice title and/or goal")
-    set_slice.add_argument("--key", required=True, help="slice key to update")
+    set_slice.add_argument("--slice", required=True, help="slice key to update")
     set_slice.add_argument("--title", help="new slice title")
     set_slice.add_argument("--goal", help="new slice goal")
     set_slice_layer = set_slice.add_mutually_exclusive_group()
@@ -5540,7 +5871,7 @@ def main() -> None:
     set_slice.set_defaults(fn=cmd_set_slice)
 
     block_slice = sub.add_parser("block-slice", help="mark a slice blocked and append a reason to its note")
-    block_slice.add_argument("--key", required=True, help="slice key to block")
+    block_slice.add_argument("--slice", required=True, help="slice key to block")
     block_slice.add_argument("--reason", required=True, help="blocker reason appended to the slice note")
     block_slice.add_argument(
         "--gate",
@@ -5550,8 +5881,58 @@ def main() -> None:
     block_slice.set_defaults(fn=cmd_block_slice)
 
     unblock_slice = sub.add_parser("unblock-slice", help="restore a blocked slice to planned without changing its note")
-    unblock_slice.add_argument("--key", required=True, help="slice key to unblock")
+    unblock_slice.add_argument("--slice", required=True, help="slice key to unblock")
     unblock_slice.set_defaults(fn=cmd_unblock_slice)
+
+    set_step_note = sub.add_parser(
+        "set-step-note",
+        help=set_step_note_help,
+        description=set_step_note_help,
+    )
+    set_step_note.add_argument("--slice", required=True, help="slice key")
+    set_step_note.add_argument("--step", required=True, help="step key")
+    set_step_note.add_argument(
+        "--note",
+        help=set_step_note_note_help,
+    )
+    set_step_note.add_argument(
+        "--replace",
+        action="store_true",
+        help="overwrite the existing note instead of appending; requires --note",
+    )
+    set_step_note.set_defaults(fn=cmd_set_step_note)
+
+    set_slice_note = sub.add_parser(
+        "set-slice-note",
+        help=set_slice_note_help,
+        description=set_slice_note_help,
+    )
+    set_slice_note.add_argument("--slice", required=True, help="slice key")
+    set_slice_note.add_argument(
+        "--note",
+        help=set_slice_note_note_help,
+    )
+    set_slice_note.add_argument(
+        "--replace",
+        action="store_true",
+        help="overwrite the existing note instead of appending; requires --note",
+    )
+    set_slice_note.set_defaults(fn=cmd_set_slice_note)
+
+    set_source = sub.add_parser(
+        "set-source",
+        help=set_source_help,
+        description=set_source_help,
+        epilog=set_source_note_help,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    set_source.add_argument("--jira", help="Jira issue key or URL")
+    set_source.add_argument("--discovered", help="discovery date or identifier")
+    set_source.add_argument(
+        "--context",
+        help="brief discovery note (why this task was opened; not task.context)",
+    )
+    set_source.set_defaults(fn=cmd_set_source)
 
     profile_cmd = sub.add_parser("profile", help="show the active execution profile")
     profile_cmd.add_argument("--json", dest="json_output", action="store_true", help="output full validated profile as JSON")

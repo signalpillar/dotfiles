@@ -45,7 +45,7 @@ pi-job --task SLUG status                # preferred: slug under the task home
 Create a new home task (always a bundle: `task.yaml` + `plans/` + `references/`):
 
 ```bash
-pi-job --task SLUG create --kind setup
+pi-job --task SLUG create --kind setup --goal "Bootstrap the task home"
 ```
 
 Convert a legacy loose YAML into the home:
@@ -120,11 +120,21 @@ Details and kind mapping: `pi-job wayfinder-context --help` and the harness READ
 
 ## Harness Python contributions
 
-From `dot_local/share/pi-job-harness/` (or the applied package dir):
+From `dot_local/share/pi-job-harness/` (or the applied package dir after chezmoi apply):
+
+Verify and test from the source tree or slice worktree, not `~/.local/bin/pi-job`.
+See README **Verify harness changes** for commands, chezmoi apply policy, and the verify vs apply vs PATH table.
 
 ```bash
+cd dot_local/share/pi-job-harness/   # chezmoi source, or slice worktree with same layout
 uvx ruff@latest check .
+env -u PI_JOB_OWNER uv run --with pydantic --with pyyaml python tests/executable_test_pi_job.py
 ```
+
+The test runner strips `$PI_JOB_OWNER` before subprocess calls.
+Use `env -u PI_JOB_OWNER` when you run tests or CLI commands manually.
+
+When you change store, task models, or CLI behaviour, update README, this skill, and root `AGENTS.md` together (docs-with-model-cuts).
 
 Follow README **Agent dev notes**: put a coherent feature surface (e.g. Mermaid export) behind a named class boundary; keep `cmd_*` as thin wiring.
 Example in-tree: `SliceDependencyMermaid` for `show --graph`.

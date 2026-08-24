@@ -25,6 +25,8 @@ Technical text (docs, READMEs, runbooks, procedures, error messages, release not
   Claim a Ready slice (`claim --slice KEY --owner ID`), then `instruction` / `start` / `finish`; on pick-next run `finish --slice-only` then claim the next Ready slice (`advance` is deprecated).
   While a pi-job task is active: role = orchestrator (CLI-only; pause on grill/clarify); this supersedes any default Product Owner (or other) workspace role.
   If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).
+  Edits to pi-job-harness store, task models, or CLI behaviour need coordinated doc updates (docs-with-model-cuts).
+  Update the pi-job skill, harness README, and this file in the same change.
 - Before showing anyone a Mermaid diagram, validate it with the `mermaid` skill (`~/.agents/skills/mermaid`, `mermaid-validate <file>`) instead of eyeballing the syntax.
 - Never use the em dash "—".
   Use a plain dash "-" instead.

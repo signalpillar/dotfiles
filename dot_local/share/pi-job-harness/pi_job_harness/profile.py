@@ -16,7 +16,6 @@ from pi_job_harness.errors import die
 from pi_job_harness.task import (
     CodingExecutionPolicyDocument,
     ExecutionOwner,
-    SliceKindKey,
     StrictDocument,
 )
 
@@ -71,7 +70,7 @@ class ToolbeltAidDocument(StrictDocument):
     key: str = Field(description="Stable aid identifier; must match its mapping key.")
     title: str = Field(description="Human-readable aid name.")
     purpose: str = Field(description="Planning question or risk the aid addresses.")
-    suits: list[SliceKindKey] = Field(description="Slice kinds for which this aid is useful.")
+    suits: list[str] = Field(description="Slice kinds for which this aid is useful.")
     example: str | None = Field(default=None, description="Optional concise usage example.")
 
 
@@ -115,7 +114,7 @@ class SlicePoliciesDocument(StrictDocument):
 class SliceKindDocument(StrictDocument):
     """Live contract and creation template for one class of slice."""
 
-    key: SliceKindKey = Field(description="Stable slice-kind identifier; must match its mapping key.")
+    key: str = Field(description="Stable slice-kind identifier; must match its mapping key.")
     title: str = Field(description="Human-readable slice-kind name.")
     description: str = Field(description="Purpose and lifecycle role of the slice kind.")
     policies: SlicePoliciesDocument = Field(default_factory=SlicePoliciesDocument, description="Policies applied to this kind.")
@@ -139,10 +138,20 @@ class CliHelpFinishDocument(StrictDocument):
     note: str = Field(description="Help text for finish --note.")
 
 
+class CliHelpMutationDocument(StrictDocument):
+    """Argparse help for a mutation subcommand (profile is the only body)."""
+
+    command: str = Field(description="Subparser help/description.")
+    note: str = Field(description="Extended help for flags or usage.")
+
+
 class CliHelpDocument(StrictDocument):
     """CLI help snippets owned by the profile. Python must not hardcode these strings."""
 
     add_decision: CliHelpAddDecisionDocument = Field(description="Help for add-decision.")
+    set_step_note: CliHelpMutationDocument = Field(description="Help for set-step-note.")
+    set_slice_note: CliHelpMutationDocument = Field(description="Help for set-slice-note.")
+    set_source: CliHelpMutationDocument = Field(description="Help for set-source.")
     finish: CliHelpFinishDocument = Field(description="Help for finish channel-related flags.")
 
 
@@ -200,6 +209,18 @@ class InstructionPacketsDocument(StrictDocument):
         )
     )
     seed_slice_plans: str = Field(description="Preamble for SEED SLICE PLAN FILES NOW blocks after add-slice/bootstrap.")
+    plan_slices_seeded_banner: str = Field(
+        description=(
+            "One-line banner injected into plan-slices instruction when plan.slices is "
+            "already non-empty. Profile is the only body."
+        )
+    )
+    grill_before_cursor: str = Field(
+        description=(
+            "Grill-first then create pattern with finish --reconcile backfill. "
+            "Documented in README; referenced from setup guidance. Profile is the only body."
+        )
+    )
     slice_plan_stub: str = Field(
         description=(
             "Markdown body written when add-slice auto-creates a missing plan file. "
@@ -303,7 +324,7 @@ class ProfileDocument(StrictDocument):
         )
     )
     step_kinds: dict[str, StepKindDocument] = Field(description="Step execution contracts keyed by persisted step key.")
-    slice_kinds: dict[SliceKindKey, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
+    slice_kinds: dict[str, SliceKindDocument] = Field(description="Slice contracts keyed by slice kind.")
 
     @model_validator(mode="after")
     def validate_catalog_references(self) -> ProfileDocument:
@@ -350,6 +371,13 @@ class ProfileDocument(StrictDocument):
             if unknown_channels:
                 raise ValueError(
                     f"step kind {key!r} references unknown record_channels: {', '.join(unknown_channels)}"
+                )
+        known_kinds = set(self.slice_kinds)
+        for key, aid in self.toolbelt.items():
+            unknown_suits = [suit for suit in aid.suits if suit not in known_kinds]
+            if unknown_suits:
+                raise ValueError(
+                    f"toolbelt aid {key!r} references unknown slice kinds: {', '.join(unknown_suits)}"
                 )
         return self
 

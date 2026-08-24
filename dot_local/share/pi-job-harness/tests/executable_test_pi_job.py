@@ -8,6 +8,7 @@ import hashlib
 import importlib.machinery
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,7 @@ from pathlib import Path
 import yaml
 
 DEFAULT_OWNER = "orchestrator"
+TEST_GOAL = "Exercise create contract"
 
 
 def _now_iso() -> str:
@@ -433,13 +435,22 @@ def step_status(path: Path, slice_key: str, step_key: str) -> str:
 
 
 
-def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(*args: str, check: bool = True, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     if args and args[0] == str(PI_JOB) and not os.access(PI_JOB, os.X_OK):
         args = (sys.executable, *args)
-    res = subprocess.run(args, cwd=ROOT, text=True, capture_output=True, check=False)
+    env = os.environ.copy()
+    env.pop("PI_JOB_OWNER", None)  # tests-unset-pi-job-owner: never forward slice-window owner
+    res = subprocess.run(args, cwd=cwd or ROOT, text=True, capture_output=True, check=False, env=env)
     if check and res.returncode != 0:
         raise AssertionError(f"command failed: {' '.join(args)}\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
     return res
+
+
+def scaffold_projects_route(repo_root: Path, *, key: str = "example") -> Path:
+    route = repo_root / "projects" / key / "workflow.md"
+    route.parent.mkdir(parents=True, exist_ok=True)
+    route.write_text("# workflow\n", encoding="utf-8")
+    return route
 
 
 def assert_not_contains(haystack: str, needle: str) -> None:
@@ -571,9 +582,10 @@ def seed_block_after_marker(stdout: str) -> str:
     return stdout.split("SEED SLICE PLAN FILES NOW", 1)[1]
 
 
-def minimal_bootstrap_input_yaml(*, initial_slice_kind: str = "setup", slices_yaml: str = "") -> str:
+def minimal_bootstrap_input_yaml(*, initial_slice_kind: str = "setup", slices_yaml: str = "", goal: str = TEST_GOAL) -> str:
     """Minimal valid bootstrap input matching other bootstrap tests in this file."""
     return f"""title: Seed block test
+goal: {goal}
 initial_slice_kind: {initial_slice_kind}
 decisions:
   - date: "2026-07-28"
@@ -606,7 +618,7 @@ def test_profiled_task() -> None:
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "PI-JOB EXECUTION INSTRUCTION")
-        assert_contains(instruction, "Owner: orchestrator")
+        assert_contains(instruction, "Claim: orchestrator")
         assert_contains(instruction, "Role: orchestrator")
         assert_contains(instruction, "CLI-only store")
         assert_contains(instruction, "Slice: second-slice [implement]")
@@ -633,7 +645,7 @@ def test_uninitialized_task_requires_orchestration() -> None:
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Initialization: required")
-        assert_contains(status, "create [--kind setup|implement|...]")
+        assert_contains(status, "create [--kind setup|implement|... --goal")
 
         claim_cmd = run(str(PI_JOB), "--task", str(task), "claim", "--slice", "second-slice", "--owner", "x", check=False)
         if claim_cmd.returncode == 0:
@@ -648,7 +660,7 @@ def test_uninitialized_task_requires_orchestration() -> None:
         init_dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
         assert_contains(init_dry, "cursors: []")
 
-        run(str(PI_JOB), "--task", str(task), "create")
+        run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL)
         initialized = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(initialized, "Initialization: ok")
         assert_contains(initialized, "Cursors: <none>")
@@ -663,7 +675,7 @@ def test_init_with_kind_setup_seeds_setup_slice() -> None:
             "status": "in_progress",
             "plan": {"note": "", "slices": []},
         })
-        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL)
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Cursors: <none>")
         assert_contains(status, "Ready: setup-slice")
@@ -680,7 +692,7 @@ def test_setup_template_includes_wayfinder_step() -> None:
             "status": "in_progress",
             "plan": {"note": "", "slices": []},
         })
-        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL)
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         assert_contains(show, "wayfinder")
 
@@ -693,7 +705,7 @@ def test_fog_slice_kind_seeds_template() -> None:
             "status": "in_progress",
             "plan": {"note": "", "slices": []},
         })
-        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL)
         run(str(PI_JOB), "--task", str(task), "add-slice", "--kind", "fog",
             "--key", "chart-x", "--title", "Chart X", "--goal", "clear the fog")
         show = run(str(PI_JOB), "--task", str(task), "show", "--slice", "chart-x").stdout
@@ -770,7 +782,7 @@ def test_edit_code_owner_from_step_kinds() -> None:
             },
         })
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        assert_contains(instruction, "Owner: subagent")
+        assert_contains(instruction, "Claim: orchestrator")
         assert_contains(instruction, "Role: orchestrator dispatching subagent")
         assert_contains(instruction, "Step kind: edit-code")
         assert_contains(instruction, "Subagent prompt:")
@@ -785,7 +797,7 @@ def test_subagent_instruction_prohibits_direct_task_store_inspection() -> None:
         assert_not_contains(instruction, "Read the task file")
         assert_not_contains(instruction, "open the task YAML")
         assert_contains(instruction, "Subagent prompt:")
-        assert_contains(instruction, "Owner: subagent")
+        assert_contains(instruction, "Claim: orchestrator")
         assert_contains(instruction, "implement-slice / edit-code")
         assert_contains(instruction, "markdown --slice")
         assert_contains(instruction, "markdown --slice SLICE_KEY")
@@ -836,14 +848,27 @@ def test_subagent_orchestrator_prompt_is_separate_from_execution_body() -> None:
         assert record_idx < prompt_idx, "RECORD RESULTS must precede Subagent prompt"
 
 
+def _normalize_cli_help_stdout(text: str) -> str:
+    """Collapse whitespace and undo argparse wraps that split hyphenated tokens."""
+    collapsed = " ".join(text.split())
+    return re.sub(r"(?<=[a-z])- (?=[a-z])", "-", collapsed)
+
+
+def _assert_cli_help_uses_profile(command: list[str], entry: dict[str, str]) -> None:
+    help_text = _normalize_cli_help_stdout(run(str(PI_JOB), *command, "--help").stdout)
+    assert_contains(help_text, " ".join(str(entry["command"]).split()))
+    assert_contains(help_text, " ".join(str(entry["note"]).split()))
+
+
 def test_add_decision_and_finish_help_describe_channels() -> None:
     module = load_pi_job_module()
     cli_help = module.load_profile_contract()["cli_help"]
-    add_help = " ".join(run(str(PI_JOB), "add-decision", "--help").stdout.split())
-    finish_help = " ".join(run(str(PI_JOB), "finish", "--help").stdout.split())
-    assert_contains(add_help, str(cli_help["add_decision"]["command"]))
-    assert_contains(add_help, " ".join(str(cli_help["add_decision"]["note"]).split()))
+    _assert_cli_help_uses_profile(["add-decision"], cli_help["add_decision"])
+    finish_help = _normalize_cli_help_stdout(run(str(PI_JOB), "finish", "--help").stdout)
     assert_contains(finish_help, " ".join(str(cli_help["finish"]["note"]).split()))
+    _assert_cli_help_uses_profile(["set-step-note"], cli_help["set_step_note"])
+    _assert_cli_help_uses_profile(["set-slice-note"], cli_help["set_slice_note"])
+    _assert_cli_help_uses_profile(["set-source"], cli_help["set_source"])
 
 
 def test_decision_document_schema_describes_channels_contract() -> None:
@@ -993,7 +1018,10 @@ def test_orchestrator_instruction_includes_record_results() -> None:
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         _assert_record_results_block(
             instruction,
-            expected_channel_snippets=["STEP NOTE (finish --note)", "SLICE NOTE (finish --slice-only)"],
+            expected_channel_snippets=[
+                "STEP NOTE (finish --note, set-step-note)",
+                "SLICE NOTE (finish --slice-only, set-slice-note)",
+            ],
         )
 
 
@@ -1045,7 +1073,7 @@ def test_subagent_instruction_includes_record_results() -> None:
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         _assert_record_results_block(
             instruction,
-            expected_channel_snippets=["STEP NOTE (finish --note)", "REPO (set-worktree)"],
+            expected_channel_snippets=["STEP NOTE (finish --note, set-step-note)", "REPO (set-worktree)"],
         )
         assert_contains(instruction, "Subagent prompt:")
         assert_contains(instruction, "do not inspect the task store directly")
@@ -1145,6 +1173,7 @@ def test_pick_next_packet_is_structural_only() -> None:
         write_task_yaml(task, closing_slice_mapping())
         pick_next = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(pick_next, "PI-JOB PICK NEXT SLICE")
+        assert_contains(pick_next, "Claim: orchestrator")
         assert_contains(pick_next, "NEXT ACTION")
         assert_not_contains(pick_next, "Orchestrator instruction:")
         assert_not_contains(pick_next, "Lifecycle recording:")
@@ -1155,7 +1184,8 @@ def test_pick_next_packet_is_structural_only() -> None:
 def test_channels_cli_prints_catalog_and_step_blurbs() -> None:
     catalog = run(str(PI_JOB), "channels").stdout
     assert_contains(catalog, "decision (add-decision)")
-    assert_contains(catalog, "step_note (finish --note)")
+    assert_contains(catalog, "step_note (finish --note, set-step-note)")
+    assert_contains(catalog, "slice_note (finish --slice-only, set-slice-note)")
     step_out = run(str(PI_JOB), "channels", "--step", "share-with-team").stdout
     assert_contains(step_out, "share-with-team record channels")
     assert_contains(step_out, "step_note:")
@@ -1406,13 +1436,21 @@ def test_claim_displaces_stale_and_refuses_fresh() -> None:
 
 
 def test_owner_omit_when_sole_claim_and_ambiguous_refuse() -> None:
-    """instruction/status mutations may omit --owner with one claim; refuse when many."""
+    """instruction/start/finish may omit --owner with one claim; refuse when many."""
     with tempfile.TemporaryDirectory() as tmp:
         sole = Path(tmp) / "sole.yaml"
         write_task_yaml(sole, standard_fixture_mapping(cursor=("second-slice", "s2")))
         # No --owner: sole claim resolves.
         inst = run(str(PI_JOB), "--task", str(sole), "instruction").stdout
         assert_contains(inst, "second-slice / s2")
+        assert_contains(inst, "Claim: orchestrator")
+
+        run(str(PI_JOB), "--task", str(sole), "start", "--model", "openai/gpt-orchestrator")
+        out = run(
+            str(PI_JOB), "--task", str(sole), "finish",
+            "--note", "Claim-default finish on derived step.",
+        ).stdout
+        assert_contains(out, "finished: second-slice/s2")
 
         multi = Path(tmp) / "multi.yaml"
         mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
@@ -1425,12 +1463,19 @@ def test_owner_omit_when_sole_claim_and_ambiguous_refuse() -> None:
             claim_dict("second-slice", owner="b"),
         ]
         write_task_yaml(multi, mapping)
-        ambiguous = run(str(PI_JOB), "--task", str(multi), "instruction", check=False)
-        if ambiguous.returncode == 0:
-            raise AssertionError("instruction without owner should refuse when >1 claim")
-        assert_contains(ambiguous.stderr, "ambiguous owner")
+        for cmd in ("instruction", "start", "finish"):
+            ambiguous = run(
+                str(PI_JOB), "--task", str(multi), cmd,
+                *(["--model", "openai/gpt-orchestrator"] if cmd == "start" else []),
+                *(["--note", "n"] if cmd == "finish" else []),
+                check=False,
+            )
+            if ambiguous.returncode == 0:
+                raise AssertionError(f"{cmd} without owner should refuse when >1 claim")
+            assert_contains(ambiguous.stderr, "ambiguous owner")
         ok = run(str(PI_JOB), "--task", str(multi), "instruction", "--owner", "b").stdout
         assert_contains(ok, "second-slice / s2")
+        assert_contains(ok, "Claim: b")
 
 
 def test_finish_slice_only_auto_releases_claim() -> None:
@@ -1475,7 +1520,7 @@ def test_scaffold_creates_task_file() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         bundle = Path(tmp) / "nested" / "new-task"
         task = bundle / "task.yaml"
-        dry = run(str(PI_JOB), "--task", str(bundle), "create", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(bundle), "create", "--goal", TEST_GOAL, "--dry-run").stdout
         assert_contains(dry, "title:")
         assert_contains(dry, "key: do-the-change")
         if task.exists():
@@ -1490,6 +1535,8 @@ def test_scaffold_creates_task_file() -> None:
             "create",
             "--title",
             "Scaffolded example",
+            "--goal",
+            TEST_GOAL,
         ).stdout
         assert_contains(out, f"created: {task.resolve()}")
         assert task.exists()
@@ -1602,7 +1649,7 @@ def test_files_lists_bundle_references_and_plans() -> None:
         saved = os.environ.get("PI_JOB_TASKS")
         os.environ["PI_JOB_TASKS"] = str(home)
         try:
-            run(str(PI_JOB), "--task", "demo-files", "create", "--kind", "setup")
+            run(str(PI_JOB), "--task", "demo-files", "create", "--kind", "setup", "--goal", TEST_GOAL)
             bundle = home / "demo-files"
             bigpicture = bundle / "references" / "bigpicture.txt"
             bigpicture.parent.mkdir(parents=True, exist_ok=True)
@@ -1633,7 +1680,7 @@ def test_files_relative_uses_bundle_root() -> None:
         saved = os.environ.get("PI_JOB_TASKS")
         os.environ["PI_JOB_TASKS"] = str(home)
         try:
-            run(str(PI_JOB), "--task", "rel-files", "create", "--kind", "setup")
+            run(str(PI_JOB), "--task", "rel-files", "create", "--kind", "setup", "--goal", TEST_GOAL)
             bundle = home / "rel-files"
             stub = bundle / "references" / "bigpicture.txt"
             stub.parent.mkdir(parents=True, exist_ok=True)
@@ -1676,7 +1723,7 @@ def test_files_dedupes_registered_in_tree_paths() -> None:
         saved = os.environ.get("PI_JOB_TASKS")
         os.environ["PI_JOB_TASKS"] = str(home)
         try:
-            run(str(PI_JOB), "--task", "dedupe-files", "create", "--kind", "setup")
+            run(str(PI_JOB), "--task", "dedupe-files", "create", "--kind", "setup", "--goal", TEST_GOAL)
             bundle = home / "dedupe-files"
             bigpicture = bundle / "references" / "bigpicture.txt"
             bigpicture.parent.mkdir(parents=True, exist_ok=True)
@@ -1844,7 +1891,7 @@ def test_layers_add_stub_bind_graph_and_remove_guard() -> None:
             "status": "in_progress",
             "plan": {"note": "", "slices": []},
         })
-        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL)
 
         out = run(
             str(PI_JOB), "--task", str(task), "layers", "add",
@@ -1892,7 +1939,7 @@ def test_layers_add_stub_bind_graph_and_remove_guard() -> None:
             raise AssertionError("remove should refuse while slices bind the layer")
         assert_contains(refused.stderr, "still bound")
 
-        run(str(PI_JOB), "--task", str(task), "set-slice", "--key", "hold-api", "--layer", "webhooks")
+        run(str(PI_JOB), "--task", str(task), "set-slice", "--slice", "hold-api", "--layer", "webhooks")
         run(str(PI_JOB), "--task", str(task), "layers", "remove", "--name", "hold")
         listed = run(str(PI_JOB), "--task", str(task), "layers", "show").stdout
         assert_contains(listed, "webhooks")
@@ -1907,7 +1954,7 @@ def test_setup_maps_current_state_before_clarify_and_grill() -> None:
             "status": "in_progress",
             "plan": {"note": "", "slices": []},
         })
-        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL)
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         expected = [
             "explore-context",
@@ -2705,7 +2752,7 @@ def test_scaffold_mirrors_implement_template() -> None:
     wait-for-feedback) and must NOT carry retired keys like reconcile-artifacts."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "new" / "task.yaml"
-        dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL, "--dry-run").stdout
         for key in (
             "create-plan", "grill-plan", "edit-code", "verify", "code-review",
             "vulnerability-scan", "share-with-team", "update-task-file", "pi-job-feedback",
@@ -2731,7 +2778,7 @@ def test_scaffold_includes_create_plan_and_grill_plan_before_edit_code() -> None
     modeling the per-slice planning convention for anyone reading a fresh scaffold."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "new" / "task.yaml"
-        dry = run(str(PI_JOB), "--task", str(task), "create", "--dry-run").stdout
+        dry = run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL, "--dry-run").stdout
         assert_contains(dry, "key: create-plan")
         assert_contains(dry, "key: grill-plan")
         i_plan = dry.index("create-plan")
@@ -3129,7 +3176,7 @@ def test_scaffold_output_still_validates_via_shared_schema() -> None:
     """Real (non-dry-run) scaffold, then pi-job status/show succeed against it."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "schema-validate" / "task.yaml"
-        run(str(PI_JOB), "--task", str(task), "create")
+        run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL)
 
         # status and show should work without errors
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
@@ -3356,7 +3403,7 @@ def test_add_slice_rejects_unsupported_required_field() -> None:
 def test_validate_warns_when_persisted_slice_predates_template_addition() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "older-template" / "task.yaml"
-        run(str(PI_JOB), "--task", str(task), "create")
+        run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL)
         module = load_pi_job_module()
         store = module.open_task_store(task)
         task_data = store.read()
@@ -3369,7 +3416,7 @@ def test_validate_warns_when_persisted_slice_predates_template_addition() -> Non
 
 
 def _scaffolded_task_with_long_step_note(task: Path, *, note_len: int = 2001) -> None:
-    run(str(PI_JOB), "--task", str(task), "create")
+    run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL)
     module = load_pi_job_module()
     store = module.open_task_store(task)
     task_data = store.read()
@@ -3400,7 +3447,7 @@ def test_status_warns_on_long_note() -> None:
 def test_validate_warns_on_large_task_file() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "large_task" / "task.yaml"
-        run(str(PI_JOB), "--task", str(task), "create")
+        run(str(PI_JOB), "--task", str(task), "create", "--goal", TEST_GOAL)
         module = load_pi_job_module()
         store = module.open_task_store(task)
         task_data = store.read()
@@ -4123,6 +4170,279 @@ def test_sync_default_selection_and_status_override() -> None:
                 raise AssertionError(f"{excluded} should be excluded by --status planned override:\n{status_out}")
 
 
+def _implement_steps_with_statuses(status_by_key: dict[str, str]) -> list[dict]:
+    module = load_pi_job_module()
+    steps = []
+    for key, title in module.steps_from_kind_template("implement"):
+        steps.append({
+            "key": key,
+            "title": title,
+            "status": status_by_key.get(key, "planned"),
+            "note": "",
+        })
+    return steps
+
+
+def test_sync_feedback_only_tail_nonblocking() -> None:
+    """in_progress slice with only pi-job-feedback open is listed separately, not blocking."""
+    module = load_pi_job_module()
+    statuses = {key: "done" for key, _ in module.steps_from_kind_template("implement")}
+    statuses["pi-job-feedback"] = "planned"
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "feedback-tail.yaml"
+        write_task_yaml(task, {
+            "title": "Feedback tail",
+            "status": "in_progress",
+            "orchestration": {"cursors": [claim_dict("tail-slice")], "policy": _orchestration_policy()},
+            "decisions": [],
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "tail-slice",
+                    "kind": "implement",
+                    "title": "Tail",
+                    "goal": "g",
+                    "status": "in_progress",
+                    "note": "",
+                    "steps": _implement_steps_with_statuses(statuses),
+                    "final_steps": [],
+                }],
+            },
+        })
+        out = run(str(PI_JOB), "--task", str(task), "sync").stdout
+        assert_contains(out, "0 slice(s) to verify.")
+        assert_contains(out, "Feedback leftover (non-blocking, no live verification required):")
+        assert_contains(out, "informational only")
+        assert_contains(out, "tail-slice")
+        assert_contains(out, "pi-job-feedback")
+        if "1. tail-slice" in out:
+            raise AssertionError(f"feedback-only slice must not appear in blocking numbered list:\n{out}")
+
+
+def test_sync_feedback_only_with_open_pr_stays_blocking() -> None:
+    """pi-job-feedback-only tail with an open recorded PR remains blocking."""
+    module = load_pi_job_module()
+    statuses = {key: "done" for key, _ in module.steps_from_kind_template("implement")}
+    statuses["pi-job-feedback"] = "planned"
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "feedback-open-pr.yaml"
+        write_task_yaml(task, {
+            "title": "Feedback open PR",
+            "status": "in_progress",
+            "orchestration": {"cursors": [claim_dict("tail-pr")], "policy": _orchestration_policy()},
+            "decisions": [],
+            "plan": {
+                "note": "",
+                "slices": [{
+                    "key": "tail-pr",
+                    "kind": "implement",
+                    "title": "Tail PR",
+                    "goal": "g",
+                    "status": "in_progress",
+                    "note": "",
+                    "repo_work": {
+                        "some-repo": {
+                            "prs": [{"url": "https://example.com/pr/42", "status": "open", "note": ""}],
+                        },
+                    },
+                    "steps": _implement_steps_with_statuses(statuses),
+                    "final_steps": [],
+                }],
+            },
+        })
+        out = run(str(PI_JOB), "--task", str(task), "sync").stdout
+        assert_contains(out, "1 slice(s) to verify.")
+        assert_contains(out, "1. tail-pr")
+        assert_contains(out, "ACTION REQUIRED")
+        section_header = "Feedback leftover (non-blocking, no live verification required):"
+        if section_header in out:
+            raise AssertionError(f"open PR must keep slice blocking:\n{out}")
+        if "- tail-pr" in out:
+            raise AssertionError(f"open PR slice must not appear under feedback leftover list:\n{out}")
+
+
+def test_add_slice_first_prints_full_decisions_second_prints_summary() -> None:
+    """First add-slice when prior slices are setup-only prints full; later non-setup add prints summary."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "decisions-footer" / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
+        first = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input)).stdout
+        assert_contains(first, "Decisions:")
+        assert_contains(first, "Test decision")
+
+        run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "first-impl", "--title", "First impl", "--goal", "Work", "--kind", "implement",
+        )
+        third = run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "follow-up", "--title", "Follow", "--goal", "More work", "--kind", "implement",
+        ).stdout
+        assert_contains(third, "1 decisions unchanged")
+        assert_contains(third, "pi-job --task TASK_FILE markdown")
+        footer = third.split("1 decisions unchanged", 1)[-1]
+        if "Decisions:" in footer:
+            raise AssertionError(f"summary footer must not repeat full Decisions block:\n{third}")
+
+
+def test_add_slice_on_empty_plan_prints_full_decisions() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "empty-decisions.yaml"
+        write_task_yaml(task, {
+            "title": "Empty",
+            "status": "planned",
+            "orchestration": {"cursors": [], "policy": _orchestration_policy()},
+            "decisions": [{"date": "2026-08-21", "note": "Scope lock", "source": "chat"}],
+            "plan": {"note": "", "slices": []},
+        })
+        out = run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "first", "--title", "First", "--goal", "Work", "--kind", "implement",
+        ).stdout
+        assert_contains(out, "Decisions:")
+        assert_contains(out, "Scope lock")
+
+
+def test_add_slice_zero_decisions_prints_no_decisions_recorded() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "zero-decisions.yaml"
+        write_task_yaml(task, {
+            "title": "Zero decisions",
+            "status": "planned",
+            "orchestration": {"cursors": [], "policy": _orchestration_policy()},
+            "decisions": [],
+            "plan": {"note": "", "slices": []},
+        })
+        out = run(
+            str(PI_JOB), "--task", str(task), "add-slice",
+            "--key", "first", "--title", "First", "--goal", "Work", "--kind", "implement",
+        ).stdout
+        assert_contains(out, "no decisions recorded")
+
+
+def test_init_existing_task_seed_prints_decisions_footer() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "init-footer" / "task.yaml"
+        write_task_yaml(task, {
+            "title": "Init footer",
+            "status": "in_progress",
+            "decisions": [{"date": "2026-08-21", "note": "Prior scope", "source": "chat"}],
+            "plan": {"note": "", "slices": []},
+        })
+        out = run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL).stdout
+        assert_contains(out, "initialized:")
+        assert_contains(out, "Decisions:")
+        assert_contains(out, "Prior scope")
+
+
+def test_add_decision_supersede_appends_without_removing_prior() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "supersede.yaml"
+        write_task_yaml(task, {
+            **standard_fixture_mapping(),
+            "decisions": [{"date": "2026-07-01", "note": "Original scope lock", "source": "chat"}],
+        })
+        run(
+            str(PI_JOB), "--task", str(task), "add-decision",
+            "--note", "SUPERSEDES: 2026-07-01 (chat) - revised scope",
+            "--source", "grill",
+        )
+        md = run(
+            str(PI_JOB), "--task", str(task), "markdown",
+            "--slice", "second-slice", "--with-decisions",
+        ).stdout
+        assert_contains(md, "Original scope lock")
+        assert_contains(md, "SUPERSEDES:")
+        assert_contains(md, "revised scope")
+        module = load_pi_job_module()
+        decisions = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["decisions"]
+        if len(decisions) != 2:
+            raise AssertionError(f"expected 2 decision rows, got {len(decisions)}: {decisions}")
+        notes = [d["note"] for d in decisions]
+        if "Original scope lock" not in notes[0]:
+            raise AssertionError(f"prior row must survive: {notes}")
+
+
+def _instruction_on_setup_plan_slices(task: Path, *, owner: str = "orch") -> str:
+    run(str(PI_JOB), "--task", str(task), "claim", "--slice", "task-setup", "--owner", owner)
+    for step in (
+        "explore-context", "confirm-layers", "select-toolbelt", "map-current-state",
+        "clarify-scope", "grill", "wayfinder",
+    ):
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "test/model", "--owner", owner)
+        run(str(PI_JOB), "--task", str(task), "finish", "--note", "done", "--owner", owner)
+    return run(str(PI_JOB), "--task", str(task), "instruction", "--owner", owner).stdout
+
+
+def test_plan_slices_setup_only_keeps_add_slice_guidance() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "setup-only-plan" / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
+        run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
+        instruction = _instruction_on_setup_plan_slices(task)
+        assert_contains(instruction, "add-slice --kind implement")
+        if "Non-setup slices already seeded" in instruction:
+            raise AssertionError(f"setup-only task must not show seeded banner:\n{instruction}")
+
+
+def test_plan_slices_seeded_banner_when_non_setup_exists() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "seeded-plan" / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            minimal_bootstrap_input_yaml(
+                slices_yaml="""
+slices:
+  - key: implement-one
+    kind: implement
+    title: Implement one
+    goal: Ship the first change.
+    depends_on:
+      - task-setup
+""",
+            ),
+            encoding="utf-8",
+        )
+        run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
+        instruction = _instruction_on_setup_plan_slices(task)
+        assert_contains(instruction, "Non-setup slices already seeded")
+        assert_contains(instruction, "confirm layers + toolbelt")
+        assert "do not run primary add-slice" in instruction.lower()
+
+
+def test_setup_grill_guidance_failure_first() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "grill-guidance" / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(minimal_bootstrap_input_yaml(), encoding="utf-8")
+        run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
+        run(str(PI_JOB), "--task", str(task), "claim", "--slice", "task-setup", "--owner", "orch")
+        for step in ("explore-context", "confirm-layers", "select-toolbelt", "map-current-state", "clarify-scope"):
+            run(str(PI_JOB), "--task", str(task), "start", "--model", "test/model", "--owner", "orch")
+            run(str(PI_JOB), "--task", str(task), "finish", "--note", "done", "--owner", "orch")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--owner", "orch").stdout
+        assert_contains(instruction, "concrete failure")
+        assert_contains(instruction, "decision-access")
+
+
+def test_grill_plan_guidance_mentions_set_slice_on_supersede() -> None:
+    module = load_pi_job_module()
+    guidance = module.get_step_kind("grill-plan")["guidance"]
+    assert_contains(guidance, "set-slice --slice")
+    assert_contains(guidance, "SUPERSEDES:")
+
+
+def test_update_task_file_guidance_charter_followups() -> None:
+    module = load_pi_job_module()
+    guidance = module.get_step_kind("update-task-file")["guidance"]
+    assert_contains(guidance, "add-slice")
+    assert_contains(guidance, "go-to-prod")
+    assert_contains(guidance, "set-slice --slice")
+    assert_contains(guidance, "done or skipped")
+
+
 LEGACY_MIGRATE_PREAMBLE = """
 package task
 
@@ -4225,11 +4545,24 @@ def test_fs_task_store_round_trip() -> None:
 
         store.write_artifact("share_with_team", status="planned", path=None, note="registered")
 
+        store.set_step_note(
+            slice_key="alpha",
+            step_key="edit-code",
+            note="append-only progress",
+            replace=False,
+        )
+        store.set_slice_note(slice_key="alpha", note="slice narrative", replace=False)
+        store.set_source({"jira": "PROJ-1", "discovered": "2026-08-21", "context": "from triage"})
+
         task = store.read()
 
         assert task["title"] == "FS round-trip task"
         assert task["status"] == "in_progress"
-        assert task["source"] == {}
+        assert task["source"] == {
+            "jira": "PROJ-1",
+            "discovered": "2026-08-21",
+            "context": "from triage",
+        }
         assert task["project"] == {}
         assert task["context"] == ""
         assert task["decisions"] == []
@@ -4254,10 +4587,11 @@ def test_fs_task_store_round_trip() -> None:
         assert alpha["title"] == "Alpha"
         assert alpha["goal"] == "Alpha goal"
         assert alpha["status"] == "planned"
-        assert alpha["note"] == ""
+        assert alpha["note"] == "slice narrative"
         assert alpha["repos"] == ["repo-a", "repo-b"]
         assert "depends_on" not in alpha
         assert [s["key"] for s in alpha["steps"]] == ["edit-code"]
+        assert alpha["steps"][0]["note"] == "implemented\n\nappend-only progress"
         assert alpha["steps"][0]["execution"]["model"] == "anthropic/claude-test"
         assert alpha["steps"][0]["execution"]["ended"] == "2026-07-01T10:05:00Z"
         assert [s["key"] for s in alpha["final_steps"]] == ["wrap-up"]
@@ -4392,7 +4726,7 @@ def test_persisted_models_document_every_field() -> None:
         "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
         "SliceKindDocument", "InstructionPacketsDocument", "CliHelpDocument",
-        "CliHelpAddDecisionDocument", "CliHelpFinishDocument", "ProfileDocument",
+        "CliHelpAddDecisionDocument", "CliHelpMutationDocument", "CliHelpFinishDocument", "ProfileDocument",
         "OrchestrationDefaultsDocument", "RecordChannelsDocument",
     )
     missing = [
@@ -4725,6 +5059,21 @@ def test_profile_requires_cli_help() -> None:
         raise AssertionError("profile accepted missing cli_help")
 
 
+def test_profile_requires_mutation_cli_help_entries() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    for key in ("set_step_note", "set_slice_note", "set_source"):
+        trial = dict(profile)
+        trial["cli_help"] = dict(profile["cli_help"])
+        del trial["cli_help"][key]
+        try:
+            module.ProfileDocument.model_validate(trial)
+        except module.ValidationError as exc:
+            assert_contains(str(exc), key)
+        else:
+            raise AssertionError(f"profile accepted cli_help without {key}")
+
+
 
 
 
@@ -4929,22 +5278,21 @@ def test_finish_replace_refused_with_skip() -> None:
         assert_contains(res.stderr, "finish --replace cannot be combined with --skip")
 
 
-def test_finish_bare_refuses_when_multiple_unfinished_steps() -> None:
-    """When ≥2 unfinished steps exist, bare finish (cursor defaults) fails closed."""
+def test_finish_bare_ok_when_claim_resolves_despite_other_unfinished_steps() -> None:
+    """Claim-default bare finish targets the derived active step even when other slices have open work."""
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "finish-ambiguous.yaml"
+        task = Path(tmp) / "finish-claim-default.yaml"
         mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
         write_task_yaml(task, mapping)
         run(str(PI_JOB), "--task", str(task), "start", "--model", "openai/gpt-orchestrator")
-        res = run(
+        out = run(
             str(PI_JOB), "--task", str(task), "finish",
-            "--note", "Should refuse - other unfinished steps exist.",
-            check=False,
-        )
-        if res.returncode == 0:
-            raise AssertionError("bare finish with multiple unfinished steps unexpectedly succeeded")
-        assert_contains(res.stderr, "finish target ambiguous")
-        assert_contains(res.stderr, "--slice KEY --step KEY")
+            "--note", "Finish derived step despite other unfinished steps in task.",
+        ).stdout
+        assert_contains(out, "finished: second-slice/s2")
+        module = load_pi_job_module()
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "second-slice", "s2")
+        assert step["status"] == "done"
 
 
 def test_finish_explicit_slice_step_ok_when_multiple_unfinished() -> None:
@@ -4969,6 +5317,107 @@ def test_finish_explicit_slice_step_ok_when_multiple_unfinished() -> None:
         assert step["status"] == "done"
 
 
+def test_finish_one_shot_explicit_slice_step() -> None:
+    """Explicit --slice --step --model --note may finish a never-started step atomically."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-one-shot.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        out = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--model", "google/gemini-reviewer",
+            "--note", "One-shot scan evidence.",
+        ).stdout
+        assert_contains(out, "finished: implementation/vulnerability-scan")
+        module = load_pi_job_module()
+        step = find_step(
+            module.YamlTaskStore(module.YamlTaskLayout(task)).read(),
+            "implementation", "vulnerability-scan",
+        )
+        assert step["status"] == "done"
+        assert step["execution"]["started"] == step["execution"]["ended"]
+
+
+def test_finish_one_shot_refuses_empty_note() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-one-shot-empty-note.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--model", "google/gemini-reviewer",
+            "--note", "   ",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "non-empty --note")
+
+
+def test_finish_one_shot_refuses_same_model_as_author() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-one-shot-same-model.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--model", "anthropic/claude-writer",
+            "--note", "Should refuse author model on policy-governed scan.",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "must differ from edit-code model")
+
+
+def test_finish_one_shot_refuses_blocked_slice() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-one-shot-blocked-slice.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"][0]["status"] = "blocked"
+        write_task_yaml(task, mapping)
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--model", "google/gemini-reviewer",
+            "--note", "Blocked slice should refuse one-shot.",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "slice is blocked")
+
+
+def test_finish_one_shot_refuses_terminal_without_execution() -> None:
+    """Terminal step status refuses one-shot even when execution metadata is absent."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-one-shot-terminal.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"][0]["steps"][1]["status"] = "done"
+        write_task_yaml(task, mapping)
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--model", "google/gemini-reviewer",
+            "--note", "Terminal step should refuse one-shot.",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "cannot finish completed work")
+
+
+def test_finish_claim_default_refuses_without_start() -> None:
+    """Claim-default bare finish never one-shots a never-started step."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "finish-no-one-shot-default.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--note", "Should refuse - step was never started.",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "work was not started")
+        assert_contains(res.stderr, "one-shot with --slice KEY --step KEY")
+
+
 def test_finish_bare_ok_when_exactly_one_unfinished_step() -> None:
     """Bare finish remains allowed when the task has only one unfinished step."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -4988,7 +5437,7 @@ def test_set_slice_updates_title_and_goal() -> None:
         write_task_yaml(task, lifecycle_mapping())
         out = run(
             str(PI_JOB), "--task", str(task), "set-slice",
-            "--key", "implementation", "--title", "New title", "--goal", "New goal",
+            "--slice", "implementation", "--title", "New title", "--goal", "New goal",
         ).stdout
         assert_contains(out, "updated slice:")
         assert_contains(out, "title=New title")
@@ -5004,7 +5453,7 @@ def test_set_slice_requires_one_field() -> None:
         task = Path(tmp) / "set-slice-no-fields.yaml"
         write_task_yaml(task, lifecycle_mapping())
         res = run(
-            str(PI_JOB), "--task", str(task), "set-slice", "--key", "implementation",
+            str(PI_JOB), "--task", str(task), "set-slice", "--slice", "implementation",
             check=False,
         )
         assert res.returncode != 0
@@ -5019,7 +5468,7 @@ def test_set_slice_refuses_done_slice() -> None:
         write_task_yaml(task, mapping)
         res = run(
             str(PI_JOB), "--task", str(task), "set-slice",
-            "--key", "implementation", "--title", "Too late",
+            "--slice", "implementation", "--title", "Too late",
             check=False,
         )
         assert res.returncode != 0
@@ -5034,7 +5483,7 @@ def test_block_slice_sets_status_and_appends_note() -> None:
         write_task_yaml(task, mapping)
         run(
             str(PI_JOB), "--task", str(task), "block-slice",
-            "--key", "implementation", "--reason", "Waiting on upstream API",
+            "--slice", "implementation", "--reason", "Waiting on upstream API",
         )
         module = load_pi_job_module()
         task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
@@ -5042,7 +5491,7 @@ def test_block_slice_sets_status_and_appends_note() -> None:
         assert task_slice["note"] == "Existing blocker context\n\nWaiting on upstream API"
         run(
             str(PI_JOB), "--task", str(task), "block-slice",
-            "--key", "implementation", "--reason", "Still blocked",
+            "--slice", "implementation", "--reason", "Still blocked",
         )
         task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
         assert task_slice["note"].endswith("Still blocked")
@@ -5057,7 +5506,7 @@ def test_block_slice_refuses_done() -> None:
         write_task_yaml(task, mapping)
         res = run(
             str(PI_JOB), "--task", str(task), "block-slice",
-            "--key", "implementation", "--reason", "Too late",
+            "--slice", "implementation", "--reason", "Too late",
             check=False,
         )
         assert res.returncode != 0
@@ -5072,7 +5521,7 @@ def test_unblock_slice_restores_planned() -> None:
         mapping["plan"]["slices"][0]["note"] = "Blocker note"
         write_task_yaml(task, mapping)
         out = run(
-            str(PI_JOB), "--task", str(task), "unblock-slice", "--key", "implementation",
+            str(PI_JOB), "--task", str(task), "unblock-slice", "--slice", "implementation",
         ).stdout
         assert_contains(out, "unblocked slice: implementation [planned]")
         module = load_pi_job_module()
@@ -5086,11 +5535,185 @@ def test_unblock_slice_refuses_non_blocked() -> None:
         task = Path(tmp) / "unblock-slice-planned.yaml"
         write_task_yaml(task, lifecycle_mapping())
         res = run(
-            str(PI_JOB), "--task", str(task), "unblock-slice", "--key", "implementation",
+            str(PI_JOB), "--task", str(task), "unblock-slice", "--slice", "implementation",
             check=False,
         )
         assert res.returncode != 0
         assert_contains(res.stderr, "slice is not blocked")
+
+
+def test_set_slice_rejects_legacy_key_flag() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-slice-legacy-key.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        legacy_only = run(
+            str(PI_JOB), "--task", str(task), "set-slice",
+            "--key", "implementation", "--title", "Legacy",
+            check=False,
+        )
+        assert legacy_only.returncode != 0
+        assert (
+            "unrecognized arguments: --key" in legacy_only.stderr
+            or "the following arguments are required: --slice" in legacy_only.stderr
+        )
+        with_slice = run(
+            str(PI_JOB), "--task", str(task), "set-slice",
+            "--slice", "implementation", "--key", "implementation", "--title", "Legacy",
+            check=False,
+        )
+        assert with_slice.returncode != 0
+        assert "unrecognized arguments: --key" in with_slice.stderr
+
+
+def test_set_step_note_appends_without_status_change() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-step-note-append.yaml"
+        mapping = lifecycle_mapping(note="Existing evidence")
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB), "--task", str(task), "set-step-note",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--note", "Mid-wait check passed.",
+        )
+        module = load_pi_job_module()
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
+        assert step["note"] == "Existing evidence\n\nMid-wait check passed."
+        assert step["status"] == "planned"
+        assert "execution" not in step or step.get("execution") is None
+
+
+def test_set_step_note_replace_overwrites() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-step-note-replace.yaml"
+        mapping = lifecycle_mapping(note="Old evidence")
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB), "--task", str(task), "set-step-note",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--replace", "--note", "Replacement only.",
+        )
+        module = load_pi_job_module()
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
+        assert step["note"] == "Replacement only."
+
+
+def test_set_step_note_replace_requires_note() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-step-note-replace-no-note.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        res = run(
+            str(PI_JOB), "--task", str(task), "set-step-note",
+            "--slice", "implementation", "--step", "vulnerability-scan",
+            "--replace",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "set-step-note --replace requires --note")
+
+
+def test_set_step_note_on_in_progress_wait_step() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-step-note-wait.yaml"
+        mapping = lifecycle_mapping()
+        wait_step = {
+            "key": "wait-for-feedback",
+            "title": "Wait",
+            "status": "in_progress",
+            "note": "",
+            "execution": {
+                "model": "openai/gpt-orchestrator",
+                "started": "2026-07-01T12:00:00Z",
+            },
+        }
+        mapping["plan"]["slices"][0]["steps"].append(wait_step)
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB), "--task", str(task), "set-step-note",
+            "--slice", "implementation", "--step", "wait-for-feedback",
+            "--note", "Review thread active; no merge yet.",
+        )
+        module = load_pi_job_module()
+        step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "wait-for-feedback")
+        assert step["status"] == "in_progress"
+        assert step["note"] == "Review thread active; no merge yet."
+        assert step["execution"]["started"] == "2026-07-01T12:00:00Z"
+
+
+def test_set_slice_note_while_steps_open() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-slice-note-open.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"][0]["note"] = "Baseline narrative"
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB), "--task", str(task), "set-slice-note",
+            "--slice", "implementation", "--note", "Handoff context for next step.",
+        )
+        module = load_pi_job_module()
+        task_data = module.YamlTaskStore(module.YamlTaskLayout(task)).read()
+        task_slice = task_data["plan"]["slices"][0]
+        assert task_slice["note"] == "Baseline narrative\n\nHandoff context for next step."
+        assert task_slice["status"] == "in_progress"
+        assert find_step(task_data, "implementation", "vulnerability-scan")["status"] == "planned"
+
+
+def test_set_slice_note_replace_overwrites() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-slice-note-replace.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"][0]["note"] = "Old slice note"
+        write_task_yaml(task, mapping)
+        run(
+            str(PI_JOB), "--task", str(task), "set-slice-note",
+            "--slice", "implementation", "--replace", "--note", "Fresh slice note",
+        )
+        module = load_pi_job_module()
+        task_slice = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["plan"]["slices"][0]
+        assert task_slice["note"] == "Fresh slice note"
+
+
+def test_set_source_merge_preserves_fields() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-source-merge.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(str(PI_JOB), "--task", str(task), "set-source", "--jira", "SHEMED-123")
+        run(str(PI_JOB), "--task", str(task), "set-source", "--discovered", "2026-08-21")
+        run(
+            str(PI_JOB), "--task", str(task), "set-source",
+            "--context", "Opened from support ticket triage.",
+        )
+        module = load_pi_job_module()
+        source = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["source"]
+        assert source["jira"] == "SHEMED-123"
+        assert source["discovered"] == "2026-08-21"
+        assert source["context"] == "Opened from support ticket triage."
+
+
+def test_set_source_refuses_empty_invocation() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-source-empty.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        res = run(str(PI_JOB), "--task", str(task), "set-source", check=False)
+        assert res.returncode != 0
+        assert_contains(res.stderr, "at least one field is required")
+
+
+def test_set_source_empty_string_overwrites_field() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-source-empty-str.yaml"
+        mapping = lifecycle_mapping()
+        mapping["source"] = {
+            "jira": "OLD-1",
+            "discovered": "2026-01-01",
+            "context": "prior discovery note",
+        }
+        write_task_yaml(task, mapping)
+        run(str(PI_JOB), "--task", str(task), "set-source", "--jira", "")
+        module = load_pi_job_module()
+        source = module.YamlTaskStore(module.YamlTaskLayout(task)).read()["source"]
+        assert source["jira"] == ""
+        assert source["discovered"] == "2026-01-01"
+        assert source["context"] == "prior discovery note"
 
 
 def test_start_refuses_blocked_slice() -> None:
@@ -5109,16 +5732,87 @@ def test_start_refuses_blocked_slice() -> None:
         assert_contains(res.stderr, "unblock-slice")
 
 
-def test_vulnerability_scan_rejects_writer_model() -> None:
+def test_vulnerability_scan_allows_author_model_at_start() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "same-model.yaml"
+        task = Path(tmp) / "same-model-start.yaml"
         write_task_yaml(task, lifecycle_mapping())
-        result = run(
+        out = run(
             str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-writer",
+        ).stdout
+        assert_contains(out, "started: implementation/vulnerability-scan")
+
+
+def test_vulnerability_scan_finish_same_model_refuses() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "same-model-finish.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-writer")
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--note", "Scan findings.",
             check=False,
         )
-        assert result.returncode != 0
-        assert_contains(result.stderr, "must differ from edit-code model")
+        assert res.returncode != 0
+        assert_contains(res.stderr, "must differ from edit-code model")
+
+
+def test_vulnerability_scan_finish_distinct_model_succeeds() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "distinct-model-finish.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-writer")
+        module = load_pi_job_module()
+        after_start = find_step(
+            module.YamlTaskStore(module.YamlTaskLayout(task)).read(),
+            "implementation", "vulnerability-scan",
+        )
+        decision_started = after_start["execution"]["started"]
+        out = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--model", "google/gemini-reviewer",
+            "--note", "Scan complete.",
+        ).stdout
+        assert_contains(out, "finished: implementation/vulnerability-scan")
+        step = find_step(
+            module.YamlTaskStore(module.YamlTaskLayout(task)).read(),
+            "implementation", "vulnerability-scan",
+        )
+        assert step["execution"]["model"] == "google/gemini-reviewer"
+        assert step["execution"]["started"] == step["execution"]["ended"]
+        assert step["execution"]["started"] != decision_started
+
+
+def test_finish_skip_reuses_started_model_without_flag() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "skip-reuse-model.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-writer")
+        run(
+            str(PI_JOB), "--task", str(task), "finish", "--skip",
+            "--reason", "User declined vulnerability-scan for this slice",
+        )
+        module = load_pi_job_module()
+        step = find_step(
+            module.YamlTaskStore(module.YamlTaskLayout(task)).read(),
+            "implementation", "vulnerability-scan",
+        )
+        assert step["status"] == "skipped"
+        assert step["execution"]["model"] == "anthropic/claude-writer"
+
+
+def test_finish_skip_refuses_mismatched_explicit_model() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "skip-model-mismatch.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-writer")
+        res = run(
+            str(PI_JOB), "--task", str(task), "finish", "--skip",
+            "--model", "google/gemini-reviewer",
+            "--reason", "User declined vulnerability-scan for this slice",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "refusing to finish")
 
 
 def test_vulnerability_scan_instruction_prefers_higher_reasoning_model() -> None:
@@ -5130,6 +5824,7 @@ def test_vulnerability_scan_instruction_prefers_higher_reasoning_model() -> None
         assert_contains(instruction, "vulnerability-scan")
         assert_contains(instruction, "higher-reasoning")
         assert_contains(instruction, "Model recorded on edit-code")
+        assert_contains(instruction, "When this step completes as done")
         assert_contains(instruction, "anthropic/claude-writer")
 
 
@@ -5152,7 +5847,7 @@ def test_start_unqualified_model_error_includes_example() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "unqualified-start" / "task.yaml"
         # create seeds cursors:[]; claim before start so the model-id check is reached.
-        run(str(PI_JOB), "--task", str(task), "create", "--kind", "implement", "--force", "--title", "Model id")
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "implement", "--force", "--title", "Model id", "--goal", TEST_GOAL)
         run(str(PI_JOB), "--task", str(task), "claim", "--slice", "implement-slice", "--owner", DEFAULT_OWNER)
         res = run(
             str(PI_JOB), "--task", str(task), "start", "--model", "composer-2",
@@ -5273,7 +5968,11 @@ def test_lifecycle_policy_is_step_key_agnostic() -> None:
         same_model = module.step_policy_issue(
             task_slice, audit, model="provider/writer", status="in_progress", note=""
         )
-        assert "independent-audit model must differ from generate-assets model" in same_model
+        assert same_model is None
+        same_model_done = module.step_policy_issue(
+            task_slice, audit, model="provider/writer", status="done", note=""
+        )
+        assert "independent-audit model must differ from generate-assets model" in same_model_done
         declined = module.step_policy_issue(
             task_slice, audit, model="provider/reviewer", status="skipped", note="ordinary skip"
         )
@@ -5293,7 +5992,7 @@ def test_scaffold_empty_plan_has_no_slices() -> None:
 def test_scaffold_initial_kind_setup_seeds_setup_slice() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "initial-kind" / "task.yaml"
-        out = run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--dry-run").stdout
+        out = run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL, "--dry-run").stdout
         assert "setup-slice" in out
         assert "explore-context" in out
         assert "do-the-change" not in out
@@ -5305,6 +6004,7 @@ def test_bootstrap_creates_initialized_task() -> None:
         bootstrap_input = Path(tmp) / "input.yaml"
         bootstrap_input.write_text("""
 title: Bootstrap test
+goal: Prepare repository scaffolding
 initial_slice_kind: setup
 source:
   discovered: "2026-07-27"
@@ -5312,7 +6012,7 @@ source:
 project:
   key: test-project
   name: Test Project
-  route: test.html
+  route: ""
   context: Test context.
 context: Background context.
 decisions:
@@ -5585,7 +6285,7 @@ def test_remove_slice_removes_and_guards() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "remove-slice" / "task.yaml"
         bootstrap_input = Path(tmp) / "input.yaml"
-        bootstrap_input.write_text("title: Remove test\ninitial_slice_kind: setup\nslices:\n  - key: dependent\n    kind: implement\n    title: Dependent\n    goal: Test\n    depends_on: [task-setup]\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
+        bootstrap_input.write_text("title: Remove test\ngoal: Seed setup slice\ninitial_slice_kind: setup\nslices:\n  - key: dependent\n    kind: implement\n    title: Dependent\n    goal: Test\n    depends_on: [task-setup]\ndecisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n", encoding="utf-8")
         run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input))
         # Refuse to remove a slice that others depend on
         result = run(str(PI_JOB), "--task", str(task), "remove-slice", "--key", "task-setup", check=False)
@@ -5821,7 +6521,7 @@ def test_finish_while_dirty_does_not_clear_digest() -> None:
         run(
             str(PI_JOB), "--task", str(task_path), "start", "--model", "provider/test",
         )
-        # Fixture has two unfinished steps (s2 + final finish); bare finish is ambiguous.
+        # Fixture has two unfinished steps (s2 + final finish); explicit slice/step still works.
         run(
             str(PI_JOB),
             "--task",
@@ -5884,7 +6584,11 @@ def test_bootstrap_rejects_initial_slice_key_without_kind() -> None:
         same_model = module.step_policy_issue(
             task_slice, audit, model="provider/writer", status="in_progress", note=""
         )
-        assert "independent-audit model must differ from generate-assets model" in same_model
+        assert same_model is None
+        same_model_done = module.step_policy_issue(
+            task_slice, audit, model="provider/writer", status="done", note=""
+        )
+        assert "independent-audit model must differ from generate-assets model" in same_model_done
         declined = module.step_policy_issue(
             task_slice, audit, model="provider/reviewer", status="skipped", note="ordinary skip"
         )
@@ -6415,7 +7119,7 @@ def test_block_slice_gate_appends_depends_on() -> None:
             "--task",
             str(task),
             "block-slice",
-            "--key",
+            "--slice",
             "implementation",
             "--reason",
             "Needs fix",
@@ -6930,7 +7634,7 @@ def test_create_slug_scaffolds_bundle() -> None:
             resolved = module.resolve_create_task_arg("demo-slug")
             assert resolved == (home / "demo-slug" / "task.yaml").resolve()
 
-            out = run(str(PI_JOB), "--task", "demo-slug", "create", "--kind", "setup").stdout
+            out = run(str(PI_JOB), "--task", "demo-slug", "create", "--kind", "setup", "--goal", TEST_GOAL).stdout
             assert_contains(out, "created:")
             bundle = home / "demo-slug"
             assert (bundle / "task.yaml").is_file()
@@ -6984,7 +7688,7 @@ def test_create_duplicate_slug() -> None:
         saved = os.environ.get("PI_JOB_TASKS")
         os.environ["PI_JOB_TASKS"] = str(home)
         try:
-            run(str(PI_JOB), "--task", "dup-slug", "create", "--kind", "setup")
+            run(str(PI_JOB), "--task", "dup-slug", "create", "--kind", "setup", "--goal", TEST_GOAL)
             bundle = home / "dup-slug"
             marker = bundle / "plans" / "keep-me.md"
             marker.write_text("keep this\n", encoding="utf-8")
@@ -6994,7 +7698,7 @@ def test_create_duplicate_slug() -> None:
             assert_contains(again.stderr, "already exists")
             assert marker.is_file()
 
-            forced = run(str(PI_JOB), "--task", "dup-slug", "create", "--force", "--title", "Forced retitle")
+            forced = run(str(PI_JOB), "--task", "dup-slug", "create", "--force", "--title", "Forced retitle", "--goal", TEST_GOAL)
             assert forced.returncode == 0
             assert marker.is_file()
             assert marker.read_text(encoding="utf-8") == "keep this\n"
@@ -7151,6 +7855,8 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "maintain_header",
         "maintain_empty",
         "maintain_item",
+        "plan_slices_seeded_banner",
+        "grill_before_cursor",
     ):
         profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
         del profile["instruction_packets"][field]
@@ -7738,6 +8444,316 @@ def test_set_worktree_recommend_loose_yaml() -> None:
         assert_contains(res.stdout, "note:")
 
 
+def test_create_kind_requires_goal() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "needs-goal" / "task.yaml"
+        res = run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", check=False)
+        assert res.returncode != 0
+        assert_contains(res.stderr, "--goal is required")
+
+
+def test_create_rejects_boilerplate_goal() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "boilerplate-goal" / "task.yaml"
+        res = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "create",
+            "--kind",
+            "setup",
+            "--goal",
+            "Initial setup slice seeded by pi-job create",
+            check=False,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "boilerplate")
+
+
+def test_create_bare_requires_goal() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bare" / "task.yaml"
+        res = run(str(PI_JOB), "--task", str(task), "create", check=False)
+        assert res.returncode != 0
+        assert_contains(res.stderr, "--goal is required")
+        assert_contains(res.stderr, "--empty-plan")
+
+
+def test_create_bare_stores_goal_on_implement_slice() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bare-goal" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--goal", "Deliver the bounded change")
+        module = load_pi_job_module()
+        sl = module.open_task_store(task).read()["plan"]["slices"][0]
+        assert sl["goal"] == "Deliver the bounded change"
+
+
+def test_create_empty_plan_does_not_require_goal() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "empty" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan")
+        module = load_pi_job_module()
+        data = module.open_task_store(task).read()
+        assert data["plan"]["slices"] == []
+        assert data["project"]["route"] == ""
+
+
+def test_bootstrap_requires_top_level_goal_when_initial_slice_kind_set() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-no-goal" / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            "title: Missing goal\ninitial_slice_kind: setup\ndecisions:\n"
+            "  - date: '2026-07-27'\n    note: Decision\n    source: test\n",
+            encoding="utf-8",
+        )
+        res = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), check=False)
+        assert res.returncode != 0
+        assert_contains(res.stderr, "goal is required when initial_slice_kind is set")
+
+
+def test_bootstrap_rejects_boilerplate_slice_goal() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "bootstrap-boilerplate" / "task.yaml"
+        bootstrap_input = Path(tmp) / "input.yaml"
+        bootstrap_input.write_text(
+            "title: Bad slice goal\nslices:\n"
+            "  - key: only-slice\n    kind: implement\n    title: Only\n"
+            "    goal: Ship the bounded edit with verification.\n"
+            "decisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n",
+            encoding="utf-8",
+        )
+        res = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), check=False)
+        assert res.returncode != 0
+        assert_contains(res.stderr, "boilerplate")
+
+
+def test_set_project_route_missing_fails_with_hint() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        scaffold_projects_route(repo, key="example")
+        task = repo / "task-bundle" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", cwd=repo)
+        res = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "set-project",
+            "--route",
+            "projects/example/missing.md",
+            check=False,
+            cwd=repo,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "project.route not found")
+        assert_contains(res.stderr, "projects/example/workflow.md")
+
+
+def test_set_project_route_exists() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        route = scaffold_projects_route(repo, key="acme")
+        task = repo / "task-bundle" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", cwd=repo)
+        rel = route.relative_to(repo).as_posix()
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "set-project",
+            "--route",
+            rel,
+            "--key",
+            "acme",
+            cwd=repo,
+        )
+        module = load_pi_job_module()
+        project = module.open_task_store(task).read()["project"]
+        assert project["route"] == rel
+        assert project["key"] == "acme"
+
+
+def test_set_project_key_route_mismatch() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        scaffold_projects_route(repo, key="acme")
+        task = repo / "task-bundle" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", cwd=repo)
+        res = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "set-project",
+            "--route",
+            "projects/acme/workflow.md",
+            "--key",
+            "beta",
+            check=False,
+            cwd=repo,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "does not match projects/ segment")
+
+
+def test_create_from_validates_project_route() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        scaffold_projects_route(repo, key="example")
+        task = repo / "bundle" / "task.yaml"
+        (repo / "bad-intent.yaml").write_text(
+            "title: Bad route\ngoal: Setup work\ninitial_slice_kind: setup\nproject:\n"
+            "  route: projects/example/missing.md\n"
+            "decisions:\n  - date: '2026-07-27'\n    note: Decision\n    source: test\n",
+            encoding="utf-8",
+        )
+        res = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "create",
+            "--from",
+            str(repo / "bad-intent.yaml"),
+            check=False,
+            cwd=repo,
+        )
+        assert res.returncode != 0
+        assert_contains(res.stderr, "project.route not found")
+        assert_contains(res.stderr, "projects/example/workflow.md")
+
+
+def test_slice_kind_key_is_profile_backed_str_alias() -> None:
+    from pi_job_harness.task import SliceKindKey
+
+    assert SliceKindKey is str
+
+
+def test_project_validation_helpers() -> None:
+    from pi_job_harness.project_validation import (
+        is_boilerplate_create_goal,
+        nearest_existing_route_hint,
+        normalize_real_goal,
+        validate_project_route_and_key,
+    )
+
+    assert is_boilerplate_create_goal("Initial setup slice seeded by pi-job create")
+    assert is_boilerplate_create_goal("Ship the bounded edit with verification.")
+    try:
+        normalize_real_goal("Initial setup slice seeded by pi-job create")
+        raise AssertionError("expected ValueError for boilerplate goal")
+    except ValueError:
+        pass
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        scaffold_projects_route(repo, key="example")
+        validate_project_route_and_key("projects/example/workflow.md", "example", repo_root=repo)
+        hint = nearest_existing_route_hint("projects/example/missing.md", repo)
+        assert hint == "projects/example/workflow.md"
+
+
+def test_profile_rejects_unknown_toolbelt_suits_kind() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    first_aid = next(iter(profile["toolbelt"]))
+    profile["toolbelt"][first_aid]["suits"] = ["not-a-real-slice-kind"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "not-a-real-slice-kind")
+    else:
+        raise AssertionError("profile accepted toolbelt aid with unknown suits kind")
+
+
+def test_route_outside_projects_skips_key_rule() -> None:
+    from pi_job_harness.project_validation import validate_project_route_and_key
+
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        outside = repo / "docs" / "workflow.md"
+        outside.parent.mkdir(parents=True)
+        outside.write_text("# workflow\n", encoding="utf-8")
+        validate_project_route_and_key("docs/workflow.md", "unrelated-key", repo_root=repo)
+
+
+def test_set_project_key_with_empty_route_skips_filesystem_check() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "empty-repo"
+        repo.mkdir()
+        task = repo / "task-bundle" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", cwd=repo)
+        run(str(PI_JOB), "--task", str(task), "set-project", "--key", "orphan-key", cwd=repo)
+        module = load_pi_job_module()
+        assert module.open_task_store(task).read()["project"]["key"] == "orphan-key"
+
+
+def test_set_project_title_with_stored_route_from_other_cwd() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo_a = Path(tmp) / "repo-a"
+        repo_b = Path(tmp) / "repo-b"
+        repo_a.mkdir()
+        repo_b.mkdir()
+        scaffold_projects_route(repo_a, key="acme")
+        task = repo_a / "task-bundle" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", cwd=repo_a)
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "set-project",
+            "--route",
+            "projects/acme/workflow.md",
+            "--key",
+            "acme",
+            cwd=repo_a,
+        )
+        out = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "set-project",
+            "--title",
+            "Retitled from another cwd",
+            cwd=repo_b,
+        ).stdout
+        assert_contains(out, "title=Retitled from another cwd")
+        module = load_pi_job_module()
+        data = module.open_task_store(task).read()
+        assert data["title"] == "Retitled from another cwd"
+        assert data["project"]["route"] == "projects/acme/workflow.md"
+
+
+def test_create_from_succeeds_with_existing_nonempty_route() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "repo"
+        repo.mkdir()
+        scaffold_projects_route(repo, key="example")
+        task = repo / "bundle" / "task.yaml"
+        bootstrap_input = repo / "intent.yaml"
+        bootstrap_input.write_text(
+            f"""title: Routed bootstrap
+goal: {TEST_GOAL}
+initial_slice_kind: setup
+project:
+  key: example
+  route: projects/example/workflow.md
+decisions:
+  - date: "2026-07-27"
+    note: Decision
+    source: test
+""",
+            encoding="utf-8",
+        )
+        out = run(str(PI_JOB), "--task", str(task), "create", "--from", str(bootstrap_input), cwd=repo).stdout
+        assert_contains(out, "created:")
+        module = load_pi_job_module()
+        project = module.open_task_store(task).read()["project"]
+        assert project["route"] == "projects/example/workflow.md"
+        assert project["key"] == "example"
+
+
 def test_set_worktree_help_mentions_worktree_convention() -> None:
     """`set-worktree --help` documents the `$PI_JOB_WORKTREES/<slug>/<slice>/<repo>`
     recommendation convention and its default home."""
@@ -7745,6 +8761,112 @@ def test_set_worktree_help_mentions_worktree_convention() -> None:
     assert_contains(out, "PI_JOB_WORKTREES")
     assert_contains(out, "<slug>/<slice>/<repo>")
     assert_contains(out, "~/.local/share/pi-job/worktrees")
+
+
+HARNESS_PKG = Path(__file__).resolve().parents[1]
+README_MD = HARNESS_PKG / "README.md"
+
+
+def _harness_doc_surfaces() -> tuple[Path | None, Path | None, str | None]:
+    """Resolve skill and AGENTS paths for doc phrase tests.
+
+    In chezmoi source or a dot_local worktree, read managed paths under the source root.
+    In an applied copy, read ~/.agents/skills/pi-job/SKILL.md and an available AGENTS.md.
+    Return (skill, agents, skip_reason); skip_reason is set when skill/agents checks must skip.
+    """
+    if HARNESS_PKG.parent.name == "share" and HARNESS_PKG.parent.parent.name == "dot_local":
+        root = HARNESS_PKG.parent.parent.parent
+        skill = root / "dot_agents" / "skills" / "pi-job" / "SKILL.md"
+        agents = root / "AGENTS.md"
+        if skill.is_file() and agents.is_file():
+            return skill, agents, None
+        return None, None, f"chezmoi source missing managed doc paths under {root}"
+
+    skill = Path.home() / ".agents" / "skills" / "pi-job" / "SKILL.md"
+    agents_candidates = (
+        Path.home() / "AGENTS.md",
+        Path.home() / ".agents" / "AGENTS.md",
+    )
+    agents = next((path for path in agents_candidates if path.is_file()), None)
+    if skill.is_file() and agents is not None:
+        return skill, agents, None
+    return None, None, "applied copy: pi-job skill or AGENTS.md not installed; skipping skill/agents phrase checks"
+
+README_HARNESS_VERIFY_PHRASES = (
+    "Verify harness changes",
+    "PI_JOB_OWNER",
+    "executable_pi-job",
+    "env -u PI_JOB_OWNER",
+    "source-path",
+    "docs-with-model-cuts",
+    "~/.local/bin/pi-job",
+)
+
+SKILL_HARNESS_VERIFY_PHRASES = (
+    "Verify harness changes",
+    "PI_JOB_OWNER",
+    "docs-with-model-cuts",
+)
+
+AGENTS_HARNESS_VERIFY_PHRASES = (
+    "docs-with-model-cuts",
+    "pi-job-harness",
+)
+
+
+def test_pi_job_binary_is_package_local() -> None:
+    """PI_JOB resolves beside bin/; tests never use PATH pi-job."""
+    assert PI_JOB.name in ("pi-job", "executable_pi-job")
+    assert PI_JOB.parent.name == "bin"
+    assert PI_JOB.exists()
+
+
+def test_run_unsets_pi_job_owner() -> None:
+    """`run()` strips PI_JOB_OWNER so slice-window env cannot change claim resolution."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "no-claim.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        mapping["orchestration"]["cursors"] = []
+        write_task_yaml(task, mapping)
+
+        baseline = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
+        assert baseline.returncode != 0
+        assert_contains(baseline.stderr, "needs an active claim")
+
+        prior = os.environ.get("PI_JOB_OWNER")
+        os.environ["PI_JOB_OWNER"] = "phantom-owner"
+        try:
+            leaked = run(str(PI_JOB), "--task", str(task), "instruction", check=False)
+        finally:
+            if prior is None:
+                os.environ.pop("PI_JOB_OWNER", None)
+            else:
+                os.environ["PI_JOB_OWNER"] = prior
+
+        assert leaked.returncode != 0
+        assert_contains(leaked.stderr, "needs an active claim")
+        assert_not_contains(leaked.stderr, "phantom-owner")
+        assert_not_contains(leaked.stderr, "no active claim for owner")
+
+
+def test_harness_dev_docs_phrases() -> None:
+    """README, skill, and AGENTS lock harness verification and docs-with-model-cuts tokens."""
+    readme = README_MD.read_text(encoding="utf-8")
+    for phrase in README_HARNESS_VERIFY_PHRASES:
+        assert_contains(readme, phrase)
+
+    skill_path, agents_path, skip_reason = _harness_doc_surfaces()
+    if skip_reason:
+        print(f"SKIP skill/agents doc phrase checks: {skip_reason}", file=sys.stderr)
+        return
+
+    skill = skill_path.read_text(encoding="utf-8")
+    for phrase in SKILL_HARNESS_VERIFY_PHRASES:
+        assert_contains(skill, phrase)
+
+    agents = agents_path.read_text(encoding="utf-8")
+    for phrase in AGENTS_HARNESS_VERIFY_PHRASES:
+        assert_contains(agents, phrase)
 
 
 def main() -> None:
@@ -7772,6 +8894,7 @@ def main() -> None:
     test_channels_cli_prints_catalog_and_step_blurbs()
     test_profile_rejects_missing_record_channels_on_step_kind()
     test_profile_rejects_unknown_record_channel_id()
+    test_profile_rejects_unknown_toolbelt_suits_kind()
     test_instruction_collapses_long_slice_goal()
     test_execution_packet_budget_share_with_team()
     test_subagent_execution_packet_budget_excludes_prompt_body()
@@ -7788,6 +8911,23 @@ def main() -> None:
     test_owner_omit_when_sole_claim_and_ambiguous_refuse()
     test_finish_slice_only_auto_releases_claim()
     test_missing_task_points_to_scaffold()
+    test_create_kind_requires_goal()
+    test_create_rejects_boilerplate_goal()
+    test_create_bare_requires_goal()
+    test_create_bare_stores_goal_on_implement_slice()
+    test_create_empty_plan_does_not_require_goal()
+    test_bootstrap_requires_top_level_goal_when_initial_slice_kind_set()
+    test_bootstrap_rejects_boilerplate_slice_goal()
+    test_set_project_route_missing_fails_with_hint()
+    test_set_project_route_exists()
+    test_set_project_key_route_mismatch()
+    test_route_outside_projects_skips_key_rule()
+    test_set_project_key_with_empty_route_skips_filesystem_check()
+    test_set_project_title_with_stored_route_from_other_cwd()
+    test_create_from_succeeds_with_existing_nonempty_route()
+    test_create_from_validates_project_route()
+    test_slice_kind_key_is_profile_backed_str_alias()
+    test_project_validation_helpers()
     test_scaffold_creates_task_file()
     test_toolbelt_lists_for_slice_kinds()
     test_endpoint_status_map_catalog_has_build_example()
@@ -7877,6 +9017,18 @@ def main() -> None:
     test_show_renders_repo_work_worktree_and_prs()
     test_show_status_done_prints_set_worktrees_without_full_expand()
     test_sync_default_selection_and_status_override()
+    test_sync_feedback_only_tail_nonblocking()
+    test_sync_feedback_only_with_open_pr_stays_blocking()
+    test_add_slice_first_prints_full_decisions_second_prints_summary()
+    test_add_slice_on_empty_plan_prints_full_decisions()
+    test_add_slice_zero_decisions_prints_no_decisions_recorded()
+    test_init_existing_task_seed_prints_decisions_footer()
+    test_add_decision_supersede_appends_without_removing_prior()
+    test_plan_slices_setup_only_keeps_add_slice_guidance()
+    test_plan_slices_seeded_banner_when_non_setup_exists()
+    test_setup_grill_guidance_failure_first()
+    test_grill_plan_guidance_mentions_set_slice_on_supersede()
+    test_update_task_file_guidance_charter_followups()
     test_add_slice_still_works_with_repo_work_in_schema()
     test_fs_task_store_round_trip()
     test_fs_task_store_ordering()
@@ -7899,6 +9051,7 @@ def main() -> None:
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
     test_profile_requires_cli_help()
+    test_profile_requires_mutation_cli_help_entries()
     test_lifecycle_records_model_and_timestamps()
     test_finish_reconcile_succeeds_on_in_progress_without_start()
     test_finish_reconcile_refuses_planned_status()
@@ -7910,18 +9063,38 @@ def main() -> None:
     test_finish_replace_requires_note()
     test_finish_note_append_with_slice_only()
     test_finish_replace_refused_with_skip()
-    test_finish_bare_refuses_when_multiple_unfinished_steps()
+    test_finish_bare_ok_when_claim_resolves_despite_other_unfinished_steps()
+    test_finish_one_shot_explicit_slice_step()
+    test_finish_one_shot_refuses_empty_note()
+    test_finish_one_shot_refuses_same_model_as_author()
+    test_finish_one_shot_refuses_blocked_slice()
+    test_finish_one_shot_refuses_terminal_without_execution()
+    test_finish_claim_default_refuses_without_start()
     test_finish_explicit_slice_step_ok_when_multiple_unfinished()
     test_finish_bare_ok_when_exactly_one_unfinished_step()
     test_set_slice_updates_title_and_goal()
     test_set_slice_requires_one_field()
     test_set_slice_refuses_done_slice()
+    test_set_slice_rejects_legacy_key_flag()
+    test_set_step_note_appends_without_status_change()
+    test_set_step_note_replace_overwrites()
+    test_set_step_note_replace_requires_note()
+    test_set_step_note_on_in_progress_wait_step()
+    test_set_slice_note_while_steps_open()
+    test_set_slice_note_replace_overwrites()
+    test_set_source_merge_preserves_fields()
+    test_set_source_refuses_empty_invocation()
+    test_set_source_empty_string_overwrites_field()
     test_block_slice_sets_status_and_appends_note()
     test_block_slice_refuses_done()
     test_unblock_slice_restores_planned()
     test_unblock_slice_refuses_non_blocked()
     test_start_refuses_blocked_slice()
-    test_vulnerability_scan_rejects_writer_model()
+    test_vulnerability_scan_allows_author_model_at_start()
+    test_vulnerability_scan_finish_same_model_refuses()
+    test_vulnerability_scan_finish_distinct_model_succeeds()
+    test_finish_skip_reuses_started_model_without_flag()
+    test_finish_skip_refuses_mismatched_explicit_model()
     test_vulnerability_scan_instruction_prefers_higher_reasoning_model()
     test_vulnerability_scan_rejects_unqualified_author_model()
     test_start_unqualified_model_error_includes_example()
@@ -8148,7 +9321,7 @@ def test_project_refuses_existing_dest() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         home = Path(tmp) / "tasks-home"
         with _pi_job_tasks_home(home):
-            run(str(PI_JOB), "--task", "existing-slug", "create", "--kind", "setup")
+            run(str(PI_JOB), "--task", "existing-slug", "create", "--kind", "setup", "--goal", TEST_GOAL)
             source = Path(tmp) / "legacy.task.yaml"
             write_task_yaml(source, standard_fixture_mapping())
 
@@ -8168,7 +9341,7 @@ def test_project_refuses_non_loose_source() -> None:
     converted."""
     with tempfile.TemporaryDirectory() as tmp:
         bundle_source = Path(tmp) / "bundle-source"
-        run(str(PI_JOB), "--task", str(bundle_source), "create", "--kind", "setup")
+        run(str(PI_JOB), "--task", str(bundle_source), "create", "--kind", "setup", "--goal", TEST_GOAL)
         result = run(
             str(PI_JOB), "--task", str(bundle_source), "project", "--to", "wont-happen", check=False,
         )
@@ -8343,6 +9516,9 @@ if __name__ == "__main__":
     test_set_worktree_recommend_under_home()
     test_set_worktree_recommend_loose_yaml()
     test_set_worktree_help_mentions_worktree_convention()
+    test_pi_job_binary_is_package_local()
+    test_run_unsets_pi_job_owner()
+    test_harness_dev_docs_phrases()
     test_missing_task_never_tracebacks()
     test_missing_task_message_is_actionable()
     test_task_optional_commands_run_without_task()
