@@ -144,7 +144,8 @@ Symptom, wrong hypothesis, evidence, fix.
 Why the first attempt failed.
 
 ## Part 7: Test harness
-Copy-paste commands, verified on this machine.
+Copy-paste commands, verified during the investigation.
+Use placeholders for live host values.
 
 ## Part 8: Glossary
 
@@ -155,3 +156,16 @@ Verify Info nodes and packages exist before you link them.
 ```
 
 Match depth to `~/.spacemacs.d/docs/org-emphasis-tty-explained.md` when the investigation was similarly deep.
+
+### Public-aware rewrite
+
+Write the guide as if the dest repo is public.
+Keep live hostname, lease, neighbor, MAC, ULA, uid, and session names in the chat only.
+
+Vendor-documented prefixes stay (`10.211.55.0/24` for Parallels Shared).
+A specific host octet becomes `N`.
+A home path becomes a repo-relative path or `~`.
+
+Before you close, grep the draft for tokens from the live capture.
+See **Public-aware guides** in [SKILL.md](SKILL.md).
+Example: `docs/parallels-host-reachable-ip.md`.

@@ -5,7 +5,7 @@ description: >-
   (baseline tests, live state, escape codes). Use when a config change does
   nothing, behavior differs between GUI and TTY, chezmoi sync drops blocks, or
   the user asks why a setting failed. Always ends by asking whether to write
-  educational material.
+  educational material. Written guides default to public-safe placeholders.
 license: personal
 compatibility: all
 metadata:
@@ -66,8 +66,12 @@ questions:
 If the user picks **Yes**, write the guide before you close.
 Follow ASD-STE100 from `AGENTS.md` for technical prose.
 Put each full sentence on its own line in long Markdown.
-Cite real file paths and line numbers from the investigation.
+Cite repo-relative paths and line numbers for managed files.
 Verify commands and Info node names before you cite them.
+Write the guide as if the dest repo is public.
+Keep live host facts in the chat.
+Do not copy them into the file unless the user asks for a private capture.
+See **Public-aware guides** below.
 
 If the user picks **No**, give a short fix summary only.
 
@@ -87,6 +91,7 @@ Investigation progress:
 - [ ] 8. Re-test with evidence
 - [ ] 9. If chezmoi: diff against previous source for accidental drops
 - [ ] 10. AskQuestion: educational material?
+- [ ] 11. If writing a guide: redact live host facts; use placeholders
 ```
 
 ### 1. Reproduce in the real environment
@@ -204,6 +209,36 @@ Common victims: `COPYFILE_DISABLE`, package `:if` guards, `use-package` blocks, 
 
 Then commit and push only when the user asks.
 
+## Public-aware guides
+
+Treat every written guide as public.
+The investigation chat can hold live evidence.
+The file cannot.
+
+Keep in the guide:
+
+- The method and the decision rule
+- Commands you verified
+- Option names, format variables, and vendor-documented defaults
+- Repo-relative paths to managed files, with line citations
+
+Replace live values with placeholders:
+
+| Live fact | Public form |
+| --- | --- |
+| Hostname, username, home path | Drop, or write "the guest" / `~` |
+| DHCP host octet, neighbor IP, MAC | `10.211.55.N`, "another neighbor" |
+| IPv6 ULA or link-local | `fd00::/8`, `fe80::...` |
+| Session, window, or container names | Generic names or omit |
+| Patch/build that only IDs this box | Product family, or omit |
+| Count of private resources | "Docker bridges", not "six bridges" |
+| Capture date of a lease | Omit; say leases change |
+
+After you write the draft, grep it for tokens from the live session: hostname, `src` IPs, `uid`, `fe80`/`fd` prefixes, window names.
+If a line teaches nothing without that token, delete the line.
+
+Example of the public form: `docs/parallels-host-reachable-ip.md`.
+
 ## Anti-patterns
 
 | Trap | Why it misleads |
@@ -214,8 +249,10 @@ Then commit and push only when the user asks.
 | Read vars outside the target buffer | Buffer-local values differ |
 | Skip the baseline | You cannot separate env from config |
 | Skip AskQuestion at the end | User wants the option every time |
+| Paste live hostname, IP, or window names into a guide | The dest repo is public; those facts do not teach the method |
 
 ## Additional resources
 
 - Tmux harness, chezmoi checks, Org switches: [reference.md](reference.md)
 - Example guide from this workflow: `~/.spacemacs.d/docs/org-emphasis-tty-explained.md`
+- Public-aware example: `docs/parallels-host-reachable-ip.md`
