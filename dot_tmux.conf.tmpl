@@ -72,8 +72,11 @@ set -ga terminal-overrides ",xterm-256color:Tc"
 # set -g default-terminal "screen-256color-italic"
 set -g default-terminal "xterm-256color"
 
-bind-key          S choose-window "join-pane -v -s "%%""
-bind-key          V choose-window "join-pane -h -s "%%""
+# choose-tree ignores window-status-activity-style. Color activity in -F.
+set -g @choose-tree-format "#{?pane_format,#{pane_current_command}#{?pane_active,*,},#{?window_format,#{?window_activity_flag,#[#{E:window-status-activity-style}],}#{window_name}#{window_flags},#{session_windows} windows}}"
+bind-key          S choose-tree -w -F '#{E:@choose-tree-format}' "join-pane -v -s %%"
+bind-key          V choose-tree -w -F '#{E:@choose-tree-format}' "join-pane -h -s %%"
+bind-key          w choose-tree -Zw -F '#{E:@choose-tree-format}'
 bind-key          l last-window
 
 ## set window notifications
