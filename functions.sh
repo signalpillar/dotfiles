@@ -622,13 +622,6 @@ function load_nvm {
     [ -s "/usr/local/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/usr/local/opt/nvm/etc/bash_completion.d/nvm"  # This loads nvm bash_completion
 }
 
-function gemini-cli {
-    # npm install -g @google/gemini-cli
-    load_nvm
-    nvm use --lts
-    npm exec gemini $@
-}
-
 function codex-5 {
     export OPENAI_DEFAULT_MODEL="gpt-5"
     exec codex --dangerously-bypass-approvals-and-sandbox "$@"

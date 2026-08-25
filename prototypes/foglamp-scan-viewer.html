@@ -428,7 +428,7 @@
           "kind": "service",
           "sub": "packages + AI CLIs",
           "sourceRef": "Brewfile",
-          "detail": "Pins CLI and cask deps including gemini-cli, gh, cue, and Claude Code."
+          "detail": "Pins CLI and cask deps including antigravity-cli, gh, cue, and Claude Code."
         },
         {
           "id": "homebrew",
@@ -471,13 +471,13 @@
           "detail": "Optional OpenCode host with mirrored skills under dot_config/opencode."
         },
         {
-          "id": "gemini-cli",
-          "label": "Gemini CLI",
+          "id": "antigravity-cli",
+          "label": "Antigravity CLI",
           "kind": "entry",
-          "sub": "brew gemini-cli",
-          "sourceRef": "functions.sh:625",
-          "domain": "gemini.google.com",
-          "detail": "Google Gemini coding CLI available via Brewfile and a local shell wrapper."
+          "sub": "cask antigravity-cli",
+          "sourceRef": "Brewfile:81",
+          "domain": "antigravity.google",
+          "detail": "Google Antigravity coding CLI available via Homebrew cask and mise."
         },
         {
           "id": "pi-job-cli",
@@ -723,8 +723,9 @@
         },
         {
           "from": "brewfile",
-          "to": "gemini-cli",
-          "kind": "writes"
+          "to": "antigravity-cli",
+          "kind": "writes",
+          "label": "cask install"
         },
         {
           "from": "agents-md",
@@ -753,12 +754,12 @@
           "kind": "triggers"
         },
         {
-          "from": "gemini-cli",
+          "from": "antigravity-cli",
           "to": "gemini-model",
           "kind": "calls"
         },
         {
-          "from": "gemini-cli",
+          "from": "antigravity-cli",
           "to": "orchestrator",
           "kind": "triggers"
         },
