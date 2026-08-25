@@ -123,6 +123,8 @@ When using this skill for implementation or review, explicitly scan new and chan
 - Prefer `test.each` for cases that exercise the same behavior with different inputs or expected outputs instead of duplicating test bodies.
 - Reuse existing fixtures and test doubles when they express the required scenario.
 - When existing fixtures do not fit, create focused reusable fixtures rather than duplicating setup or object literals across tests.
+- Extract assertion helpers when multiple tests repeat the same group of assertions (for example, zero writes or contract invariants).
+- Name assertion helpers after domain intent (for example `expectNoBillingWrites`) rather than mock implementation details.
 - Ensure tests cover both business-success and safety-failure modes.
 - Keep tests aligned with current contracts; update fixtures first when interfaces change.
 - Add at least one test for each documented edge-case decision.
@@ -135,6 +137,7 @@ When using this skill for review, explicitly scan changed tests for avoidable du
 - Request `test.each` when multiple tests differ only in input, expected output, or a small scenario parameter.
 - Request reuse of an existing fixture when duplicated setup already has a shared representation.
 - Request a new focused fixture when repeated setup has no suitable reusable fixture.
+- Request an assertion helper when tests duplicate identical multi-line assertion blocks across cases.
 - Keep separate tests when parameterization would hide materially different behavior or make failures harder to understand.
 - Request fixture ownership under the new domain package when domain scenarios still live only under the orchestrator test folder.
 - Request a fixtures file when builders and test doubles accumulate inline in the spec file.
