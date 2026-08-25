@@ -16,6 +16,7 @@ metadata:
 ## Architecture and design principles
 
 - **Single responsibility boundaries**: define one service as the source of truth for each domain decision (e.g., policy/rule resolution), and make downstream code consume that output.
+- **Selfish units**: write code in a selfish manner. We do not care who calls us. The code is self-contained, works with valid state, and produces valid state. No assumptions about the caller. Comments, types, and logs describe this unit's contract, not a named caller, route, or auth mode.
 - **Explicit contracts**: prefer small, intentional response types with fields that are actually required by consumers.
 - **Misconfiguration safety**: fail closed for risky flows (block action or return non-actionable state) when required configuration is missing.
 - **Provider boundaries**: do not mix local configuration validation with external provider validation unless the use case explicitly requires it.
@@ -28,7 +29,9 @@ metadata:
 - **Domain package and fixtures**: new capability domains get a folder (`services/<domain>/`) with policy, service, and `__tests__/fixtures` owned by that package. Callers mock the service. Callers do not grow parallel fixture copies of domain rules.
 - **Trust explicit search contracts**: when a client/API search is called with filters (group, status, reason, …), return that result. Do not re-assert the same filters on the response unless there is concrete evidence the client violates those filters. Speculative "broad/malformed response" re-filters are noise and hide the real contract under test (the search call).
 - **Owner service loads owned facts**: if a fact lives on a resource the service already loads, the service reads it. Do not add a caller param that can disagree with storage. Flag a second id when the path resource already determines it (for example a FHIR `CarePlan.subject`).
-- **Do not runtime-check typed-required fields**: if the contract type says the field is always present, do not add an `if (!field)` fail-closed in that function. Narrow at the boundary instead. A helper whose only job is "assert non-null of a required field" is a review finding.
+- **Do not runtime-check typed-required fields**: if this unit's contract type says the field is always present, do not add an `if (!field)` fail-closed in that function. A helper whose only job is "assert non-null of a required field" is a review finding.
+- **Load-edge narrowing**: when a library or FHIR type leaves a nested field optional, validate it at the site that loads the resource. Throw. Do not use `!`. Inner functions then receive the narrowed value. Do not skip this because the field is "always set in practice".
+- **Shared identity seam**: keep a mint/resolve helper even when it is identity today. Two facades must not fork encodings. Do not inline until the encoding is actually opaque.
 - **Fault vs empty outcome**: config load failures, missing definitions, and unreadable identifiers are hard fails (throw / HTTP 500). Do not catch them into a valid empty / not-applicable result. Operators must tell a broken identifier from a real empty match.
 - **Pass-through vs policy owner**: a resolver that selects a row passes the row through. It does not allow-list values, invent omitted fields, or fail closed on a field another service owns. Put that policy in the consumer of the field.
 - **Tagged union, no optional-on-some-status fields**: each variant carries only the fields that exist in that state, all required. Drop a shared base that makes a field optional because it is absent on other variants. A status nobody can act on is a throw, not a variant.
@@ -48,7 +51,9 @@ When using this skill for review, also ask:
 - Are new/changed request, response, and internal contract types documenting each field?
 - Did wire-format validation (ISO timestamps, query/body shapes, Zod) land in a domain service? Flag it. Those checks belong at the HTTP/API boundary. The service receives already-valid values.
 - Do field comments help a reader who has never seen this code (format, ownership, when to omit)? Reject comments that only restate the field name or the TypeScript type.
+- Does this unit assume a named caller, route, or auth mode in comments, types, or logs? Request removal. The unit takes valid state and returns valid state.
 - Does this service re-check a field its input type already requires? Request removal.
+- Did the load site skip a nested field the library types as optional? Request a fail-closed check there, not a `!`.
 - Does a catch map a config throw into a valid empty result? Request that the throw surface.
 - Does a child row repeat a parent field? Request it live once on the parent.
 - Do two reason codes or flags name the same event? Request they fold.
@@ -61,9 +66,10 @@ When reviewing or writing an HTTP facade, scan every new or changed request fiel
 - **Do not take a redundant caller id.** If the path resource already determines the subject (for example a FHIR `CarePlan.subject`), do not also require that id on the query or body unless product asked for an ownership check. Derive it. Flag duplicate ids that can disagree.
 - **One schema, one type.** Do not hand-write an interface that repeats a Zod object. Use `z.infer<typeof Schema>`. Flag the duplicate.
 - **`Exclude` vs `Omit`.** Narrow a string-literal union with `Exclude<T, "X">`. `Omit` is for object keys. Flag the wrong helper.
-- **Exhaustive `switch`.** If every typed member has a `case`, do not add a `default` throw that cannot run. Keep a fail-closed `case` only when that member is in the union and must not leak (for example a write-only reason on GET).
+- **Exhaustive `switch`.** If every typed member has a `case`, do not add a `default` throw or `assertNever` that cannot run. TypeScript already forces a new `case` when the union grows. Keep a fail-closed `case` only when that member is in the union and must not leak (for example a write-only reason on GET).
 - **Prefer the unit the domain already uses.** Do not wrap a scalar the callers already share as `{ value, unit }` unless product named that shape.
-- **Scopes match writes.** A mutating handler must declare inbound write scopes for each write it performs. `@Tags` is documentation only. GET stays read-only. Flag a mutating route that still has only a read scope.
+- **Scopes match reads and writes.** Declare inbound scopes for every resource the handler reads or writes. `@Tags` is documentation only. GET stays non-mutating: read scopes only, including nested reads (discount history, preferences), not only the path resource. Flag a mutating route that still has only a read scope. Flag a GET that under-scopes its reads.
+- **Boolean field docs cover both polarities.** If a flag is true in only one current state, say when it is true and when it is false.
 - **Do not leak internals on consumer DTOs.** Hide catalog keys, provider ids, and matched-rule ids unless product named them as consumer fields. Consumers send opaque option ids.
 
 ## API and service behavior practices
@@ -102,6 +108,7 @@ When using this skill for implementation or review, explicitly scan new and chan
 - Every field on request, response, and internal contract types has a field-level docstring a first-time reader can use (format, ownership, when to omit). Do not restate the field name or the TypeScript type.
 - Treat missing field docs on new contract types as a review finding and add them in the same change.
 - Treat technical or verbose field comments that only restate the implementation as a review finding. Rewrite them so a newcomer understands the field.
+- Treat comments that name a caller, route, or auth mode as a review finding. Rewrite them to the unit's own contract. The unit does not know who calls it.
 
 ## Logging style
 
@@ -131,10 +138,11 @@ When using this skill for review, explicitly scan changed tests for avoidable du
 - Keep separate tests when parameterization would hide materially different behavior or make failures harder to understand.
 - Request fixture ownership under the new domain package when domain scenarios still live only under the orchestrator test folder.
 - Request a fixtures file when builders and test doubles accumulate inline in the spec file.
+- If a later PR must honour an id this PR mints, add `it.failing` here that encodes that consumer contract. The next PR must make it pass and drop `.failing`. Do not leave the seam untested because the consumer is not in this PR.
 
 ## Code style preferences
 
-- Add comments for non-obvious decisions (the why, not the what).
+- Add comments for non-obvious decisions (the why, not the what). Do not mention who calls this unit or how a route is authenticated.
 - Keep methods short by extracting focused private helpers.
 - Extract inlined strategy lambdas to module-level functions. Do not export them if only the module uses them.
 - Pass a child logger into domain services. Do not pass the whole request/log context when the child logger already carries the ids.
