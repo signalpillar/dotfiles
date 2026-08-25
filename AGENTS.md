@@ -27,10 +27,19 @@ Do not switch to a casual register unless the user asks.
 - For durable multi-step work tracked in a task file, use the `pi-job` skill (`~/.agents/skills/pi-job`) and `pi-job --task <file> status`.
   Do not open or hand-edit the task store; use the CLI.
   Claim a Ready slice (`claim --slice KEY --owner ID`), then `instruction` / `start` / `finish`; on pick-next run `finish --slice-only` then claim the next Ready slice (`advance` is deprecated).
+  A named owner resolves its claim when other owners hold claims.
+  Duplicate active rows for one named owner fail closed.
+  Packet `Owner:` and `Claim:` identify the session claim; `Role:` identifies profile dispatch.
   While a pi-job task is active: role = orchestrator (CLI-only; pause on grill/clarify); this supersedes any default Product Owner (or other) workspace role.
   If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).
   Edits to pi-job-harness store, task models, or CLI behaviour need coordinated doc updates (docs-with-model-cuts).
   Update the pi-job skill, harness README, and this file in the same change.
+  Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.
+  Use `set-slice --slice CONSUMER --depends-on PRODUCER` to append dependency edges.
+  Use `set-slice --clear-depends-on` to clear dependency edges.
+  Use `pi-job msg` for cross-agent contact.
+  The `msg` command lives in `pi_job_harness.messaging`.
+  Never send cross-agent messages through terminal panes.
 - Before showing anyone a Mermaid diagram, validate it with the `mermaid` skill (`~/.agents/skills/mermaid`, `mermaid-validate <file>`) instead of eyeballing the syntax.
 - Never use the em dash "—".
   Use a plain dash "-" instead.

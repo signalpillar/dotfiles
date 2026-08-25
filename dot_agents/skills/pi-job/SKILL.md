@@ -59,6 +59,8 @@ Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
 Claims live in `orchestration.cursors[]` (`{owner, slice, claimed_at, last_seen}`).
 Active step is derived: first non-terminal step of the claimed slice.
+Named owners resolve their claim even when other owners hold sibling claims.
+Duplicate active rows for one named owner fail closed.
 Overall `Status:` in `status` / `list` / `markdown` is derived from slice statuses; ignore top-level `task.status` in the file.
 Trust `status`/`show` for claims + Ready frontier.
 Array order of slices is not execution order.
@@ -89,6 +91,9 @@ Classic single-session pick-next loop stays unchanged when no fleet is in use.
 7. Repeat from `instruction` until the claimed slice is exhausted
 8. On pick-next: `finish --slice-only` (auto-releases claim) → `show` → claim next Ready → `instruction`
 
+Packet `Owner:` and `Claim:` identify the session claim.
+Packet `Role:` comes from the profile step owner.
+`start --model` records attribution only.
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 `advance` is deprecated; do not use it.
 
@@ -101,9 +106,14 @@ Prefer packet guidance. Typical shape:
 - `status` | `plan` | `markdown [--slice SLICE_KEY] [--with-decisions]` | `show [--slice SLICE_KEY]` | `instruction`
 - Subagent-owned steps: the packet orders `markdown --slice --with-decisions` first for binding `## Decisions`
 - Interrupt/RCA while a claim is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not release/claim-hop unless needed
+- Cross-agent contact: `msg --to manager|slice:KEY --note TEXT`; consume with `msg --read --to ADDRESS`
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
+Register the first layer with repeatable `layers add --bind SLICE=LAYER` flags.
+This command adds the band and binds all existing implement/spike/research slices atomically.
+Append dependencies with `set-slice --slice CONSUMER --depends-on PRODUCER`.
+Clear them with `set-slice --slice CONSUMER --clear-depends-on`.
 Slice plans live under the layout: bundle `plans/<slice-key>.md`, or legacy
 `<task-stem>.plans/<slice-key>.md` until projected (constraint contracts with
 types/composition and call stacks; see profile `plan_and_grill_guardrail`).
@@ -138,3 +148,4 @@ When you change store, task models, or CLI behaviour, update README, this skill,
 
 Follow README **Agent dev notes**: put a coherent feature surface (e.g. Mermaid export) behind a named class boundary; keep `cmd_*` as thin wiring.
 Example in-tree: `SliceDependencyMermaid` for `show --graph`.
+Mailbox CLI lives in `pi_job_harness/messaging/cli.py`; `app.py` only registers it.

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.machinery
 import importlib.util
+import io
 import os
 import re
 import subprocess
@@ -15,11 +16,13 @@ import tempfile
 import threading
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
+
+from pi_job_harness.messaging import MailboxPaths, MessageService
 
 DEFAULT_OWNER = "orchestrator"
 TEST_GOAL = "Exercise create contract"
@@ -435,11 +438,17 @@ def step_status(path: Path, slice_key: str, step_key: str) -> str:
 
 
 
-def run(*args: str, check: bool = True, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    *args: str,
+    check: bool = True,
+    cwd: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     if args and args[0] == str(PI_JOB) and not os.access(PI_JOB, os.X_OK):
         args = (sys.executable, *args)
     env = os.environ.copy()
     env.pop("PI_JOB_OWNER", None)  # tests-unset-pi-job-owner: never forward slice-window owner
+    env.update(extra_env or {})
     res = subprocess.run(args, cwd=cwd or ROOT, text=True, capture_output=True, check=False, env=env)
     if check and res.returncode != 0:
         raise AssertionError(f"command failed: {' '.join(args)}\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
@@ -462,6 +471,7 @@ def subagent_instruction_yaml_task(
     *,
     slice_key: str = "implement-slice",
     step_key: str = "edit-code",
+    owner: str = DEFAULT_OWNER,
 ) -> str:
     """Initialized YAML task with cursor on a subagent-owned implement step."""
 
@@ -470,7 +480,7 @@ def subagent_instruction_yaml_task(
 status: in_progress
 orchestration:
   cursors:
-    - owner: orchestrator
+    - owner: {owner}
       slice: {slice_key}
       claimed_at: "{claim_ts}"
       last_seen: "{claim_ts}"
@@ -505,7 +515,7 @@ plan:
 """
 
 
-def orchestrator_instruction_yaml_task() -> str:
+def orchestrator_instruction_yaml_task(*, owner: str = DEFAULT_OWNER) -> str:
     """Initialized YAML task with cursor on an orchestrator-owned setup step."""
 
     claim_ts = _now_iso()
@@ -513,7 +523,7 @@ def orchestrator_instruction_yaml_task() -> str:
 status: in_progress
 orchestration:
   cursors:
-    - owner: orchestrator
+    - owner: {owner}
       slice: setup-slice
       claimed_at: "{claim_ts}"
       last_seen: "{claim_ts}"
@@ -834,6 +844,47 @@ def test_orchestrator_instruction_has_no_subagent_prompt() -> None:
         assert_contains(instruction, "Channels: pi-job channels")
 
 
+def test_instruction_header_uses_claim_owner_not_step_owner() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        claim_owner = "volod-cursor-12"
+
+        orchestrator_task = Path(tmp) / "orchestrator-owner.yaml"
+        orchestrator_task.write_text(
+            orchestrator_instruction_yaml_task(owner=claim_owner),
+            encoding="utf-8",
+        )
+        orchestrator_packet = run(
+            str(PI_JOB),
+            "--task",
+            str(orchestrator_task),
+            "instruction",
+            "--owner",
+            claim_owner,
+        ).stdout
+        assert_contains(orchestrator_packet, f"Owner: {claim_owner}")
+        assert_contains(orchestrator_packet, f"Claim: {claim_owner}")
+        assert_contains(orchestrator_packet, "Role: orchestrator")
+        assert_not_contains(orchestrator_packet, "Owner: orchestrator")
+
+        subagent_task = Path(tmp) / "subagent-owner.yaml"
+        subagent_task.write_text(
+            subagent_instruction_yaml_task(owner=claim_owner),
+            encoding="utf-8",
+        )
+        subagent_packet = run(
+            str(PI_JOB),
+            "--task",
+            str(subagent_task),
+            "instruction",
+            "--owner",
+            claim_owner,
+        ).stdout
+        assert_contains(subagent_packet, f"Owner: {claim_owner}")
+        assert_contains(subagent_packet, f"Claim: {claim_owner}")
+        assert_contains(subagent_packet, "Role: orchestrator dispatching subagent")
+        assert_not_contains(subagent_packet, "Owner: subagent")
+
+
 def test_subagent_orchestrator_prompt_is_separate_from_execution_body() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "subagent-orchestrator-markdown.yaml"
@@ -869,6 +920,9 @@ def test_add_decision_and_finish_help_describe_channels() -> None:
     _assert_cli_help_uses_profile(["set-step-note"], cli_help["set_step_note"])
     _assert_cli_help_uses_profile(["set-slice-note"], cli_help["set_slice_note"])
     _assert_cli_help_uses_profile(["set-source"], cli_help["set_source"])
+    _assert_cli_help_uses_profile(["set-slice"], cli_help["set_slice"])
+    _assert_cli_help_uses_profile(["layers"], cli_help["layers"])
+    _assert_cli_help_uses_profile(["msg"], cli_help["msg"])
 
 
 def test_decision_document_schema_describes_channels_contract() -> None:
@@ -1042,8 +1096,16 @@ def test_instruction_includes_next_action_and_step_first_layout() -> None:
         assert_not_contains(instruction, "Lifecycle recording:")
         assert_not_contains(instruction, "Orchestrator instruction:")
         next_idx = instruction.index("NEXT ACTION")
-        step_idx = instruction.index("STEP")
+        step_idx = instruction.index("\nSTEP\n") + 1
         record_idx = instruction.index("RECORD RESULTS")
+        next_action = instruction[next_idx:step_idx]
+        assert_contains(next_action, "--owner orchestrator")
+        assert_contains(next_action, "--model cursor/grok-4.6")
+        assert_contains(next_action, "--slice SLICE_KEY --step STEP_KEY")
+        assert_contains(next_action, "attribution hint only")
+        assert_not_contains(next_action, "claim --slice KEY")
+        assert_not_contains(next_action, "Pick-next")
+        assert_not_contains(next_action, "claim a Ready slice")
         assert next_idx < step_idx, "NEXT ACTION must appear before STEP"
         assert step_idx < record_idx, "STEP must appear before RECORD RESULTS"
 
@@ -1311,6 +1373,10 @@ def test_pick_next_slice_reports_closing_slice_ready() -> None:
             raise AssertionError(f"instruction --current should exit 0 with pick-next:\n{pick_next.stderr}")
         assert_contains(pick_next.stdout, "PI-JOB PICK NEXT SLICE")
         assert_contains(pick_next.stdout, "closing")
+        assert_contains(pick_next.stdout, "finish --slice-only")
+        assert_contains(pick_next.stdout, "show")
+        assert_contains(pick_next.stdout, "claim it")
+        assert_contains(pick_next.stdout, "instruction --owner orchestrator")
 
         run(str(PI_JOB), "--task", str(task), "release", "--owner", DEFAULT_OWNER)
         run(str(PI_JOB), "--task", str(task), "claim", "--slice", "closing", "--owner", DEFAULT_OWNER)
@@ -1475,7 +1541,121 @@ def test_owner_omit_when_sole_claim_and_ambiguous_refuse() -> None:
             assert_contains(ambiguous.stderr, "ambiguous owner")
         ok = run(str(PI_JOB), "--task", str(multi), "instruction", "--owner", "b").stdout
         assert_contains(ok, "second-slice / s2")
+        assert_contains(ok, "Owner: b")
         assert_contains(ok, "Claim: b")
+
+
+def test_finish_named_owner_resolves_its_claim_among_sibling_claims() -> None:
+    def fleet_mapping() -> dict:
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        first = mapping["plan"]["slices"][0]
+        first["status"] = "planned"
+        first["steps"] = [{"key": "a1", "title": "A", "status": "planned", "note": ""}]
+        mapping["orchestration"]["cursors"] = [
+            claim_dict("first", owner="worker-a"),
+            claim_dict("second-slice", owner="worker-b"),
+        ]
+        return mapping
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cli_task = Path(tmp) / "fleet-cli-owner.yaml"
+        write_task_yaml(cli_task, fleet_mapping())
+        run(
+            str(PI_JOB),
+            "--task",
+            str(cli_task),
+            "start",
+            "--owner",
+            "worker-a",
+            "--model",
+            "cursor/grok-4.6",
+        )
+        finished = run(
+            str(PI_JOB),
+            "--task",
+            str(cli_task),
+            "finish",
+            "--owner",
+            "worker-a",
+            "--note",
+            "Finished worker A claim.",
+        ).stdout
+        assert_contains(finished, "finished: first/a1")
+        cli_result = yaml.safe_load(cli_task.read_text(encoding="utf-8"))
+        assert find_step(cli_result, "first", "a1")["status"] == "done"
+        assert any(
+            claim["owner"] == "worker-b" and claim["slice"] == "second-slice"
+            for claim in cli_result["orchestration"]["cursors"]
+        )
+
+        missing = run(
+            str(PI_JOB),
+            "--task",
+            str(cli_task),
+            "finish",
+            "--owner",
+            "worker-c",
+            "--note",
+            "Must not finish another owner's claim.",
+            check=False,
+        )
+        assert missing.returncode != 0
+        assert_contains(missing.stderr, "no active claim for owner 'worker-c'")
+
+        env_task = Path(tmp) / "fleet-env-owner.yaml"
+        write_task_yaml(env_task, fleet_mapping())
+        owner_env = {"PI_JOB_OWNER": "worker-a"}
+        run(
+            str(PI_JOB),
+            "--task",
+            str(env_task),
+            "start",
+            "--model",
+            "cursor/grok-4.6",
+            extra_env=owner_env,
+        )
+        env_finished = run(
+            str(PI_JOB),
+            "--task",
+            str(env_task),
+            "finish",
+            "--note",
+            "Finished environment-selected claim.",
+            extra_env=owner_env,
+        ).stdout
+        assert_contains(env_finished, "finished: first/a1")
+
+
+def test_finish_duplicate_same_owner_claims_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "duplicate-owner.yaml"
+        mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        mapping["plan"]["slices"][0]["status"] = "planned"
+        mapping["plan"]["slices"][0]["steps"] = [
+            {"key": "a1", "title": "A", "status": "planned", "note": ""},
+        ]
+        # Direct YAML models a hand-edited store. `claim` collapses duplicate owner rows.
+        mapping["orchestration"]["cursors"] = [
+            claim_dict("first", owner="worker-a"),
+            claim_dict("second-slice", owner="worker-a"),
+        ]
+        write_task_yaml(task, mapping)
+        baseline = task.read_bytes()
+
+        result = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "finish",
+            "--owner",
+            "worker-a",
+            "--note",
+            "Must fail before choosing either claim.",
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "multiple active claims for owner 'worker-a': 2")
+        assert task.read_bytes() == baseline
 
 
 def test_finish_slice_only_auto_releases_claim() -> None:
@@ -1944,6 +2124,167 @@ def test_layers_add_stub_bind_graph_and_remove_guard() -> None:
         listed = run(str(PI_JOB), "--task", str(task), "layers", "show").stdout
         assert_contains(listed, "webhooks")
         assert_not_contains(listed, "\n  1. hold")
+
+
+def test_layers_add_binds_existing_slices_atomically_and_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "atomic-layers" / "task.yaml"
+        write_task_yaml(task, {
+            "title": "Atomic layers",
+            "status": "in_progress",
+            "plan": {"note": "", "slices": []},
+        })
+        run(str(PI_JOB), "--task", str(task), "create", "--kind", "setup", "--goal", TEST_GOAL)
+        for key, kind in (("first", "implement"), ("second-slice", "research")):
+            run(
+                str(PI_JOB), "--task", str(task), "add-slice",
+                "--key", key, "--kind", kind, "--title", key,
+                "--goal", f"Complete {key}",
+            )
+        mapping = yaml.safe_load(task.read_text(encoding="utf-8"))
+        first = next(item for item in mapping["plan"]["slices"] if item["key"] == "first")
+        first["status"] = "done"
+        write_task_yaml(task, mapping)
+
+        run(str(PI_JOB), "--task", str(task), "validate")
+        run(str(PI_JOB), "--task", str(task), "status")
+        baseline = task.read_bytes()
+        failed_commands = [
+            ["layers", "add", "--name", "api", "--description", "API"],
+            [
+                "layers", "add", "--name", "api", "--description", "API",
+                "--bind", "missing=api", "--bind", "first=api", "--bind", "second-slice=api",
+            ],
+            [
+                "layers", "add", "--name", "api", "--description", "API",
+                "--bind", "first=missing", "--bind", "second-slice=api",
+            ],
+            [
+                "layers", "add", "--name", "api", "--description", "API",
+                "--bind", "first=api", "--bind", "first=api", "--bind", "second-slice=api",
+            ],
+            [
+                "layers", "add", "--name", "api", "--description", "API",
+                "--bind", "setup-slice=api", "--bind", "first=api", "--bind", "second-slice=api",
+            ],
+            [
+                "layers", "add", "--name", "api", "--description", "API",
+                "--bind", "first=api",
+            ],
+            [
+                "layers", "add", "--name", "api", "--description", "API",
+                "--bind", "first=api", "--bind", "first=web", "--bind", "second-slice=api",
+            ],
+        ]
+        for command in failed_commands:
+            result = run(str(PI_JOB), "--task", str(task), *command, check=False)
+            if result.returncode == 0:
+                raise AssertionError(f"command should fail: {' '.join(command)}")
+            if task.read_bytes() != baseline:
+                raise AssertionError(f"failed command changed task: {' '.join(command)}")
+            if "--bind" in command and "first=api" in command and "second-slice=api" not in command:
+                assert_contains(result.stderr, "second-slice")
+
+        run(
+            str(PI_JOB), "--task", str(task), "layers", "add",
+            "--name", "api", "--description", "API",
+            "--bind", "first=api", "--bind", "second-slice=api",
+        )
+        updated = yaml.safe_load(task.read_text(encoding="utf-8"))
+        assert [layer["name"] for layer in updated["layers"]] == ["api"]
+        slices = {item["key"]: item for item in updated["plan"]["slices"]}
+        assert slices["first"]["layer"] == "api"
+        assert slices["second-slice"]["layer"] == "api"
+        assert "layer" not in slices["setup-slice"]
+
+        bound_baseline = task.read_bytes()
+        rebound = run(
+            str(PI_JOB), "--task", str(task), "layers", "add",
+            "--name", "web", "--description", "Web", "--bind", "first=web",
+            check=False,
+        )
+        if rebound.returncode == 0:
+            raise AssertionError("layers add --bind must not rebind an existing slice")
+        if task.read_bytes() != bound_baseline:
+            raise AssertionError("failed rebind changed task")
+        run(
+            str(PI_JOB), "--task", str(task), "layers", "add",
+            "--name", "extra", "--description", "Extra",
+        )
+
+
+def test_set_slice_appends_and_clears_dependencies_atomically() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "set-dependencies.yaml"
+        mapping = standard_fixture_mapping(title="Dependency mutations")
+        mapping["plan"]["slices"] = [
+            {
+                "key": key,
+                "kind": "implement",
+                "title": key.upper(),
+                "goal": f"Complete {key}",
+                "status": "planned",
+                "note": "",
+                "steps": [],
+                "final_steps": [],
+            }
+            for key in ("a", "b", "c")
+        ]
+        write_task_yaml(task, mapping)
+
+        appended = run(
+            str(PI_JOB), "--task", str(task), "set-slice",
+            "--slice", "b", "--title", "Consumer",
+            "--depends-on", "a", "--depends-on", "c", "--depends-on", "a",
+        ).stdout
+        assert_contains(appended, "depends_on += a")
+        assert_contains(appended, "depends_on += c")
+        assert_contains(appended, "depends_on already includes a")
+        updated = yaml.safe_load(task.read_text(encoding="utf-8"))
+        consumer = next(item for item in updated["plan"]["slices"] if item["key"] == "b")
+        assert consumer["title"] == "Consumer"
+        assert consumer["depends_on"] == ["a", "c"]
+
+        repeated = run(
+            str(PI_JOB), "--task", str(task), "set-slice",
+            "--slice", "b", "--depends-on", "a",
+        ).stdout
+        assert_contains(repeated, "depends_on already includes a")
+        updated = yaml.safe_load(task.read_text(encoding="utf-8"))
+        consumer = next(item for item in updated["plan"]["slices"] if item["key"] == "b")
+        assert consumer["depends_on"] == ["a", "c"]
+
+        cleared = run(
+            str(PI_JOB), "--task", str(task), "set-slice",
+            "--slice", "b", "--clear-depends-on",
+        ).stdout
+        assert_contains(cleared, "depends_on=<cleared>")
+        run(
+            str(PI_JOB), "--task", str(task), "set-slice",
+            "--slice", "b", "--clear-depends-on",
+        )
+        updated = yaml.safe_load(task.read_text(encoding="utf-8"))
+        consumer = next(item for item in updated["plan"]["slices"] if item["key"] == "b")
+        assert consumer["depends_on"] == []
+
+        baseline = task.read_bytes()
+        failed_commands = [
+            ["set-slice", "--slice", "b", "--depends-on", "missing"],
+            ["set-slice", "--slice", "b", "--depends-on", "b"],
+            ["set-slice", "--slice", "b", "--depends-on", ""],
+            [
+                "set-slice", "--slice", "b", "--depends-on", "a",
+                "--clear-depends-on",
+            ],
+            ["set-slice", "--key", "b", "--depends-on", "a"],
+            ["add-dependency", "--slice", "b", "--depends-on", "a"],
+        ]
+        for command in failed_commands:
+            result = run(str(PI_JOB), "--task", str(task), *command, check=False)
+            if result.returncode == 0:
+                raise AssertionError(f"command should fail: {' '.join(command)}")
+            if task.read_bytes() != baseline:
+                raise AssertionError(f"failed command changed task: {' '.join(command)}")
 
 
 def test_setup_maps_current_state_before_clarify_and_grill() -> None:
@@ -5037,6 +5378,51 @@ def test_profile_requires_pick_next_slice_packet() -> None:
         raise AssertionError("profile accepted instruction_packets without required pick_next_slice")
 
 
+def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
+    module = load_pi_job_module()
+    profile = module.load_profile_contract()
+    packets = profile["instruction_packets"]
+
+    next_action = packets["next_action"]
+    assert_contains(next_action, "--owner {owner}")
+    assert_contains(next_action, "--model cursor/grok-4.6")
+    assert_contains(next_action, "--slice SLICE_KEY --step STEP_KEY")
+    assert_contains(next_action, "attribution hint only")
+    assert_not_contains(next_action, "claim --slice KEY")
+    assert_not_contains(next_action, "Pick-next")
+    assert_not_contains(next_action, "claim a Ready slice")
+
+    pick_next = packets["pick_next_slice"]
+    assert_contains(pick_next, "finish --slice-only")
+    assert_contains(pick_next, "show")
+    assert_contains(pick_next, "claim it")
+    assert_contains(pick_next, "instruction --owner {owner}")
+    assert_contains(packets["orchestrator"], "pick-next packet")
+    assert_contains(packets["orchestrator"], "claim a new Ready slice")
+    assert_contains(packets["slice_worker_boot"], "Forbidden: claim other slices; pick-next")
+    assert_contains(packets["slice_worker_boot"], "finish --slice-only then stop")
+
+    task_discipline = packets["task_record_discipline"]
+    assert_contains(task_discipline, "set-context --context TEXT")
+    assert_contains(task_discipline, "set-context --file PATH")
+    assert_not_contains(task_discipline, "set-context --text")
+
+    packet_text = "\n".join(str(value) for value in packets.values())
+    assert_not_contains(packet_text, "--model <")
+    assert_contains(profile["pr_template_guardrail"], "existing ticket key")
+    assert_contains(profile["pr_template_guardrail"], "There is no `add-ticket` command")
+    assert_contains(profile["pr_template_guardrail"], "Do not create GitHub Issues")
+
+    invalid = run(str(PI_JOB), "add-ticket", check=False)
+    assert invalid.returncode != 0
+    assert_contains(invalid.stderr, "invalid choice")
+
+    source = APP_PY.read_text(encoding="utf-8")
+    assert_not_contains(source, "enforce_finish_step_explicitness")
+    assert_not_contains(source, "finish target ambiguous")
+    assert_not_contains(source, "<orchestrator-model-id>")
+
+
 def test_warn_if_content_dirty_uses_profile_packet() -> None:
     module = load_pi_job_module()
     packets = module.load_profile_contract()["instruction_packets"]
@@ -5075,7 +5461,7 @@ def test_profile_requires_cli_help() -> None:
 def test_profile_requires_mutation_cli_help_entries() -> None:
     module = load_pi_job_module()
     profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
-    for key in ("set_step_note", "set_slice_note", "set_source"):
+    for key in ("set_step_note", "set_slice_note", "set_source", "set_slice", "layers", "msg"):
         trial = dict(profile)
         trial["cli_help"] = dict(profile["cli_help"])
         del trial["cli_help"][key]
@@ -5470,7 +5856,11 @@ def test_set_slice_requires_one_field() -> None:
             check=False,
         )
         assert res.returncode != 0
-        assert_contains(res.stderr, "at least one of --title, --goal, --layer, or --clear-layer is required")
+        assert_contains(
+            res.stderr,
+            "at least one of --title, --goal, --layer, --clear-layer, "
+            "--depends-on, or --clear-depends-on is required",
+        )
 
 
 def test_set_slice_refuses_done_slice() -> None:
@@ -5836,9 +6226,31 @@ def test_vulnerability_scan_instruction_prefers_higher_reasoning_model() -> None
         instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
         assert_contains(instruction, "vulnerability-scan")
         assert_contains(instruction, "higher-reasoning")
+        assert_contains(instruction, "run this review/scan on that higher model")
         assert_contains(instruction, "Model recorded on edit-code")
         assert_contains(instruction, "When this step completes as done")
         assert_contains(instruction, "anthropic/claude-writer")
+
+
+def test_code_review_instruction_dispatches_higher_model_when_available() -> None:
+    """Code-review packets must dispatch a stronger model than edit-code when one exists."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "code-review-instruction.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"][0]["steps"] = [
+            mapping["plan"]["slices"][0]["steps"][0],
+            {"key": "code-review", "title": "Review", "status": "planned", "note": ""},
+        ]
+        write_task_yaml(task, mapping)
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(instruction, "code-review")
+        assert_contains(instruction, "higher-reasoning")
+        assert_contains(instruction, "dispatch")
+        assert_contains(instruction, "Ignore lower_power_model_preferred")
+        assert_contains(instruction, "run this review/scan on that higher model")
+        assert_contains(instruction, "Model recorded on edit-code")
+        assert_contains(instruction, "anthropic/claude-writer")
+        assert_contains(instruction, "Record the actual reviewer model")
 
 
 def test_vulnerability_scan_rejects_unqualified_author_model() -> None:
@@ -7177,9 +7589,13 @@ def test_yaml_task_layout_owns_plans_paths() -> None:
     module = load_pi_job_module()
     task = Path("/tmp/demo/my-task.yaml")
     layout = module.YamlTaskLayout(task)
+    mailbox = MailboxPaths(layout.plans_dir, pointer_root=layout.plans_pointer)
     assert layout.plans_dir == Path("/tmp/demo/my-task.plans")
+    assert layout.plans_pointer == "my-task.plans"
     assert layout.findings_file() == Path("/tmp/demo/my-task.plans/_findings.md")
     assert layout.slice_plan_file("alpha") == Path("/tmp/demo/my-task.plans/alpha.md")
+    assert mailbox.mailbox_new_dir("manager") == Path("/tmp/demo/my-task.plans/_inbox/manager/new")
+    assert mailbox.inbox_pointer("manager") == "my-task.plans/_inbox/manager"
     assert layout.findings_pointer() == "my-task.plans/_findings.md"
     assert layout.document_path == task
     assert layout.describe_store() == f"YAML task file {task}"
@@ -7189,14 +7605,516 @@ def test_bundle_task_layout_owns_plans_paths() -> None:
     module = load_pi_job_module()
     root = Path("/tmp/demo/my-task")
     layout = module.BundleTaskLayout(root)
+    mailbox = MailboxPaths(layout.plans_dir, pointer_root=layout.plans_pointer)
     assert layout.document_path == Path("/tmp/demo/my-task/task.yaml")
     assert layout.plans_dir == Path("/tmp/demo/my-task/plans")
+    assert layout.plans_pointer == "plans"
     assert layout.references_dir == Path("/tmp/demo/my-task/references")
     assert layout.findings_file() == Path("/tmp/demo/my-task/plans/_findings.md")
     assert layout.slice_plan_file("alpha") == Path("/tmp/demo/my-task/plans/alpha.md")
+    assert mailbox.mailbox_read_dir("slice-alpha") == Path("/tmp/demo/my-task/plans/_inbox/slice-alpha/read")
+    assert mailbox.inbox_pointer("slice-alpha") == "plans/_inbox/slice-alpha"
     assert layout.findings_pointer() == "plans/_findings.md"
     assert layout.slice_plan_pointer("alpha") == "Plan file: plans/alpha.md"
     assert layout.describe_store() == f"task bundle {root}"
+
+
+def test_message_bus_rejects_invalid_and_unknown_addresses() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "message-task"
+        task = root / "task.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        inbox = root / "plans" / "_inbox"
+
+        for address in (
+            "owner:worker-1",
+            "worker:worker-1",
+            "session:0:1",
+            "manager:worker-1",
+            "worker-1",
+        ):
+            result = run(
+                str(PI_JOB),
+                "--task",
+                str(root),
+                "msg",
+                "--to",
+                address,
+                "--note",
+                "must fail",
+                check=False,
+            )
+            assert result.returncode != 0
+            assert_contains(result.stderr, "manager")
+            assert_contains(result.stderr, "slice:KEY")
+            assert not inbox.exists()
+
+        unknown = run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "slice:missing",
+            "--note",
+            "must fail closed",
+            check=False,
+        )
+        assert unknown.returncode != 0
+        assert_contains(unknown.stderr, "unknown slice address")
+        assert not inbox.exists()
+
+
+def test_message_bus_round_trip_status_then_read() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "message-task"
+        task = root / "task.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        before = task.read_text(encoding="utf-8")
+
+        run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "manager",
+            "--note",
+            "Contract needs a decision",
+            "--owner",
+            DEFAULT_OWNER,
+        )
+        assert task.read_text(encoding="utf-8") == before
+        new_files = list((root / "plans" / "_inbox" / "manager" / "new").glob("*.md"))
+        assert len(new_files) == 1
+        message_text = new_files[0].read_text(encoding="utf-8")
+        assert_contains(message_text, "from: slice:implementation (orchestrator)")
+
+        status = run(str(PI_JOB), "--task", str(root), "status").stdout
+        assert_contains(status, "Inbox: 1 unread")
+        assert_contains(status, "slice:implementation (orchestrator)")
+        assert_contains(status, "msg --read --to manager")
+
+        read = run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--read",
+            "--to",
+            "manager",
+        ).stdout
+        assert_contains(read, "Contract needs a decision")
+        assert_contains(read, "Read: 1 message(s)")
+        assert not new_files[0].exists()
+        assert (root / "plans" / "_inbox" / "manager" / "read" / new_files[0].name).is_file()
+        assert_contains(
+            run(str(PI_JOB), "--task", str(root), "status").stdout,
+            "Inbox: <none>",
+        )
+
+
+def test_message_bus_prints_before_ack_and_preserves_late_arrivals() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "messages.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        bus = MessageService.from_layout(store.layout)
+        address = module.Address(kind="manager")
+        first = bus.send(to=address, note="first body", sender="manager")
+        snapshot = bus.list(slug="manager")
+        second = bus.send(to=address, note="late body", sender="manager")
+        bus.mark_read(slug="manager", ids=[message.id for message in snapshot])
+        unread = bus.list(slug="manager")
+        assert [message.path for message in unread] == [second]
+        assert not first.exists()
+
+        third = bus.send(to=address, note="printed body", sender="manager")
+        original_mark_read = MessageService.mark_read
+        output = io.StringIO()
+
+        def mark_after_print(service, *, slug: str, ids: list[str]):
+            assert_contains(output.getvalue(), "printed body")
+            return original_mark_read(service, slug=slug, ids=ids)
+
+        MessageService.mark_read = mark_after_print
+        original_open = module.open_task_store
+        module.open_task_store = lambda _path: store
+        try:
+            args = argparse.Namespace(
+                task=task,
+                to="manager",
+                read=True,
+                note=None,
+                owner=None,
+            )
+            with redirect_stdout(output):
+                module.cmd_msg(args, host=module)
+        finally:
+            module.open_task_store = original_open
+            MessageService.mark_read = original_mark_read
+        assert not third.exists()
+
+
+def test_message_bus_corrupt_row_and_status_cap() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "message-task"
+        task = root / "task.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        store = module.YamlTaskStore(module.BundleTaskLayout(root))
+        bus = MessageService.from_layout(store.layout)
+        address = module.Address(kind="manager")
+        corrupt = bus.send(to=address, note="damage me", sender="manager")
+        oldest_corrupt = corrupt.with_name(f"00000000T000000Z-{corrupt.stem}.md")
+        corrupt.rename(oldest_corrupt)
+        corrupt = oldest_corrupt
+        corrupt.write_text("not front matter\n", encoding="utf-8")
+        for index in range(20):
+            bus.send(
+                to=address,
+                note=f"message {index:02d}",
+                sender="manager",
+            )
+
+        status = run(str(PI_JOB), "--task", str(root), "status").stdout
+        assert_contains(status, "Inbox: 21 unread")
+        assert_contains(status, str(corrupt))
+        message_lines = [
+            line for line in status.splitlines()
+            if line.startswith("  ") and " <- " in line
+        ]
+        assert len(message_lines) == 20
+        assert_contains(status, "... 1 more unread")
+
+        read = run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--read",
+            "--to",
+            "manager",
+        ).stdout
+        assert_contains(read, "Read: 21 message(s)")
+        assert not bus.list(slug="manager")
+
+
+def test_message_bus_loose_yaml_layout_and_orphan_read() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "loose.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "msg",
+            "--to",
+            "manager",
+            "--note",
+            "loose",
+        )
+        assert len(list((Path(tmp) / "loose.plans" / "_inbox" / "manager" / "new").glob("*.md"))) == 1
+
+        store = module.YamlTaskStore(module.YamlTaskLayout(task))
+        bus = MessageService.from_layout(store.layout)
+        dropped = module.Address(kind="slice", key="dropped-key")
+        bus.send(to=dropped, note="orphan", sender="manager")
+        read = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "msg",
+            "--read",
+            "--to",
+            "slice:dropped-key",
+        ).stdout
+        assert_contains(read, "orphan")
+
+
+def test_message_bus_send_guards_and_slice_mailbox() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "guarded-task"
+        write_task_yaml(root / "task.yaml", standard_fixture_mapping(cursor=("second-slice", "s2")))
+        inbox = root / "plans" / "_inbox"
+
+        run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "slice:first",
+            "--note",
+            "artifact at plans/first.md",
+            "--owner",
+            DEFAULT_OWNER,
+        )
+        slice_files = list((inbox / "slice-first" / "new").glob("*.md"))
+        assert len(slice_files) == 1
+        handoff = slice_files[0].read_text(encoding="utf-8")
+        assert_contains(handoff, "to: slice:first")
+        assert_contains(handoff, f"from: slice:second-slice ({DEFAULT_OWNER})")
+        assert not (inbox / "manager").exists()
+
+        self_addressed = run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "slice:second-slice",
+            "--note",
+            "talking to myself",
+            "--owner",
+            DEFAULT_OWNER,
+            check=False,
+        )
+        assert self_addressed.returncode != 0
+        assert_contains(self_addressed.stderr, "claimed slice")
+        assert not (inbox / "slice-second-slice").exists()
+
+        blank = run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "manager",
+            "--note",
+            "   ",
+            check=False,
+        )
+        assert blank.returncode != 0
+        assert_contains(blank.stderr, "--note")
+        assert not (inbox / "manager").exists()
+
+        both_modes = run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--read",
+            "--to",
+            "manager",
+            "--note",
+            "read and send at once",
+            check=False,
+        )
+        assert both_modes.returncode != 0
+        assert not (inbox / "manager").exists()
+
+        fleet = Path(tmp) / "fleet-task"
+        fleet_mapping = standard_fixture_mapping(cursor=("second-slice", "s2"))
+        fleet_mapping["orchestration"]["cursors"] = [
+            claim_dict("first", owner="worker-a"),
+            claim_dict("second-slice", owner="worker-b"),
+        ]
+        write_task_yaml(fleet / "task.yaml", fleet_mapping)
+        sent = run(
+            str(PI_JOB),
+            "--task",
+            str(fleet),
+            "msg",
+            "--to",
+            "manager",
+            "--note",
+            "Two workers hold claims; the manager holds none.",
+        )
+        assert_contains(sent.stdout, "plans/_inbox/manager")
+        manager_files = list((fleet / "plans" / "_inbox" / "manager" / "new").glob("*.md"))
+        assert len(manager_files) == 1
+        assert_contains(manager_files[0].read_text(encoding="utf-8"), "from: manager")
+
+        uninitialized = Path(tmp) / "uninitialized-task"
+        write_task_yaml(
+            uninitialized / "task.yaml",
+            standard_fixture_mapping(uninitialized=True),
+        )
+        refused = run(
+            str(PI_JOB),
+            "--task",
+            str(uninitialized),
+            "msg",
+            "--to",
+            "manager",
+            "--note",
+            "no fleet, no manager role",
+            check=False,
+        )
+        assert refused.returncode != 0
+        assert_contains(refused.stderr, "not initialized")
+        assert not (uninitialized / "plans" / "_inbox").exists()
+
+
+def test_message_bus_mailboxes_stay_separate_and_reread_reports_zero() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "separate-task"
+        write_task_yaml(root / "task.yaml", standard_fixture_mapping(cursor=("second-slice", "s2")))
+        inbox = root / "plans" / "_inbox"
+
+        for note in ("first manager note", "second manager note"):
+            run(
+                str(PI_JOB),
+                "--task",
+                str(root),
+                "msg",
+                "--to",
+                "manager",
+                "--note",
+                note,
+                "--owner",
+                DEFAULT_OWNER,
+            )
+        run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "slice:first",
+            "--note",
+            "consumer handoff",
+            "--owner",
+            DEFAULT_OWNER,
+        )
+        manager_new = sorted((inbox / "manager" / "new").glob("*.md"))
+        assert len(manager_new) == 2
+        assert len({path.stem for path in manager_new}) == 2
+
+        status = run(str(PI_JOB), "--task", str(root), "status").stdout
+        assert_contains(status, "Inbox: 3 unread")
+        assert_contains(status, "first manager note")
+        assert_contains(status, "second manager note")
+        assert_contains(status, "consumer handoff")
+
+        read_manager = run(
+            str(PI_JOB), "--task", str(root), "msg", "--read", "--to", "manager"
+        ).stdout
+        assert_contains(read_manager, "first manager note")
+        assert_contains(read_manager, "second manager note")
+        assert_contains(read_manager, "Read: 2 message(s)")
+        assert_not_contains(read_manager, "consumer handoff")
+        assert not list((inbox / "manager" / "new").glob("*.md"))
+        assert len(list((inbox / "manager" / "read").glob("*.md"))) == 2
+        assert len(list((inbox / "slice-first" / "new").glob("*.md"))) == 1
+
+        reread = run(str(PI_JOB), "--task", str(root), "msg", "--read", "--to", "manager")
+        assert reread.returncode == 0
+        assert_contains(reread.stdout, "Read: 0 message(s)")
+        assert_contains(
+            run(str(PI_JOB), "--task", str(root), "status").stdout,
+            "Inbox: 1 unread",
+        )
+
+        read_slice = run(
+            str(PI_JOB), "--task", str(root), "msg", "--read", "--to", "slice:first"
+        ).stdout
+        assert_contains(read_slice, "consumer handoff")
+        assert_contains(read_slice, "Read: 1 message(s)")
+        assert_contains(
+            run(str(PI_JOB), "--task", str(root), "status").stdout,
+            "Inbox: <none>",
+        )
+
+        never_used = run(
+            str(PI_JOB), "--task", str(root), "msg", "--read", "--to", "slice:never-addressed"
+        )
+        assert never_used.returncode == 0
+        assert_contains(never_used.stdout, "Read: 0 message(s)")
+        assert not (inbox / "slice-never-addressed").exists()
+
+
+def test_message_bus_send_leaves_task_record_untouched() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "digest-task"
+        task = root / "task.yaml"
+        write_task_yaml(task, standard_fixture_mapping(cursor=("second-slice", "s2")))
+        run(str(PI_JOB), "--task", str(root), "set-plan-note", "--note", "baseline")
+        store = module.YamlTaskStore(module.BundleTaskLayout(root))
+        digest_before = store.read()["orchestration"]["content_digest"]
+
+        run(
+            str(PI_JOB),
+            "--task",
+            str(root),
+            "msg",
+            "--to",
+            "manager",
+            "--note",
+            "The mailbox is transport, not a task record.",
+            "--owner",
+            DEFAULT_OWNER,
+        )
+        assert store.read()["orchestration"]["content_digest"] == digest_before
+
+        status = run(str(PI_JOB), "--task", str(root), "status")
+        dirty = "does not match the last pi-job write digest"
+        assert_not_contains(status.stdout, dirty)
+        assert_not_contains(status.stderr, dirty)
+
+
+def test_message_bus_surface_stays_out_of_protocol_and_schema() -> None:
+    package = Path(__file__).resolve().parents[1] / "pi_job_harness"
+    mailbox_methods = ("send_message", "list_messages", "mark_read")
+    for module_name in ("protocol.py", "fs.py"):
+        text = (package / "store" / module_name).read_text(encoding="utf-8")
+        for method in mailbox_methods:
+            assert method not in text, f"{module_name} must not gain {method!r}"
+
+    task_text = (package / "task.py").read_text(encoding="utf-8")
+    assert "class Message" not in task_text
+
+    yaml_store_text = (package / "store" / "yaml.py").read_text(encoding="utf-8")
+    forbidden_store_tokens = (
+        "send_message",
+        "list_messages",
+        "mark_read",
+        "inbox_dir",
+        "mailbox_",
+        "INBOX_NAME",
+        "inbox_pointer",
+        "render_message_entry",
+        "address_slug",
+        "pi_job_harness.messaging",
+    )
+    for token in forbidden_store_tokens:
+        assert token not in yaml_store_text, f"yaml.py must not contain {token!r}"
+
+    messaging = package / "messaging"
+    for path in messaging.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert "from pi_job_harness.app import" not in text
+        assert "from pi_job_harness.store.yaml import" not in text
+        assert "from pi_job_harness.task import" not in text
+
+    cli_text = (messaging / "cli.py").read_text(encoding="utf-8")
+    assert "def cmd_msg" in cli_text
+    assert "def add_msg_parser" in cli_text
+    assert "MessageService.from_layout" in cli_text
+
+    app_text = (package / "app.py").read_text(encoding="utf-8")
+    assert "def cmd_msg" not in app_text
+    assert "add_msg_parser" in app_text
+    assert "store.send_message" not in app_text
+
+    assert_not_contains(run(str(PI_JOB), "schema", "--json").stdout, "manager")
+    assert_not_contains(run(str(PI_JOB), "loop", "--help").stdout, "--task")
+    assert (package / "profile.yaml").read_bytes() == (
+        package.parent / "profile.yaml"
+    ).read_bytes(), "both profile.yaml copies must stay byte-identical"
+
+
+def test_python_package_has_no_terminal_delivery_code() -> None:
+    package = Path(__file__).resolve().parents[1] / "pi_job_harness"
+    forbidden = ("tmux", "send-keys", "subprocess")
+    for path in package.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for token in forbidden:
+            assert token not in text, f"{path} contains forbidden token {token!r}"
 
 
 def test_open_task_store_bundle_dir() -> None:
@@ -8898,6 +9816,7 @@ def main() -> None:
     test_subagent_instruction_prohibits_direct_task_store_inspection()
     test_subagent_instruction_includes_scoped_read_command()
     test_orchestrator_instruction_has_no_subagent_prompt()
+    test_instruction_header_uses_claim_owner_not_step_owner()
     test_subagent_orchestrator_prompt_is_separate_from_execution_body()
     test_add_decision_and_finish_help_describe_channels()
     test_decision_document_schema_describes_channels_contract()
@@ -8922,6 +9841,8 @@ def main() -> None:
     test_claim_release_and_one_claim_per_owner()
     test_claim_displaces_stale_and_refuses_fresh()
     test_owner_omit_when_sole_claim_and_ambiguous_refuse()
+    test_finish_named_owner_resolves_its_claim_among_sibling_claims()
+    test_finish_duplicate_same_owner_claims_fails_closed()
     test_finish_slice_only_auto_releases_claim()
     test_missing_task_points_to_scaffold()
     test_create_kind_requires_goal()
@@ -8949,6 +9870,8 @@ def main() -> None:
     test_maintain_upserts_and_appears_in_instruction()
     test_toolbelt_block_in_plan()
     test_layers_add_stub_bind_graph_and_remove_guard()
+    test_layers_add_binds_existing_slices_atomically_and_fails_closed()
+    test_set_slice_appends_and_clears_dependencies_atomically()
     test_setup_maps_current_state_before_clarify_and_grill()
     test_confirm_layers_packet_pauses_for_user_and_points_at_catalog()
     test_map_current_state_packet_requires_as_is_cross_layer_spine()
@@ -9062,6 +9985,7 @@ def main() -> None:
     test_profile_requires_out_of_band_edit_warning_packet()
     test_profile_requires_next_action_packet()
     test_profile_requires_pick_next_slice_packet()
+    test_packet_guidance_separates_claimed_execution_from_pick_next()
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
     test_profile_requires_cli_help()
@@ -9110,6 +10034,7 @@ def main() -> None:
     test_finish_skip_reuses_started_model_without_flag()
     test_finish_skip_refuses_mismatched_explicit_model()
     test_vulnerability_scan_instruction_prefers_higher_reasoning_model()
+    test_code_review_instruction_dispatches_higher_model_when_available()
     test_vulnerability_scan_rejects_unqualified_author_model()
     test_start_unqualified_model_error_includes_example()
     test_finish_slice_only_rejects_malformed_scan_timestamps()
@@ -9167,6 +10092,17 @@ def main() -> None:
     test_block_slice_gate_appends_depends_on()
     test_add_finding_appends_sidecar_not_yaml()
     test_yaml_task_layout_owns_plans_paths()
+    test_bundle_task_layout_owns_plans_paths()
+    test_message_bus_rejects_invalid_and_unknown_addresses()
+    test_message_bus_round_trip_status_then_read()
+    test_message_bus_prints_before_ack_and_preserves_late_arrivals()
+    test_message_bus_corrupt_row_and_status_cap()
+    test_message_bus_loose_yaml_layout_and_orphan_read()
+    test_message_bus_send_guards_and_slice_mailbox()
+    test_message_bus_mailboxes_stay_separate_and_reread_reports_zero()
+    test_message_bus_send_leaves_task_record_untouched()
+    test_message_bus_surface_stays_out_of_protocol_and_schema()
+    test_python_package_has_no_terminal_delivery_code()
     test_add_decision_spills_long_note_to_plan_file()
     test_add_slice_creates_plan_stub()
     test_profile_requires_slice_plan_stub_and_findings_header()

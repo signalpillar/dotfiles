@@ -152,6 +152,9 @@ class CliHelpDocument(StrictDocument):
     set_step_note: CliHelpMutationDocument = Field(description="Help for set-step-note.")
     set_slice_note: CliHelpMutationDocument = Field(description="Help for set-slice-note.")
     set_source: CliHelpMutationDocument = Field(description="Help for set-source.")
+    set_slice: CliHelpMutationDocument = Field(description="Help for set-slice.")
+    layers: CliHelpMutationDocument = Field(description="Help for layers.")
+    msg: CliHelpMutationDocument = Field(description="Help for the durable task message bus.")
     finish: CliHelpFinishDocument = Field(description="Help for finish channel-related flags.")
 
 

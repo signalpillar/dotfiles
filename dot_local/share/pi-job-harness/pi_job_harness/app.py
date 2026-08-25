@@ -24,6 +24,16 @@ import yaml
 from pydantic import ValidationError
 
 from pi_job_harness.errors import die
+from pi_job_harness.messaging import (
+    Address,  # noqa: F401 - tests getattr this on the app module
+    Message,
+    MessageService,
+    address_slug,  # noqa: F401 - tests getattr this on the app module
+    format_read_messages,  # noqa: F401 - tests getattr this on the app module
+    parse_address,  # noqa: F401 - tests getattr this on the app module
+    render_message_status_line,
+)
+from pi_job_harness.messaging.cli import add_msg_parser, cmd_msg  # noqa: F401
 from pi_job_harness.profile import (
     PROFILE,
     ProfileDocument,  # noqa: F401 - tests getattr this on the app module
@@ -85,8 +95,6 @@ _GLYPH_STYLE = {
     "planned": "\033[2m",      # dim
 }
 _CURRENT_STYLE = "\033[1;35m"  # bold magenta: readable on light and dark terminals
-
-
 
 
 def color_enabled(mode: str) -> bool:
@@ -834,13 +842,18 @@ def resolve_claim_for_command(
     owner_id = getattr(args, "owner", None) or os.environ.get("PI_JOB_OWNER")
     claims = owned_cursors(task)
     if owner_id:
-        claim = next((c for c in claims if c.owner == owner_id), None)
-        if claim is None and required:
+        owner_claims = [claim for claim in claims if claim.owner == owner_id]
+        if len(owner_claims) > 1:
+            die(
+                f"multiple active claims for owner {owner_id!r}: {len(owner_claims)}; "
+                "repair orchestration.cursors before retrying"
+            )
+        if not owner_claims and required:
             die(
                 f"no active claim for owner {owner_id!r}; run "
                 f"`pi-job claim --slice KEY --owner {owner_id}` first (see `pi-job show`)"
             )
-        return claim
+        return owner_claims[0] if owner_claims else None
     if len(claims) == 1:
         return claims[0]
     if not required:
@@ -1023,7 +1036,13 @@ def cursor_on_user_decision(task: Mapping[str, Any], cursor: Cursor | None) -> b
     return bool(step_execution_policy(step).get("requires_user_decision"))
 
 
-def print_status(ref: str, task: dict[str, Any], task_path: Path | None = None) -> None:
+def print_status(
+    ref: str,
+    task: dict[str, Any],
+    task_path: Path | None = None,
+    *,
+    unread: Sequence[Message] = (),
+) -> None:
     print(f"Task: {task.get('title', '<untitled>')}")
     print(f"Task: {ref}")
     print(f"Status: {derived_task_status(task)}")
@@ -1050,6 +1069,15 @@ def print_status(ref: str, task: dict[str, Any], task_path: Path | None = None) 
             print("Cursors:")
             for claim in sorted(claims, key=lambda c: c.owner):
                 print(f"  {claim_label(task, claim)}")
+        if unread:
+            print(f"Inbox: {len(unread)} unread")
+            for message in unread[:20]:
+                print(render_message_status_line(message))
+            if len(unread) > 20:
+                print(f"  ... {len(unread) - 20} more unread")
+            print(f"  read: pi-job --task {ref} msg --read --to manager")
+        else:
+            print("Inbox: <none>")
         for claim in claims:
             if cursor_on_user_decision(task, claim_position(task, claim)):
                 hint = str(
@@ -2123,6 +2151,7 @@ def build_instruction(
         "cursor": cursor.label(),
         "task_file": str(task_file),
         "slice_key": task_slice.key if task_slice else (cursor.slice or "<unknown>"),
+        "owner": claim.owner,
     }
 
     lines = [
@@ -2132,6 +2161,7 @@ def build_instruction(
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
+        f"Owner: {claim.owner}",
         f"Claim: {claim.owner}",
         (
             "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
@@ -2192,7 +2222,7 @@ def build_instruction(
             if step_kind.get("requires_user_decision"):
                 lines += [
                     "- Ask the user whether to run this step before dispatching its executor.",
-                    "- If declined, run `finish --skip --model <orchestrator-model-id> --reason '<user decision>'`.",
+                    "- If declined, run `finish --skip --model cursor/grok-4.6 --reason '<user decision>'`.",
                 ]
             if source_step_key:
                 source_step = find_step(task_slice, source_step_key) if task_slice else None
@@ -2204,8 +2234,11 @@ def build_instruction(
                         "model ID than that author model."
                     ),
                     (
-                        "- Prefer a higher-reasoning / higher-capability model than that author model "
-                        "(do not reuse a fast coding or low-cost edit model for review/scan)."
+                        "- When a higher-reasoning / higher-capability model exists than that "
+                        "author model, run this review/scan on that higher model."
+                    ),
+                    (
+                        "- Do not reuse a fast coding or low-cost edit model for review/scan."
                     ),
                 ]
             lines.append("- Record the outcome and resolve findings or explicitly record accepted risk before advancing.")
@@ -2251,7 +2284,18 @@ def build_instruction(
 def cmd_status(args: argparse.Namespace) -> None:
     task_file = args.task
     store = open_task_store(task_file)
-    print_status(task_display_ref(store), store.read(), task_path=task_file)
+    task = store.read()
+    unread = (
+        MessageService.from_layout(store.layout).list(unread_only=True)
+        if isinstance(store, YamlTaskStore)
+        else []
+    )
+    print_status(
+        task_display_ref(store),
+        task,
+        task_path=task_file,
+        unread=unread,
+    )
 
 
 def cmd_advance(args: argparse.Namespace) -> None:
@@ -3933,6 +3977,77 @@ def cmd_show(args: argparse.Namespace) -> None:
     print("\n".join(lines))
 
 
+def validated_layer_binds(
+    task: Mapping[str, Any],
+    *,
+    new_layer: str,
+    raw_binds: list[str],
+) -> list[tuple[str, str]]:
+    """Parse and validate atomic bindings for a layer registry addition."""
+    binds: list[tuple[str, str]] = []
+    seen: dict[str, str] = {}
+    for raw in raw_binds:
+        if raw.count("=") != 1:
+            die("--bind must use exactly one SLICE=LAYER pair")
+        slice_key, layer = raw.split("=")
+        if not slice_key or not layer:
+            die("--bind requires non-empty SLICE and LAYER values")
+        if slice_key in seen:
+            if seen[slice_key] == layer:
+                die(f"duplicate --bind for slice {slice_key!r}")
+            die(
+                f"conflicting --bind values for slice {slice_key!r}: "
+                f"{seen[slice_key]!r} and {layer!r}"
+            )
+        seen[slice_key] = layer
+        binds.append((slice_key, layer))
+
+    slices = task.get("plan", {}).get("slices", [])
+    by_key = {
+        str(task_slice.get("key")): task_slice
+        for task_slice in slices
+        if isinstance(task_slice, Mapping)
+    }
+    known_layers = {*layer_names(task), new_layer}
+    for slice_key, layer in binds:
+        task_slice = by_key.get(slice_key)
+        if task_slice is None:
+            die(f"--bind slice not found: {slice_key!r}")
+        kind = str(task_slice.get("kind") or "")
+        if kind not in LAYERED_SLICE_KINDS:
+            die(
+                f"--bind is not allowed for kind {kind!r}; "
+                f"only {', '.join(sorted(LAYERED_SLICE_KINDS))} use layers"
+            )
+        existing_layer = task_slice.get("layer")
+        if existing_layer:
+            die(
+                f"slice {slice_key!r} already has layer {existing_layer!r}; "
+                "rebind with `set-slice --layer`"
+            )
+        if layer not in known_layers:
+            die(
+                f"--bind layer {layer!r} is not registered or being added; "
+                f"known: {', '.join(sorted(known_layers))}"
+            )
+
+    bound_keys = set(seen)
+    unbound = [
+        str(task_slice.get("key"))
+        for task_slice in slices
+        if isinstance(task_slice, Mapping)
+        and str(task_slice.get("kind") or "") in LAYERED_SLICE_KINDS
+        and not task_slice.get("layer")
+        and str(task_slice.get("key")) not in bound_keys
+    ]
+    if unbound:
+        die(
+            "layers add requires bindings for all unlayered implement/spike/research "
+            f"slices: {', '.join(unbound)}"
+        )
+    return binds
+
+
 def cmd_layers(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="layers")
     store = open_task_store(task_file)
@@ -3951,11 +4066,17 @@ def cmd_layers(args: argparse.Namespace) -> None:
 
     if action == "add":
         refs = split_csv(getattr(args, "references", None))
+        binds = validated_layer_binds(
+            task,
+            new_layer=args.name,
+            raw_binds=list(getattr(args, "bind", []) or []),
+        )
         store.add_layer(
             name=args.name,
             description=args.description,
             references=refs or None,
             after=getattr(args, "after", None),
+            binds=binds,
         )
         print(f"added layer: {args.name}")
     elif action == "set":
@@ -4789,13 +4910,23 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="set-slice")
     if args.layer and args.clear_layer:
         die("--layer and --clear-layer are mutually exclusive")
+    depends_on = list(args.depends_on or [])
+    if depends_on and args.clear_depends_on:
+        die("--depends-on and --clear-depends-on are mutually exclusive")
+    if any(dep == "" for dep in depends_on):
+        die("--depends-on requires a non-empty slice key")
     if (
         args.title is None
         and args.goal is None
         and args.layer is None
         and not args.clear_layer
+        and not depends_on
+        and not args.clear_depends_on
     ):
-        die("at least one of --title, --goal, --layer, or --clear-layer is required")
+        die(
+            "at least one of --title, --goal, --layer, --clear-layer, "
+            "--depends-on, or --clear-depends-on is required"
+        )
     store = open_task_store(task_file)
     if not isinstance(store, YamlTaskStore):
         die("set-slice requires a YAML task file")
@@ -4806,6 +4937,11 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
         die(f"slice not found: {key!r}")
     if status_map[key] in STATUS_DONE:
         die(f"cannot update completed slice: {key} [{status_map[key]}]")
+    for dep in depends_on:
+        if dep not in status_map:
+            die(f"--depends-on slice not found: {dep!r}")
+        if dep == key:
+            die("cannot make a slice depend on itself")
     slices = task.get("plan", {}).get("slices", [])
     slice_dict = next((s for s in slices if s.get("key") == key), None)
     kind = str(slice_dict.get("kind") or "") if slice_dict else ""
@@ -4824,6 +4960,8 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
         goal=args.goal,
         layer=layer_value,
         clear_layer=bool(args.clear_layer),
+        depends_on=depends_on,
+        clear_depends_on=bool(args.clear_depends_on),
     )
     parts = [f"key={key}"]
     if args.title is not None:
@@ -4834,7 +4972,16 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
         parts.append("layer=<cleared>")
     elif args.layer is not None:
         parts.append(f"layer={args.layer}")
+    if args.clear_depends_on:
+        parts.append("depends_on=<cleared>")
     print(f"updated slice: {', '.join(parts)}")
+    existing_deps = list(slice_dict.get("depends_on") or []) if slice_dict else []
+    for dep in depends_on:
+        if dep in existing_deps:
+            print(f"depends_on already includes {dep}")
+        else:
+            print(f"depends_on += {dep}")
+            existing_deps.append(dep)
 
 
 def cmd_block_slice(args: argparse.Namespace) -> None:
@@ -5365,6 +5512,8 @@ def main() -> None:
     status = sub.add_parser("status", help="show task status, saved cursor, and Ready frontier")
     status.set_defaults(fn=cmd_status)
 
+    add_msg_parser(sub, cli_help)
+
     validate = sub.add_parser(
         "validate",
         help="validate task syntax, documented Pydantic fields, profile references, and slice structure",
@@ -5504,7 +5653,12 @@ def main() -> None:
     sync.add_argument("--status", help="comma-separated slice statuses to check instead of the default in_progress/blocked-or-open-PR selection")
     sync.set_defaults(fn=cmd_sync)
 
-    layers_cmd = sub.add_parser("layers", help="show or mutate the task.layers registry")
+    layers_cmd = sub.add_parser(
+        "layers",
+        help=str(cli_help["layers"]["command"]),
+        description=str(cli_help["layers"]["command"]),
+        epilog=str(cli_help["layers"]["note"]),
+    )
     layers_sub = layers_cmd.add_subparsers(dest="layers_action", required=True)
     layers_show = layers_sub.add_parser("show", help="list registered layers and slice survival report")
     layers_show.set_defaults(fn=cmd_layers)
@@ -5513,6 +5667,13 @@ def main() -> None:
     layers_add.add_argument("--description", required=True, help="one-line band description")
     layers_add.add_argument("--references", help="comma-separated paths or URLs")
     layers_add.add_argument("--after", help="insert after this existing layer name")
+    layers_add.add_argument(
+        "--bind",
+        action="append",
+        default=[],
+        metavar="SLICE=LAYER",
+        help="bind an existing unlayered implement/spike/research slice in this write; repeatable",
+    )
     layers_add.set_defaults(fn=cmd_layers)
     layers_set = layers_sub.add_parser("set", help="update a layer description and/or references")
     layers_set.add_argument("--name", required=True, help="existing layer name")
@@ -5854,7 +6015,12 @@ def main() -> None:
     )
     set_plan_note.set_defaults(fn=cmd_set_plan_note_cli)
 
-    set_slice = sub.add_parser("set-slice", help="update a slice title and/or goal")
+    set_slice = sub.add_parser(
+        "set-slice",
+        help=str(cli_help["set_slice"]["command"]),
+        description=str(cli_help["set_slice"]["command"]),
+        epilog=str(cli_help["set_slice"]["note"]),
+    )
     set_slice.add_argument("--slice", required=True, help="slice key to update")
     set_slice.add_argument("--title", help="new slice title")
     set_slice.add_argument("--goal", help="new slice goal")
@@ -5867,6 +6033,18 @@ def main() -> None:
         "--clear-layer",
         action="store_true",
         help="remove slice layer binding (not allowed for layered kinds when registry set)",
+    )
+    set_slice.add_argument(
+        "--depends-on",
+        action="append",
+        default=[],
+        metavar="KEY",
+        help="append a missing dependency to this consumer slice; repeatable",
+    )
+    set_slice.add_argument(
+        "--clear-depends-on",
+        action="store_true",
+        help="clear every dependency from this slice",
     )
     set_slice.set_defaults(fn=cmd_set_slice)
 

@@ -267,6 +267,8 @@ pr_template_guardrail: &pr_template_guidance |-
   case.
   After opening the PR, record it:
     pi-job --task TASK_FILE add-pr --slice SLICE_KEY --repo REPO --url URL --status open
+  Satisfy the ticket gate by recording an existing ticket key in `finish --note`.
+  There is no `add-ticket` command. Do not create GitHub Issues.
   Prefer `gh pr create --head <branch>` right after the first push of a new branch
   (avoids the "must first push" abort).
 plan_and_grill_guardrail: &plan_and_grill_guidance |-
@@ -350,6 +352,21 @@ cli_help:
     note: >-
       At least one of --jira, --discovered, --context. Omitted fields are preserved.
       See README Source vs context vs maintain for task.source.context vs task.context.
+  set_slice:
+    command: update slice metadata, layer binding, or dependency edges
+    note: >-
+      Set the consumer slice. Repeat --depends-on KEY to append missing dependencies in
+      flag order. Use --clear-depends-on to clear the list. Dependency flags are YAML-only.
+  layers:
+    command: show or mutate the task.layers registry
+    note: >-
+      On the first layer add, repeat --bind SLICE=LAYER for every existing
+      implement/spike/research slice. The layer row and bindings use one validated write.
+  msg:
+    command: send or read durable task-scoped messages for the manager or a slice
+    note: >-
+      Send with --to manager|slice:KEY --note TEXT. Read and acknowledge one mailbox with
+      --read --to ADDRESS. Owner, worker, and tmux addresses are invalid.
   finish:
     note: >-
       append completion/evidence for this step (not product decisions; use add-decision);
@@ -373,7 +390,10 @@ instruction_packets:
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
     Reads: pi-job --task TASK_FILE status | plan | markdown [--slice SLICE_KEY] | show [--slice SLICE_KEY] | instruction | maintain.
     Writes: pi-job mutation commands (claim, release, start, finish [--replace], add-slice, add-step, set-slice, block-slice, unblock-slice, set-step-note, set-slice-note, set-source, layers, maintain, set-project, set-context, add-decision, set-plan-note, remove-slice, set-worktree, add-pr, acknowledge-edit); see pi-job --help for the rest.
-    When task.layers is set: bind implement/spike/research slices with add-slice --layer or set-slice --layer; maintain the registry with `pi-job layers` (show/add/set/remove/rename/reorder).
+    Set task context with `set-context --context TEXT` or `set-context --file PATH`; never use `--text`.
+    When task.layers is empty: register the first band and bind every existing implement/spike/research slice atomically with `pi-job layers add --bind SLICE=LAYER` (repeat --bind).
+    When task.layers is set: bind new implement/spike/research slices with add-slice --layer or set-slice --layer; maintain the registry with `pi-job layers` (show/add/set/remove/rename/reorder).
+    Rewire an existing consumer with `set-slice --slice CONSUMER --depends-on PRODUCER` (repeatable) or `--clear-depends-on`.
     Write notes and decisions as Markdown so `pi-job markdown` can render them formatted (decisions as blockquotes; context/notes as Markdown prose or quotes).
     Why: direct inspection loads the whole record into context (token cost); hand-edits bypass validation and orchestration guards.
     Token smell: if a step needs a huge dump to proceed, shrink the contract or the slice; do not dump more of the store into context.
@@ -381,12 +401,12 @@ instruction_packets:
     Full channel map: pi-job channels (or pi-job channels --step KEY for one step).
   next_action: |-
     Do not wait for another user prompt.
-    1. No claim: `pi-job --task TASK_FILE claim --slice KEY --owner ID` (pick Ready from `show`)
-    2. Slice lacks execution metadata: `pi-job --task TASK_FILE start --slice-only --model <orchestrator-model-id>`
-    3. `pi-job --task TASK_FILE start --model <fully-qualified-model-id>`
-    4. Execute cursor {cursor} per this packet
-    5. `pi-job --task TASK_FILE finish` with evidence, then `instruction`
-    6. Pick-next packet: `finish --slice-only`, `show`, claim a Ready slice, `instruction`
+    1. Slice lacks execution metadata: `pi-job --task TASK_FILE start --slice-only --owner {owner} --model cursor/grok-4.6`
+    2. `pi-job --task TASK_FILE start --owner {owner} --model cursor/grok-4.6`
+       The model is an attribution hint only. It does not route reviews or debugging.
+    3. Execute cursor {cursor} per this packet.
+    4. `pi-job --task TASK_FILE finish --owner {owner} --slice SLICE_KEY --step STEP_KEY --note '<evidence>'`
+    5. `pi-job --task TASK_FILE instruction --owner {owner}`
     Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
   pick_next_slice: |-
     Your claimed slice has no unfinished steps.
@@ -458,7 +478,7 @@ instruction_packets:
     Non-setup slices already seeded - confirm layers + toolbelt only; do not run primary add-slice for the initial plan.
   grill_before_cursor: |-
     Grill-first, then create: when scope is grilled before the task file exists, run create (or create --from)
-    after grill survives, then backfill setup steps with finish --reconcile --model <id> --note '<chat/grill evidence>'
+    after grill survives, then backfill setup steps with finish --reconcile --model cursor/grok-4.6 --note '<chat/grill evidence>'
     for each setup step already satisfied in chat (explore, map-current-state, clarify, grill, etc.).
     Reconcile refuses planned/done/skipped targets; record chat evidence in the note, not a synthetic start timestamp.
     See README § Grill before cursor for a full walkthrough.
@@ -596,9 +616,9 @@ instruction_packets:
       pi-job --task {task_file} add-slice --kind fog|implement --key <key> ...
       pi-job --task {task_file} block-slice --slice <closing> --reason '...' --gate <fix-key>
   orchestrator_heartbeat: >-
-    Manager metronome for TASK: stay in manager mode for the tmux fleet; do not execute slice steps here. Keep one live window per active owner/slice. Session name: TASK-orchestrators (create if missing). Window name: OWNER-SLICE-short. On Ready and unowned: spawn a window, inject slice_worker_boot (pi-job loop --worker), start the same agent/harness used today. On dead pane with live claim: recover same owner/slice. On slice terminal or claim gone: leave or close the window; do not reclaim as manager. Tick: status/show, reconcile desired vs live windows, spawn/recover, sleep. Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs. On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
+    Manager metronome for TASK: stay in manager mode for the tmux fleet; do not execute slice steps here. Keep one live window per active owner/slice. Session name: TASK-orchestrators (create if missing). Window name: OWNER-SLICE-short. On Ready and unowned: spawn a window, inject slice_worker_boot (pi-job loop --worker), start the same agent/harness used today. On dead pane with live claim: recover same owner/slice. On slice terminal or claim gone: leave or close the window; do not reclaim as manager. Tick: status/show, read the manager inbox with pi-job --task TASK msg --read --to manager when unread, reconcile desired vs live windows, spawn/recover, sleep. Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs. On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
   slice_worker_boot: >-
-    ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo. Loop: pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal. When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice. Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
+    ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo. Loop: read pi-job --task TASK msg --read --to slice:SLICE, then run pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal. When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice. Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
   maintain_header: |-
     Keep current (update these surfaces when task reality changes):
   maintain_empty: |-
@@ -841,8 +861,15 @@ step_kinds:
       Run one distinct final review of the actual diff with the volod-style skill
       (skills/volod-style/SKILL.md). Applying volod-style while planning or coding
       does NOT satisfy this step; this is a separate pass on the finished change.
-      - Use a different, higher-reasoning model than edit-code; do not reuse the
-        fast/low-cost coding model to review its own output.
+      - Read the model recorded on edit-code.
+      - When a higher-reasoning model exists than that author model, dispatch
+        the review to a subagent on it.
+      - When the author model is already top-tier, pick a different capable reviewer.
+      - Do not review in the same session or with the fast coding model.
+      - Ignore lower_power_model_preferred for this review pass.
+      - Record the actual reviewer model on start/finish.
+      - Do not record the orchestrator default when a higher-model subagent ran
+        the review.
       - Check volod-style concerns: service boundaries, explicit contracts and type
         strictness, fail-closed safety, decision/edge-case comments, kebab-case
         logging, and test quality (test.each, fixture reuse).

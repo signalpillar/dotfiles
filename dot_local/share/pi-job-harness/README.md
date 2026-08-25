@@ -11,7 +11,7 @@ The main pain was updating CUE from pi-job through fragile regex rewrites, so it
 ## Contents
 
 ```text
-pi_job_harness/         installable package (`cli:main`, task, profile, store, stats, report, app)
+pi_job_harness/         installable package (`cli:main`, task, profile, store, stats, report, app, messaging)
 bin/pi-job              thin shim that imports the package (tests / PATH copies)
 profile.yaml            copy of the contract (canonical file is pi_job_harness/profile.yaml)
 pyproject.toml          package metadata, uvx entry, ruff
@@ -50,6 +50,7 @@ Given a YAML task file and package-local `profile.yaml`, it can:
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `set-step-note` / `set-slice-note` / `set-source` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
 - `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
+- `msg --to manager|slice:KEY --note TEXT` - send a durable task-scoped message; `msg --read --to ADDRESS` prints and acknowledges it
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `stats` / `report --since YYYY-MM-DD` - read-only markdown (or `--json`) from store execution / repo_work; optional `-o PATH` writes without printing
@@ -92,6 +93,14 @@ Two loops, two packets (no tmux spawn code in the harness):
 - **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not pick-next or claim other slices.
 
 Classic `instruction` → pick-next stays valid when no fleet is in use.
+Execution packets print `Owner:` and `Claim:` from the resolved claim.
+The profile step owner controls only the `Role:` line.
+
+Messages use one Markdown file under `plans/_inbox/<address>/new/`.
+Loose YAML tasks use `<stem>.plans/_inbox/`.
+`status` reports every unread mailbox without acknowledging messages.
+Use `manager` or `slice:KEY` only.
+Never route messages through owner identities or terminal panes.
 
 During every step, capture discovered future work, revisitable issues, technical debt, and unresolved doubts as explicit bounded slices with the appropriate kind and dependencies.
 Do not leave actionable follow-up work only in notes.
@@ -439,7 +448,12 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
 - `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and append the reason to the current cursor slice note (YAML only; not a decision).
-- `pi-job --task <t> set-slice --slice K [--title T] [--goal G]` - update slice metadata (at least one of `--title` or `--goal` required; YAML only; refuses `done`/`skipped` slices).
+- `pi-job --task <t> set-slice --slice K [--title T] [--goal G] [--depends-on D] [--clear-depends-on]` - update a YAML slice.
+  Repeat `--depends-on D` to append missing dependencies in flag order.
+  Set the consumer slice: if `B` waits on `A`, use `--slice B --depends-on A`.
+  Use `--clear-depends-on` to clear all dependencies.
+  Dependency flags combine with title, goal, and layer flags in one mutation.
+  The command refuses `done` and `skipped` slices.
 - `pi-job --task <t> set-slice-note --slice K --note TEXT [--replace]` - append or replace a slice note without changing slice status or execution (unlike `finish --slice-only` or `block-slice`).
 - `pi-job --task <t> set-step-note --slice K --step S --note TEXT [--replace]` - append or replace a step note without changing step status or execution (mid-wait progress without `finish`).
 - `pi-job --task <t> block-slice --slice K --reason R` - mark a slice `blocked` and append the reason to its note (YAML only; refuses `done`/`skipped`; re-block appends again).
@@ -477,6 +491,8 @@ These commands do not require `--task`.
 - `release --owner ID` drops any claim (not self-only); mid-slice release leaves slice status unchanged.
 - `finish --slice-only` to a terminal slice status auto-releases the claim on that slice.
 - Owner may also come from `$PI_JOB_OWNER`; omit when there is exactly one active claim.
+- A named owner selects its claim when other owners hold sibling claims.
+- Duplicate active rows for one named owner fail closed.
 
 ### advance (deprecated)
 
@@ -495,6 +511,9 @@ execution:
 ```
 
 - Model IDs should be fully qualified as `provider/model` so model-separation checks are meaningful.
+- `start --model` records attribution.
+  It does not route later reviews or debugging.
+  The `code-review` packet tells the orchestrator to launch a higher-reasoning reviewer than `edit-code` when a higher model exists.
 - Timestamps are generated by `pi-job` as UTC ISO 8601 values.
 - With no target flags, lifecycle commands operate on the claim's derived active step (`--owner` / `$PI_JOB_OWNER` / sole claim).
 - `--slice-only` targets the claimed (or explicit `--slice`) slice; `--slice K` targets another slice; add `--step K` to target one of its steps.
@@ -536,6 +555,10 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 
 - `pi-job --task <t> layers [show|add|set|remove|rename|reorder]` - manage ordered `task.layers` bands (`name`, `description`, `references`).
   When non-empty, implement/spike/research slices need exactly one `--layer`.
+  Empty registries remain valid for single-band tasks.
+  On the first add, repeat `--bind SLICE=LAYER` for every existing layered-kind slice.
+  The command adds the registry row and all bindings in one validated mutation.
+  Invalid, duplicate, conflicting, or incomplete bindings leave the task unchanged.
   `layers add` creates `references/bigpicture.txt` stub when missing (shape contract + fictional spine example + per-layer TODOs); later edits print a slice survival report (agent updates the bigpicture call spine).
   Setup selects layers for the complete current journey, including unchanged or idle systems that explain a handoff.
 - `pi-job --task <t> toolbelt` - list planning aids whose `suits` includes a slice kind present on the task (or pass `--kind K` to filter).
@@ -831,12 +854,14 @@ Write new `pi-job` Python in a functional style.
 
 ### Shape
 
-Layouts and stores live in the `pi_job_harness.store` package.
+Layouts and stores live in `pi_job_harness.store`.
+Mailbox behavior lives in `pi_job_harness.messaging`.
 
 | Layer | Owns | Does not |
 |---|---|---|
-| `YamlTaskLayout` / `TaskLayout` | Pure path arithmetic under `<stem>.plans/` and task siblings | Clock, I/O, profile text |
-| `YamlTaskStore` (and other stores) | Task YAML + sibling `.plans/` reads/writes under `exclusive()`; atomic replace | Hardcoded instruction/packet bodies |
+| `YamlTaskLayout` / `TaskLayout` | Plans root and store-managed sibling path arithmetic | `_inbox` paths, clock, I/O, profile text |
+| `YamlTaskStore` (and other stores) | Task YAML and store-managed `.plans/` reads/writes under `exclusive()` | Mailbox I/O, hardcoded instruction/packet bodies |
+| `messaging/` | Address, message, `_inbox` paths, mailbox I/O, formatting, service facade, and `msg` argparse/`cmd_msg` | Task YAML mutation |
 | `render_*` / packet helpers | Pure strings from task mappings, injected plan bodies, and profile templates | Disk reads, mutations |
 | `cmd_*` | Argparse, validate-at-edge, open store, load bytes for render, print | Business mutation logic duplicated outside the store |
 
@@ -847,10 +872,11 @@ Layouts and stores live in the `pi_job_harness.store` package.
 | Slice plan stub | `ensure_slice_plan_stub` | Profile `slice_plan_stub`; create-plan kinds only; atomic write under lock |
 | Findings log | `add_finding` → `layout.findings_file()` (`_findings.md`) | Append-only; header from `findings_file_header` |
 | Long decision spill | `add_decision(..., spill_body=, spill_path=)` | Soft-limit or `--plan-file`; layout path needs caller `stamp` |
+| Mailbox | `MessageService` → `MailboxPaths` (`_inbox`) | Unique files; no task advisory lock |
 | Block + optional gate | `block_slice(..., gate=)` | One mutation (status/note + `depends_on`) |
 
 CLI must not `write_text` these sidecars directly.
-Clocks (`utc_now`) and path stamps live in the store/cmd edge, not in layout.
+Clocks and path stamps live in their I/O edge (`messaging/`, store, or `cmd_*`), not in layout.
 
 ### Profile vs Python
 
@@ -870,6 +896,11 @@ Default to pure free functions (see Functional style).
 Use a named class only when one object owns a coherent feature surface (formatting, export, layout, policy) with shared construction state.
 Keep free functions for thin wiring (`cmd_*`, argparse, store open/close) and for pure transforms.
 Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
+`MessageService` owns send, list, and read operations.
+`MailboxPaths` owns all `_inbox` path arithmetic.
+`messaging/cli.py` owns the `msg` parser and `cmd_msg`.
+`app.py` registers that parser.
+`cmd_msg` applies CLI policy through host process helpers, then invokes the service and prints.
 Do not scatter matching helpers (`node_id`, `classDef`, edge assembly) beside unrelated `show` tree code.
 Follow the same pattern when adding similar exporters or viewers.
 

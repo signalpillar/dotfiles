@@ -379,9 +379,6 @@ class BootstrapDocument(StrictDocument):
                 raise ValueError("goal is required when initial_slice_kind is set")
             normalize_real_goal(str(self.goal), label="goal")
         return self
-
-
-
 @dataclass(frozen=True)
 class Cursor:
     """A derived position in the plan (slice, optional step). Never persisted directly:

@@ -104,8 +104,7 @@ def render_finding_entry(*, note: str, source: str, stamp: str) -> str:
 class YamlTaskLayout:
     """Sibling filesystem layout for a loose YAML task file.
 
-    Owns paths under `<task-stem>.plans/` (slice plans, findings, decision spills).
-    YamlTaskStore owns all I/O against these paths.
+    Owns paths under `<task-stem>.plans/` for store-managed sibling artifacts.
     """
 
     FINDINGS_NAME = "_findings.md"
@@ -120,6 +119,10 @@ class YamlTaskLayout:
     @property
     def plans_dir(self) -> Path:
         return self.task_path.parent / f"{self.task_path.stem}.plans"
+
+    @property
+    def plans_pointer(self) -> str:
+        return f"{self.task_path.stem}.plans"
 
     def findings_file(self) -> Path:
         return self.plans_dir / self.FINDINGS_NAME
@@ -148,7 +151,7 @@ class BundleTaskLayout:
     Bundle document lives at `<root>/task.yaml` (exact name, not `.yml`).
     Plans/findings/decision spills live under `<root>/plans/` (not
     `<stem>.plans/`); `<root>/references/` is reserved bundle metadata for
-    later slices. YamlTaskStore owns all I/O against these paths.
+    later slices.
     """
 
     DOCUMENT_NAME = "task.yaml"
@@ -164,6 +167,10 @@ class BundleTaskLayout:
     @property
     def plans_dir(self) -> Path:
         return self.bundle_root / "plans"
+
+    @property
+    def plans_pointer(self) -> str:
+        return "plans"
 
     @property
     def references_dir(self) -> Path:
@@ -674,6 +681,8 @@ class YamlTaskStore:
         goal: str | None = None,
         layer: str | None = None,
         clear_layer: bool = False,
+        depends_on: list[str] | None = None,
+        clear_depends_on: bool = False,
     ) -> None:
         def mutation(task: dict[str, Any]) -> None:
             task_slice = self._slice(task, slice_key)
@@ -685,6 +694,13 @@ class YamlTaskStore:
                 task_slice.pop("layer", None)
             elif layer is not None:
                 task_slice["layer"] = layer
+            if clear_depends_on:
+                task_slice["depends_on"] = []
+            elif depends_on:
+                deps = task_slice.setdefault("depends_on", [])
+                for dep in depends_on:
+                    if dep not in deps:
+                        deps.append(dep)
 
         self._mutate(mutation)
 
@@ -762,7 +778,6 @@ class YamlTaskStore:
             # Task lock serializes .plans/ writers; atomic replace avoids partial stubs.
             atomic_write_text(path, body)
         return path
-
     def add_layer(
         self,
         *,
@@ -770,6 +785,7 @@ class YamlTaskStore:
         description: str,
         references: list[str] | None = None,
         after: str | None = None,
+        binds: list[tuple[str, str]] | None = None,
     ) -> None:
         entry = make_layer_entry(name=name, description=description, references=references)
 
@@ -779,6 +795,8 @@ class YamlTaskStore:
                 entry,
                 after=after,
             )
+            for slice_key, layer in binds or []:
+                self._slice(task, slice_key)["layer"] = layer
 
         self._mutate(mutation)
 
