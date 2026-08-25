@@ -1,0 +1,8 @@
+[tools]
+antigravity-cli = "latest"
+babashka = "latest"
+glow = "latest"
+jq = "latest"
+opencode = "latest"
+python = "3.14"
+uv = "latest"

@@ -16,7 +16,6 @@ brew "gcc"
 brew "libgccjit"
 brew "tmux"
 brew "starship"
-brew "gemini-cli"
 brew "mise"
 brew "direnv"
 brew "coreutils"
@@ -78,6 +77,7 @@ cask "stats"
 cask "1password-cli"
 cask "temurin" # Java
 cask "claude-code"
+cask "antigravity-cli"
 cask "opensuperwhisper"
 
 # Fonts
