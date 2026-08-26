@@ -1,114 +1,96 @@
-This project contains all my dotfiles that are moved from box to box.
+# Dotfiles and System Configuration
 
-## Manually installed
+This repository manages user configuration across macOS and Linux virtual machines with chezmoi.
 
-- [AltTab - Windows alt-tab on macOS](https://alt-tab-macos.netlify.app/)
-- [exelban/stats: macOS system monitor in your menu bar](https://github.com/exelban/stats)
-- [MeetingBar - Simplify Meetings on macOS with One-Click Access](https://meetingbar.app/)
-- [kitty](https://sw.kovidgoyal.net/kitty/)
-- [dwarvesf/hidden: An ultra-light MacOS utility that helps hide menu bar icons](https://github.com/dwarvesf/hidden)
-- Slack
-- Parallels (before VirtualBox)
-- Dropbox
-- https://matthewpalmer.net/vanilla/
-- [Proxyman · Debug, intercept & mock HTTP with Proxyman](https://proxyman.io/)
+## Architecture
 
-## Android Command line tools
-- Download and unpack the dir `~/proj/cmdline-tools/latest`.
-- Add to path
-- Run `sdkmanager`
+The repository manages two environments:
 
-## pi-job harness
+### macOS Host
 
-This repo ships a portable deterministic job harness for machine-owned YAML task files, with legacy CUE migration support:
+- Homebrew manages command-line tools, applications, and Nerd Fonts through [Brewfile](Brewfile).
+- The script [run_onchange_osx.sh.tmpl](run_onchange_osx.sh.tmpl) configures macOS system defaults and creates the Emacs application symlink.
+- Ghostty serves as the primary terminal emulator with Starship prompt.
 
-- source: [`dot_local/share/pi-job-harness/`](dot_local/share/pi-job-harness/)
-- installed: `~/.local/share/pi-job-harness/`
-- PATH install: [`run_onchange_install-pi-job.sh.tmpl`](run_onchange_install-pi-job.sh.tmpl) owns `~/.local/bin/pi-job` (editable `uv tool install`)
+### Linux VM (Ubuntu)
 
-Full docs live in the package README: [`dot_local/share/pi-job-harness/README.md`](dot_local/share/pi-job-harness/README.md)
-(what it does, orchestrator loop, principles, agent self-install, example task shape).
+- The script [run_onchange_setup_box.sh.tmpl](run_onchange_setup_box.sh.tmpl) installs system tools, desktop fonts, and development runtimes.
+- Window managers include Sway and i3.
+- Docker container environments run through the [dockerise/justfile](dockerise/justfile).
 
-## Cursor CLI status line
+## Repository Structure
 
-Managed files:
+- [dot_agents/skills/](dot_agents/skills/): Custom agent skills.
+- [dot_config/](dot_config/): Configurations for Doom Emacs, i3, Sway, Kitty, Yazi, and Mise.
+- [dot_cursor/](dot_cursor/): Cursor CLI status line integration.
+- [dot_local/bin/](dot_local/bin/): User executable scripts.
+- [dot_local/share/](dot_local/share/): Standalone harnesses and toolchains.
+- [dot_spacemacs.d/](dot_spacemacs.d/): Spacemacs configuration files.
+- [bin/](bin/): Utility scripts for tmux, clipboard, and macOS apps.
+- [docs/](docs/): Internal technical notes and post-mortems.
+- [Brewfile](Brewfile): Declarative package specification for macOS.
 
-- `~/.cursor/statusline.sh` (source: `dot_cursor/executable_statusline.sh`)
-- `statusLine` key merged into `~/.cursor/cli-config.json` by `run_onchange_cursor-statusline.sh`
+## Built-in Toolchains and Agent Tools
 
-Do not `chezmoi add ~/.cursor/cli-config.json`.
-That file holds account, team, and company MCP/permission state.
+### pi-job harness
 
+The repository includes a deterministic job harness for YAML task files.
 
-## Emacs
+- Source: [dot_local/share/pi-job-harness/](dot_local/share/pi-job-harness/)
+- Installed path: `~/.local/share/pi-job-harness/`
+- PATH install: [run_onchange_install-pi-job.sh.tmpl](run_onchange_install-pi-job.sh.tmpl) owns `~/.local/bin/pi-job` through an editable `uv tool install`
+- Documentation: [dot_local/share/pi-job-harness/README.md](dot_local/share/pi-job-harness/README.md)
 
-- [Config of Gergely Nagy](https://github.com/algernon/emacs.d/blob/master/.spacemacs)
+### mermaid-validate
 
-## Fonts
+This tool runs parse-only validation against Mermaid diagrams using the official grammar parser.
 
-- Cascadia Mono ([download](https://github.com/microsoft/cascadia-code))
-- IBM Plex ([download](https://github.com/IBM/plex/releases/))
+- Source: [dot_local/share/mermaid-validate/](dot_local/share/mermaid-validate/)
+- Installed path: `~/.local/share/mermaid-validate/`
+- CLI wrapper: [dot_local/bin/executable_mermaid-validate](dot_local/bin/executable_mermaid-validate) -> `~/.local/bin/mermaid-validate`
+- Documentation: [dot_local/share/mermaid-validate/README.md](dot_local/share/mermaid-validate/README.md)
 
-## ML
-- https://mlflow.org/
+### Agent Instructions and Skills
 
-## Nix
+Global agent instructions reside in [AGENTS.md](AGENTS.md).
+Claude Code configuration symlinks to this file through [dot_claude/symlink_CLAUDE.md.tmpl](dot_claude/symlink_CLAUDE.md.tmpl).
+Custom agent skills reside in [dot_agents/skills/](dot_agents/skills/).
 
-- [Intro to flakes](https://serokell.io/blog/practical-nix-flakes)
-- [Tutorial](https://www.tweag.io/blog/2020-05-25-flakes/)
-  - `nix-env -f '<nixpkgs>' -iA nixUnstable`
-- [NixOS in VMWare Fusion](https://dev.to/ryuheechul/quickest-way-to-run-nixos-on-your-vmware-fusion-4dn7)
+### Cursor CLI Status Line
 
-## Inspiration
-https://omakub.org
+The script [dot_cursor/executable_statusline.sh](dot_cursor/executable_statusline.sh) provides a status line for Cursor agent sessions.
+The setup script [run_onchange_cursor-statusline.sh](run_onchange_cursor-statusline.sh) merges the status line key into `~/.cursor/cli-config.json`.
+Do not add `~/.cursor/cli-config.json` directly to chezmoi.
 
-## Maybe Later
-- [sq | wrangle data](https://sq.io/) (like jq/yq but for SQL)
+## Shell, Editors, and Tools
+
+- **Shell**: Zsh with Starship prompt, Zoxide, FZF, and Direnv.
+- **Runtimes**: Mise manages language runtimes such as Node, Bun, Go, and Babashka.
+- **Emacs**: Doom Emacs in [dot_config/doom](dot_config/doom) and Spacemacs in [dot_spacemacs.d](dot_spacemacs.d).
+- **Neovim**: LazyVim starter configuration.
+- **Multiplexer**: Tmux with TPM plugins installed by [run_once_install-tmux-plugins.sh](run_once_install-tmux-plugins.sh).
+
+## Manual Applications
+
+When you configure a new machine, install these macOS applications manually:
+
+- [AltTab](https://alt-tab-macos.netlify.app/)
+- [Parallels Desktop](https://www.parallels.com/)
+- [Dropbox](https://www.dropbox.com/)
+- [Slack](https://slack.com/)
+- [Proxyman](https://proxyman.io/)
+
+Homebrew casks manage all other desktop applications and Nerd Fonts.
+
+## Documentation Guides
+
+- [Parallels Host-Reachable IP Guide](docs/parallels-host-reachable-ip.md)
+- [Tmux Choose-Tree Activity Guide](docs/tmux-choose-tree-activity.md)
 
 ## History
 
-### June 2026
-Moved completely from nix-darwin to Homebrew and chezmoi for macOS configuration. 
-Idempotency is now handled via `Brewfile` and `run_onchange_*.sh` scripts.
-We use `mise` for installing and managing different versions of programming languages.
-
-### Sept 2025
-Enjoying Ubuntu in VM.
-
-For history
-
-- [Android Command line tools](https://developer.android.com/studio#cmdline-tools)
-- [super-productivity](https://github.com/johannesjo/super-productivity)
-- [Spark](https://sparkmailapp.com/) or [Mimestream](https://mimestream.com/)
-- [Kap](https://getkap.co/)
-- [Hammerspoon](https://www.hammerspoon.org/)
-- [Welcome to xbar](https://xbarapp.com/)
-
-### June 2023
-nix-shell and darwin-nix
-
-### Sept 2021
-Development happens only in NixOS running in VMWare Fusion. I feel I am far from
-using flake though.
-
-### March 2021
-Slow migration to nix-darwin started.
-All non-gui apps can be there.
-
-### Jan 2020
-Project restructured to work with [chezmoi](https://github.com/twpayne/chezmoi/blob/master/docs/HOWTO.md)
-
-### June 2019
-An attempt to adopt Nix package manager.
-
-### May 2015
-
-* Moved to [spacemacs](https://github.com/syl20bnr/spacemacs) as a replacement for Prelude.
-  It is a Emacs Kit, focused on integration with Evil mode.
-
-* No need to use `nsenter` to enter docker container, using `docker exec` instead.
-
-# NixOS
-
-- `xset r rate 200 25`
-- `npm config set prefix '~/mutable_node_modules'`
+- **June 2026**: Replaced nix-darwin with Homebrew and chezmoi on macOS.
+- **September 2025**: Standardized development environment on Ubuntu virtual machines.
+- **June 2023**: Migrated to nix-shell and nix-darwin.
+- **January 2020**: Restructured dotfiles to use chezmoi.
+- **May 2015**: Adopted Spacemacs with Evil mode.
