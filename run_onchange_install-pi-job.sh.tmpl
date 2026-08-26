@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Put pi-job on PATH from the applied harness tree.
+#
+# This script is the only owner of ~/.local/bin/pi-job. A second owner (a chezmoi
+# wrapper plus a uv tool entry point) let the last writer win, and either writer
+# can serve frozen code: a non-editable `uv tool install` copies the package into
+# a tool venv, and `uvx --from <dir>` caches a built wheel. A module added later
+# (for example pi_job_harness/messaging/) is then missing from PATH pi-job, so a
+# real command fails with `invalid choice`. An editable install keeps no snapshot.
+#
+# pyproject hash: {{ include "dot_local/share/pi-job-harness/pyproject.toml" | sha256sum }}
+
+set -euo pipefail
+
+PKG="${HOME}/.local/share/pi-job-harness"
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "pi-job: uv is required; see https://docs.astral.sh/uv/getting-started/installation/" >&2
+  exit 1
+fi
+
+# The harness is an ignored target on machines that do not ship it.
+if [[ ! -f "${PKG}/pyproject.toml" ]]; then
+  echo "pi-job: ${PKG} is not applied; skipping install" >&2
+  exit 0
+fi
+
+uv tool install --force --editable "${PKG}"
+
+# Loud failure here beats a worker that discovers a broken CLI mid-fleet.
+if ! "${HOME}/.local/bin/pi-job" --help >/dev/null 2>&1; then
+  echo "pi-job: installed entry point does not run; check ${PKG}" >&2
+  exit 1
+fi
+
+echo "pi-job: editable install from ${PKG}"

@@ -32,6 +32,9 @@ Do not switch to a casual register unless the user asks.
   Packet `Owner:` and `Claim:` identify the session claim; `Role:` identifies profile dispatch.
   While a pi-job task is active: role = orchestrator (CLI-only; pause on grill/clarify); this supersedes any default Product Owner (or other) workspace role.
   If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).
+  If a documented command fails with `invalid choice`, PATH `pi-job` is stale.
+  Run `uv tool install --force --editable ~/.local/share/pi-job-harness`, then retry the command.
+  Do not route around a stale binary with `python -m pi_job_harness.cli`; other sessions call plain `pi-job` and fail the same way.
   Edits to pi-job-harness store, task models, or CLI behaviour need coordinated doc updates (docs-with-model-cuts).
   Update the pi-job skill, harness README, and this file in the same change.
   Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.

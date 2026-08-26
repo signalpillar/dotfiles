@@ -90,7 +90,12 @@ This supersedes any default workspace role such as Product Owner.
 Two loops, two packets (no tmux spawn code in the harness):
 
 - **Manager:** run `pi-job loop` and arm `/loop` from that text. Watch Ready slices, keep a tmux session of worker windows, spawn/recover windows, inject worker boot. Do not execute slice steps in the manager session.
-- **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not pick-next or claim other slices.
+  Close vs keep (authoritative wording is `instruction_packets.orchestrator_heartbeat`):
+  - Slice done or skipped: release remaining claim, kill the worker window, drop the map row. Do not ask.
+  - Slice not terminal (`in_progress`, parked on grill/clarify, or blocked): keep claim and window. Do not release.
+  - Ready and unowned: spawn, inject `pi-job loop --worker`, add the map row.
+  - Dead pane with a live claim on a non-terminal slice: recover the same owner/slice.
+- **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not wait for a new claim. The manager closes the window. Do not pick-next or claim other slices.
 
 Classic `instruction` → pick-next stays valid when no fleet is in use.
 Execution packets print `Owner:` and `Claim:` from the resolved claim.
@@ -268,13 +273,11 @@ Do not curl individual files.
 uvx --from git+https://github.com/signalpillar/dotfiles.git#subdirectory=dot_local/share/pi-job-harness pi-job --help
 ```
 
-Local wrapper after chezmoi apply:
+Local install after chezmoi apply:
 
 ```bash
-uvx --from ~/.local/share/pi-job-harness pi-job --help
+uv tool install --force --editable ~/.local/share/pi-job-harness
 ```
-
-`~/.local/bin/pi-job` execs that local `uvx --from` command.
 
 ## Install (chezmoi / local copy)
 
@@ -284,15 +287,39 @@ Copy this directory anywhere, for example into chezmoi:
 ~/.local/share/chezmoi/dot_local/share/pi-job-harness/
 ```
 
-Then either add `bin/` to `PATH` or wrap the executable:
+`chezmoi apply` then installs the CLI through `run_onchange_install-pi-job.sh`, which runs the editable
+`uv tool install` above.
+That script is the single owner of `~/.local/bin/pi-job`.
+Do not add a second writer for that path.
+Run the command by hand when PATH `pi-job` is missing or stale.
 
-```bash
-# after chezmoi apply, files land at:
-~/.local/share/pi-job-harness/bin/pi-job
-~/.local/bin/pi-job   # thin wrapper
-```
+Editable mode matters for more than convenience.
+`chezmoi apply` of `profile.yaml` or any `.py` file takes effect at once, with no reinstall.
+Reinstall only after `pyproject.toml` changes entry points or dependencies.
 
 When kept inside a product repo, a thin wrapper such as `scripts/pi-job` can point at the global install.
+
+### Stale PATH CLI
+
+Symptom: a documented command fails with `invalid choice: '<command>'`, but its module exists under
+`~/.local/share/pi-job-harness/pi_job_harness/`.
+The `msg` command hit this, because `pi_job_harness/messaging/` was added after the install.
+
+Cause: PATH `pi-job` served a frozen copy of the package.
+A non-editable `uv tool install` copies the package into a tool venv.
+`uvx --from <directory>` caches a built wheel.
+Neither one sees a module added later.
+
+Fix: reinstall editable, then retry the command.
+
+```bash
+uv tool install --force --editable ~/.local/share/pi-job-harness
+pi-job --help
+```
+
+Do not work around a stale binary with `python -m pi_job_harness.cli` in normal sessions.
+Slice workers and later manager sessions call plain `pi-job`, so they fail the same way.
+`python -m` stays correct for pre-apply verify only (see **Verify harness changes**).
 
 ## Usage
 

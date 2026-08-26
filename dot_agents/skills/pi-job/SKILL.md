@@ -27,6 +27,10 @@ pi-job profile          # kinds + where the contract lives
 pi-job profile --json   # full validated profile (packets, cli_help, …)
 ```
 
+If a documented command fails with `invalid choice`, PATH `pi-job` is stale.
+Run `uv tool install --force --editable ~/.local/share/pi-job-harness`, then retry.
+Do not route around it with `python -m pi_job_harness.cli`; other sessions call plain `pi-job`.
+
 Channel rules (decision vs `finish --note` vs plan file), packet wording, and CLI help
 snippets live in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi:
 `dot_local/share/pi-job-harness/profile.yaml`). Read them via help/profile - do not
@@ -78,6 +82,7 @@ the packet header shows `Task:` as slug when under the home, else a path).
 After create, run `pi-job loop` and arm your own `/loop` from that instruction (resolve TASK).
 
 Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
+Close a worker window when its slice is done or skipped; keep claim and window when the slice is in_progress, parked, or blocked.
 Classic single-session pick-next loop stays unchanged when no fleet is in use.
 
 ## Orchestrator loop
@@ -97,7 +102,7 @@ Packet `Role:` comes from the profile step owner.
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 `advance` is deprecated; do not use it.
 
-Slice-worker windows follow `pi-job loop --worker`: one owner, one slice, stop after `finish --slice-only`; do not pick-next.
+Slice-worker windows follow `pi-job loop --worker`: one owner, one slice, stop after `finish --slice-only`; do not wait for a new claim; do not pick-next.
 
 ## Reads (do not open the store)
 

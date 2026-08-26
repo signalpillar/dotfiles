@@ -19,3 +19,10 @@ dot_cursor/**/cli-config.json
 # and a stray `chezmoi add` of one pulls thousands of files into the source state.
 **/node_modules
 **/node_modules/**
+
+# Python build output. The editable pi-job install and any local test run write
+# these into the applied tree, which otherwise reports a dirty target on apply.
+**/__pycache__
+**/__pycache__/**
+**/*.egg-info
+**/*.egg-info/**

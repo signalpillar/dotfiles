@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-exec uvx --from "$HOME/.local/share/pi-job-harness" pi-job "$@"

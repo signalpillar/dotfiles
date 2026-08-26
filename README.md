@@ -24,7 +24,7 @@ This repo ships a portable deterministic job harness for machine-owned YAML task
 
 - source: [`dot_local/share/pi-job-harness/`](dot_local/share/pi-job-harness/)
 - installed: `~/.local/share/pi-job-harness/`
-- wrapper: [`dot_local/bin/executable_pi-job`](dot_local/bin/executable_pi-job) → `~/.local/bin/pi-job`
+- PATH install: [`run_onchange_install-pi-job.sh.tmpl`](run_onchange_install-pi-job.sh.tmpl) owns `~/.local/bin/pi-job` (editable `uv tool install`)
 
 Full docs live in the package README: [`dot_local/share/pi-job-harness/README.md`](dot_local/share/pi-job-harness/README.md)
 (what it does, orchestrator loop, principles, agent self-install, example task shape).

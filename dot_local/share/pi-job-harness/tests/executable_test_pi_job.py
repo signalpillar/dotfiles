@@ -8761,6 +8761,14 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert "Manager metronome" in heartbeat
     assert "tmux" in heartbeat
     assert "slice_worker_boot" in heartbeat
+    assert_contains(heartbeat, "Window lifecycle")
+    assert_contains(heartbeat, "kill the tmux window")
+    assert_contains(heartbeat, "keep claim and window")
+    assert_contains(heartbeat, "Do not release")
+    assert_contains(heartbeat, "Preflight")
+    assert_contains(heartbeat, "uv tool install --force --editable")
+    assert_contains(heartbeat, "never inject a literal placeholder")
+    assert_not_contains(heartbeat, "leave or close")
     assert "{interval}" not in heartbeat
     assert "{task_file}" not in heartbeat
     assert not heartbeat.lstrip().startswith("/loop")
@@ -8770,6 +8778,8 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(worker_boot, "TASK")
     assert_contains(worker_boot, "finish --slice-only")
     assert_contains(worker_boot, "do not claim another Ready slice")
+    assert_contains(worker_boot, "Manager will close this window")
+    assert_contains(worker_boot, "Do not wait for a new claim")
     assert "{owner}" not in worker_boot
     assert "{task_file}" not in worker_boot
     assert not worker_boot.lstrip().startswith("/loop")
@@ -8868,6 +8878,10 @@ def test_render_orchestrator_heartbeat() -> None:
     assert rendered == expected
     assert_contains(rendered, "TASK")
     assert_contains(rendered, "tmux")
+    assert_contains(rendered, "Window lifecycle")
+    assert_contains(rendered, "kill the tmux window")
+    assert_contains(rendered, "keep claim and window")
+    assert_not_contains(rendered, "leave or close")
     assert_not_contains(rendered, "{interval}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
@@ -8883,6 +8897,8 @@ def test_render_slice_worker_boot() -> None:
     assert_contains(rendered, "SLICE")
     assert_contains(rendered, "finish --slice-only")
     assert_contains(rendered, "do not claim another Ready slice")
+    assert_contains(rendered, "Manager will close this window")
+    assert_contains(rendered, "Do not wait for a new claim")
     assert_not_contains(rendered, "{owner}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
@@ -8910,6 +8926,7 @@ def test_loop_worker_prints_slice_worker_boot() -> None:
     assert_contains(stdout, "slice worker")
     assert_contains(stdout, "finish --slice-only")
     assert_contains(stdout, "do not claim another Ready slice")
+    assert_contains(stdout, "Manager will close this window")
     assert len(stdout.splitlines()) == 1
 
 
@@ -9731,17 +9748,21 @@ README_HARNESS_VERIFY_PHRASES = (
     "source-path",
     "docs-with-model-cuts",
     "~/.local/bin/pi-job",
+    "Stale PATH CLI",
+    "uv tool install --force --editable ~/.local/share/pi-job-harness",
 )
 
 SKILL_HARNESS_VERIFY_PHRASES = (
     "Verify harness changes",
     "PI_JOB_OWNER",
     "docs-with-model-cuts",
+    "uv tool install --force --editable ~/.local/share/pi-job-harness",
 )
 
 AGENTS_HARNESS_VERIFY_PHRASES = (
     "docs-with-model-cuts",
     "pi-job-harness",
+    "uv tool install --force --editable ~/.local/share/pi-job-harness",
 )
 
 
