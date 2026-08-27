@@ -8103,9 +8103,54 @@ def test_message_bus_surface_stays_out_of_protocol_and_schema() -> None:
 
     assert_not_contains(run(str(PI_JOB), "schema", "--json").stdout, "manager")
     assert_not_contains(run(str(PI_JOB), "loop", "--help").stdout, "--task")
-    assert (package / "profile.yaml").read_bytes() == (
-        package.parent / "profile.yaml"
-    ).read_bytes(), "both profile.yaml copies must stay byte-identical"
+
+
+def test_profile_yaml_lives_once_at_tree_root() -> None:
+    harness = Path(__file__).resolve().parents[1]
+    tree = harness / "profile.yaml"
+    packaged = harness / "pi_job_harness" / "profile.yaml"
+    assert tree.is_file()
+    assert not packaged.exists()
+    module = load_pi_job_module()
+    assert module.PROFILE == tree
+
+
+def test_resolve_profile_path_prefers_tree_root() -> None:
+    from pi_job_harness.profile import resolve_profile_path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        package = Path(tmp) / "pi_job_harness"
+        package.mkdir()
+        tree = package.parent / "profile.yaml"
+        packaged = package / "profile.yaml"
+        tree.write_text("tree", encoding="utf-8")
+        packaged.write_text("packaged", encoding="utf-8")
+        assert resolve_profile_path(package) == tree
+
+
+def test_resolve_profile_path_uses_packaged_copy() -> None:
+    from pi_job_harness.profile import resolve_profile_path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        package = Path(tmp) / "pi_job_harness"
+        package.mkdir()
+        packaged = package / "profile.yaml"
+        packaged.write_text("packaged", encoding="utf-8")
+        assert resolve_profile_path(package) == packaged
+
+
+def test_resolve_profile_path_fails_when_missing() -> None:
+    from pi_job_harness.profile import resolve_profile_path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        package = Path(tmp) / "pi_job_harness"
+        package.mkdir()
+        try:
+            resolve_profile_path(package)
+        except SystemExit as exc:
+            assert exc.code == 1
+        else:
+            raise AssertionError("expected SystemExit")
 
 
 def test_python_package_has_no_terminal_delivery_code() -> None:
@@ -10123,6 +10168,10 @@ def main() -> None:
     test_message_bus_mailboxes_stay_separate_and_reread_reports_zero()
     test_message_bus_send_leaves_task_record_untouched()
     test_message_bus_surface_stays_out_of_protocol_and_schema()
+    test_profile_yaml_lives_once_at_tree_root()
+    test_resolve_profile_path_prefers_tree_root()
+    test_resolve_profile_path_uses_packaged_copy()
+    test_resolve_profile_path_fails_when_missing()
     test_python_package_has_no_terminal_delivery_code()
     test_add_decision_spills_long_note_to_plan_file()
     test_add_slice_creates_plan_stub()

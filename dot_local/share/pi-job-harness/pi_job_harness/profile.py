@@ -19,7 +19,23 @@ from pi_job_harness.task import (
     StrictDocument,
 )
 
-PROFILE = Path(__file__).resolve().parent / "profile.yaml"
+
+def resolve_profile_path(package_dir: Path) -> Path:
+    """Return the execution-profile path for this install layout.
+
+    Source and editable installs load the tree-root file.
+    A wheel install loads the copy placed next to this module at build time.
+    """
+    tree = package_dir.parent / "profile.yaml"
+    if tree.is_file():
+        return tree
+    packaged = package_dir / "profile.yaml"
+    if packaged.is_file():
+        return packaged
+    die(f"execution profile not found: looked for {tree} and {packaged}")
+
+
+PROFILE = resolve_profile_path(Path(__file__).resolve().parent)
 
 
 class ConfigLayeringDocument(StrictDocument):

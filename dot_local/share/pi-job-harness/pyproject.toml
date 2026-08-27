@@ -19,9 +19,6 @@ pi-job = "pi_job_harness.cli:main"
 where = ["."]
 include = ["pi_job_harness*"]
 
-[tool.setuptools.package-data]
-pi_job_harness = ["profile.yaml"]
-
 [tool.ruff]
 target-version = "py312"
 extend-exclude = ["build"]

@@ -32,9 +32,10 @@ Run `uv tool install --force --editable ~/.local/share/pi-job-harness`, then ret
 Do not route around it with `python -m pi_job_harness.cli`; other sessions call plain `pi-job`.
 
 Channel rules (decision vs `finish --note` vs plan file), packet wording, and CLI help
-snippets live in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi:
-`dot_local/share/pi-job-harness/profile.yaml`). Read them via help/profile - do not
-restate them from this skill.
+snippets live in one file: `~/.local/share/pi-job-harness/profile.yaml` (chezmoi:
+`dot_local/share/pi-job-harness/profile.yaml`).
+The CLI loads that tree-root file in editable installs, or a wheel copy after a non-editable install.
+Read them via help/profile - do not restate them from this skill.
 
 ## Cold start
 

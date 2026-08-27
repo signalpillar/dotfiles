@@ -3,7 +3,7 @@
 Portable deterministic job harness for machine-owned YAML task files.
 
 `pi-job` keeps durable task state in exactly one `TaskStore` backend, with YAML as the default.
-It validates task state and the package-local `profile.yaml` through documented Pydantic models, walks unfinished steps within the current slice (or jumps with an explicit cursor), and emits deterministic instruction packets.
+It validates task state and tree-root `profile.yaml` through documented Pydantic models, walks unfinished steps within the current slice (or jumps with an explicit cursor), and emits deterministic instruction packets.
 
 pi-job started with CUE task files.
 The main pain was updating CUE from pi-job through fragile regex rewrites, so it now uses YAML, an optional directory store, and Pydantic.
@@ -13,7 +13,8 @@ The main pain was updating CUE from pi-job through fragile regex rewrites, so it
 ```text
 pi_job_harness/         installable package (`cli:main`, task, profile, store, stats, report, app, messaging)
 bin/pi-job              thin shim that imports the package (tests / PATH copies)
-profile.yaml            copy of the contract (canonical file is pi_job_harness/profile.yaml)
+profile.yaml            execution contract (one file; wheel builds copy it into the package)
+setup.py                copies profile.yaml into the wheel at build
 pyproject.toml          package metadata, uvx entry, ruff
 tests/                  regression tests
 ```
@@ -40,7 +41,7 @@ uv python pin 3.12   # optional, in a project directory
 `pi-job` is a small CLI that answers orchestration questions from durable state.
 It does **not** run the agent session and does **not** spawn subagents.
 
-Given a YAML task file and package-local `profile.yaml`, it can:
+Given a YAML task file and `profile.yaml`, it can:
 
 - `list` - show readable, activity-sorted task blocks from the central task home (slug, title, status, updated time, active claims); no `--task` needed
 - `archive` - move a home task bundle into the archive home (`$PI_JOB_ARCHIVE` or sibling `archive/`); frees the slug for a fresh `create`
@@ -95,6 +96,8 @@ Two loops, two packets (no tmux spawn code in the harness):
   - Slice not terminal (`in_progress`, parked on grill/clarify, or blocked): keep claim and window. Do not release.
   - Ready and unowned: spawn, inject `pi-job loop --worker`, add the map row.
   - Dead pane with a live claim on a non-terminal slice: recover the same owner/slice.
+
+  Worker triage runs first on every tick (same authoritative packet). `pane_current_command` is not liveness: a crashed agent keeps the agent process. Read the pane tail and classify each live claim as stalled, waiting on user, waiting on external, or working. Recover stalled workers, quote a waiting question to the user, live-check an external blocker, and leave working panes alone.
 - **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not wait for a new claim. The manager closes the window. Do not pick-next or claim other slices.
 
 Classic `instruction` → pick-next stays valid when no fleet is in use.
@@ -295,6 +298,8 @@ Run the command by hand when PATH `pi-job` is missing or stale.
 
 Editable mode matters for more than convenience.
 `chezmoi apply` of `profile.yaml` or any `.py` file takes effect at once, with no reinstall.
+The CLI loads tree-root `profile.yaml` in source and editable installs.
+A non-editable wheel install loads the copy `setup.py` writes into the package.
 Reinstall only after `pyproject.toml` changes entry points or dependencies.
 
 When kept inside a product repo, a thin wrapper such as `scripts/pi-job` can point at the global install.
