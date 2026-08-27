@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -x "/snap/bin/emacs" ]; then
+    exec /snap/bin/emacs "$@"
+elif command -v emacs &>/dev/null; then
+    exec emacs "$@"
+else
+    echo "Error: Emacs not found in /snap/bin or PATH" >&2
+    exit 1
+fi

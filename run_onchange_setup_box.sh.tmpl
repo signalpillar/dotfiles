@@ -205,6 +205,18 @@ function configure_snap {
     fi
 }
 
+function install_emacs_snap {
+    # Installs or refreshes the latest Emacs 31 snap with classic confinement.
+    if command -v snap &> /dev/null; then
+        echo "Installing/refreshing Emacs snap (latest/beta)..."
+        if ! snap list emacs &>/dev/null; then
+            sudo snap install emacs --channel=latest/beta --classic
+        else
+            sudo snap refresh emacs --channel=latest/beta --classic
+        fi
+    fi
+}
+
 {{- if eq .chezmoi.os "linux" }}
 
 # Main execution block: These commands are run when the script is executed on a Linux system.
@@ -216,6 +228,9 @@ sync_time
 
 # Configure snap (set refresh limit)
 configure_snap
+
+# Install Emacs snap
+install_emacs_snap
 
 # Increase the number of inotify watchers to prevent ENOSPC errors.
 echo fs.inotify.max_user_watches=524288 | sudo tee /etc/sysctl.d/99-inotify.conf > /dev/null
