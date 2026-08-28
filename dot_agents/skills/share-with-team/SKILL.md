@@ -89,24 +89,27 @@ Rules:
 
 ## PR description
 
-First check whether the repository has a PR template file:
-- `.github/pull_request_template.md`
-- `.github/PULL_REQUEST_TEMPLATE.md`
-- any template under `.github/PULL_REQUEST_TEMPLATE/`
+Before writing or editing a PR body, ask which template to use. Do not pick one. Wait for the answer.
 
-If a repo template exists, follow that template exactly and fill all relevant sections.
+Offer these three choices, even when a repo template file exists:
 
-**Link the decisions.** When the PR description references a decision constant by short code (e.g. `<DECISION-SLUG>`), include a link to where the constant is defined. The link saves the reviewer a grep; it does *not* substitute for naming the trade-off in prose. Example:
+1. **repository** - the file in the repo (`.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or a file under `.github/PULL_REQUEST_TEMPLATE/`). Fill that template exactly.
+2. **full** - vocabulary, end-to-end flow, decisions, quirks, errors, limitations, tests.
+3. **hybrid** - pyramid lead plus call-stack diagram. A reviewer can stop after §1.
+
+If the user has not answered, do not write or edit the PR description.
+
+**Link the decisions.** When the PR description references a decision constant by short code (e.g. `<DECISION-SLUG>`), include a link to where the constant is defined. The link saves the reviewer a grep; it does not substitute for naming the trade-off in prose. Example:
 
 ```
-- **<DECISION-SLUG>** ([decision](https://github.com/<owner>/<repo>/blob/<branch>/src/decisions.ts#L736)) — hard-reject overlapping starts; the alternative (silent accept) corrupts derivation.
+- **<DECISION-SLUG>** ([decision](https://github.com/<owner>/<repo>/blob/<branch>/src/decisions.ts#L736)) - hard-reject overlapping starts; the alternative (silent accept) corrupts derivation.
 ```
 
-**Use absolute URLs, not relative paths.** GitHub does *not* auto-resolve relative paths like `src/foo.ts#L42` in PR descriptions — they resolve against the PR page URL and break (you'll see `compare/src/foo.ts?expand=1`). Use the full `https://github.com/<owner>/<repo>/blob/<branch>/<path>#L<line>` form. The branch name keeps the link tracking the PR head as it gets pushed; a commit SHA gives a stable permalink. Find the line number with `grep -n "<DECISION_CONST>" path/to/decisions.ts`.
+**Use absolute URLs, not relative paths.** GitHub does not auto-resolve relative paths like `src/foo.ts#L42` in PR descriptions - they resolve against the PR page URL and break (you'll see `compare/src/foo.ts?expand=1`). Use the full `https://github.com/<owner>/<repo>/blob/<branch>/<path>#L<line>` form. The branch name keeps the link tracking the PR head as it gets pushed; a commit SHA gives a stable permalink. Find the line number with `grep -n "<DECISION_CONST>" path/to/decisions.ts`.
 
-If a decision is mentioned only in passing (e.g. "still honours <DECISION-SLUG>"), the link is optional — link the ones the reviewer is most likely to want to read.
+If a decision is mentioned only in passing (e.g. "still honours <DECISION-SLUG>"), the link is optional - link the ones the reviewer is most likely to want to read.
 
-If no repo template exists, use this fallback PR template:
+### Template: full
 
 ```
 ## <TICKET> · <parent-ticket if sub-task> (<scope label e.g. slice 0>) — <one-line summary>
@@ -153,13 +156,56 @@ Ticket: <tracker-url>/browse/<TICKET>
      Call out any specific regression guard added for a discovered edge case. -->
 ```
 
+### Template: hybrid
+
+Pyramid lead, then the call-stack. Omit §4 when this PR does not change the error or API surface.
+
+````
+## <TICKET> · <parent-ticket if sub-task> — <one-line change>
+
+Ticket: <tracker-url>/browse/<TICKET>
+
+### 1. In one line
+<problem>. <this PR's change>.
+
+### 2. Decision
+**<slug>:** <chosen approach>. Not <rejected approach>, because <reason>.
+
+### 3. Where this sits
+
+```
+A
+|
+v
+B  <--- this PR
+|
+v
+C  (unchanged / next slice)
+```
+
+This PR owns **B**. It does not own **C**.
+
+### 4. Contract (omit if the error/API surface did not move)
+| slug | when |
+|---|---|
+| `...` | ... |
+
+### 5. Tests / limit
+- Tests: <kind + contract>
+- Not in this PR: <follow-up>
+````
+
+Name A/B/C as real systems or services, not placeholders. Mark the changed node with `<--- this PR`. Name the follow-up on C when work is split across slices.
+
 **What makes a good PR description:**
-- **Vocabulary first** — reviewers can't follow the decisions section without shared terminology.
-- **Write the flow as it works now** — not "I changed X to do Y" but "the user does A, the client calls B, the service checks C." Present tense, full path.
-- **Name decisions with slugs** — a slug lets reviewers trace to the decision source without searching.
-- **Surface quirks explicitly** — if you discovered a system bug or gap and worked around it, say so. Hiding it makes the workaround look like a design choice.
-- **Errors table** — reviewers and QA can copy-paste slugs to write test cases or check monitoring.
-- **Known limitations are not failures** — be explicit about what is deferred and why; it signals intentional scoping.
+- **Ask first** - do not assume repository, full, or hybrid.
+- **Hybrid: lead then map** - §1 is the problem and change; §3 shows where the PR sits in the call stack.
+- **Full: vocabulary first** - reviewers can't follow the decisions section without shared terminology.
+- **Write the flow as it works now** - not "I changed X to do Y" but "the user does A, the client calls B, the service checks C." Present tense, full path.
+- **Name decisions with slugs** - a slug lets reviewers trace to the decision source without searching.
+- **Surface quirks explicitly** - if you discovered a system bug or gap and worked around it, say so. Hiding it makes the workaround look like a design choice.
+- **Errors table** - reviewers and QA can copy-paste slugs to write test cases or check monitoring. Omit it on hybrid when the surface did not move.
+- **Known limitations are not failures** - be explicit about what is deferred and why; it signals intentional scoping.
 
 ## When to use me
 
