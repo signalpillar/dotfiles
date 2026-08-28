@@ -30,7 +30,8 @@ metadata:
 - **Trust explicit search contracts**: when a client/API search is called with filters (group, status, reason, …), return that result. Do not re-assert the same filters on the response unless there is concrete evidence the client violates those filters. Speculative "broad/malformed response" re-filters are noise and hide the real contract under test (the search call).
 - **Owner service loads owned facts**: if a fact lives on a resource the service already loads, the service reads it. Do not add a caller param that can disagree with storage. Flag a second id when the path resource already determines it (for example a FHIR `CarePlan.subject`).
 - **Do not runtime-check typed-required fields**: if this unit's contract type says the field is always present, do not add an `if (!field)` fail-closed in that function. A helper whose only job is "assert non-null of a required field" is a review finding.
-- **Load-edge narrowing**: when a library or FHIR type leaves a nested field optional, validate it at the site that loads the resource. Throw. Do not use `!`. Inner functions then receive the narrowed value. Do not skip this because the field is "always set in practice".
+- **Load-edge narrowing**: when a library or FHIR type leaves a nested field optional, validate it at the site that loads the resource. Throw. Do not use `!`. Inner functions then receive the narrowed value. Do not skip this because the field is "always set in practice". This does not license a second fail-closed in a consumer of an already-loaded typed object.
+- **Reuse collaborator output**: before adding a parse, helper, or second load for a fact, open the return type and implementation of every collaborator this unit already calls. Do not infer from the current destructure. If that type already carries the fact, or an object that owns it, use that field. Grep sibling consumers of the same collaborator and copy their access path. Do not re-parse the raw resource the collaborator already loaded. Do not add a fail-closed the loader already performs. Narrow once at the load site; consumers of an already-loaded object consume, they do not re-load. A new `getXFromRaw(resource)` next to a call that already returns `x` or `owner.x` is a review finding.
 - **Shared identity seam**: keep a mint/resolve helper even when it is identity today. Two facades must not fork encodings. Do not inline until the encoding is actually opaque.
 - **Fault vs empty outcome**: config load failures, missing definitions, and unreadable identifiers are hard fails (throw / HTTP 500). Do not catch them into a valid empty / not-applicable result. Operators must tell a broken identifier from a real empty match.
 - **Pass-through vs policy owner**: a resolver that selects a row passes the row through. It does not allow-list values, invent omitted fields, or fail closed on a field another service owns. Put that policy in the consumer of the field.
@@ -53,7 +54,8 @@ When using this skill for review, also ask:
 - Do field comments help a reader who has never seen this code (format, ownership, when to omit)? Reject comments that only restate the field name or the TypeScript type.
 - Does this unit assume a named caller, route, or auth mode in comments, types, or logs? Request removal. The unit takes valid state and returns valid state.
 - Does this service re-check a field its input type already requires? Request removal.
-- Did the load site skip a nested field the library types as optional? Request a fail-closed check there, not a `!`.
+- Did this unit re-parse a fact a collaborator already returned? Request using the collaborator field instead.
+- Did the load site skip a nested field the library types as optional? Request a fail-closed check there, not a `!`. Do not request a second fail-closed in a consumer of that loaded object.
 - Does a catch map a config throw into a valid empty result? Request that the throw surface.
 - Does a child row repeat a parent field? Request it live once on the parent.
 - Do two reason codes or flags name the same event? Request they fold.
@@ -164,3 +166,5 @@ Use this skill for implementation/review tasks in any backend service where you 
 - safe failure behavior
 - high-signal observability
 - maintainable test design
+
+Re-run after an architecture pivot or a collaborator-contract change. A prior verdict does not cover the new diff.
