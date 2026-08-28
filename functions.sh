@@ -665,3 +665,88 @@ function ai_coding_agents_usage {
     # https://github.com/ccusage/ccusage - pass args through (e.g. daily, monthly, session, blocks).
     bunx ccusage $@
 }
+
+function disk-report {
+    echo "==== filesystem ===="
+    df -h /
+    echo "==== docker ===="
+    if command -v docker >/dev/null 2>&1; then
+        docker system df
+        echo "==== docker build cache ===="
+        docker buildx du 2>/dev/null | tail -5
+    else
+        echo "skip docker (not installed)"
+    fi
+    echo "==== home (top) ===="
+    du -xh --max-depth=1 "$HOME" 2>/dev/null | sort -hr | head -20
+    echo "==== known buckets ===="
+    du -sh \
+        "$HOME/.npm" \
+        "$HOME/.yarn" \
+        /var/cache/apt \
+        /var/log/journal \
+        /var/lib/snapd/snaps \
+        2>/dev/null
+}
+
+function disk-cleanup {
+    if [ "$1" != "apply" ]; then
+        echo "usage: disk-cleanup apply"
+        disk-report
+        return 1
+    fi
+
+    echo "==== before ===="
+    df -h /
+
+    if command -v docker >/dev/null 2>&1; then
+        echo "==== docker build cache ===="
+        docker buildx prune --all --force --verbose --max-used-space 0
+        echo "==== docker unused images ===="
+        docker image prune -af
+        echo "==== docker unused volumes ===="
+        docker volume prune -f
+    else
+        echo "skip docker (not installed)"
+    fi
+
+    if [ "$(uname -s)" = Linux ]; then
+        if command -v snap >/dev/null 2>&1; then
+            snap list --all 2>/dev/null | awk '/disabled/{print $1, $3}' | while read -r name rev; do
+                if [ -n "$name" ] && [ -n "$rev" ]; then
+                    sudo snap remove "$name" --revision="$rev"
+                fi
+            done
+        else
+            echo "skip snap (not installed)"
+        fi
+        if command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get clean
+        else
+            echo "skip apt-get (not installed)"
+        fi
+        if command -v journalctl >/dev/null 2>&1; then
+            sudo journalctl --vacuum-size=100M
+        else
+            echo "skip journalctl (not installed)"
+        fi
+    fi
+
+    if command -v npm >/dev/null 2>&1; then
+        npm cache clean --force
+    else
+        echo "skip npm (not installed)"
+    fi
+    if command -v yarn >/dev/null 2>&1; then
+        yarn cache clean
+    else
+        echo "skip yarn (not installed)"
+    fi
+
+    echo "==== after ===="
+    df -h /
+    if command -v docker >/dev/null 2>&1; then
+        docker system df
+        docker buildx du 2>/dev/null | tail -5
+    fi
+}
