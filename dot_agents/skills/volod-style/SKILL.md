@@ -139,6 +139,8 @@ When using this skill for review, explicitly scan changed tests for avoidable du
 - Request `test.each` when multiple tests differ only in input, expected output, or a small scenario parameter.
 - Request reuse of an existing fixture when duplicated setup already has a shared representation.
 - Request a new focused fixture when repeated setup has no suitable reusable fixture.
+- Request a call/request builder with overrides when the same `service.call({ ... })` object appears more than twice.
+- Drop a new test that only swaps an id this unit does not interpret, then hits a branch another test already covers. If this unit is pass-through and policy lives in another service or config file, one pass-through assertion is enough. Do not add one test per downstream policy id.
 - Request an assertion helper when tests duplicate identical multi-line assertion blocks across cases.
 - Keep separate tests when parameterization would hide materially different behavior or make failures harder to understand.
 - Request fixture ownership under the new domain package when domain scenarios still live only under the orchestrator test folder.
