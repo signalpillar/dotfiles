@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Scorecard Tally</title>
+    <link rel="stylesheet" href="prototype-base.css">
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Avenir Next", Avenir, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+        --ink: #1b2430;
+        --muted: #667085;
+        --paper: #f5f6fa;
+        --surface: #ffffff;
+        --line: #e2e5ee;
+        --accent: #2f7a5c;
+        --accent-strong: #1f5c43;
+        --ok-bg: #e5f6ec;
+        --ok-fg: #1f7a4d;
+        --warn-bg: #fdecea;
+        --warn-fg: #b3261e;
+        --neutral-bg: #eef0f5;
+        --neutral-fg: #667085;
+        --shadow: 0 0.5rem 2rem rgba(27, 36, 48, 0.08);
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --space-6: 2rem;
+        --space-8: 3rem;
+        --text-00: 0.75rem;
+        --text-0: 0.875rem;
+        --text-1: 1rem;
+        --text-2: 1.125rem;
+        --text-5: 1.75rem;
+        --text-6: 2.25rem;
+        --radius-2: 0.5rem;
+        --radius-3: 0.75rem;
+        --radius-4: 1rem;
+        --radius-round: 999px;
+      }
+
+      body {
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      main {
+        width: min(30rem, 100%);
+        margin: 0 auto;
+        padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom));
+        display: grid;
+        gap: var(--space-4);
+      }
+
+      header {
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .back-link {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: var(--text-0);
+      }
+
+      .back-link:hover,
+      .back-link:focus-visible {
+        color: var(--accent-strong);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(var(--text-5), 9vw, var(--text-6));
+        letter-spacing: -0.03em;
+      }
+
+      .tagline {
+        margin: 0;
+        color: var(--muted);
+        font-size: var(--text-1);
+        line-height: 1.5;
+      }
+
+      .surface {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-4);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: var(--space-4);
+      }
+
+      .btn-plain {
+        min-height: 2.75rem;
+        padding: 0 var(--space-4);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .btn-plain.block {
+        width: 100%;
+      }
+
+      .btn-plain:focus-visible,
+      input:focus-visible,
+      button:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        min-height: 2.75rem;
+        padding: 0 var(--space-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      .grand-total-bar {
+        position: sticky;
+        top: var(--space-2);
+        z-index: 3;
+        display: none;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-4);
+        border: 1px solid var(--accent-strong);
+        background: var(--accent);
+        color: white;
+        box-shadow: var(--shadow);
+      }
+
+      .grand-total-bar.visible {
+        display: flex;
+      }
+
+      .grand-total-value {
+        font-size: var(--text-5);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
+      .grand-total-label {
+        margin: 0;
+        font-size: var(--text-0);
+        opacity: 0.85;
+      }
+
+      .grand-total-flags {
+        margin: 0;
+        font-size: var(--text-0);
+        text-align: right;
+      }
+
+      .rows-list {
+        display: grid;
+        gap: var(--space-3);
+      }
+
+      .empty-state {
+        margin: 0;
+        padding: var(--space-5) var(--space-4);
+        text-align: center;
+        color: var(--muted);
+        border: 1px dashed var(--line);
+        border-radius: var(--radius-4);
+      }
+
+      .row-card {
+        display: grid;
+        gap: var(--space-3);
+      }
+
+      .row-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: var(--space-2);
+        align-items: center;
+      }
+
+      .row-label-input {
+        font-weight: 700;
+        font-size: var(--text-2);
+      }
+
+      .row-remove {
+        min-height: 2.25rem;
+        min-width: 2.25rem;
+        padding: 0;
+        border-radius: var(--radius-round);
+        border: 1px solid var(--line);
+        background: var(--paper);
+        color: var(--warn-fg);
+        font-size: var(--text-2);
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .values-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--grid-columns, 4), minmax(0, 1fr));
+        gap: var(--space-2);
+      }
+
+      .values-grid input {
+        text-align: center;
+        padding: 0 var(--space-1);
+      }
+
+      .values-grid .sub-row-gap {
+        grid-column: 1 / -1;
+        height: 1px;
+        background: var(--line);
+        margin: var(--space-1) 0;
+      }
+
+      .row-footer {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: var(--space-3);
+        align-items: center;
+      }
+
+      .row-sum {
+        font-size: var(--text-2);
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .circled-total-field {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        justify-self: end;
+      }
+
+      .circled-total-field input {
+        width: 5rem;
+      }
+
+      .match-badge {
+        justify-self: end;
+        font-size: var(--text-00);
+        font-weight: 700;
+        padding: var(--space-1) var(--space-2);
+        border-radius: var(--radius-round);
+        white-space: nowrap;
+      }
+
+      .match-badge.ok {
+        background: var(--ok-bg);
+        color: var(--ok-fg);
+      }
+
+      .match-badge.warn {
+        background: var(--warn-bg);
+        color: var(--warn-fg);
+      }
+
+      .match-badge.neutral {
+        background: var(--neutral-bg);
+        color: var(--neutral-fg);
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: max(var(--space-4), env(safe-area-inset-bottom));
+        transform: translateX(-50%) translateY(150%);
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-3);
+        background: var(--ink);
+        color: white;
+        box-shadow: var(--shadow);
+        transition: transform 180ms ease;
+        z-index: 4;
+        max-width: calc(100% - 2rem);
+      }
+
+      .toast.visible {
+        transform: translateX(-50%) translateY(0);
+      }
+
+      .toast button {
+        border: 0;
+        background: transparent;
+        color: #9be3bf;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      @media (min-width: 46rem) {
+        main {
+          padding-top: var(--space-8);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script type="application/json" id="manifest">
+      {
+        "copy": {
+          "title": "Scorecard Tally",
+          "tagline": "Type in each player's grid of numbers and their circled total. This adds it up and flags any row that doesn't match, fully offline.",
+          "addPlayerButton": "+ Add player",
+          "grandTotalLabel": "Grand total",
+          "allMatchText": "All totals check out",
+          "mismatchTemplateOne": "1 row needs a check",
+          "mismatchTemplateMany": "{count} rows need a check",
+          "emptyState": "No players yet. Add one to get started.",
+          "sumLabel": "Sum",
+          "circledTotalLabel": "Circled total",
+          "labelPlaceholder": "Label",
+          "removeRowLabel": "Remove row",
+          "matchBadge": "✓ matches",
+          "mismatchBadge": "⚠ check this",
+          "noTotalBadge": "no total yet",
+          "undoTemplate": "Removed “{label}”",
+          "undoButton": "Undo"
+        },
+        "grid": { "columns": 4, "rows": 2 },
+        "timing": { "saveDebounceMs": 200, "undoTimeoutMs": 6000 },
+        "storage": { "sessionKey": "scorecard-tally:session" }
+      }
+    </script>
+
+    <main>
+      <header>
+        <a class="back-link" href="index.html">&larr; Back</a>
+        <h1 id="pageTitle"></h1>
+        <p class="tagline" id="pageTagline"></p>
+      </header>
+
+      <div class="grand-total-bar" id="grandTotalBar">
+        <div>
+          <p class="grand-total-label" id="grandTotalLabelText"></p>
+          <div class="grand-total-value" id="grandTotalValue">0</div>
+        </div>
+        <p class="grand-total-flags" id="grandTotalFlags"></p>
+      </div>
+
+      <div class="rows-list" id="rowsList"></div>
+      <p class="empty-state" id="emptyState"></p>
+
+      <button type="button" class="btn-plain block" id="addRowButton"></button>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span id="toastText"></span>
+      <button type="button" id="toastUndoButton"></button>
+    </div>
+
+    <script type="module">
+      const M = JSON.parse(document.getElementById("manifest").textContent);
+      const COPY = M.copy;
+      const VALUES_COUNT = M.grid.columns * M.grid.rows;
+
+      document.documentElement.style.setProperty("--grid-columns", M.grid.columns);
+
+      function make(tag, props = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props)) {
+          if (value === undefined || value === null || value === false) continue;
+          if (key === "class") node.className = value;
+          else if (key === "text") node.textContent = value;
+          else if (key === "on") for (const [evt, handler] of Object.entries(value)) node.addEventListener(evt, handler);
+          else node.setAttribute(key, value === true ? "" : String(value));
+        }
+        children.filter(Boolean).forEach((child) => node.append(child));
+        return node;
+      }
+
+      /* ---------------- static copy from the manifest ---------------- */
+
+      document.title = COPY.title;
+      document.getElementById("pageTitle").textContent = COPY.title;
+      document.getElementById("pageTagline").textContent = COPY.tagline;
+      document.getElementById("grandTotalLabelText").textContent = COPY.grandTotalLabel;
+      document.getElementById("emptyState").textContent = COPY.emptyState;
+      document.getElementById("addRowButton").textContent = COPY.addPlayerButton;
+      document.getElementById("toastUndoButton").textContent = COPY.undoButton;
+
+      /* ---------------- state ---------------- */
+
+      let rowSeq = 0;
+      const rows = new Map(); // id -> { label, values: (number|null)[], circledTotal: number|null }
+      const rowRefs = new Map(); // id -> DOM refs for in-place updates
+      let pendingUndo = null;
+      let undoTimer = null;
+
+      function blankRow() {
+        return { label: "", values: new Array(VALUES_COUNT).fill(null), circledTotal: null };
+      }
+
+      function toNumberOrNull(value) {
+        if (value === "" || value === null || value === undefined) return null;
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function sumOf(values) {
+        return values.reduce((total, v) => total + (Number.isFinite(v) ? v : 0), 0);
+      }
+
+      function template(str, vars) {
+        return str.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+      }
+
+      /* ---------------- persistence (all local, no network involved) ---------------- */
+
+      let saveTimer = null;
+      function scheduleSave() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveSession, M.timing.saveDebounceMs);
+      }
+
+      function saveSession() {
+        const order = [...rowRefs.keys()];
+        const payload = order.map((id) => rows.get(id));
+        try {
+          localStorage.setItem(M.storage.sessionKey, JSON.stringify(payload));
+        } catch (err) {
+          console.warn("Could not save session", err);
+        }
+      }
+
+      function sanitiseStoredRow(item) {
+        const row = blankRow();
+        if (item && typeof item === "object") {
+          row.label = typeof item.label === "string" ? item.label.slice(0, 40) : "";
+          const values = Array.isArray(item.values) ? item.values : [];
+          for (let i = 0; i < VALUES_COUNT; i++) {
+            row.values[i] = toNumberOrNull(values[i]);
+          }
+          row.circledTotal = toNumberOrNull(item.circledTotal);
+        }
+        return row;
+      }
+
+      function loadSession() {
+        try {
+          const raw = localStorage.getItem(M.storage.sessionKey);
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return [];
+          return parsed.map(sanitiseStoredRow);
+        } catch (err) {
+          console.warn("Could not load saved session", err);
+          return [];
+        }
+      }
+
+      /* ---------------- row rendering ---------------- */
+
+      const rowsList = document.getElementById("rowsList");
+      const emptyState = document.getElementById("emptyState");
+
+      function updateEmptyState() {
+        emptyState.style.display = rowRefs.size === 0 ? "block" : "none";
+      }
+
+      function addRow(rowData, { focusLabel = false } = {}) {
+        const id = `row-${++rowSeq}`;
+        rows.set(id, rowData);
+
+        const labelInput = make("input", {
+          type: "text",
+          class: "row-label-input",
+          placeholder: COPY.labelPlaceholder,
+          value: rowData.label || ""
+        });
+        labelInput.addEventListener("input", () => {
+          rows.get(id).label = labelInput.value;
+          scheduleSave();
+        });
+
+        const removeButton = make("button", {
+          type: "button",
+          class: "row-remove",
+          "aria-label": COPY.removeRowLabel,
+          text: "✕"
+        });
+        removeButton.addEventListener("click", () => removeRow(id));
+
+        const valuesGrid = make("div", { class: "values-grid" });
+        for (let i = 0; i < VALUES_COUNT; i++) {
+          if (i === M.grid.columns) {
+            valuesGrid.append(make("div", { class: "sub-row-gap" }));
+          }
+          const valueInput = make("input", {
+            type: "number",
+            inputmode: "numeric",
+            "aria-label": `Value ${i + 1}`,
+            value: rowData.values[i] === null ? "" : rowData.values[i]
+          });
+          const index = i;
+          valueInput.addEventListener("input", () => {
+            rows.get(id).values[index] = toNumberOrNull(valueInput.value);
+            refreshRowTotals(id);
+            scheduleSave();
+          });
+          valuesGrid.append(valueInput);
+        }
+
+        const sumEl = make("div", { class: "row-sum" });
+        const circledInput = make("input", {
+          type: "number",
+          inputmode: "numeric",
+          "aria-label": COPY.circledTotalLabel,
+          value: rowData.circledTotal === null ? "" : rowData.circledTotal
+        });
+        circledInput.addEventListener("input", () => {
+          rows.get(id).circledTotal = toNumberOrNull(circledInput.value);
+          refreshRowTotals(id);
+          scheduleSave();
+        });
+        const badgeEl = make("span", { class: "match-badge" });
+
+        const rowFooter = make("div", { class: "row-footer" }, [
+          sumEl,
+          make("div", { class: "circled-total-field" }, [circledInput]),
+          badgeEl
+        ]);
+
+        const card = make("div", { class: "surface" }, [
+          make("div", { class: "row-card" }, [
+            make("div", { class: "row-head" }, [labelInput, removeButton]),
+            valuesGrid,
+            rowFooter
+          ])
+        ]);
+        card.dataset.rowId = id;
+
+        rowRefs.set(id, { card, sumEl, badgeEl });
+        rowsList.append(card);
+        refreshRowTotals(id);
+        updateEmptyState();
+        updateGrandTotal();
+
+        if (focusLabel) labelInput.focus();
+        return id;
+      }
+
+      function refreshRowTotals(id) {
+        const row = rows.get(id);
+        const refs = rowRefs.get(id);
+        if (!row || !refs) return;
+        const sum = sumOf(row.values);
+        refs.sumEl.textContent = `${COPY.sumLabel}: ${sum}`;
+
+        refs.badgeEl.classList.remove("ok", "warn", "neutral");
+        if (row.circledTotal === null) {
+          refs.badgeEl.classList.add("neutral");
+          refs.badgeEl.textContent = COPY.noTotalBadge;
+        } else if (row.circledTotal === sum) {
+          refs.badgeEl.classList.add("ok");
+          refs.badgeEl.textContent = COPY.matchBadge;
+        } else {
+          refs.badgeEl.classList.add("warn");
+          refs.badgeEl.textContent = COPY.mismatchBadge;
+        }
+        updateGrandTotal();
+      }
+
+      function removeRow(id) {
+        const refs = rowRefs.get(id);
+        const row = rows.get(id);
+        if (!refs || !row) return;
+
+        clearTimeout(undoTimer);
+        refs.card.remove();
+        rowRefs.delete(id);
+        rows.delete(id);
+        updateEmptyState();
+        updateGrandTotal();
+        scheduleSave();
+
+        pendingUndo = { id, row };
+        showToast(template(COPY.undoTemplate, { label: row.label || COPY.labelPlaceholder }), () => {
+          if (!pendingUndo) return;
+          addRow(pendingUndo.row);
+          pendingUndo = null;
+          hideToast();
+          scheduleSave();
+        });
+        undoTimer = setTimeout(hideToast, M.timing.undoTimeoutMs);
+      }
+
+      function updateGrandTotal() {
+        const bar = document.getElementById("grandTotalBar");
+        if (rowRefs.size === 0) {
+          bar.classList.remove("visible");
+          return;
+        }
+        bar.classList.add("visible");
+        let grandTotal = 0;
+        let mismatches = 0;
+        for (const row of rows.values()) {
+          const sum = sumOf(row.values);
+          grandTotal += sum;
+          if (row.circledTotal !== null && row.circledTotal !== sum) mismatches += 1;
+        }
+        document.getElementById("grandTotalValue").textContent = grandTotal;
+        const flagsEl = document.getElementById("grandTotalFlags");
+        flagsEl.textContent = mismatches === 0
+          ? COPY.allMatchText
+          : mismatches === 1
+            ? COPY.mismatchTemplateOne
+            : template(COPY.mismatchTemplateMany, { count: mismatches });
+      }
+
+      /* ---------------- toast / undo ---------------- */
+
+      const toast = document.getElementById("toast");
+      const toastText = document.getElementById("toastText");
+      const toastUndoButton = document.getElementById("toastUndoButton");
+      let toastHandler = null;
+
+      function showToast(text, onUndo) {
+        toastText.textContent = text;
+        toastHandler = onUndo;
+        toast.classList.add("visible");
+      }
+
+      function hideToast() {
+        toast.classList.remove("visible");
+        toastHandler = null;
+        pendingUndo = null;
+      }
+
+      toastUndoButton.addEventListener("click", () => {
+        if (toastHandler) toastHandler();
+      });
+
+      /* ---------------- add blank row ---------------- */
+
+      document.getElementById("addRowButton").addEventListener("click", () => {
+        addRow(blankRow(), { focusLabel: true });
+      });
+
+      /* ---------------- hydrate from the last local session ---------------- */
+
+      const restored = loadSession();
+      if (restored.length > 0) {
+        restored.forEach((row) => addRow(row));
+      } else {
+        addRow(blankRow());
+      }
+      updateEmptyState();
+      updateGrandTotal();
+    </script>
+  </body>
+</html>
