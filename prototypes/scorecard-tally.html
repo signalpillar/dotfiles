@@ -425,6 +425,25 @@
         return str.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
       }
 
+      /* `type="text" inputmode="numeric" pattern="[0-9]*"` is the standard trick to get
+         a plain digit-only numpad on iOS and Android, instead of the punctuation-laden
+         keyboard `type="number"` triggers on iOS. Strip anything non-digit as a backstop
+         for keyboards/pastes that ignore the hint. */
+      function makeDigitInput(ariaLabel, value) {
+        const input = make("input", {
+          type: "text",
+          inputmode: "numeric",
+          pattern: "[0-9]*",
+          "aria-label": ariaLabel,
+          value: value === null ? "" : value
+        });
+        input.addEventListener("input", () => {
+          const digitsOnly = input.value.replace(/[^0-9]/g, "");
+          if (digitsOnly !== input.value) input.value = digitsOnly;
+        });
+        return input;
+      }
+
       /* ---------------- persistence (all local, no network involved) ---------------- */
 
       let saveTimer = null;
@@ -506,12 +525,7 @@
           if (i === M.grid.columns) {
             valuesGrid.append(make("div", { class: "sub-row-gap" }));
           }
-          const valueInput = make("input", {
-            type: "number",
-            inputmode: "numeric",
-            "aria-label": `Value ${i + 1}`,
-            value: rowData.values[i] === null ? "" : rowData.values[i]
-          });
+          const valueInput = makeDigitInput(`Value ${i + 1}`, rowData.values[i]);
           const index = i;
           valueInput.addEventListener("input", () => {
             rows.get(id).values[index] = toNumberOrNull(valueInput.value);
@@ -522,12 +536,7 @@
         }
 
         const sumEl = make("div", { class: "row-sum" });
-        const circledInput = make("input", {
-          type: "number",
-          inputmode: "numeric",
-          "aria-label": COPY.circledTotalLabel,
-          value: rowData.circledTotal === null ? "" : rowData.circledTotal
-        });
+        const circledInput = makeDigitInput(COPY.circledTotalLabel, rowData.circledTotal);
         circledInput.addEventListener("input", () => {
           rows.get(id).circledTotal = toNumberOrNull(circledInput.value);
           refreshRowTotals(id);
