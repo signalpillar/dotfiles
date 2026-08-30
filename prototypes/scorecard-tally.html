@@ -188,7 +188,7 @@
 
       .row-head {
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr auto auto;
         gap: var(--space-2);
         align-items: center;
       }
@@ -196,6 +196,7 @@
       .row-label-input {
         font-weight: 700;
         font-size: var(--text-2);
+        min-width: 0;
       }
 
       .row-remove {
@@ -232,6 +233,7 @@
       .row-sum {
         font-size: var(--text-2);
         font-weight: 800;
+        color: var(--accent-strong);
         white-space: nowrap;
       }
 
@@ -552,9 +554,8 @@
 
         const card = make("div", { class: "surface" }, [
           make("div", { class: "row-card" }, [
-            make("div", { class: "row-head" }, [labelInput, removeButton]),
-            valuesGrid,
-            sumEl
+            make("div", { class: "row-head" }, [labelInput, sumEl, removeButton]),
+            valuesGrid
           ])
         ]);
         card.dataset.rowId = id;
