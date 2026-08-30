@@ -340,6 +340,8 @@
           "cleanedToastTie": "Saved round {round} — tied at {score} between {winner}. Scores cleared.",
           "historyHeading": "Round history",
           "historyWinnerTemplate": "🏆 {winner} — {score}",
+          "removeHistoryLabel": "Remove this round from history",
+          "historyUndoTemplate": "Removed round {round}",
           "unnamedPlayerTemplate": "Player {number}"
         },
         "grid": { "columns": 4, "rows": 2 },
@@ -679,14 +681,45 @@
         const winnerText = entry.winners.join(" & ");
         const time = new Date(entry.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const scoreLine = entry.scores.map((s) => `${s.label} ${s.sum}`).join(" · ");
+
+        const removeButton = make("button", {
+          type: "button",
+          class: "row-remove",
+          "aria-label": COPY.removeHistoryLabel,
+          text: "✕"
+        });
+        removeButton.addEventListener("click", () => deleteHistoryEntry(entry.round));
+
         return make("div", { class: "surface history-card" }, [
           make("div", { class: "history-head" }, [
-            make("span", { text: `Round ${entry.round}` }),
-            make("span", { text: time })
+            make("span", { text: `Round ${entry.round} · ${time}` }),
+            removeButton
           ]),
           make("div", { class: "history-winner", text: template(COPY.historyWinnerTemplate, { winner: winnerText, score: entry.maxSum }) }),
           make("div", { class: "history-scores", text: scoreLine })
         ]);
+      }
+
+      function renderHistoryList() {
+        historyList.replaceChildren(...history.slice().reverse().map(buildHistoryCard));
+      }
+
+      function deleteHistoryEntry(round) {
+        const index = history.findIndex((e) => e.round === round);
+        if (index === -1) return;
+
+        const [removed] = history.splice(index, 1);
+        saveHistory();
+        renderHistoryList();
+        updateHistoryVisibility();
+
+        showToast(template(COPY.historyUndoTemplate, { round: removed.round }), () => {
+          history.splice(index, 0, removed);
+          saveHistory();
+          renderHistoryList();
+          updateHistoryVisibility();
+          hideToast();
+        });
       }
 
       function cleanRound() {
@@ -697,10 +730,11 @@
         const maxSum = Math.max(...scores.map((s) => s.sum));
         const winners = scores.filter((s) => s.sum === maxSum).map((s) => s.label);
 
-        const entry = { round: history.length + 1, recordedAt: Date.now(), winners, maxSum, scores };
+        const nextRound = history.length === 0 ? 1 : Math.max(...history.map((e) => e.round)) + 1;
+        const entry = { round: nextRound, recordedAt: Date.now(), winners, maxSum, scores };
         history.push(entry);
         saveHistory();
-        historyList.prepend(buildHistoryCard(entry));
+        renderHistoryList();
         updateHistoryVisibility();
 
         ids.forEach((id) => {
@@ -767,7 +801,7 @@
       updateLeaderBar();
 
       history = loadHistory();
-      history.slice().reverse().forEach((entry) => historyList.append(buildHistoryCard(entry)));
+      renderHistoryList();
       updateHistoryVisibility();
     </script>
   </body>
