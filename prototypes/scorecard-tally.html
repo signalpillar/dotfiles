@@ -112,6 +112,17 @@
         width: 100%;
       }
 
+      .btn-accent {
+        border-color: var(--accent-strong);
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-plain:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
       .btn-plain:focus-visible,
       input:focus-visible,
       button:focus-visible {
@@ -308,6 +319,50 @@
         cursor: pointer;
       }
 
+      .toast button[hidden] {
+        display: none;
+      }
+
+      .section-heading {
+        margin: 0;
+        font-size: var(--text-1);
+        font-weight: 700;
+      }
+
+      .history-section {
+        display: grid;
+        gap: var(--space-3);
+      }
+
+      .history-list {
+        display: grid;
+        gap: var(--space-2);
+      }
+
+      .history-card {
+        display: grid;
+        gap: var(--space-1);
+        padding: var(--space-3) var(--space-4);
+      }
+
+      .history-head {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-2);
+        font-size: var(--text-00);
+        color: var(--muted);
+      }
+
+      .history-winner {
+        font-weight: 700;
+        color: var(--accent-strong);
+      }
+
+      .history-scores {
+        color: var(--muted);
+        font-size: var(--text-0);
+      }
+
       @media (min-width: 46rem) {
         main {
           padding-top: var(--space-8);
@@ -335,11 +390,17 @@
           "mismatchBadge": "⚠ check this",
           "noTotalBadge": "no total yet",
           "undoTemplate": "Removed “{label}”",
-          "undoButton": "Undo"
+          "undoButton": "Undo",
+          "cleanButton": "Clean round",
+          "cleanedToastOne": "Saved round {round} — {winner} won with {score}. Scores cleared.",
+          "cleanedToastTie": "Saved round {round} — tied at {score} between {winner}. Scores cleared.",
+          "historyHeading": "Round history",
+          "historyWinnerTemplate": "🏆 {winner} — {score}",
+          "unnamedPlayerTemplate": "Player {number}"
         },
         "grid": { "columns": 4, "rows": 2 },
         "timing": { "saveDebounceMs": 200, "undoTimeoutMs": 6000 },
-        "storage": { "sessionKey": "scorecard-tally:session" }
+        "storage": { "sessionKey": "scorecard-tally:session", "historyKey": "scorecard-tally:history" }
       }
     </script>
 
@@ -358,10 +419,17 @@
         <p class="grand-total-flags" id="grandTotalFlags"></p>
       </div>
 
+      <button type="button" class="btn-plain block btn-accent" id="cleanButton"></button>
+
       <div class="rows-list" id="rowsList"></div>
       <p class="empty-state" id="emptyState"></p>
 
       <button type="button" class="btn-plain block" id="addRowButton"></button>
+
+      <section class="history-section" id="historySection" hidden>
+        <h2 class="section-heading" id="historyHeading"></h2>
+        <div class="history-list" id="historyList"></div>
+      </section>
     </main>
 
     <div class="toast" id="toast" role="status" aria-live="polite">
@@ -398,6 +466,8 @@
       document.getElementById("emptyState").textContent = COPY.emptyState;
       document.getElementById("addRowButton").textContent = COPY.addPlayerButton;
       document.getElementById("toastUndoButton").textContent = COPY.undoButton;
+      document.getElementById("cleanButton").textContent = COPY.cleanButton;
+      document.getElementById("historyHeading").textContent = COPY.historyHeading;
 
       /* ---------------- state ---------------- */
 
@@ -405,7 +475,10 @@
       const rows = new Map(); // id -> { label, values: (number|null)[], circledTotal: number|null }
       const rowRefs = new Map(); // id -> DOM refs for in-place updates
       let pendingUndo = null;
-      let undoTimer = null;
+
+      function displayLabel(row, index) {
+        return (row.label || "").trim() || template(COPY.unnamedPlayerTemplate, { number: index + 1 });
+      }
 
       function blankRow() {
         return { label: "", values: new Array(VALUES_COUNT).fill(null), circledTotal: null };
@@ -521,6 +594,7 @@
         removeButton.addEventListener("click", () => removeRow(id));
 
         const valuesGrid = make("div", { class: "values-grid" });
+        const valueInputs = [];
         for (let i = 0; i < VALUES_COUNT; i++) {
           if (i === M.grid.columns) {
             valuesGrid.append(make("div", { class: "sub-row-gap" }));
@@ -532,6 +606,7 @@
             refreshRowTotals(id);
             scheduleSave();
           });
+          valueInputs.push(valueInput);
           valuesGrid.append(valueInput);
         }
 
@@ -559,7 +634,7 @@
         ]);
         card.dataset.rowId = id;
 
-        rowRefs.set(id, { card, sumEl, badgeEl });
+        rowRefs.set(id, { card, sumEl, badgeEl, labelInput, valueInputs, circledInput });
         rowsList.append(card);
         refreshRowTotals(id);
         updateEmptyState();
@@ -595,7 +670,6 @@
         const row = rows.get(id);
         if (!refs || !row) return;
 
-        clearTimeout(undoTimer);
         refs.card.remove();
         rowRefs.delete(id);
         rows.delete(id);
@@ -611,11 +685,11 @@
           hideToast();
           scheduleSave();
         });
-        undoTimer = setTimeout(hideToast, M.timing.undoTimeoutMs);
       }
 
       function updateGrandTotal() {
         const bar = document.getElementById("grandTotalBar");
+        document.getElementById("cleanButton").disabled = rowRefs.size === 0;
         if (rowRefs.size === 0) {
           bar.classList.remove("visible");
           return;
@@ -637,20 +711,121 @@
             : template(COPY.mismatchTemplateMany, { count: mismatches });
       }
 
+      /* ---------------- round history (append-only; "Clean round" is the writer) ---------------- */
+
+      const historySection = document.getElementById("historySection");
+      const historyList = document.getElementById("historyList");
+      let history = []; // chronological order, oldest first: { round, recordedAt, winners, maxSum, scores }
+
+      function sanitiseHistoryEntry(item) {
+        if (!item || typeof item !== "object") return null;
+        const round = Number(item.round);
+        const recordedAt = Number(item.recordedAt);
+        const maxSum = Number(item.maxSum);
+        const winners = Array.isArray(item.winners) ? item.winners.filter((w) => typeof w === "string") : [];
+        const scores = Array.isArray(item.scores)
+          ? item.scores
+              .filter((s) => s && typeof s.label === "string" && Number.isFinite(Number(s.sum)))
+              .map((s) => ({ label: s.label, sum: Number(s.sum) }))
+          : [];
+        if (!Number.isFinite(round) || !Number.isFinite(recordedAt) || !Number.isFinite(maxSum) || winners.length === 0 || scores.length === 0) {
+          return null;
+        }
+        return { round, recordedAt, winners, maxSum, scores };
+      }
+
+      function saveHistory() {
+        try {
+          localStorage.setItem(M.storage.historyKey, JSON.stringify(history));
+        } catch (err) {
+          console.warn("Could not save history", err);
+        }
+      }
+
+      function loadHistory() {
+        try {
+          const raw = localStorage.getItem(M.storage.historyKey);
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) return [];
+          return parsed.map(sanitiseHistoryEntry).filter(Boolean);
+        } catch (err) {
+          console.warn("Could not load round history", err);
+          return [];
+        }
+      }
+
+      function updateHistoryVisibility() {
+        historySection.hidden = history.length === 0;
+      }
+
+      function buildHistoryCard(entry) {
+        const winnerText = entry.winners.join(" & ");
+        const time = new Date(entry.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const scoreLine = entry.scores.map((s) => `${s.label} ${s.sum}`).join(" · ");
+        return make("div", { class: "surface history-card" }, [
+          make("div", { class: "history-head" }, [
+            make("span", { text: `Round ${entry.round}` }),
+            make("span", { text: time })
+          ]),
+          make("div", { class: "history-winner", text: template(COPY.historyWinnerTemplate, { winner: winnerText, score: entry.maxSum }) }),
+          make("div", { class: "history-scores", text: scoreLine })
+        ]);
+      }
+
+      function cleanRound() {
+        const ids = [...rowRefs.keys()];
+        if (ids.length === 0) return;
+
+        const scores = ids.map((id, index) => ({ label: displayLabel(rows.get(id), index), sum: sumOf(rows.get(id).values) }));
+        const maxSum = Math.max(...scores.map((s) => s.sum));
+        const winners = scores.filter((s) => s.sum === maxSum).map((s) => s.label);
+
+        const entry = { round: history.length + 1, recordedAt: Date.now(), winners, maxSum, scores };
+        history.push(entry);
+        saveHistory();
+        historyList.prepend(buildHistoryCard(entry));
+        updateHistoryVisibility();
+
+        ids.forEach((id) => {
+          const row = rows.get(id);
+          row.values = new Array(VALUES_COUNT).fill(null);
+          row.circledTotal = null;
+          const refs = rowRefs.get(id);
+          refs.valueInputs.forEach((input) => (input.value = ""));
+          refs.circledInput.value = "";
+          refreshRowTotals(id);
+        });
+        scheduleSave();
+
+        showToast(
+          winners.length === 1
+            ? template(COPY.cleanedToastOne, { round: entry.round, winner: winners[0], score: maxSum })
+            : template(COPY.cleanedToastTie, { round: entry.round, winner: winners.join(", "), score: maxSum })
+        );
+      }
+
+      document.getElementById("cleanButton").addEventListener("click", cleanRound);
+
       /* ---------------- toast / undo ---------------- */
 
       const toast = document.getElementById("toast");
       const toastText = document.getElementById("toastText");
       const toastUndoButton = document.getElementById("toastUndoButton");
       let toastHandler = null;
+      let toastTimer = null;
 
       function showToast(text, onUndo) {
+        clearTimeout(toastTimer);
         toastText.textContent = text;
-        toastHandler = onUndo;
+        toastHandler = onUndo || null;
+        toastUndoButton.hidden = !onUndo;
         toast.classList.add("visible");
+        toastTimer = setTimeout(hideToast, M.timing.undoTimeoutMs);
       }
 
       function hideToast() {
+        clearTimeout(toastTimer);
         toast.classList.remove("visible");
         toastHandler = null;
         pendingUndo = null;
@@ -676,6 +851,10 @@
       }
       updateEmptyState();
       updateGrandTotal();
+
+      history = loadHistory();
+      history.slice().reverse().forEach((entry) => historyList.append(buildHistoryCard(entry)));
+      updateHistoryVisibility();
     </script>
   </body>
 </html>
