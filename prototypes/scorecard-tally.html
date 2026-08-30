@@ -16,12 +16,7 @@
         --line: #e2e5ee;
         --accent: #2f7a5c;
         --accent-strong: #1f5c43;
-        --ok-bg: #e5f6ec;
-        --ok-fg: #1f7a4d;
-        --warn-bg: #fdecea;
         --warn-fg: #b3261e;
-        --neutral-bg: #eef0f5;
-        --neutral-fg: #667085;
         --shadow: 0 0.5rem 2rem rgba(27, 36, 48, 0.08);
         --space-1: 0.25rem;
         --space-2: 0.5rem;
@@ -141,14 +136,13 @@
         color: var(--ink);
       }
 
-      .grand-total-bar {
+      .leader-bar {
         position: sticky;
         top: var(--space-2);
         z-index: 3;
         display: none;
-        justify-content: space-between;
-        align-items: center;
-        gap: var(--space-3);
+        flex-direction: column;
+        gap: var(--space-1);
         padding: var(--space-3) var(--space-4);
         border-radius: var(--radius-4);
         border: 1px solid var(--accent-strong);
@@ -157,26 +151,20 @@
         box-shadow: var(--shadow);
       }
 
-      .grand-total-bar.visible {
+      .leader-bar.visible {
         display: flex;
       }
 
-      .grand-total-value {
-        font-size: var(--text-5);
-        font-weight: 800;
-        letter-spacing: -0.02em;
-      }
-
-      .grand-total-label {
+      .leader-label {
         margin: 0;
         font-size: var(--text-0);
         opacity: 0.85;
       }
 
-      .grand-total-flags {
-        margin: 0;
-        font-size: var(--text-0);
-        text-align: right;
+      .leader-value {
+        font-size: var(--text-5);
+        font-weight: 800;
+        letter-spacing: -0.02em;
       }
 
       .rows-list {
@@ -241,52 +229,10 @@
         margin: var(--space-1) 0;
       }
 
-      .row-footer {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        gap: var(--space-3);
-        align-items: center;
-      }
-
       .row-sum {
         font-size: var(--text-2);
         font-weight: 800;
         white-space: nowrap;
-      }
-
-      .circled-total-field {
-        display: flex;
-        align-items: center;
-        gap: var(--space-2);
-        justify-self: end;
-      }
-
-      .circled-total-field input {
-        width: 5rem;
-      }
-
-      .match-badge {
-        justify-self: end;
-        font-size: var(--text-00);
-        font-weight: 700;
-        padding: var(--space-1) var(--space-2);
-        border-radius: var(--radius-round);
-        white-space: nowrap;
-      }
-
-      .match-badge.ok {
-        background: var(--ok-bg);
-        color: var(--ok-fg);
-      }
-
-      .match-badge.warn {
-        background: var(--warn-bg);
-        color: var(--warn-fg);
-      }
-
-      .match-badge.neutral {
-        background: var(--neutral-bg);
-        color: var(--neutral-fg);
       }
 
       .toast {
@@ -375,20 +321,16 @@
       {
         "copy": {
           "title": "Scorecard Tally",
-          "tagline": "Type in each player's grid of numbers and their circled total. This adds it up and flags any row that doesn't match, fully offline.",
+          "tagline": "Type in each player's grid of numbers. This adds up each player's sum live, fully offline.",
           "addPlayerButton": "+ Add player",
-          "grandTotalLabel": "Grand total",
-          "allMatchText": "All totals check out",
-          "mismatchTemplateOne": "1 row needs a check",
-          "mismatchTemplateMany": "{count} rows need a check",
+          "leaderLabel": "Leading",
+          "leaderTemplate": "{winner} — {score}",
+          "leaderTieTemplate": "Tied at {score}: {winner}",
+          "leaderEmptyText": "No scores yet",
           "emptyState": "No players yet. Add one to get started.",
           "sumLabel": "Sum",
-          "circledTotalLabel": "Circled total",
           "labelPlaceholder": "Label",
           "removeRowLabel": "Remove row",
-          "matchBadge": "✓ matches",
-          "mismatchBadge": "⚠ check this",
-          "noTotalBadge": "no total yet",
           "undoTemplate": "Removed “{label}”",
           "undoButton": "Undo",
           "cleanButton": "Clean round",
@@ -411,12 +353,9 @@
         <p class="tagline" id="pageTagline"></p>
       </header>
 
-      <div class="grand-total-bar" id="grandTotalBar">
-        <div>
-          <p class="grand-total-label" id="grandTotalLabelText"></p>
-          <div class="grand-total-value" id="grandTotalValue">0</div>
-        </div>
-        <p class="grand-total-flags" id="grandTotalFlags"></p>
+      <div class="leader-bar" id="leaderBar">
+        <p class="leader-label" id="leaderLabelText"></p>
+        <div class="leader-value" id="leaderValue"></div>
       </div>
 
       <button type="button" class="btn-plain block btn-accent" id="cleanButton"></button>
@@ -462,7 +401,7 @@
       document.title = COPY.title;
       document.getElementById("pageTitle").textContent = COPY.title;
       document.getElementById("pageTagline").textContent = COPY.tagline;
-      document.getElementById("grandTotalLabelText").textContent = COPY.grandTotalLabel;
+      document.getElementById("leaderLabelText").textContent = COPY.leaderLabel;
       document.getElementById("emptyState").textContent = COPY.emptyState;
       document.getElementById("addRowButton").textContent = COPY.addPlayerButton;
       document.getElementById("toastUndoButton").textContent = COPY.undoButton;
@@ -472,7 +411,7 @@
       /* ---------------- state ---------------- */
 
       let rowSeq = 0;
-      const rows = new Map(); // id -> { label, values: (number|null)[], circledTotal: number|null }
+      const rows = new Map(); // id -> { label, values: (number|null)[] }
       const rowRefs = new Map(); // id -> DOM refs for in-place updates
       let pendingUndo = null;
 
@@ -481,7 +420,7 @@
       }
 
       function blankRow() {
-        return { label: "", values: new Array(VALUES_COUNT).fill(null), circledTotal: null };
+        return { label: "", values: new Array(VALUES_COUNT).fill(null) };
       }
 
       function toNumberOrNull(value) {
@@ -543,7 +482,6 @@
           for (let i = 0; i < VALUES_COUNT; i++) {
             row.values[i] = toNumberOrNull(values[i]);
           }
-          row.circledTotal = toNumberOrNull(item.circledTotal);
         }
         return row;
       }
@@ -611,34 +549,21 @@
         }
 
         const sumEl = make("div", { class: "row-sum" });
-        const circledInput = makeDigitInput(COPY.circledTotalLabel, rowData.circledTotal);
-        circledInput.addEventListener("input", () => {
-          rows.get(id).circledTotal = toNumberOrNull(circledInput.value);
-          refreshRowTotals(id);
-          scheduleSave();
-        });
-        const badgeEl = make("span", { class: "match-badge" });
-
-        const rowFooter = make("div", { class: "row-footer" }, [
-          sumEl,
-          make("div", { class: "circled-total-field" }, [circledInput]),
-          badgeEl
-        ]);
 
         const card = make("div", { class: "surface" }, [
           make("div", { class: "row-card" }, [
             make("div", { class: "row-head" }, [labelInput, removeButton]),
             valuesGrid,
-            rowFooter
+            sumEl
           ])
         ]);
         card.dataset.rowId = id;
 
-        rowRefs.set(id, { card, sumEl, badgeEl, labelInput, valueInputs, circledInput });
+        rowRefs.set(id, { card, sumEl, labelInput, valueInputs });
         rowsList.append(card);
         refreshRowTotals(id);
         updateEmptyState();
-        updateGrandTotal();
+        updateLeaderBar();
 
         if (focusLabel) labelInput.focus();
         return id;
@@ -648,21 +573,8 @@
         const row = rows.get(id);
         const refs = rowRefs.get(id);
         if (!row || !refs) return;
-        const sum = sumOf(row.values);
-        refs.sumEl.textContent = `${COPY.sumLabel}: ${sum}`;
-
-        refs.badgeEl.classList.remove("ok", "warn", "neutral");
-        if (row.circledTotal === null) {
-          refs.badgeEl.classList.add("neutral");
-          refs.badgeEl.textContent = COPY.noTotalBadge;
-        } else if (row.circledTotal === sum) {
-          refs.badgeEl.classList.add("ok");
-          refs.badgeEl.textContent = COPY.matchBadge;
-        } else {
-          refs.badgeEl.classList.add("warn");
-          refs.badgeEl.textContent = COPY.mismatchBadge;
-        }
-        updateGrandTotal();
+        refs.sumEl.textContent = `${COPY.sumLabel}: ${sumOf(row.values)}`;
+        updateLeaderBar();
       }
 
       function removeRow(id) {
@@ -674,7 +586,7 @@
         rowRefs.delete(id);
         rows.delete(id);
         updateEmptyState();
-        updateGrandTotal();
+        updateLeaderBar();
         scheduleSave();
 
         pendingUndo = { id, row };
@@ -687,28 +599,31 @@
         });
       }
 
-      function updateGrandTotal() {
-        const bar = document.getElementById("grandTotalBar");
+      /* The "leader" is computed live from whatever has been typed in so far — not a
+         grand total. It's the same computation "Clean round" uses to pick a winner,
+         shown as a running preview while scores are still being entered. */
+      function updateLeaderBar() {
+        const bar = document.getElementById("leaderBar");
         document.getElementById("cleanButton").disabled = rowRefs.size === 0;
         if (rowRefs.size === 0) {
           bar.classList.remove("visible");
           return;
         }
         bar.classList.add("visible");
-        let grandTotal = 0;
-        let mismatches = 0;
-        for (const row of rows.values()) {
-          const sum = sumOf(row.values);
-          grandTotal += sum;
-          if (row.circledTotal !== null && row.circledTotal !== sum) mismatches += 1;
+
+        const ids = [...rowRefs.keys()];
+        const scores = ids.map((id, index) => ({ label: displayLabel(rows.get(id), index), sum: sumOf(rows.get(id).values) }));
+        const maxSum = Math.max(...scores.map((s) => s.sum));
+        const valueEl = document.getElementById("leaderValue");
+
+        if (maxSum === 0) {
+          valueEl.textContent = COPY.leaderEmptyText;
+          return;
         }
-        document.getElementById("grandTotalValue").textContent = grandTotal;
-        const flagsEl = document.getElementById("grandTotalFlags");
-        flagsEl.textContent = mismatches === 0
-          ? COPY.allMatchText
-          : mismatches === 1
-            ? COPY.mismatchTemplateOne
-            : template(COPY.mismatchTemplateMany, { count: mismatches });
+        const leaders = scores.filter((s) => s.sum === maxSum).map((s) => s.label);
+        valueEl.textContent = leaders.length === 1
+          ? template(COPY.leaderTemplate, { winner: leaders[0], score: maxSum })
+          : template(COPY.leaderTieTemplate, { winner: leaders.join(", "), score: maxSum });
       }
 
       /* ---------------- round history (append-only; "Clean round" is the writer) ---------------- */
@@ -790,10 +705,8 @@
         ids.forEach((id) => {
           const row = rows.get(id);
           row.values = new Array(VALUES_COUNT).fill(null);
-          row.circledTotal = null;
           const refs = rowRefs.get(id);
           refs.valueInputs.forEach((input) => (input.value = ""));
-          refs.circledInput.value = "";
           refreshRowTotals(id);
         });
         scheduleSave();
@@ -850,7 +763,7 @@
         addRow(blankRow());
       }
       updateEmptyState();
-      updateGrandTotal();
+      updateLeaderBar();
 
       history = loadHistory();
       history.slice().reverse().forEach((entry) => historyList.append(buildHistoryCard(entry)));
