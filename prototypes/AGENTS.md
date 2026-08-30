@@ -2,6 +2,14 @@
 
 This directory contains throwaway, one-file HTML prototypes published through GitHub Pages.
 
+This file is a living, self-improving record of how to build well in this directory, not a
+static spec. Whichever agent works here maintains it: when a session in `prototypes/` turns up a
+real gotcha, a wrong assumption caught late, or a technique worth reusing, add it under
+"Learned the Hard Way" (or a new dated subsection there) before finishing the session. Keep
+entries concrete and specific to what actually went wrong, not generic advice. Read this whole
+file, including "Learned the Hard Way", before starting new prototype work — it is cheaper than
+re-discovering the same mistake.
+
 ## Principles
 
 - Prefer a single `.html` file per prototype, with application CSS and JavaScript embedded in that file.
@@ -171,6 +179,36 @@ Read them before writing the first line, not after debugging.
 - Check external links resolve with `curl -o /dev/null -w "%{http_code}" -L` before shipping them.
 - Test servers must serve relative shared assets such as `prototype-base.css` and `prototype-jelly.css`.
   A page that works from disk can otherwise appear correct while tests silently receive a 404 for its foundation.
+- `playwright`'s browser path under `/opt/pw-browsers` is versioned (e.g. `chromium-1194/chrome-linux/chrome`, not `chromium/chrome-linux/chrome`).
+  `find /opt/pw-browsers -maxdepth 3` once rather than guessing the path.
+- No system-wide `playwright` package is installed; `npm init -y && npm install playwright@latest --no-save` in a scratchpad directory gets a throwaway copy for one test run. Delete the scratchpad dir afterward.
+- The system Python `cryptography`/`pdfminer` stack in this sandbox is broken (a Rust extension mismatch panics on import), which breaks `pypdf`/`pdfplumber` too since they depend on it transitively.
+  A fresh `python3 -m venv` and installing `pdfplumber` there avoids the broken system packages. `poppler-utils` (`pdftotext`) is not installable via apt here (404 on the security mirror), so don't rely on it either.
+
+### Verifying domain facts (tax, finance, and other real-world rules)
+
+- A prototype that encodes a real-world rule (tax bands, interest formulas, unit conversions) needs
+  the rule checked against an authoritative source, not just re-derived from memory or "it sounds
+  right." Reasoning about *why* a rule should work a certain way (e.g. the UK "60% tax trap"
+  marginal-rate story) can sound fully consistent while still supporting the wrong formula — it
+  only proves a marginal claim, not the total/integral one.
+- Random calculator and comparison-site results found via search are often wrong or stale (mirrored
+  clone sites, outdated thresholds, blended figures that secretly include a second tax/fee). Don't
+  trust a single fetched number. Get at least two independently-run real examples that agree on the
+  same total before trusting a formula, and prefer primary sources (the regulator/authority's own
+  worksheet or published examples) over secondary summaries when the two disagree.
+- Concretely, for UK Income Tax: HMRC's SA110 "Tax calculation summary notes" (search
+  `assets.publishing.service.gov.uk ... SA110-Notes`) is the primary source with the literal
+  worksheet formulas — worth fetching directly (see the PDF extraction workaround above) rather
+  than trusting paraphrased summaries of it.
+- A plausible-looking model can be wrong only in a narrow, easy-to-miss range. This prototype's
+  first UK Income Tax implementation applied the basic/higher rate band edges (£50,270/£125,140) as
+  fixed points on *gross* salary, which is correct for the standard Personal Allowance case but
+  silently undercounts tax by £2,000+ once the £100k-£125,140 taper reduces the allowance — because
+  the real bands (£37,700 then £87,440) are fixed *widths of taxable income* (salary minus the
+  allowance), confirmed against HMRC's own worksheet and two independent real £120,000 examples.
+  Test the boundary/edge-case inputs (here: just above, inside, and just above the taper zone), not
+  only a mid-range happy path — a formula bug can hide entirely below the first interesting threshold.
 
 ### Manifest-driven code
 
