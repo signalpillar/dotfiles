@@ -20,63 +20,71 @@
         margin: 0;
         min-height: 100vh;
         background:
-          radial-gradient(circle at top left, rgba(117, 91, 255, 0.35), transparent 34rem),
+          radial-gradient(circle at top left, rgba(117, 91, 255, 0.28), transparent 34rem),
           linear-gradient(135deg, #111827 0%, #141824 50%, #0d1017 100%);
       }
 
       main {
-        width: min(44rem, 100%);
+        width: min(40rem, 100%);
         margin: 0 auto;
-        padding: 2rem 1rem 4rem;
+        padding: 1.75rem 1rem 3rem;
       }
 
       h1 {
-        margin: 0 0 0.5rem;
-        font-size: clamp(2.25rem, 12vw, 4.5rem);
-        letter-spacing: -0.08em;
+        margin: 0 0 0.25rem;
+        font-size: clamp(1.5rem, 6vw, 2rem);
+        letter-spacing: -0.03em;
       }
 
       .intro {
-        margin: 0 0 2rem;
-        color: #bac3d4;
-        font-size: 1.05rem;
-        line-height: 1.5;
+        margin: 0 0 1.25rem;
+        color: #8d97ab;
+        font-size: 0.9rem;
       }
 
       .prototype-list {
-        display: grid;
-        gap: 1rem;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 0.9rem;
+        overflow: hidden;
       }
 
       a.prototype-card {
-        display: block;
-        padding: 1.2rem;
+        display: flex;
+        flex-wrap: wrap;
+        column-gap: 0.5rem;
+        align-items: baseline;
+        padding: 0.65rem 0.9rem;
         color: inherit;
         text-decoration: none;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 1.25rem;
-        background: rgba(255, 255, 255, 0.08);
-        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.24);
-        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+        border-block-end: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .prototype-list a.prototype-card:last-child {
+        border-block-end: none;
       }
 
       a.prototype-card:focus-visible,
       a.prototype-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(134, 239, 172, 0.72);
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba(117, 91, 255, 0.14);
         outline: none;
       }
 
       .prototype-card strong {
-        display: block;
-        margin-bottom: 0.4rem;
-        font-size: 1.25rem;
+        flex: none;
+        font-size: 0.92rem;
+        font-weight: 650;
+        white-space: nowrap;
       }
 
       .prototype-card span {
-        color: #cbd5e1;
-        line-height: 1.45;
+        flex: 1 1 12rem;
+        min-width: 0;
+        color: #9aa4b8;
+        font-size: 0.82rem;
+        line-height: 1.4;
       }
     </style>
   </head>
@@ -88,77 +96,77 @@
       <div class="prototype-list" aria-label="Available prototypes">
         <a class="prototype-card" href="mindmap-viewer.html">
           <strong>Mind Map Viewer</strong>
-          <span>Renders a Markdown outline as a mind map with real touch pan and pinch zoom, keeps a local library of maps, and documents the format.</span>
+          <span>Markdown outline rendered as a pannable, zoomable mind map.</span>
         </a>
 
         <a class="prototype-card" href="llm-lifecycle-timelines.html">
           <strong>Modern LLM Timelines</strong>
-          <span>Navigate model development and inference serving stages, inspect cross-cutting work, and expand notes sourced from YAML.</span>
+          <span>Model development and inference stages as an explorable timeline.</span>
         </a>
 
         <a class="prototype-card" href="jump-rope-interval-timer.html">
           <strong>Jump Rope Interval Timer</strong>
-          <span>Alternates work and break timers, tracks completed rounds, and keeps controls large for mobile use.</span>
+          <span>Work/break interval timer with round tracking.</span>
         </a>
 
         <a class="prototype-card" href="browser-llm-chat.html">
           <strong>Browser LLM Chat</strong>
-          <span>Loads a small WebGPU model in the browser and provides a simple chat surface with streaming replies.</span>
+          <span>Chat with a small LLM running entirely in-browser via WebGPU.</span>
         </a>
 
         <a class="prototype-card" href="meeting-cost-meter.html">
           <strong>Meeting Cost Meter</strong>
-          <span>Turns attendee count and hourly rate into a live money burn meter for ending low-value meetings faster.</span>
+          <span>Live £-burn meter for meetings, by headcount and hourly rate.</span>
         </a>
 
         <a class="prototype-card" href="context-kit.html">
           <strong>Context Kit</strong>
-          <span>Assemble and manage prompt context for AI coding sessions: paste snippets, estimate tokens, tag by intent, drag to reorder.</span>
+          <span>Assemble, tag, and reorder prompt context for AI coding sessions.</span>
         </a>
 
         <a class="prototype-card" href="ai-coding-playbook.html">
           <strong>AI Coding Playbook</strong>
-          <span>Checklist of actionable AI coding practices extracted from today HN discussions, with progress tracking and export.</span>
+          <span>Checklist of AI coding practices with progress tracking.</span>
         </a>
 
         <a class="prototype-card" href="voice-kit.html">
           <strong>Voice Kit</strong>
-          <span>In-browser speech-to-text (Whisper) and text-to-speech (Kitten TTS). Both models run locally via WebGPU or WASM.</span>
+          <span>In-browser speech-to-text and text-to-speech, local models only.</span>
         </a>
 
         <a class="prototype-card" href="noise-nudge.html">
           <strong>Noise Nudge</strong>
-          <span>Uses the microphone locally to show live room loudness and count distracting peaks over a threshold.</span>
+          <span>Live room-loudness meter that counts distracting peaks.</span>
         </a>
 
         <a class="prototype-card" href="gcse-science-f1-roadmap.html">
           <strong>GCSE Triple Science: F1 Roadmap</strong>
-          <span>Models the triple science syllabus as a prerequisite graph, links every topic to how it shows up in Formula 1 and in the workshop, and tracks progress locally with JSON export and import.</span>
+          <span>GCSE science syllabus as a prerequisite graph, linked to Formula 1.</span>
         </a>
 
         <a class="prototype-card" href="day-mosaic.html">
           <strong>Day Mosaic</strong>
-          <span>Logs your day as manually-switched activity blocks and renders them as a Mondrian-style mosaic grid, zoomable to day, week, or month.</span>
+          <span>Daily activity log rendered as a Mondrian-style mosaic grid.</span>
         </a>
 
         <a class="prototype-card" href="foglamp-scan-viewer.html">
           <strong>FogLAMP Scan Viewer</strong>
-          <span>Local Cytoscape map of a codebase scan JSON, plus a Prompt tab to copy the fixed agent instruction for the next run.</span>
+          <span>Codebase scan JSON rendered as a local Cytoscape graph.</span>
         </a>
 
         <a class="prototype-card" href="mortgage-compass.html">
           <strong>Mortgage Compass</strong>
-          <span>Explains how a mortgage splits into interest and ownership, shows the impact of overpaying, and compares buying with renting across three prototype views.</span>
+          <span>Visualises mortgage interest vs. ownership, and buying vs. renting.</span>
         </a>
 
         <a class="prototype-card" href="scorecard-tally.html">
           <strong>Scorecard Tally</strong>
-          <span>Type in each player's 4x2 grid of handwritten scores and their circled total; it sums and flags mismatches instantly, entirely offline.</span>
+          <span>Sums handwritten score grids and flags mismatches instantly.</span>
         </a>
 
         <a class="prototype-card" href="uk-tax-visualizer.html">
           <strong>UK Income Tax Visualiser</strong>
-          <span>Enter an annual salary and see it split across Personal Allowance, basic, higher, and additional rate bands, with only each slice above a threshold taxed at that rate.</span>
+          <span>Salary split across UK tax bands, with the marginal band shown.</span>
         </a>
       </div>
     </main>

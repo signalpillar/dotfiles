@@ -445,11 +445,13 @@
           "taperEnd": 125140,
           "taperRate": 2
         },
+        "basicRateLimit": 37700,
+        "higherRateLimit": 125140,
         "bands": [
-          { "id": "allowance", "label": "Personal Allowance", "rate": 0, "upTo": null },
-          { "id": "basic", "label": "Basic rate", "rate": 0.2, "upTo": 50270 },
-          { "id": "higher", "label": "Higher rate", "rate": 0.4, "upTo": 125140 },
-          { "id": "additional", "label": "Additional rate", "rate": 0.45, "upTo": null }
+          { "id": "allowance", "label": "Personal Allowance", "rate": 0 },
+          { "id": "basic", "label": "Basic rate", "rate": 0.2 },
+          { "id": "higher", "label": "Higher rate", "rate": 0.4 },
+          { "id": "additional", "label": "Additional rate", "rate": 0.45 }
         ],
         "copy": {
           "marginalTemplate": "At {salary}, your top band is <strong>{rateLabel}</strong> — only the pay above {threshold} is taxed at that rate.",
@@ -506,16 +508,24 @@
       }
 
       function computeBands(salary) {
+        // Basic/higher rate limits are fixed widths of TAXABLE income (salary minus the
+        // Personal Allowance), not fixed points on gross salary — confirmed against HMRC's
+        // SA110 "Tax calculation summary notes" working sheet (Section 6/7): non-savings
+        // income is taxed 20% on the first £37,700 of taxable income, 40% on the next
+        // £87,440 (i.e. up to £125,140 of taxable income), 45% beyond that. Earlier drafts
+        // of this prototype instead pinned £50,270/£125,140 to gross salary, which happens
+        // to match once the Personal Allowance is standard but undercounts tax by ~£2,000+
+        // once the £100k-£125,140 taper reduces the allowance. Verified against real
+        // published examples: £60,000 salary -> £11,432 tax; £120,000 salary -> £39,432 tax.
         const allowance = effectiveAllowance(salary);
-        const [, basicBand, higherBand] = manifest.bands;
-        const basicUpTo = basicBand.upTo;
-        const higherUpTo = higherBand.upTo;
+        const taxable = Math.max(0, salary - allowance);
+        const { basicRateLimit, higherRateLimit } = manifest;
 
         const amounts = {
           allowance: Math.min(salary, allowance),
-          basic: Math.max(0, Math.min(salary, basicUpTo) - allowance),
-          higher: Math.max(0, Math.min(salary, higherUpTo) - basicUpTo),
-          additional: Math.max(0, salary - higherUpTo),
+          basic: Math.min(taxable, basicRateLimit),
+          higher: Math.max(0, Math.min(taxable, higherRateLimit) - basicRateLimit),
+          additional: Math.max(0, taxable - higherRateLimit),
         };
 
         return manifest.bands.map((band) => ({
@@ -530,9 +540,10 @@
       }
 
       function bandThresholdLabel(band) {
-        if (band.id === "basic") return money(effectiveAllowance(currentSalary()));
-        if (band.id === "higher") return money(manifest.bands[1].upTo);
-        if (band.id === "additional") return money(manifest.bands[2].upTo);
+        const allowance = effectiveAllowance(currentSalary());
+        if (band.id === "basic") return money(allowance);
+        if (band.id === "higher") return money(allowance + manifest.basicRateLimit);
+        if (band.id === "additional") return money(allowance + manifest.higherRateLimit);
         return money(0);
       }
 
