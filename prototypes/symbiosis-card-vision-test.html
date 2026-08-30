@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Card Vision Test</title>
+    <link rel="stylesheet" href="prototype-base.css">
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Avenir Next", Avenir, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+        --ink: #1b2430;
+        --muted: #667085;
+        --paper: #f5f6fa;
+        --surface: #ffffff;
+        --line: #e2e5ee;
+        --accent: #2f7a5c;
+        --accent-strong: #1f5c43;
+        --ok-bg: #e5f6ec;
+        --ok-fg: #1f7a4d;
+        --warn-bg: #fdecea;
+        --warn-fg: #b3261e;
+        --shadow: 0 0.5rem 2rem rgba(27, 36, 48, 0.08);
+        --space-1: 0.25rem;
+        --space-2: 0.5rem;
+        --space-3: 0.75rem;
+        --space-4: 1rem;
+        --space-5: 1.5rem;
+        --space-6: 2rem;
+        --space-8: 3rem;
+        --text-00: 0.75rem;
+        --text-0: 0.875rem;
+        --text-1: 1rem;
+        --text-2: 1.125rem;
+        --text-5: 1.75rem;
+        --text-6: 2.25rem;
+        --radius-2: 0.5rem;
+        --radius-3: 0.75rem;
+        --radius-4: 1rem;
+        --radius-round: 999px;
+      }
+
+      body {
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      main {
+        width: min(32rem, 100%);
+        margin: 0 auto;
+        padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-4) calc(var(--space-8) + env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-4);
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-2);
+      }
+
+      .back-link {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: var(--text-0);
+      }
+
+      .back-link:hover,
+      .back-link:focus-visible {
+        color: var(--accent-strong);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(var(--text-5), 8vw, var(--text-6));
+        letter-spacing: -0.03em;
+      }
+
+      .tagline {
+        margin: 0;
+        color: var(--muted);
+        font-size: var(--text-1);
+        line-height: 1.5;
+      }
+
+      .note {
+        margin: 0;
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-3);
+        border: 1px solid var(--line);
+        background: #fff8e6;
+        color: #6b4e00;
+        font-size: var(--text-0);
+        line-height: 1.5;
+      }
+
+      .surface {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-4);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        padding: var(--space-4);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-3);
+      }
+
+      .field {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-1);
+      }
+
+      .field-label {
+        font-size: var(--text-0);
+        font-weight: 700;
+        color: var(--muted);
+      }
+
+      select {
+        width: 100%;
+        min-width: 0;
+        min-height: 2.75rem;
+        padding: 0 var(--space-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      .btn-plain {
+        min-height: 2.75rem;
+        padding: 0 var(--space-4);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .btn-plain.block {
+        width: 100%;
+      }
+
+      .btn-plain.primary {
+        border-color: var(--accent-strong);
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-plain:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-plain:focus-visible,
+      button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      .status-text {
+        margin: 0;
+        font-size: var(--text-0);
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .status-text.error {
+        color: var(--warn-fg);
+      }
+
+      .meter {
+        height: 0.5rem;
+        overflow: hidden;
+        border-radius: var(--radius-round);
+        background: var(--line);
+      }
+
+      .meter-fill {
+        width: 0%;
+        height: 100%;
+        background: var(--accent);
+        transition: width 180ms ease;
+      }
+
+      .thumb-preview {
+        display: none;
+        max-height: 12rem;
+        border-radius: var(--radius-3);
+        border: 1px solid var(--line);
+        object-fit: contain;
+      }
+
+      .thumb-preview.visible {
+        display: block;
+      }
+
+      .result-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: var(--space-2) var(--space-3);
+        font-size: var(--text-1);
+      }
+
+      .result-grid dt {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .result-grid dd {
+        margin: 0;
+        font-weight: 700;
+      }
+
+      .raw-text {
+        margin: 0;
+        padding: var(--space-3);
+        border-radius: var(--radius-2);
+        background: var(--paper);
+        border: 1px solid var(--line);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: var(--text-00);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .verdict-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-2);
+      }
+
+      .verdict-row button {
+        min-height: 3rem;
+      }
+
+      .tally {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+
+      .tally-score {
+        font-size: var(--text-2);
+        font-weight: 800;
+      }
+
+      .log-list {
+        display: grid;
+        gap: var(--space-2);
+        max-height: 16rem;
+        overflow-y: auto;
+      }
+
+      .log-item {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-2);
+        border: 1px solid var(--line);
+        font-size: var(--text-0);
+      }
+
+      .log-item.correct {
+        background: var(--ok-bg);
+      }
+
+      .log-item.wrong {
+        background: var(--warn-bg);
+      }
+
+      .log-clear {
+        justify-self: start;
+        font-size: var(--text-00);
+        color: var(--muted);
+        background: none;
+        border: none;
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0;
+        min-height: unset;
+      }
+
+      @media (min-width: 46rem) {
+        main {
+          padding-top: var(--space-8);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <script type="application/json" id="manifest">
+      {
+        "copy": {
+          "title": "Card Vision Test",
+          "tagline": "Standalone accuracy test: can an in-browser vision model read a Symbiosis card's animal and color from a photo, fully client-side after the one-time model download?",
+          "gemmaNote": "Note: WebLLM (the in-browser runtime this uses) doesn't currently ship a vision-capable Gemma build. This test uses Phi-3.5-vision-instruct instead — the only vision-language model WebLLM offers today.",
+          "modelLabel": "Model",
+          "loadButton": "Load model",
+          "loadedButton": "Model loaded",
+          "unsupportedText": "WebGPU isn't available in this browser. Try Chrome, Edge, or another WebGPU-enabled browser.",
+          "readyToLoadText": "Pick a model and load it. First load downloads several GB — later loads should be faster from browser cache.",
+          "captureLabel": "Photo of one card",
+          "analyzeButton": "Identify this card",
+          "analyzingStatus": "Reading the card…",
+          "resizingStatus": "Preparing the photo…",
+          "readyStatus": "Take or choose a close-up photo of a single card, then identify it.",
+          "errorRequestTemplate": "Recognition failed: {message}",
+          "errorParseTemplate": "Could not parse the model's reply as JSON — showing raw text below.",
+          "latencyTemplate": "Answered in {seconds}s",
+          "animalLabel": "Animal",
+          "colorLabel": "Background color",
+          "scoringLabel": "Scoring style",
+          "numberLabel": "Printed number",
+          "unknownValue": "—",
+          "verdictPrompt": "Was that right?",
+          "correctButton": "✓ Correct",
+          "wrongButton": "✗ Wrong",
+          "tallyLabel": "Session accuracy",
+          "tallyTemplate": "{correct} / {total} correct",
+          "clearLogButton": "Clear log",
+          "emptyLogText": "No attempts logged yet this session."
+        },
+        "models": [
+          { "id": "Phi-3.5-vision-instruct-q4f16_1-MLC", "label": "Phi-3.5-vision-instruct, q4f16 (~4GB, recommended)" },
+          { "id": "Phi-3.5-vision-instruct-q4f32_1-MLC", "label": "Phi-3.5-vision-instruct, q4f32 (~5.9GB, higher quality)" }
+        ],
+        "image": { "maxDimension": 896, "jpegQuality": 0.9 },
+        "prompt": "You are looking at a close-up photo of a single card from a card game. Identify: (1) the animal illustrated on the card (e.g. dragonfly, snail, koi fish, frog, dragonfly), (2) the dominant background color behind the animal (e.g. orange, green, pink, blue, teal), (3) whether the card shows a plain printed number in a small colored square (call this \"fixed\"), or an icon-based value where the number sits beside a colored icon suggesting a multiplier (call this \"variable\"), and (4) any integer printed on the card, or null if none is legible. Respond with ONLY a JSON object with exactly these keys: \"animal\" (string), \"backgroundColor\" (string), \"scoringStyle\" (\"fixed\" or \"variable\"), \"number\" (integer or null). No prose, no markdown fences.",
+        "storage": { "logKey": "symbiosis-card-vision-test:log" }
+      }
+    </script>
+
+    <main>
+      <header>
+        <a class="back-link" href="index.html">&larr; Back</a>
+        <h1 id="pageTitle"></h1>
+        <p class="tagline" id="pageTagline"></p>
+      </header>
+
+      <p class="note" id="gemmaNote"></p>
+
+      <section class="surface" id="loadCard">
+        <div class="field">
+          <label class="field-label" for="modelSelect" id="modelLabelText"></label>
+          <select id="modelSelect"></select>
+        </div>
+        <button type="button" class="btn-plain block primary" id="loadButton"></button>
+        <p class="status-text" id="loadStatus"></p>
+        <div class="meter" aria-hidden="true"><div class="meter-fill" id="loadMeter"></div></div>
+      </section>
+
+      <section class="surface" id="captureCard">
+        <div class="field">
+          <label class="field-label" for="photoInput" id="captureLabelText"></label>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" disabled>
+        </div>
+        <img class="thumb-preview" id="thumbPreview" alt="Selected card photo preview">
+        <button type="button" class="btn-plain block primary" id="analyzeButton" disabled></button>
+        <p class="status-text" id="analyzeStatus"></p>
+      </section>
+
+      <section class="surface" id="resultCard" hidden>
+        <dl class="result-grid" id="resultGrid"></dl>
+        <pre class="raw-text" id="rawText" hidden></pre>
+        <p class="status-text" id="latencyText"></p>
+
+        <div class="field">
+          <span class="field-label" id="verdictPromptText"></span>
+          <div class="verdict-row">
+            <button type="button" class="btn-plain" id="correctButton"></button>
+            <button type="button" class="btn-plain" id="wrongButton"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="surface" id="logCard">
+        <div class="tally">
+          <span class="field-label" id="tallyLabelText"></span>
+          <span class="tally-score" id="tallyScore"></span>
+        </div>
+        <div class="log-list" id="logList"></div>
+        <button type="button" class="log-clear" id="clearLogButton"></button>
+      </section>
+    </main>
+
+    <script type="module">
+      const M = JSON.parse(document.getElementById("manifest").textContent);
+      const COPY = M.copy;
+
+      function make(tag, props = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props)) {
+          if (value === undefined || value === null || value === false) continue;
+          if (key === "class") node.className = value;
+          else if (key === "text") node.textContent = value;
+          else if (key === "on") for (const [evt, handler] of Object.entries(value)) node.addEventListener(evt, handler);
+          else node.setAttribute(key, value === true ? "" : String(value));
+        }
+        children.filter(Boolean).forEach((child) => node.append(child));
+        return node;
+      }
+
+      function template(str, vars) {
+        return str.replace(/\{(\w+)\}/g, (_, key) => vars[key]);
+      }
+
+      /* ---------------- static copy ---------------- */
+
+      document.title = COPY.title;
+      document.getElementById("pageTitle").textContent = COPY.title;
+      document.getElementById("pageTagline").textContent = COPY.tagline;
+      document.getElementById("gemmaNote").textContent = COPY.gemmaNote;
+      document.getElementById("modelLabelText").textContent = COPY.modelLabel;
+      document.getElementById("loadButton").textContent = COPY.loadButton;
+      document.getElementById("captureLabelText").textContent = COPY.captureLabel;
+      document.getElementById("analyzeButton").textContent = COPY.analyzeButton;
+      document.getElementById("analyzeStatus").textContent = COPY.readyStatus;
+      document.getElementById("verdictPromptText").textContent = COPY.verdictPrompt;
+      document.getElementById("correctButton").textContent = COPY.correctButton;
+      document.getElementById("wrongButton").textContent = COPY.wrongButton;
+      document.getElementById("tallyLabelText").textContent = COPY.tallyLabel;
+      document.getElementById("clearLogButton").textContent = COPY.clearLogButton;
+
+      const modelSelect = document.getElementById("modelSelect");
+      for (const option of M.models) {
+        modelSelect.append(make("option", { value: option.id, text: option.label }));
+      }
+
+      /* ---------------- model load ---------------- */
+
+      const loadButton = document.getElementById("loadButton");
+      const loadStatus = document.getElementById("loadStatus");
+      const loadMeter = document.getElementById("loadMeter");
+      const photoInput = document.getElementById("photoInput");
+      const analyzeButton = document.getElementById("analyzeButton");
+
+      let engine = null;
+      let loading = false;
+
+      function setLoadStatus(text, progress, isError) {
+        loadStatus.textContent = text;
+        loadStatus.classList.toggle("error", Boolean(isError));
+        if (typeof progress === "number") loadMeter.style.width = `${Math.round(progress * 100)}%`;
+      }
+
+      setLoadStatus(navigator.gpu ? COPY.readyToLoadText : COPY.unsupportedText, 0, !navigator.gpu);
+      if (!navigator.gpu) loadButton.disabled = true;
+
+      loadButton.addEventListener("click", async () => {
+        if (loading || engine) return;
+        loading = true;
+        loadButton.disabled = true;
+        modelSelect.disabled = true;
+        setLoadStatus("Preparing model download...", 0.02);
+
+        try {
+          const webllm = await import("https://esm.run/@mlc-ai/web-llm");
+          engine = await webllm.CreateMLCEngine(modelSelect.value, {
+            initProgressCallback: (report) => setLoadStatus(report.text || "Loading model...", report.progress || 0)
+          });
+          setLoadStatus(COPY.loadedButton, 1);
+          loadButton.textContent = COPY.loadedButton;
+          photoInput.disabled = false;
+        } catch (error) {
+          console.error(error);
+          engine = null;
+          loading = false;
+          loadButton.disabled = false;
+          modelSelect.disabled = false;
+          setLoadStatus(`Model load failed: ${error.message || error}`, 0, true);
+        }
+      });
+
+      /* ---------------- photo capture + resize ---------------- */
+
+      const thumbPreview = document.getElementById("thumbPreview");
+      const analyzeStatus = document.getElementById("analyzeStatus");
+      let selectedFile = null;
+
+      photoInput.addEventListener("change", () => {
+        selectedFile = photoInput.files && photoInput.files[0] ? photoInput.files[0] : null;
+        analyzeButton.disabled = !selectedFile || !engine;
+        if (selectedFile) {
+          thumbPreview.src = URL.createObjectURL(selectedFile);
+          thumbPreview.classList.add("visible");
+          setAnalyzeStatus(COPY.readyStatus, false);
+        } else {
+          thumbPreview.classList.remove("visible");
+        }
+      });
+
+      function setAnalyzeStatus(text, isError) {
+        analyzeStatus.textContent = text;
+        analyzeStatus.classList.toggle("error", Boolean(isError));
+      }
+
+      function resizeToDataUrl(file, maxDimension, quality) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
+            const width = Math.round(img.width * scale);
+            const height = Math.round(img.height * scale);
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+          };
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Could not load the selected image."));
+          };
+          img.src = url;
+        });
+      }
+
+      /* ---------------- recognition ---------------- */
+
+      const resultCard = document.getElementById("resultCard");
+      const resultGrid = document.getElementById("resultGrid");
+      const rawText = document.getElementById("rawText");
+      const latencyText = document.getElementById("latencyText");
+      let lastGuess = null;
+
+      function parseModelReply(text) {
+        const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        const jsonText = fenced ? fenced[1] : text;
+        const parsed = JSON.parse(jsonText);
+        return {
+          animal: typeof parsed.animal === "string" ? parsed.animal : null,
+          backgroundColor: typeof parsed.backgroundColor === "string" ? parsed.backgroundColor : null,
+          scoringStyle: parsed.scoringStyle === "fixed" || parsed.scoringStyle === "variable" ? parsed.scoringStyle : null,
+          number: Number.isFinite(Number(parsed.number)) ? Number(parsed.number) : null
+        };
+      }
+
+      function renderResult(guess) {
+        resultGrid.replaceChildren(
+          make("dt", { text: COPY.animalLabel }),
+          make("dd", { text: guess.animal || COPY.unknownValue }),
+          make("dt", { text: COPY.colorLabel }),
+          make("dd", { text: guess.backgroundColor || COPY.unknownValue }),
+          make("dt", { text: COPY.scoringLabel }),
+          make("dd", { text: guess.scoringStyle || COPY.unknownValue }),
+          make("dt", { text: COPY.numberLabel }),
+          make("dd", { text: guess.number === null ? COPY.unknownValue : String(guess.number) })
+        );
+      }
+
+      analyzeButton.addEventListener("click", async () => {
+        if (!selectedFile || !engine) return;
+        analyzeButton.disabled = true;
+        resultCard.hidden = true;
+        rawText.hidden = true;
+        lastGuess = null;
+
+        try {
+          setAnalyzeStatus(COPY.resizingStatus, false);
+          const dataUrl = await resizeToDataUrl(selectedFile, M.image.maxDimension, M.image.jpegQuality);
+
+          setAnalyzeStatus(COPY.analyzingStatus, false);
+          const startedAt = performance.now();
+          const response = await engine.chat.completions.create({
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "image_url", image_url: { url: dataUrl } },
+                  { type: "text", text: M.prompt }
+                ]
+              }
+            ]
+          });
+          const elapsedSeconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+
+          const replyText = response.choices?.[0]?.message?.content || "";
+          latencyText.textContent = template(COPY.latencyTemplate, { seconds: elapsedSeconds });
+
+          try {
+            lastGuess = parseModelReply(replyText);
+            renderResult(lastGuess);
+            rawText.hidden = true;
+          } catch (parseErr) {
+            console.warn("Raw model reply:", replyText);
+            setAnalyzeStatus(COPY.errorParseTemplate, true);
+            rawText.textContent = replyText;
+            rawText.hidden = false;
+            lastGuess = { animal: null, backgroundColor: null, scoringStyle: null, number: null, raw: replyText };
+          }
+
+          resultCard.hidden = false;
+          setAnalyzeStatus(COPY.readyStatus, false);
+        } catch (error) {
+          console.error(error);
+          setAnalyzeStatus(template(COPY.errorRequestTemplate, { message: error.message || String(error) }), true);
+        } finally {
+          analyzeButton.disabled = !selectedFile || !engine;
+        }
+      });
+
+      /* ---------------- eval log ---------------- */
+
+      const logList = document.getElementById("logList");
+      const tallyScore = document.getElementById("tallyScore");
+      let log = [];
+
+      function loadLog() {
+        try {
+          const raw = localStorage.getItem(M.storage.logKey);
+          const parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (err) {
+          console.warn("Could not load log", err);
+          return [];
+        }
+      }
+
+      function saveLog() {
+        try {
+          localStorage.setItem(M.storage.logKey, JSON.stringify(log));
+        } catch (err) {
+          console.warn("Could not save log", err);
+        }
+      }
+
+      function renderLog() {
+        const correct = log.filter((entry) => entry.verdict === "correct").length;
+        tallyScore.textContent = template(COPY.tallyTemplate, { correct, total: log.length });
+
+        if (log.length === 0) {
+          logList.replaceChildren(make("p", { class: "status-text", text: COPY.emptyLogText }));
+          return;
+        }
+        logList.replaceChildren(
+          ...log.slice().reverse().map((entry) => {
+            const summary = entry.guess.raw
+              ? "unparsed reply"
+              : `${entry.guess.animal || "?"} / ${entry.guess.backgroundColor || "?"} / ${entry.guess.scoringStyle || "?"}`;
+            return make("div", { class: `log-item ${entry.verdict}` }, [
+              make("span", { text: summary }),
+              make("span", { text: entry.verdict === "correct" ? "✓" : "✗" })
+            ]);
+          })
+        );
+      }
+
+      function logVerdict(verdict) {
+        if (!lastGuess) return;
+        log.push({ verdict, guess: lastGuess, recordedAt: Date.now() });
+        saveLog();
+        renderLog();
+      }
+
+      document.getElementById("correctButton").addEventListener("click", () => logVerdict("correct"));
+      document.getElementById("wrongButton").addEventListener("click", () => logVerdict("wrong"));
+      document.getElementById("clearLogButton").addEventListener("click", () => {
+        log = [];
+        saveLog();
+        renderLog();
+      });
+
+      log = loadLog();
+      renderLog();
+    </script>
+  </body>
+</html>
