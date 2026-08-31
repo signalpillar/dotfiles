@@ -37,6 +37,9 @@ Do not switch to a casual register unless the user asks.
   Do not route around a stale binary with `python -m pi_job_harness.cli`; other sessions call plain `pi-job` and fail the same way.
   Edits to pi-job-harness store, task models, or CLI behaviour need coordinated doc updates (docs-with-model-cuts).
   Update the pi-job skill, harness README, and this file in the same change.
+  Named loop packets live in validated profile `loop_packets`.
+  Use `pi-job loop --type NAME` to select an exact packet name.
+  Keep `pi-job loop` for managers and `pi-job loop --worker` for workers.
   Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.
   Use `set-slice --slice CONSUMER --depends-on PRODUCER` to append dependency edges.
   Use `set-slice --clear-depends-on` to clear dependency edges.

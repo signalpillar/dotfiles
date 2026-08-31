@@ -5194,23 +5194,32 @@ def cmd_add_finding(args: argparse.Namespace) -> None:
     print(f"path: {path}")
 
 
+def render_loop_packet(type_name: str) -> str:
+    """Pure: load one named loop packet collapsed to one physical line."""
+    packets = load_profile_contract()["loop_packets"]
+    if type_name not in packets:
+        valid = ", ".join(sorted(packets))
+        die(f"unknown loop type {type_name!r}; valid types: {valid}")
+    return " ".join(str(packets[type_name]).split())
+
+
 def render_orchestrator_heartbeat() -> str:
-    """Pure: load orchestrator_heartbeat packet collapsed to one physical line."""
-    template = str(load_profile_contract()["instruction_packets"]["orchestrator_heartbeat"])
-    return " ".join(template.split())
+    """Pure: render the manager packet for compatibility."""
+    return render_loop_packet("manager")
 
 
 def render_slice_worker_boot() -> str:
-    """Pure: load slice_worker_boot packet collapsed to one physical line."""
-    template = str(load_profile_contract()["instruction_packets"]["slice_worker_boot"])
-    return " ".join(template.split())
+    """Pure: render the worker packet for compatibility."""
+    return render_loop_packet("worker")
 
 
 def cmd_loop(args: argparse.Namespace) -> None:
-    if getattr(args, "worker", False):
-        print(render_slice_worker_boot())
-        return
-    print(render_orchestrator_heartbeat())
+    type_name = (
+        "worker"
+        if getattr(args, "worker", False)
+        else ("manager" if args.type_name is None else args.type_name)
+    )
+    print(render_loop_packet(type_name))
 
 
 def render_investigate_interrupt(
@@ -5972,15 +5981,21 @@ def main() -> None:
     loop = sub.add_parser(
         "loop",
         help=(
-            "print the manager orchestrator heartbeat from profile.yaml "
-            "(no --task; agents arm their own /loop); "
-            "use --worker for the slice-worker boot prompt"
+            "print a named loop packet from profile.yaml (manager by default; no --task); "
+            "use --worker as the worker compatibility alias"
         ),
     )
-    loop.add_argument(
+    loop_selection = loop.add_mutually_exclusive_group()
+    loop_selection.add_argument(
         "--worker",
         action="store_true",
-        help="print slice_worker_boot instead of the manager heartbeat",
+        help="print the worker packet instead of the manager packet",
+    )
+    loop_selection.add_argument(
+        "--type",
+        dest="type_name",
+        metavar="NAME",
+        help="print the exact, case-sensitive named loop packet",
     )
     loop.set_defaults(fn=cmd_loop)
 

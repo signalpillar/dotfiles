@@ -8,6 +8,7 @@ import hashlib
 import importlib.machinery
 import importlib.util
 import io
+import json
 import os
 import re
 import subprocess
@@ -5079,7 +5080,7 @@ def test_persisted_models_document_every_field() -> None:
     profile_model_names = (
         "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
-        "SliceKindDocument", "InstructionPacketsDocument", "CliHelpDocument",
+        "SliceKindDocument", "InstructionPacketsDocument", "LoopInstructionPacketsDocument", "CliHelpDocument",
         "CliHelpAddDecisionDocument", "CliHelpMutationDocument", "CliHelpFinishDocument", "ProfileDocument",
         "OrchestrationDefaultsDocument", "RecordChannelsDocument",
     )
@@ -5382,6 +5383,7 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     module = load_pi_job_module()
     profile = module.load_profile_contract()
     packets = profile["instruction_packets"]
+    loop_packets = profile["loop_packets"]
 
     next_action = packets["next_action"]
     assert_contains(next_action, "--owner {owner}")
@@ -5399,8 +5401,8 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     assert_contains(pick_next, "instruction --owner {owner}")
     assert_contains(packets["orchestrator"], "pick-next packet")
     assert_contains(packets["orchestrator"], "claim a new Ready slice")
-    assert_contains(packets["slice_worker_boot"], "Forbidden: claim other slices; pick-next")
-    assert_contains(packets["slice_worker_boot"], "finish --slice-only then stop")
+    assert_contains(loop_packets["worker"], "Forbidden: claim other slices; pick-next")
+    assert_contains(loop_packets["worker"], "finish --slice-only then stop")
 
     task_discipline = packets["task_record_discipline"]
     assert_contains(task_discipline, "set-context --context TEXT")
@@ -8794,6 +8796,7 @@ def test_add_slice_creates_plan_stub() -> None:
 def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     module = load_pi_job_module()
     packets = module.load_profile_contract()["instruction_packets"]
+    loop_packets = module.load_profile_contract()["loop_packets"]
     assert_contains(packets["slice_plan_stub"], "{key}")
     assert_contains(packets["slice_plan_stub"], "{goal}")
     assert_contains(packets["slice_plan_stub"], "{depends_on}")
@@ -8801,7 +8804,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(packets["status_interrupt_hint"], "investigate")
     assert_contains(packets["investigate_interrupt"], "{topic}")
     assert_contains(packets["investigate_interrupt"], "{finding_status}")
-    heartbeat = packets["orchestrator_heartbeat"]
+    heartbeat = loop_packets["manager"]
     assert_contains(heartbeat, "TASK")
     assert "Manager metronome" in heartbeat
     assert "tmux" in heartbeat
@@ -8817,7 +8820,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert "{interval}" not in heartbeat
     assert "{task_file}" not in heartbeat
     assert not heartbeat.lstrip().startswith("/loop")
-    worker_boot = packets["slice_worker_boot"]
+    worker_boot = loop_packets["worker"]
     assert_contains(worker_boot, "OWNER")
     assert_contains(worker_boot, "SLICE")
     assert_contains(worker_boot, "TASK")
@@ -8836,8 +8839,6 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "findings_file_header",
         "status_interrupt_hint",
         "investigate_interrupt",
-        "orchestrator_heartbeat",
-        "slice_worker_boot",
         "maintain_header",
         "maintain_empty",
         "maintain_item",
@@ -8870,6 +8871,80 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         assert_contains(str(exc), "not-a-real-step")
     else:
         raise AssertionError("profile accepted unknown interrupt_park_steps entry")
+
+
+def test_profile_validates_named_loop_packets() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    profile["loop_packets"]["extra"] = "  Additional\n packet  "
+    validated = module.ProfileDocument.model_validate(profile)
+    assert validated.loop_packets.root["extra"] == "  Additional\n packet  "
+    for missing in ("manager", "worker"):
+        trial = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+        del trial["loop_packets"][missing]
+        try:
+            module.ProfileDocument.model_validate(trial)
+        except module.ValidationError as exc:
+            assert_contains(str(exc), missing)
+        else:
+            raise AssertionError(f"profile accepted loop_packets without required {missing}")
+    trial = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    trial["loop_packets"]["tutor"] = " \n "
+    try:
+        module.ProfileDocument.model_validate(trial)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "tutor")
+    else:
+        raise AssertionError("profile accepted an empty loop packet body")
+
+
+def test_profile_rejects_invalid_loop_packet_names() -> None:
+    module = load_pi_job_module()
+    valid = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    valid["loop_packets"]["review-tutor-2"] = "Review packet"
+    module.ProfileDocument.model_validate(valid)
+
+    for invalid_name in (
+        "",
+        "Tutor",
+        "slice worker",
+        "slice\tworker",
+        "slice\nworker",
+        "slice_worker",
+        "-tutor",
+        "tutor-",
+        "tutor--review",
+    ):
+        trial = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+        trial["loop_packets"][invalid_name] = "Invalid name"
+        try:
+            module.ProfileDocument.model_validate(trial)
+        except module.ValidationError as exc:
+            assert_contains(str(exc), "lowercase CLI identifiers")
+        else:
+            raise AssertionError(f"profile accepted invalid loop packet name {invalid_name!r}")
+
+
+def test_tutor_loop_packet_contains_binding_rules() -> None:
+    module = load_pi_job_module()
+    tutor = module.load_profile_contract()["loop_packets"]["tutor"]
+    for rule in (
+        "active agent working directory",
+        "Never edit project files",
+        "safe project text files only",
+        "Exclude secrets, credentials, generated files, dependencies, and binaries",
+        "first check, review current uncommitted work",
+        "later checks, focus on new session-visible deltas",
+        "only Git status, diff, and log shell commands",
+        "non-Git directories",
+        "correctness, reasoning, testing, and maintainability",
+        "likely defect or high-value lesson",
+        "one grounded observation and one focused question",
+        "empty text when no evidence qualifies",
+        "implementation solutions only after an explicit user request",
+        "tutoring memory within the active session",
+    ):
+        assert_contains(tutor, rule)
 
 
 def test_status_shows_blocked_and_interrupt_hint() -> None:
@@ -8907,13 +8982,26 @@ def test_status_shows_blocked_and_interrupt_hint() -> None:
 
 
 def _normalized_orchestrator_heartbeat(module) -> str:
-    body = module.load_profile_contract()["instruction_packets"]["orchestrator_heartbeat"]
+    body = module.load_profile_contract()["loop_packets"]["manager"]
     return " ".join(str(body).split())
 
 
 def _normalized_slice_worker_boot(module) -> str:
-    body = module.load_profile_contract()["instruction_packets"]["slice_worker_boot"]
+    body = module.load_profile_contract()["loop_packets"]["worker"]
     return " ".join(str(body).split())
+
+
+def test_normalized_manager_and_worker_packets_are_compatible() -> None:
+    module = load_pi_job_module()
+    expected = {
+        "manager": "0f7a964f6f6c31b8f8fff335a23d75951cd5928b878b9798dd5c31bd17f4f2bd",
+        "worker": "9b79979c5a91cd3678b20a89b9035b189e434d52b1f2f0b2d675405a65ea6b9a",
+    }
+    actual = {
+        "manager": hashlib.sha256(_normalized_orchestrator_heartbeat(module).encode()).hexdigest(),
+        "worker": hashlib.sha256(_normalized_slice_worker_boot(module).encode()).hexdigest(),
+    }
+    assert actual == expected
 
 
 def test_render_orchestrator_heartbeat() -> None:
@@ -8973,6 +9061,57 @@ def test_loop_worker_prints_slice_worker_boot() -> None:
     assert_contains(stdout, "do not claim another Ready slice")
     assert_contains(stdout, "Manager will close this window")
     assert len(stdout.splitlines()) == 1
+
+
+def test_loop_type_selects_named_packets() -> None:
+    module = load_pi_job_module()
+    manager = run(str(PI_JOB), "loop").stdout
+    worker = run(str(PI_JOB), "loop", "--worker").stdout
+    assert run(str(PI_JOB), "loop", "--type", "manager").stdout == manager
+    assert run(str(PI_JOB), "loop", "--type", "worker").stdout == worker
+    tutor = run(str(PI_JOB), "loop", "--type", "tutor").stdout
+    assert tutor.rstrip("\n") == " ".join(
+        module.load_profile_contract()["loop_packets"]["tutor"].split()
+    )
+    assert len(tutor.rstrip("\n").splitlines()) == 1
+
+
+def test_loop_selection_is_data_driven() -> None:
+    module = load_pi_job_module()
+    original_loader = module.load_profile_contract
+    module.load_profile_contract = lambda: {"loop_packets": {"manager": "M", "worker": "W", "extra": " A\n B "}}
+    try:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            module.cmd_loop(argparse.Namespace(worker=False, type_name="extra"))
+        assert output.getvalue() == "A B\n"
+    finally:
+        module.load_profile_contract = original_loader
+
+
+def test_profile_json_exposes_named_loop_packets() -> None:
+    profile = json.loads(run(str(PI_JOB), "profile", "--json").stdout)
+    assert {"manager", "worker", "tutor"} <= set(profile["loop_packets"])
+
+
+def test_loop_rejects_unknown_or_conflicting_type() -> None:
+    unknown = run(str(PI_JOB), "loop", "--type", "Tutor", check=False)
+    assert unknown.returncode != 0
+    assert unknown.stdout == ""
+    assert_contains(unknown.stderr, "unknown loop type 'Tutor'")
+    assert_contains(unknown.stderr, "manager, tutor, worker")
+    conflict = run(str(PI_JOB), "loop", "--worker", "--type", "tutor", check=False)
+    assert conflict.returncode != 0
+    assert conflict.stdout == ""
+    assert_contains(conflict.stderr, "not allowed with argument")
+
+
+def test_loop_rejects_empty_type() -> None:
+    empty = run(str(PI_JOB), "loop", "--type", "", check=False)
+    assert empty.returncode != 0
+    assert empty.stdout == ""
+    assert_contains(empty.stderr, "unknown loop type ''")
+    assert_contains(empty.stderr, "manager, tutor, worker")
 
 
 def test_loop_rejects_interval_flag() -> None:
@@ -10176,11 +10315,20 @@ def main() -> None:
     test_add_decision_spills_long_note_to_plan_file()
     test_add_slice_creates_plan_stub()
     test_profile_requires_slice_plan_stub_and_findings_header()
+    test_profile_validates_named_loop_packets()
+    test_profile_rejects_invalid_loop_packet_names()
+    test_tutor_loop_packet_contains_binding_rules()
     test_status_shows_blocked_and_interrupt_hint()
+    test_normalized_manager_and_worker_packets_are_compatible()
     test_render_orchestrator_heartbeat()
     test_render_slice_worker_boot()
     test_loop_command_prints_heartbeat_without_task()
     test_loop_worker_prints_slice_worker_boot()
+    test_loop_type_selects_named_packets()
+    test_loop_selection_is_data_driven()
+    test_profile_json_exposes_named_loop_packets()
+    test_loop_rejects_unknown_or_conflicting_type()
+    test_loop_rejects_empty_type()
     test_loop_rejects_interval_flag()
     test_investigate_does_not_move_claim()
     print("pi-job tests passed")

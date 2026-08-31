@@ -55,7 +55,8 @@ Given a YAML task file and `profile.yaml`, it can:
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `stats` / `report --since YYYY-MM-DD` - read-only markdown (or `--json`) from store execution / repo_work; optional `-o PATH` writes without printing
-- `loop` - print the manager fleet heartbeat from `profile.yaml` as one line (no `--task`; agents arm their own `/loop`); `loop --worker` prints `slice_worker_boot` for a spawned window
+- `loop` - print a named `loop_packets` entry as one line, without `--task`
+  `loop` selects `manager`; `loop --worker` selects `worker`; `loop --type NAME` selects any exact profile key.
 - `instruction` - emit a deterministic packet for the claim's derived active step (or pick-next when the claimed slice is exhausted)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
@@ -88,10 +89,10 @@ This supersedes any default workspace role such as Product Owner.
 
 ### Fleet mode (manager + slice workers)
 
-Two loops, two packets (no tmux spawn code in the harness):
+Named loop packets live in `profile.yaml`; the harness contains no scheduler or tmux spawn code.
 
 - **Manager:** run `pi-job loop` and arm `/loop` from that text. Watch Ready slices, keep a tmux session of worker windows, spawn/recover windows, inject worker boot. Do not execute slice steps in the manager session.
-  Close vs keep (authoritative wording is `instruction_packets.orchestrator_heartbeat`):
+  Close vs keep (authoritative wording is `loop_packets.manager`):
   - Slice done or skipped: release remaining claim, kill the worker window, drop the map row. Do not ask.
   - Slice not terminal (`in_progress`, parked on grill/clarify, or blocked): keep claim and window. Do not release.
   - Ready and unowned: spawn, inject `pi-job loop --worker`, add the map row.
@@ -99,6 +100,9 @@ Two loops, two packets (no tmux spawn code in the harness):
 
   Worker triage runs first on every tick (same authoritative packet). `pane_current_command` is not liveness: a crashed agent keeps the agent process. Read the pane tail and classify each live claim as stalled, waiting on user, waiting on external, or working. Recover stalled workers, quote a waiting question to the user, live-check an external blocker, and leave working panes alone.
 - **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not wait for a new claim. The manager closes the window. Do not pick-next or claim other slices.
+- **Tutor:** run `pi-job loop --type tutor` through the host loop every ten minutes during the active session.
+  The packet performs read-only tutoring against the active working directory.
+  The packet keeps comparison memory in the session and returns text only for qualifying evidence.
 
 Classic `instruction` → pick-next stays valid when no fleet is in use.
 Execution packets print `Owner:` and `Claim:` from the resolved claim.
@@ -211,6 +215,8 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 
 - Task state lives in exactly one `TaskStore` backend (YAML by default) - no parallel cursor and no agent memory as state.
 - Slice kinds and step kinds are configuration in `profile.yaml`, not hardcoded Python.
+- Named loop packets are configuration in `profile.yaml`, not hardcoded Python.
+  The profile requires non-empty `manager` and `worker` packets and accepts additional exact names.
 - YAML task files are machine-owned documents.
   Prefer `pi-job` mutation commands over manual edits.
   pi-job stores `orchestration.content_digest` on writes and warns on read when semantic content no longer matches; run `acknowledge-edit --reason` after a legitimate hand-edit.
@@ -912,9 +918,9 @@ Clocks and path stamps live in their I/O edge (`messaging/`, store, or `cmd_*`),
 
 ### Profile vs Python
 
-Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `cli_help`, `interrupt_park_steps`).
+Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `loop_packets`, `cli_help`, `interrupt_park_steps`).
 Python loads and formats them; it must not hardcode parallel copy.
-Examples: `status_interrupt_hint`, `investigate_interrupt`, `orchestrator_heartbeat`, `slice_worker_boot`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
+Examples: `status_interrupt_hint`, `investigate_interrupt`, `loop_packets.manager`, `loop_packets.worker`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
 
 ### Render
 

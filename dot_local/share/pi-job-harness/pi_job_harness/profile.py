@@ -5,12 +5,13 @@ Separate from task.py: this module owns profile.yaml shape, not task YAML shape.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, RootModel, ValidationError, model_validator
 
 from pi_job_harness.errors import die
 from pi_job_harness.task import (
@@ -274,21 +275,6 @@ class InstructionPacketsDocument(StrictDocument):
             "Python must not hardcode the packet."
         )
     )
-    orchestrator_heartbeat: str = Field(
-        description=(
-            "Body printed by `pi-job loop` as one physical line (manager fleet metronome). "
-            "No format placeholders. Use literal TASK in command hints (not {task_file}). "
-            "Profile is the only body; Python must not hardcode the packet."
-        )
-    )
-    slice_worker_boot: str = Field(
-        description=(
-            "Body printed by `pi-job loop --worker` as one physical line "
-            "(first prompt for a spawned slice-worker window). "
-            "No format placeholders. Use literal OWNER / SLICE / TASK in command hints. "
-            "Profile is the only body; Python must not hardcode the packet."
-        )
-    )
     maintain_header: str = Field(
         description=(
             "Heading for the keep-current inventory in plan/instruction packets. "
@@ -306,6 +292,35 @@ class InstructionPacketsDocument(StrictDocument):
             "One maintain row. Supports {uri} and {note}. Profile is the only body."
         )
     )
+
+
+class LoopInstructionPacketsDocument(RootModel[dict[str, str]]):
+    """Named, task-independent packets printed by `pi-job loop`."""
+
+    root: dict[str, str] = Field(
+        description="Loop packets keyed by exact CLI type name. Manager and worker packets are required."
+    )
+
+    @model_validator(mode="after")
+    def validate_packets(self) -> LoopInstructionPacketsDocument:
+        missing = [name for name in ("manager", "worker") if name not in self.root]
+        if missing:
+            raise ValueError(f"loop_packets missing required packets: {', '.join(missing)}")
+        invalid_names = [
+            name
+            for name in self.root
+            if re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", name) is None
+        ]
+        if invalid_names:
+            rendered = ", ".join(repr(name) for name in invalid_names)
+            raise ValueError(
+                "loop_packets names must be lowercase CLI identifiers "
+                f"(letters, digits, and single hyphens): {rendered}"
+            )
+        empty = [name for name, body in self.root.items() if not body.strip()]
+        if empty:
+            raise ValueError(f"loop_packets contains empty packet bodies: {', '.join(empty)}")
+        return self
 
 
 class ProfileDocument(StrictDocument):
@@ -328,6 +343,9 @@ class ProfileDocument(StrictDocument):
     )
     cli_help: CliHelpDocument = Field(
         description="CLI help snippets for channel-sensitive commands. Profile is the only body; Python must not hardcode them."
+    )
+    loop_packets: LoopInstructionPacketsDocument = Field(
+        description="Named, task-independent instruction packets selected by `pi-job loop --type NAME`."
     )
     instruction_packets: InstructionPacketsDocument = Field(
         description="Required instruction text blocks. All packet bodies live here; Python must not duplicate them."
@@ -411,4 +429,3 @@ def load_profile_contract() -> dict[str, Any]:
     except ValidationError as exc:
         die(f"profile validation failed for {PROFILE}:\n{exc}")
     return profile.model_dump(mode="json", exclude_none=True)
-

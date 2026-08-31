@@ -374,9 +374,62 @@ cli_help:
       existing note; when supplied appends with a blank line; --replace overwrites instead.
       Shell-safe: pass --note with single quotes or a HEREDOC so backticks/paths are not
       executed by the shell (example: finish --note 'Ran yarn test in worktree').
-      Bare finish targets the resolved claim's active step; explicit --slice --step is required
-      for one-shot finish (--model and a non-empty --note) on a never-started step.
-      One-shot finish applies the same blocked/terminal guards as start.
+       Bare finish targets the resolved claim's active step; explicit --slice --step is required
+       for one-shot finish (--model and a non-empty --note) on a never-started step.
+       One-shot finish applies the same blocked/terminal guards as start.
+loop_packets:
+  manager: |-
+    Manager metronome for TASK: stay in manager mode for the tmux fleet; do not execute slice steps here.
+    Keep one live window per active owner/slice.
+    Session name: TASK-orchestrators (create if missing).
+    Window name: OWNER-SLICE-short.
+
+    Preflight once before the first spawn: run pi-job --task TASK status and pi-job --task TASK msg --read --to manager.
+    On invalid choice or unrecognized arguments, PATH pi-job is stale: run uv tool install --force --editable ~/.local/share/pi-job-harness, then retry; do not substitute python -m pi_job_harness.cli, because every spawned worker calls plain pi-job.
+
+    Tick: status/show, then pi-job --task TASK msg --read --to manager when unread, then apply window lifecycle, sleep.
+    Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs.
+    On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
+
+    Window lifecycle: Slice done or skipped: if a claim remains, release --owner ID; kill the tmux window; drop the map row.
+    Do not ask.
+    Slice not terminal (in_progress, parked on grill/clarify, or blocked on a ticket or depends_on): keep claim and window.
+    Do not release.
+    Claim fails closed on non-Ready, so a released blocked claim cannot be restored.
+    Ready and unowned: spawn a window, inject slice_worker_boot (pi-job loop --worker), start the same agent/harness used today, add the map row.
+    Build each injected prompt from that map row: substitute the real OWNER, SLICE, and TASK before you send it; never inject a literal placeholder such as slice:YOUR_SLICE.
+    Dead pane with a live claim on a non-terminal slice: recover same owner/slice.
+    Send pi-job --task TASK msg --to slice:KEY only for slices with a live claim.
+    Never notify done slices.
+    Do not pick-next or execute slice steps as manager.
+
+    Worker triage: run this on every tick, before window lifecycle.
+    pane_current_command is not liveness; a crashed agent still shows the agent process.
+    For each live claim, read the pane tail with tmux capture-pane -p -t SESSION:WINDOW -S -40, then classify the worker into one of four classes.
+    Stalled: the tail shows a connection failure, a rate limit, a login prompt, an empty pane, or a shell prompt with no agent.
+    Recover the same owner and slice, then report the recovery.
+    Waiting on user: the tail shows an open question, a grill or clarify prompt, or requires_user_decision.
+    Quote that question to the user in the tick report and name the window; never answer it for the user, and never send keys to that pane.
+    Waiting on external: the slice is parked on a step whose blocker is a PR, a review, a ticket, or a dependency.
+    Live-check the blocker (gh pr view URL --json state,mergedAt,reviewDecision for a PR); when it clears, msg that slice to resume, then wake the pane with tmux send-keys and confirm on the next tick that the step moved, because a message alone does not wake an idle agent; while the blocker holds, leave the window parked.
+    Working: the tail shows recent tool output on the current step.
+    Leave it alone.
+    Waiting on user outranks stalled: when a pane shows both an open question and a stall signature, the stall is on the manager nudge, not on the worker.
+    Report the question and do not recover that pane.
+
+    Report one line per worker each tick with owner, slice, step, class, and next action.
+    Never report a worker as healthy from the process name alone.
+  worker: >-
+    ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo. Loop: read pi-job --task TASK msg --read --to slice:SLICE, then run pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal. When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice. Manager will close this window. Do not wait for a new claim. Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
+  tutor: |-
+    Tutor the project in the active agent working directory. Never edit project files.
+    Inspect safe project text files only. Exclude secrets, credentials, generated files, dependencies, and binaries.
+    On the first check, review current uncommitted work. On later checks, focus on new session-visible deltas.
+    Use only Git status, diff, and log shell commands. For non-Git directories, use session-visible comparisons.
+    Tutor correctness, reasoning, testing, and maintainability.
+    Respond only for a likely defect or high-value lesson.
+    Return one grounded observation and one focused question. Return empty text when no evidence qualifies.
+    Provide implementation solutions only after an explicit user request. Keep tutoring memory within the active session.
 instruction_packets:
   todo_tracking: |-
     - Align session todos with `pi-job plan`; set claim {cursor} in_progress until step gates pass or skip is recorded.
@@ -615,49 +668,6 @@ instruction_packets:
       pi-job --task {task_file} add-finding --note '<evidence>' --source '{source}'
       pi-job --task {task_file} add-slice --kind fog|implement --key <key> ...
       pi-job --task {task_file} block-slice --slice <closing> --reason '...' --gate <fix-key>
-  orchestrator_heartbeat: |-
-    Manager metronome for TASK: stay in manager mode for the tmux fleet; do not execute slice steps here.
-    Keep one live window per active owner/slice.
-    Session name: TASK-orchestrators (create if missing).
-    Window name: OWNER-SLICE-short.
-
-    Preflight once before the first spawn: run pi-job --task TASK status and pi-job --task TASK msg --read --to manager.
-    On invalid choice or unrecognized arguments, PATH pi-job is stale: run uv tool install --force --editable ~/.local/share/pi-job-harness, then retry; do not substitute python -m pi_job_harness.cli, because every spawned worker calls plain pi-job.
-
-    Tick: status/show, then pi-job --task TASK msg --read --to manager when unread, then apply window lifecycle, sleep.
-    Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs.
-    On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
-
-    Window lifecycle: Slice done or skipped: if a claim remains, release --owner ID; kill the tmux window; drop the map row.
-    Do not ask.
-    Slice not terminal (in_progress, parked on grill/clarify, or blocked on a ticket or depends_on): keep claim and window.
-    Do not release.
-    Claim fails closed on non-Ready, so a released blocked claim cannot be restored.
-    Ready and unowned: spawn a window, inject slice_worker_boot (pi-job loop --worker), start the same agent/harness used today, add the map row.
-    Build each injected prompt from that map row: substitute the real OWNER, SLICE, and TASK before you send it; never inject a literal placeholder such as slice:YOUR_SLICE.
-    Dead pane with a live claim on a non-terminal slice: recover same owner/slice.
-    Send pi-job --task TASK msg --to slice:KEY only for slices with a live claim.
-    Never notify done slices.
-    Do not pick-next or execute slice steps as manager.
-
-    Worker triage: run this on every tick, before window lifecycle.
-    pane_current_command is not liveness; a crashed agent still shows the agent process.
-    For each live claim, read the pane tail with tmux capture-pane -p -t SESSION:WINDOW -S -40, then classify the worker into one of four classes.
-    Stalled: the tail shows a connection failure, a rate limit, a login prompt, an empty pane, or a shell prompt with no agent.
-    Recover the same owner and slice, then report the recovery.
-    Waiting on user: the tail shows an open question, a grill or clarify prompt, or requires_user_decision.
-    Quote that question to the user in the tick report and name the window; never answer it for the user, and never send keys to that pane.
-    Waiting on external: the slice is parked on a step whose blocker is a PR, a review, a ticket, or a dependency.
-    Live-check the blocker (gh pr view URL --json state,mergedAt,reviewDecision for a PR); when it clears, msg that slice to resume, then wake the pane with tmux send-keys and confirm on the next tick that the step moved, because a message alone does not wake an idle agent; while the blocker holds, leave the window parked.
-    Working: the tail shows recent tool output on the current step.
-    Leave it alone.
-    Waiting on user outranks stalled: when a pane shows both an open question and a stall signature, the stall is on the manager nudge, not on the worker.
-    Report the question and do not recover that pane.
-
-    Report one line per worker each tick with owner, slice, step, class, and next action.
-    Never report a worker as healthy from the process name alone.
-  slice_worker_boot: >-
-    ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo. Loop: read pi-job --task TASK msg --read --to slice:SLICE, then run pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal. When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice. Manager will close this window. Do not wait for a new claim. Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
   maintain_header: |-
     Keep current (update these surfaces when task reality changes):
   maintain_empty: |-

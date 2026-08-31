@@ -81,6 +81,8 @@ Pause only for user-decision steps (clarify/grill/requires_user_decision) or a r
 Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SLICE_KEY`;
 the packet header shows `Task:` as slug when under the home, else a path).
 After create, run `pi-job loop` and arm your own `/loop` from that instruction (resolve TASK).
+Use `pi-job loop --type NAME` for another exact, profile-defined loop packet.
+Use `pi-job loop --type tutor` for read-only session tutoring against the active working directory.
 
 Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
 Close a worker window when its slice is done or skipped; keep claim and window when the slice is in_progress, parked, or blocked.
