@@ -6,6 +6,21 @@
   "Generate a file name based on the current week."
   (expand-file-name (format-time-string "%Y-%W.org") "~/Documents/work-journal/"))
 
+(defconst my/font-pairs
+  '((ibm-plex :fixed "IBM Plex Mono" :variable "IBM Plex Sans")
+    (jetbrains-inter :fixed "JetBrainsMono Nerd Font" :variable "Inter")
+    (iosevka-source-sans :fixed "Iosevka Nerd Font" :variable "Source Sans 3")
+    (fira-ibm :fixed "FiraCode Nerd Font" :variable "IBM Plex Sans"))
+  "Font pairs for programming and prose.")
+
+(defconst my/default-font-pair 'ibm-plex
+  "Font pair used by GUI Emacs.")
+
+(defun my/font-family (role)
+  "Return ROLE from `my/default-font-pair'."
+  (or (plist-get (cdr (assq my/default-font-pair my/font-pairs)) role)
+      (user-error "Unknown font pair: %s" my/default-font-pair)))
+
 (defun dotspacemacs/layers ()
   "Layer configuration:
 This function should only modify configuration layer settings."
@@ -102,7 +117,7 @@ This function should only modify configuration layer settings."
           org-enable-modern-support nil
 
           ;; org-descriptive-links nil
-          org-fontify-emphasized-text t
+          org-fontify-emphasized-text nil
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
           org-refile-targets '((nil :maxlevel . 10))
           org-download-method 'attach
@@ -392,8 +407,8 @@ It should only modify the values of Spacemacs settings."
    ;; fixed-pitch faces. The `:size' can be specified as
    ;; a non-negative integer (pixel size), or a floating-point (point size).
    ;; Point size is recommended, because it's device independent. (default 10.0)
-   dotspacemacs-default-font '("Ubuntu Mono"
-                               :size 27  ;; Match the pixel size from 'describe-font'
+   dotspacemacs-default-font `(,(my/font-family :fixed)
+                               :size 15.0
                                :weight normal
                                :width normal)
 
@@ -1035,7 +1050,7 @@ before packages are loaded."
     :if (or (daemonp) (display-graphic-p))
     :config
     (setq fontaine-presets
-          '((regular
+          `((regular
              :default-height 140)
             (medium
              :default-weight semilight
@@ -1045,18 +1060,18 @@ before packages are loaded."
              :default-height 180
              :bold-weight extrabold)
             (t ; our shared fallback properties
-             :default-family "Ubuntu Mono"
+             :default-family ,(my/font-family :fixed)
              :default-weight normal
              ;; :default-height 100
-             :fixed-pitch-family nil ; falls back to :default-family
-             :fixed-pitch-weight nil ; falls back to :default-weight
+             :fixed-pitch-family ,(my/font-family :fixed)
+             :fixed-pitch-weight normal
              :fixed-pitch-height 1.0
-             :variable-pitch-family "Ubuntu Mono"
+             :variable-pitch-family ,(my/font-family :variable)
              :variable-pitch-weight normal
-             :variable-pitch-height 1.0
-             :bold-family nil
+             :variable-pitch-height 1.08
+             :bold-family ,(my/font-family :variable)
              :bold-weight bold
-             :italic-family nil
+             :italic-family ,(my/font-family :variable)
              :italic-slant italic
              :line-spacing 0.2)))
     (fontaine-set-preset (or (fontaine-restore-latest-preset) 'regular))
@@ -1129,11 +1144,24 @@ before packages are loaded."
   ;;           ))
   ;;   (spacious-padding-mode 1))
 
+  (defun my/enable-document-variable-pitch ()
+    (when (display-graphic-p)
+      (variable-pitch-mode 1)))
+
+  (add-hook 'org-mode-hook #'my/enable-document-variable-pitch)
   (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+  (add-hook 'markdown-mode-hook #'my/enable-document-variable-pitch)
 
   (custom-set-faces
    '(org-link ((t (:underline nil :weight normal :slant normal :background nil))))
-   )
+   '(org-block ((t (:inherit fixed-pitch))))
+   '(org-block-begin-line ((t (:inherit fixed-pitch))))
+   '(org-block-end-line ((t (:inherit fixed-pitch))))
+   '(org-code ((t (:inherit fixed-pitch))))
+   '(org-table ((t (:inherit fixed-pitch))))
+   '(org-verbatim ((t (:inherit fixed-pitch))))
+   '(markdown-code-face ((t (:inherit fixed-pitch))))
+   '(markdown-inline-code-face ((t (:inherit fixed-pitch)))))
   (setq org-activate-links '(bracket angle radio tag date footnote))
 
   (org-babel-do-load-languages
