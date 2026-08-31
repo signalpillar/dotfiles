@@ -209,6 +209,12 @@ Read them before writing the first line, not after debugging.
   allowance), confirmed against HMRC's own worksheet and two independent real £120,000 examples.
   Test the boundary/edge-case inputs (here: just above, inside, and just above the taper zone), not
   only a mid-range happy path — a formula bug can hide entirely below the first interesting threshold.
+- When a threshold-based model has more than one rule that can shift a boundary (here: the UK
+  Personal Allowance taper), do not hand-derive the marginal rate at a given input by combining
+  band labels. Compute it numerically instead: `(totalAt(x + 1) - totalAt(x)) / 1`. This gets the
+  taper's own effect for free and stays correct if a threshold value changes later. Used this to
+  add the combined Income Tax plus National Insurance marginal rate to the tax visualiser, and it
+  reproduced the well-known 62% figure in the £100k-£125,140 band without a single special case.
 
 ### Manifest-driven code
 

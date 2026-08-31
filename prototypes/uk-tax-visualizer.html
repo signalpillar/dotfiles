@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>UK Income Tax Visualiser</title>
+    <title>UK Income Tax and NI Visualiser</title>
     <link rel="stylesheet" href="https://unpkg.com/open-props@1.7.14/open-props.min.css">
     <link rel="stylesheet" href="prototype-base.css">
     <style>
@@ -18,6 +18,9 @@
         --band-20: #6fae8c;
         --band-40: #de9a4e;
         --band-45: #c65b52;
+        --ni-0: #c9d3dc;
+        --ni-8: #4f83b0;
+        --ni-2: #2c4f73;
         --shadow: 0 1rem 3rem rgba(27, 36, 48, 0.08);
         font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
         background: var(--paper);
@@ -168,6 +171,10 @@
         text-align: center;
       }
 
+      .headline .stat.effective-rate {
+        grid-column: 1 / -1;
+      }
+
       .headline .stat {
         padding: 0.85rem 0.5rem;
         border-radius: var(--radius-2);
@@ -200,6 +207,10 @@
         color: var(--band-45);
       }
 
+      .stat.total-ni .value {
+        color: var(--ni-8);
+      }
+
       .marginal-note {
         margin-top: 0.85rem;
         padding: 0.65rem 0.8rem;
@@ -212,6 +223,15 @@
 
       .marginal-note strong {
         color: var(--marginal-color, var(--band-20));
+      }
+
+      .marginal-note.ni {
+        margin-top: 0.6rem;
+        background: color-mix(in srgb, var(--ni-marginal-color, var(--ni-8)) 14%, white);
+      }
+
+      .marginal-note.ni strong {
+        color: var(--ni-marginal-color, var(--ni-8));
       }
 
       h2 {
@@ -258,6 +278,19 @@
         background: var(--band-45);
       }
 
+      .stack-segment[data-band="niFree"] {
+        background: var(--ni-0);
+        color: #2c3a45;
+      }
+
+      .stack-segment[data-band="niMain"] {
+        background: var(--ni-8);
+      }
+
+      .stack-segment[data-band="niAdditional"] {
+        background: var(--ni-2);
+      }
+
       .band-list {
         display: grid;
         gap: 0.6rem;
@@ -296,6 +329,18 @@
 
       .swatch[data-band="additional"] {
         background: var(--band-45);
+      }
+
+      .swatch[data-band="niFree"] {
+        background: var(--ni-0);
+      }
+
+      .swatch[data-band="niMain"] {
+        background: var(--ni-8);
+      }
+
+      .swatch[data-band="niAdditional"] {
+        background: var(--ni-2);
       }
 
       .band-name {
@@ -346,9 +391,15 @@
         background: var(--band-45);
       }
 
+      .split-bar .ni-segment {
+        background: var(--ni-8);
+      }
+
       .split-legend {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
+        gap: 0.4rem 0.8rem;
         margin-top: 0.5rem;
         color: var(--muted);
         font-size: 0.8rem;
@@ -362,7 +413,11 @@
 
       @media (min-width: 30rem) {
         .headline {
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(4, 1fr);
+        }
+
+        .headline .stat.effective-rate {
+          grid-column: auto;
         }
       }
     </style>
@@ -371,12 +426,12 @@
     <main>
       <header>
         <a class="back-link" href="index.html" aria-label="Back to prototypes">Back</a>
-        <h1>UK Income Tax Visualiser</h1>
+        <h1>UK Income Tax and NI Visualiser</h1>
       </header>
 
       <p class="lede">
-        Enter a salary to see how Income Tax is actually worked out: only the slice of pay
-        above each threshold is taxed at the higher rate, not the whole salary.
+        Enter a salary. See how Income Tax and National Insurance both work: only the slice of
+        pay above each threshold is taxed at the higher rate, not the whole salary.
       </p>
 
       <section class="card">
@@ -400,30 +455,43 @@
             <span class="label">Income Tax</span>
             <span class="value" id="totalTaxValue">£0</span>
           </div>
+          <div class="stat total-ni">
+            <span class="label">National Insurance</span>
+            <span class="value" id="totalNIValue">£0</span>
+          </div>
           <div class="stat effective-rate">
-            <span class="label">Effective rate</span>
+            <span class="label">Combined effective rate</span>
             <span class="value" id="effectiveRateValue">0%</span>
           </div>
         </div>
         <p class="marginal-note" id="marginalNote"></p>
+        <p class="marginal-note ni" id="niMarginalNote"></p>
       </section>
 
       <section class="card">
-        <h2>Where each pound falls</h2>
-        <div class="stack-bar" id="stackBar" role="img" aria-label="Salary split by tax band"></div>
+        <h2>Where each pound falls: Income Tax</h2>
+        <div class="stack-bar" id="stackBar" role="img" aria-label="Salary split by Income Tax band"></div>
         <div class="band-list" id="bandList"></div>
         <p class="taper-note" id="taperNote" hidden></p>
       </section>
 
       <section class="card">
-        <h2>Take-home vs. Income Tax</h2>
+        <h2>Where each pound falls: National Insurance</h2>
+        <div class="stack-bar" id="niStackBar" role="img" aria-label="Salary split by National Insurance band"></div>
+        <div class="band-list" id="niBandList"></div>
+      </section>
+
+      <section class="card">
+        <h2>Take-home vs. deductions</h2>
         <div class="split-bar" aria-hidden="true">
           <div class="take-home-segment" id="splitTakeHome"></div>
           <div class="tax-segment" id="splitTax"></div>
+          <div class="ni-segment" id="splitNI"></div>
         </div>
         <div class="split-legend">
           <span id="splitTakeHomeLabel">Take-home £0</span>
-          <span id="splitTaxLabel">Tax £0</span>
+          <span id="splitTaxLabel">Income Tax £0</span>
+          <span id="splitNILabel">NI £0</span>
         </div>
       </section>
 
@@ -433,7 +501,7 @@
     <script type="application/json" id="tax-manifest">
       {
         "currency": "£",
-        "taxYear": "2025/26",
+        "taxYear": "2026/27",
         "region": "England, Wales & Northern Ireland",
         "defaultSalary": 45000,
         "salaryLimits": [0, 500000],
@@ -453,11 +521,22 @@
           { "id": "higher", "label": "Higher rate", "rate": 0.4 },
           { "id": "additional", "label": "Additional rate", "rate": 0.45 }
         ],
+        "nationalInsurance": {
+          "primaryThreshold": 12570,
+          "upperEarningsLimit": 50270,
+          "class": "Class 1 (employee), category A"
+        },
+        "niBands": [
+          { "id": "niFree", "label": "Below Primary Threshold", "rate": 0 },
+          { "id": "niMain", "label": "Main rate", "rate": 0.08 },
+          { "id": "niAdditional", "label": "Above Upper Earnings Limit", "rate": 0.02 }
+        ],
         "copy": {
-          "marginalTemplate": "At {salary}, your top band is <strong>{rateLabel}</strong> — only the pay above {threshold} is taxed at that rate.",
+          "marginalTemplate": "At {salary}, your top Income Tax band is <strong>{rateLabel}</strong>. Only the pay above {threshold} is taxed at that rate.",
           "marginalTemplateAllowance": "At {salary}, you stay inside the tax-free Personal Allowance. None of it is taxed.",
-          "taperTemplate": "Above £100,000, the Personal Allowance shrinks by £1 for every £2 earned, reaching £0 at £125,140. At this salary it has shrunk to {allowance}.",
-          "disclaimer": "Illustrative Income Tax only, for {region}, {taxYear} thresholds. Scotland uses different bands. Excludes National Insurance, student loan repayments, pension contributions, and other deductions."
+          "niMarginalTemplate": "Each extra pound here is taxed at <strong>{combinedRate}</strong> in total: {incomeTaxRate} Income Tax plus {niRate} National Insurance.",
+          "taperTemplate": "Above £100,000, the Personal Allowance shrinks by £1 for every £2 earned. It reaches £0 at £125,140. At this salary it has shrunk to {allowance}. National Insurance has no such taper.",
+          "disclaimer": "Illustrative Income Tax and Class 1 (employee) National Insurance only, for {region}, {taxYear} thresholds. Scotland uses different Income Tax bands. Excludes student loan repayments, pension contributions, employer National Insurance, and other deductions."
         }
       }
     </script>
@@ -471,15 +550,21 @@
       const presetRow = document.querySelector("#presetRow");
       const takeHomeValue = document.querySelector("#takeHomeValue");
       const totalTaxValue = document.querySelector("#totalTaxValue");
+      const totalNIValue = document.querySelector("#totalNIValue");
       const effectiveRateValue = document.querySelector("#effectiveRateValue");
       const marginalNote = document.querySelector("#marginalNote");
+      const niMarginalNote = document.querySelector("#niMarginalNote");
       const stackBar = document.querySelector("#stackBar");
       const bandList = document.querySelector("#bandList");
+      const niStackBar = document.querySelector("#niStackBar");
+      const niBandList = document.querySelector("#niBandList");
       const taperNote = document.querySelector("#taperNote");
       const splitTakeHome = document.querySelector("#splitTakeHome");
       const splitTax = document.querySelector("#splitTax");
+      const splitNI = document.querySelector("#splitNI");
       const splitTakeHomeLabel = document.querySelector("#splitTakeHomeLabel");
       const splitTaxLabel = document.querySelector("#splitTaxLabel");
+      const splitNILabel = document.querySelector("#splitNILabel");
       const disclaimerText = document.querySelector("#disclaimerText");
 
       const [minSalary, maxSalary] = manifest.salaryLimits;
@@ -535,6 +620,40 @@
         }));
       }
 
+      function computeNIBands(salary) {
+        // Class 1 (employee) National Insurance has flat thresholds on gross pay: no
+        // Personal-Allowance-style taper. 0% up to the Primary Threshold, then the main
+        // rate up to the Upper Earnings Limit, then the additional rate above it. Verified
+        // against gov.uk's own rate table and two independent real examples: £60,000 salary
+        // -> £3,211 NI; £120,000 salary -> £4,411 NI.
+        const { primaryThreshold, upperEarningsLimit } = manifest.nationalInsurance;
+
+        const amounts = {
+          niFree: Math.min(salary, primaryThreshold),
+          niMain: Math.max(0, Math.min(salary, upperEarningsLimit) - primaryThreshold),
+          niAdditional: Math.max(0, salary - upperEarningsLimit),
+        };
+
+        return manifest.niBands.map((band) => ({
+          ...band,
+          amount: amounts[band.id],
+          tax: amounts[band.id] * band.rate,
+        }));
+      }
+
+      function incomeTaxAt(salary) {
+        return computeBands(salary).reduce((sum, band) => sum + band.tax, 0);
+      }
+
+      function niAt(salary) {
+        return computeNIBands(salary).reduce((sum, band) => sum + band.tax, 0);
+      }
+
+      function marginalRate(fn, salary) {
+        const epsilon = 1;
+        return clamp((fn(salary + epsilon) - fn(salary)) / epsilon, 0, 1);
+      }
+
       function topBand(bands) {
         return [...bands].reverse().find((band) => band.amount > 0) || bands[0];
       }
@@ -553,6 +672,44 @@
 
       function currentSalary() {
         return clamp(Number.parseFloat(salaryInput.value) || 0, minSalary, maxSalary);
+      }
+
+      function renderBandSection(bands, salary, stackBarEl, bandListEl) {
+        stackBarEl.innerHTML = "";
+        bandListEl.innerHTML = "";
+        bands.forEach((band) => {
+          if (band.amount <= 0) {
+            const row = document.createElement("div");
+            row.className = "band-row is-zero";
+            row.innerHTML = `
+              <span class="swatch" data-band="${band.id}"></span>
+              <span class="band-name">${band.label}<span class="rate">${percent(band.rate)}</span></span>
+              <span class="band-amount">${money(0)}</span>
+              <span class="band-tax">${money(0)}</span>
+            `;
+            bandListEl.append(row);
+            return;
+          }
+
+          const share = salary > 0 ? band.amount / salary : 0;
+          const segment = document.createElement("div");
+          segment.className = "stack-segment";
+          segment.dataset.band = band.id;
+          segment.style.flexBasis = `${(share * 100).toFixed(3)}%`;
+          segment.textContent = share > 0.12 ? percent(band.rate) : "";
+          segment.title = `${band.label}: ${money(band.amount)} at ${percent(band.rate)}`;
+          stackBarEl.append(segment);
+
+          const row = document.createElement("div");
+          row.className = "band-row";
+          row.innerHTML = `
+            <span class="swatch" data-band="${band.id}"></span>
+            <span class="band-name">${band.label}<span class="rate">${percent(band.rate)} on this slice</span></span>
+            <span class="band-amount">${money(band.amount)}</span>
+            <span class="band-tax">${money(band.tax)} tax</span>
+          `;
+          bandListEl.append(row);
+        });
       }
 
       function renderPresets() {
@@ -576,12 +733,15 @@
 
         const bands = computeBands(salary);
         const totalTax = bands.reduce((sum, band) => sum + band.tax, 0);
-        const takeHome = salary - totalTax;
-        const effectiveRate = salary > 0 ? totalTax / salary : 0;
+        const niBands = computeNIBands(salary);
+        const totalNI = niBands.reduce((sum, band) => sum + band.tax, 0);
+        const takeHome = salary - totalTax - totalNI;
+        const combinedRate = salary > 0 ? (totalTax + totalNI) / salary : 0;
 
         takeHomeValue.textContent = money(takeHome);
         totalTaxValue.textContent = money(totalTax);
-        effectiveRateValue.textContent = percent(effectiveRate);
+        totalNIValue.textContent = money(totalNI);
+        effectiveRateValue.textContent = percent(combinedRate);
 
         const top = topBand(bands);
         document.documentElement.style.setProperty(
@@ -596,41 +756,21 @@
               threshold: bandThresholdLabel(top),
             });
 
-        stackBar.innerHTML = "";
-        bandList.innerHTML = "";
-        bands.forEach((band) => {
-          if (band.amount <= 0) {
-            const row = document.createElement("div");
-            row.className = "band-row is-zero";
-            row.innerHTML = `
-              <span class="swatch" data-band="${band.id}"></span>
-              <span class="band-name">${band.label}<span class="rate">${percent(band.rate)}</span></span>
-              <span class="band-amount">${money(0)}</span>
-              <span class="band-tax">${money(0)}</span>
-            `;
-            bandList.append(row);
-            return;
-          }
-
-          const share = salary > 0 ? band.amount / salary : 0;
-          const segment = document.createElement("div");
-          segment.className = "stack-segment";
-          segment.dataset.band = band.id;
-          segment.style.flexBasis = `${(share * 100).toFixed(3)}%`;
-          segment.textContent = share > 0.12 ? percent(band.rate) : "";
-          segment.title = `${band.label}: ${money(band.amount)} at ${percent(band.rate)}`;
-          stackBar.append(segment);
-
-          const row = document.createElement("div");
-          row.className = "band-row";
-          row.innerHTML = `
-            <span class="swatch" data-band="${band.id}"></span>
-            <span class="band-name">${band.label}<span class="rate">${percent(band.rate)} on this slice</span></span>
-            <span class="band-amount">${money(band.amount)}</span>
-            <span class="band-tax">${money(band.tax)} tax</span>
-          `;
-          bandList.append(row);
+        const niTop = topBand(niBands);
+        document.documentElement.style.setProperty(
+          "--ni-marginal-color",
+          getComputedStyle(document.documentElement).getPropertyValue(`--ni-${Math.round(niTop.rate * 100)}`)
+        );
+        const incomeTaxMarginal = marginalRate(incomeTaxAt, salary);
+        const niMarginal = marginalRate(niAt, salary);
+        niMarginalNote.innerHTML = fillTemplate(manifest.copy.niMarginalTemplate, {
+          combinedRate: percent(incomeTaxMarginal + niMarginal),
+          incomeTaxRate: percent(incomeTaxMarginal),
+          niRate: percent(niMarginal),
         });
+
+        renderBandSection(bands, salary, stackBar, bandList);
+        renderBandSection(niBands, salary, niStackBar, niBandList);
 
         const allowance = effectiveAllowance(salary);
         if (salary > manifest.personalAllowance.taperStart) {
@@ -641,10 +781,14 @@
         }
 
         const takeHomeShare = salary > 0 ? takeHome / salary : 1;
+        const taxShare = salary > 0 ? totalTax / salary : 0;
+        const niShare = salary > 0 ? totalNI / salary : 0;
         splitTakeHome.style.flexBasis = `${(takeHomeShare * 100).toFixed(3)}%`;
-        splitTax.style.flexBasis = `${((1 - takeHomeShare) * 100).toFixed(3)}%`;
+        splitTax.style.flexBasis = `${(taxShare * 100).toFixed(3)}%`;
+        splitNI.style.flexBasis = `${(niShare * 100).toFixed(3)}%`;
         splitTakeHomeLabel.textContent = `Take-home ${money(takeHome)}`;
-        splitTaxLabel.textContent = `Tax ${money(totalTax)}`;
+        splitTaxLabel.textContent = `Income Tax ${money(totalTax)}`;
+        splitNILabel.textContent = `NI ${money(totalNI)}`;
       }
 
       salaryInput.addEventListener("input", render);
