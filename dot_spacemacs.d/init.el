@@ -117,7 +117,7 @@ This function should only modify configuration layer settings."
           org-enable-modern-support nil
 
           ;; org-descriptive-links nil
-          org-fontify-emphasized-text nil
+          org-fontify-emphasized-text t
           ;; Select headings up 10 level as candiates for org-refile command. It applies to all the headings in the same file.
           org-refile-targets '((nil :maxlevel . 10))
           org-download-method 'attach
@@ -213,6 +213,7 @@ This function should only modify configuration layer settings."
    ;; Also include the dependencies as they will not be resolved automatically.
    dotspacemacs-additional-packages '(
                                       vs-light-theme
+                                      doric-themes
                                       paper-theme
                                       naysayer-theme
                                       cue-mode
@@ -378,6 +379,8 @@ It should only modify the values of Spacemacs settings."
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
+                         doric-marble
+                         naysayer
                          paper
                          vs-light
                          leuven
@@ -963,6 +966,28 @@ configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
   (require 'editorconfig) ;; dependency
+
+  ;; Difftron: structural code diffing (https://github.com/lynaghk/difftron)
+  (let ((difftron-root (expand-file-name "core/libs/difftron" user-emacs-directory)))
+    (when (file-directory-p difftron-root)
+      (setq difftron-executable
+            (expand-file-name "target/release/difftron" difftron-root))
+      (add-to-list 'load-path (expand-file-name "emacs" difftron-root))
+      (use-package difftron
+        :commands (difftron-diff difftron-diff-dwim difftron-diff-at-point)
+        :init
+        (spacemacs/set-leader-keys
+          "gD" 'difftron-diff)
+        :config
+        (difftron-bindings-mode 1)
+        (require 'magit-diff)
+        (difftron-register-magit-diff-bindings))
+      (spacemacs|use-package-add-hook magit
+        :post-config
+        (require 'difftron)
+        (difftron-bindings-mode 1)
+        (require 'magit-diff)
+        (difftron-register-magit-diff-bindings))))
 
   ;; Terminal clipboard via OSC 52. In a TTY frame (SSH/mosh + tmux +
   ;; Ghostty), Emacs cannot reach the host Mac clipboard through X11 or

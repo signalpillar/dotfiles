@@ -59,12 +59,8 @@ Open an Org or Markdown buffer in a GUI frame to verify the result.
 
 Code, tables, and inline code remain fixed pitch.
 
-## Current configuration differences
+## Org emphasis and Difftron
 
-The deployed `.spacemacs.d/init.el` had local changes that were not in the chezmoi source.
+Keep `org-fontify-emphasized-text` at `t` so Org emphasis faces attach in TTY frames.
 
-The source now includes the useful Org emphasis settings and the `vs-light-theme` package.
-
-The source already contained newer changes for Alabaster themes, Difftron, and package declarations.
-
-The source keeps those newer changes instead of replacing them with older deployed text.
+Difftron loads only when `~/.emacs.d/core/libs/difftron` exists.
