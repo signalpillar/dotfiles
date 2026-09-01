@@ -52,14 +52,10 @@ artifact_rules:
       - reconcile against repos already shared; do not double-open a ticket or PR for an already-shared repo
       - use the share-with-team ticket template (skills/share-with-team/SKILL.md § Ticket)
       - |-
-        Before writing any PR body: (1) check the target repo for a template at
-        .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
-        under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
-        section by section - do not invent a different structure; (3) if absent, use the
-        share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
-        PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
-        Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
-        case.
+        The share-with-team skill owns PR prose and the template choice
+        (skills/share-with-team/SKILL.md § PR description). Read it there; do not
+        restate, shorten, or override it here. Its ask comes first: until the user
+        answers it, do not write or edit the PR body.
       - include e2e evidence or explicitly record the gap
       - do not treat sharing as terminal; wait for team feedback and loop on it
     validator: ticket and PR links recorded with feedback wait state, or skip reason recorded
@@ -257,14 +253,10 @@ toolbelt:
       - Happy path first, then tonight's fork.
 
 pr_template_guardrail: &pr_template_guidance |-
-  Before writing any PR body: (1) check the target repo for a template at
-  .github/pull_request_template.md, .github/PULL_REQUEST_TEMPLATE.md, or any file
-  under .github/PULL_REQUEST_TEMPLATE/; (2) if found, fill that template exactly,
-  section by section - do not invent a different structure; (3) if absent, use the
-  share-with-team skill's fallback template (skills/share-with-team/SKILL.md §
-  PR description: Vocabulary, How <feature> works, What this PR adds, quirks,
-  Errors, Known limitation, Tests) - do not freehand a bespoke PR body in either
-  case.
+  The share-with-team skill owns PR prose and the template choice
+  (skills/share-with-team/SKILL.md § PR description).
+  Read it there. Do not restate, shorten, or override it here.
+  Its ask comes first: until the user answers it, do not write or edit the PR body.
   After opening the PR, record it:
     pi-job --task TASK_FILE add-pr --slice SLICE_KEY --repo REPO --url URL --status open
   Satisfy the ticket gate by recording an existing ticket key in `finish --note`.
@@ -480,6 +472,8 @@ instruction_packets:
     - Pause only when the step requires a user decision, grill/clarify answers, or a recorded blocker.
     - Execute this step in the main orchestration session.
     - Do not skip required artifacts or validators from the task contract.
+    - When this step points at a skill, follow that skill in full.
+      A packet gates and records the work; it does not cancel a skill's required user questions.
     - Run pi-job finish only after the step evidence is recorded or a blocker is written down.
   subagent_orchestrator: |-
     - Choose an appropriate lower-cost model using judgement for the coding/subagent pass.
@@ -985,8 +979,8 @@ step_kinds:
     owner: orchestrator
     record_channels: [step_note, pull_request]
     validators:
-      - pr-template-checked
-      - share-with-team-template-used
+      - pr-template-choice-offered-and-answered-by-user
+      - chosen-template-filled-exactly
     guidance: *pr_template_guidance
     artifact_gates:
       - key: ticket
@@ -998,7 +992,7 @@ step_kinds:
         required: true
         when: this slice completes its repo change
         source: changed_files
-        output: one PR, body from the checked repo template or the fallback
+        output: one PR, body from the template the user chose
   wait-for-feedback:
     key: wait-for-feedback
     title: 'Wait for team feedback: loop on PR review until merged'

@@ -37,6 +37,14 @@ snippets live in one file: `~/.local/share/pi-job-harness/profile.yaml` (chezmoi
 The CLI loads that tree-root file in editable installs, or a wheel copy after a non-editable install.
 Read them via help/profile - do not restate them from this skill.
 
+## Packets gate; skills own their content
+
+When a step packet points at another skill, follow that skill in full.
+A packet adds gates, evidence, and recording commands.
+It does not cancel the skill's required user questions.
+If the packet and the skill disagree about content, the skill wins.
+If a packet looks like a licence to skip an ask, record it as pi-job feedback.
+
 ## Cold start
 
 ```bash
