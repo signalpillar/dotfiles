@@ -379,7 +379,7 @@ It should only modify the values of Spacemacs settings."
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
-                         doric-marble
+                         (doric-almond :package doric-themes)
                          naysayer
                          paper
                          vs-light

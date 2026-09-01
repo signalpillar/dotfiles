@@ -4,6 +4,10 @@
 # Do not call new-session here. Continuum restores saved sessions only when
 # the tmux server starts with no sessions. Use `tmux new-session -A` to attach
 # or create.
+#
+# start-server creates no session. Default exit-empty then kills the server
+# before continuum restore (sleep 1) can recreate sessions.
+set -g exit-empty off
 
 set -g status on
 set -g status-keys emacs
@@ -166,7 +170,7 @@ set -g @continuum-save-interval '5'
 set -g @continuum-boot 'on'
 {{- if eq .chezmoi.os "linux" }}
 # start-server avoids the empty session that `new-session -d` would create
-# before restore.
+# before restore. Requires exit-empty off above.
 set -g @continuum-systemd-start-cmd 'start-server'
 {{- end }}
 
