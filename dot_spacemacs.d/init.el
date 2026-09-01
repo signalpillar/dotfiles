@@ -1202,6 +1202,39 @@ before packages are loaded."
 
   (spacemacs/set-leader-keys "cC" 'sp/compile-line-or-prompt)
 
+  ;; `SPC p l' creates the project layout and then runs the counsel
+  ;; file/buffer picker, so a new layout always starts by visiting a file and
+  ;; paying its LSP / tree-sitter load. Start on dired at the project root
+  ;; instead. Magit and the picker stay available at the ivy prompt.
+  (defun vv//persp-switch-project-with-action (project switch-action)
+    "Open PROJECT's layout and run SWITCH-ACTION in it.
+SWITCH-ACTION is any `projectile-switch-project-action' value."
+    (spacemacs||switch-project-persp project
+      (let ((projectile-switch-project-action switch-action))
+        (counsel-projectile-switch-project-by-name project))))
+
+  (defun spacemacs//ivy-persp-switch-project-action (project)
+    "Default action for `spacemacs/ivy-persp-switch-project'.
+Open PROJECT's layout on dired at the project root."
+    (vv//persp-switch-project-with-action project 'projectile-dired))
+
+  (defun vv/ivy-persp-switch-project-to-vc (project)
+    "Open PROJECT's layout on magit status, or `vc-dir' outside git."
+    (vv//persp-switch-project-with-action project 'projectile-vc))
+
+  (defun vv/ivy-persp-switch-project-to-file (project)
+    "Open PROJECT's layout on the counsel file and buffer picker."
+    (vv//persp-switch-project-with-action
+     project (lambda () (counsel-projectile ivy-current-prefix-arg))))
+
+  ;; Alternative landing buffers at the `SPC p l' prompt: `M-o v' for magit,
+  ;; `M-o f' for the file and buffer picker.
+  (with-eval-after-load 'ivy
+    (ivy-add-actions
+     'spacemacs/ivy-persp-switch-project
+     '(("v" vv/ivy-persp-switch-project-to-vc "magit status or vc-dir")
+       ("f" vv/ivy-persp-switch-project-to-file "find file or buffer"))))
+
   (setq auto-mode-alist
         (append '(("\\.graphql\\'" . fundamental-mode))
                 auto-mode-alist))
