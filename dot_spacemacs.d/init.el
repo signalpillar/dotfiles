@@ -967,28 +967,6 @@ Put your configuration code here, except for variables that should be set
 before packages are loaded."
   (require 'editorconfig) ;; dependency
 
-  ;; Difftron: structural code diffing (https://github.com/lynaghk/difftron)
-  (let ((difftron-root (expand-file-name "core/libs/difftron" user-emacs-directory)))
-    (when (file-directory-p difftron-root)
-      (setq difftron-executable
-            (expand-file-name "target/release/difftron" difftron-root))
-      (add-to-list 'load-path (expand-file-name "emacs" difftron-root))
-      (use-package difftron
-        :commands (difftron-diff difftron-diff-dwim difftron-diff-at-point)
-        :init
-        (spacemacs/set-leader-keys
-          "gD" 'difftron-diff)
-        :config
-        (difftron-bindings-mode 1)
-        (require 'magit-diff)
-        (difftron-register-magit-diff-bindings))
-      (spacemacs|use-package-add-hook magit
-        :post-config
-        (require 'difftron)
-        (difftron-bindings-mode 1)
-        (require 'magit-diff)
-        (difftron-register-magit-diff-bindings))))
-
   ;; Terminal clipboard via OSC 52. In a TTY frame (SSH/mosh + tmux +
   ;; Ghostty), Emacs cannot reach the host Mac clipboard through X11 or
   ;; pbcopy. Pipe killed text to ~/bin/osc52-yank, which writes the OSC 52

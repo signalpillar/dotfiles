@@ -59,8 +59,6 @@ Open an Org or Markdown buffer in a GUI frame to verify the result.
 
 Code, tables, and inline code remain fixed pitch.
 
-## Org emphasis and Difftron
+## Org emphasis
 
 Keep `org-fontify-emphasized-text` at `t` so Org emphasis faces attach in TTY frames.
-
-Difftron loads only when `~/.emacs.d/core/libs/difftron` exists.
