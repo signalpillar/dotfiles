@@ -12,8 +12,14 @@ dockerise
 {{- end }}
 
 # Do not ship Cursor account/machine state (auth, team, MCP allowlists).
-dot_cursor/cli-config.json
-dot_cursor/**/cli-config.json
+# Patterns match target paths, not source paths. A dot_cursor/ prefix matches
+# nothing and leaves the file unprotected.
+.cursor/cli-config.json
+.cursor/**/cli-config.json
+
+# Do not ship the per-session cost ledgers that statusline.sh writes.
+.cursor/cost
+.cursor/cost/**
 
 # Never manage installed dependencies. These are rebuilt by the package manager,
 # and a stray `chezmoi add` of one pulls thousands of files into the source state.
