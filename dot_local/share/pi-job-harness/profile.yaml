@@ -1,9 +1,5 @@
 # Live execution profile validated by ProfileDocument in pi_job_harness/profile.py.
 # Mapping keys must match each entry's key field; step and slice references must resolve.
-config_layering:
-  user_defaults: true
-  repo_overrides: true
-  precedence: repo-over-user
 orchestration_defaults:
   claim_stale_after_hours: 24
 artifact_rules:

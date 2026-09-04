@@ -16,6 +16,7 @@ import yaml
 from pydantic import ValidationError
 
 from pi_job_harness.errors import die
+from pi_job_harness.layout import PiJobLayout
 from pi_job_harness.task import TaskDocument
 
 
@@ -195,7 +196,7 @@ def atomic_write_text(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def yaml_task_lock_path(task_path: Path) -> Path:
+def yaml_task_lock_path(task_path: Path, layout: PiJobLayout) -> Path:
     """Return the advisory lock path for a YAML task file.
 
     Locks live under ``$XDG_CACHE_HOME/pi-job/locks`` (default ``~/.cache``),
@@ -204,9 +205,7 @@ def yaml_task_lock_path(task_path: Path) -> Path:
     the same file share one lock.
     """
 
-    digest = hashlib.sha256(os.fsencode(task_path.resolve())).hexdigest()
-    cache_home = Path(os.environ["XDG_CACHE_HOME"]) if os.environ.get("XDG_CACHE_HOME") else Path.home() / ".cache"
-    return cache_home / "pi-job" / "locks" / f"{digest}.lock"
+    return layout.yaml_task_lock_path(task_path)
 
 
 def atomic_create_text(path: Path, content: str) -> None:

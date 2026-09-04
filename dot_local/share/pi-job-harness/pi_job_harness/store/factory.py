@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from pi_job_harness.errors import die
+from pi_job_harness.layout import PiJobLayout
 from pi_job_harness.store.fs import FsTaskStore
 from pi_job_harness.store.protocol import TaskStore
 from pi_job_harness.store.yaml import BundleTaskLayout, YamlTaskLayout, YamlTaskStore
@@ -37,7 +38,7 @@ def _bundle_root_for(task_arg: Path) -> Path | None:
     return None
 
 
-def open_task_store(task_arg: Path) -> TaskStore:
+def open_task_store(task_arg: Path, layout: PiJobLayout) -> TaskStore:
     """Select a bundle, loose YAML, or existing directory task backend.
 
     Bundle detection (a directory containing `task.yaml`, or a path to that
@@ -47,10 +48,10 @@ def open_task_store(task_arg: Path) -> TaskStore:
 
     bundle_root = _bundle_root_for(task_arg)
     if bundle_root is not None:
-        return YamlTaskStore(BundleTaskLayout(bundle_root))
+        return YamlTaskStore(BundleTaskLayout(bundle_root), layout)
     suffix = task_arg.suffix.lower()
     if suffix in {".yaml", ".yml"}:
-        return YamlTaskStore(YamlTaskLayout(task_arg))
+        return YamlTaskStore(YamlTaskLayout(task_arg), layout)
     if task_arg.is_dir():
         return FsTaskStore(task_arg)
     unsupported_storage(task_arg)
