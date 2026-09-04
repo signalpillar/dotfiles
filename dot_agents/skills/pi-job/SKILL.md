@@ -32,8 +32,14 @@ Run `uv tool install --force --editable ~/.local/share/pi-job-harness`, then ret
 Do not route around it with `python -m pi_job_harness.cli`; other sessions call plain `pi-job`.
 
 Channel rules (decision vs `finish --note` vs plan file), packet wording, and CLI help
-snippets live in one file: `~/.local/share/pi-job-harness/profile.yaml` (chezmoi:
+snippets live in `~/.local/share/pi-job-harness/profile.yaml` (chezmoi:
 `dot_local/share/pi-job-harness/profile.yaml`).
+An optional host overlay merges last: `$XDG_CONFIG_HOME/pi-job/profile.overlay.yaml`
+(default `~/.config/pi-job/profile.overlay.yaml`).
+`PI_JOB_PROFILE_OVERLAY` selects another overlay file; empty disables overlay.
+Missing overlay files are a no-op.
+Maps merge; lists and scalars replace.
+`pi-job profile` prints the shipped path and the overlay path (`(none)` when absent).
 The CLI loads that tree-root file in editable installs, or a wheel copy after a non-editable install.
 Read them via help/profile - do not restate them from this skill.
 
@@ -164,4 +170,6 @@ When you change store, task models, or CLI behaviour, update README, this skill,
 
 Follow README **Agent dev notes**: put a coherent feature surface (e.g. Mermaid export) behind a named class boundary; keep `cmd_*` as thin wiring.
 Example in-tree: `SliceDependencyMermaid` for `show --graph`.
+Host paths: `PiJobLayout` in `pi_job_harness/layout.py`.
+Do not re-resolve XDG or `PI_JOB_*` homes in other modules.
 Mailbox CLI lives in `pi_job_harness/messaging/cli.py`; `app.py` only registers it.

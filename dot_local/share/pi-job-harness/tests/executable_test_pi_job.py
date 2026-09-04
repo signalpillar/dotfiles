@@ -43,6 +43,9 @@ PI_JOB = Path(__file__).resolve().parents[1] / "bin" / "pi-job"
 if not PI_JOB.exists():
     PI_JOB = PI_JOB.with_name("executable_pi-job")
 APP_PY = Path(__file__).resolve().parents[1] / "pi_job_harness" / "app.py"
+_TEST_XDG_CONFIG_HOME = tempfile.mkdtemp(prefix="pi-job-test-xdg-config-")
+os.environ["XDG_CONFIG_HOME"] = _TEST_XDG_CONFIG_HOME
+os.environ.pop("PI_JOB_PROFILE_OVERLAY", None)
 
 
 def load_pi_job_module():
@@ -53,6 +56,75 @@ def load_pi_job_module():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module  # dataclasses needs the module registered before exec
     loader.exec_module(module)
+
+    test_layout = module.PiJobLayout.from_environ()
+    original_store_init = module.YamlTaskStore.__init__
+    original_open_task_store = module.open_task_store
+    original_yaml_task_lock_path = module.yaml_task_lock_path
+
+    def test_store_init(self, task_layout, host_layout=None, *, create_only=False):
+        original_store_init(
+            self,
+            task_layout,
+            host_layout or test_layout,
+            create_only=create_only,
+        )
+
+    def test_open_task_store(task_arg, layout=None):
+        return original_open_task_store(task_arg, layout or test_layout)
+
+    def test_yaml_task_lock_path(task_path, layout=None):
+        return original_yaml_task_lock_path(task_path, layout or test_layout)
+
+    # Direct unit calls still inject one explicit fixture layout.
+    # CLI subprocesses construct one production layout at the process edge.
+    module.YamlTaskStore.__init__ = test_store_init
+    module.open_task_store = test_open_task_store
+    module.yaml_task_lock_path = test_yaml_task_lock_path
+    for name in (
+        "task_tasks_home",
+        "task_archive_home",
+        "worktrees_home",
+    ):
+        function = getattr(module, name)
+
+        def path_with_layout(layout=None, _function=function):
+            return _function(layout or module.PiJobLayout.from_environ())
+
+        setattr(module, name, path_with_layout)
+
+    for name in (
+        "resolve_task_arg",
+        "resolve_create_task_arg",
+        "resolve_project_dest",
+    ):
+        function = getattr(module, name)
+
+        def resolve_with_layout(value, layout=None, _function=function):
+            return _function(value, layout or module.PiJobLayout.from_environ())
+
+        setattr(module, name, resolve_with_layout)
+
+    original_bundle_slug_under_home = module.bundle_slug_under_home
+
+    def test_bundle_slug_under_home(task_layout, host_layout=None):
+        return original_bundle_slug_under_home(
+            task_layout,
+            host_layout or module.PiJobLayout.from_environ(),
+        )
+
+    module.bundle_slug_under_home = test_bundle_slug_under_home
+
+    for name, command in tuple(vars(module).items()):
+        if not name.startswith("cmd_") or not callable(command):
+            continue
+
+        def command_with_layout(args, *command_args, _command=command, **command_kwargs):
+            if not hasattr(args, "layout"):
+                args.layout = test_layout
+            return _command(args, *command_args, **command_kwargs)
+
+        setattr(module, name, command_with_layout)
     return module
 
 def dump_task_yaml(mapping: dict) -> str:
@@ -449,7 +521,10 @@ def run(
         args = (sys.executable, *args)
     env = os.environ.copy()
     env.pop("PI_JOB_OWNER", None)  # tests-unset-pi-job-owner: never forward slice-window owner
+    env.pop("PI_JOB_PROFILE_OVERLAY", None)
     env.update(extra_env or {})
+    if "XDG_CONFIG_HOME" not in env:
+        env["XDG_CONFIG_HOME"] = _TEST_XDG_CONFIG_HOME
     res = subprocess.run(args, cwd=cwd or ROOT, text=True, capture_output=True, check=False, env=env)
     if check and res.returncode != 0:
         raise AssertionError(f"command failed: {' '.join(args)}\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
@@ -5078,7 +5153,7 @@ def test_persisted_models_document_every_field() -> None:
         "BootstrapSliceDocument", "BootstrapDocument",
     )
     profile_model_names = (
-        "ConfigLayeringDocument", "ArtifactGateDocument", "ArtifactRuleDocument",
+        "ArtifactGateDocument", "ArtifactRuleDocument",
         "ToolbeltAidDocument", "StepKindDocument", "SlicePoliciesDocument",
         "SliceKindDocument", "InstructionPacketsDocument", "LoopInstructionPacketsDocument", "CliHelpDocument",
         "CliHelpAddDecisionDocument", "CliHelpMutationDocument", "CliHelpFinishDocument", "ProfileDocument",
@@ -6512,9 +6587,143 @@ def test_bootstrap_rejects_unresolved_dependency() -> None:
 
 def test_profile_show_json() -> None:
     result = run(str(PI_JOB), "profile", "--json")
-    assert_contains(result.stdout, "config_layering")
     assert_contains(result.stdout, "slice_kinds")
     assert_contains(result.stdout, "step_kinds")
+    payload = json.loads(result.stdout)
+    assert payload["overlay"] is None
+    assert "config_layering" not in payload
+    assert payload["profile"].endswith("profile.yaml")
+
+
+def test_profile_show_prints_overlay_none() -> None:
+    result = run(str(PI_JOB), "profile")
+    assert_contains(result.stdout, "Overlay: (none)")
+
+
+def test_merge_profile_mappings_maps_merge_lists_replace() -> None:
+    from pi_job_harness.profile import merge_profile_mappings
+
+    merged = merge_profile_mappings(
+        {"keep": 1, "nested": {"a": 1, "b": 2}, "items": ["old"], "flag": False},
+        {"nested": {"b": 3, "c": 4}, "items": ["new"], "flag": True},
+    )
+    assert merged == {
+        "keep": 1,
+        "nested": {"a": 1, "b": 3, "c": 4},
+        "items": ["new"],
+        "flag": True,
+    }
+
+
+def test_profile_overlay_merges_scalar_and_shows_path() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        overlay = Path(tmp) / "profile.overlay.yaml"
+        overlay.write_text("orchestration_defaults:\n  claim_stale_after_hours: 12\n", encoding="utf-8")
+        human = run(str(PI_JOB), "profile", extra_env={"PI_JOB_PROFILE_OVERLAY": str(overlay)})
+        assert_contains(human.stdout, f"Overlay: {overlay}")
+        payload = json.loads(
+            run(
+                str(PI_JOB),
+                "profile",
+                "--json",
+                extra_env={"PI_JOB_PROFILE_OVERLAY": str(overlay)},
+            ).stdout
+        )
+        assert payload["overlay"] == str(overlay)
+        assert payload["orchestration_defaults"]["claim_stale_after_hours"] == 12.0
+
+
+def test_profile_overlay_missing_file_is_noop() -> None:
+    missing = Path(tempfile.gettempdir()) / "pi-job-missing-overlay.yaml"
+    if missing.exists():
+        missing.unlink()
+    payload = json.loads(
+        run(
+            str(PI_JOB),
+            "profile",
+            "--json",
+            extra_env={"PI_JOB_PROFILE_OVERLAY": str(missing)},
+        ).stdout
+    )
+    assert payload["overlay"] is None
+    assert payload["orchestration_defaults"]["claim_stale_after_hours"] == 24.0
+
+
+def test_profile_overlay_rejects_unknown_key() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        overlay = Path(tmp) / "profile.overlay.yaml"
+        overlay.write_text("not_a_profile_field: true\n", encoding="utf-8")
+        result = run(
+            str(PI_JOB),
+            "profile",
+            extra_env={"PI_JOB_PROFILE_OVERLAY": str(overlay)},
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, str(overlay))
+        assert_contains(result.stderr, "profile validation failed")
+
+
+def test_profile_overlay_rejects_config_layering() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        overlay = Path(tmp) / "profile.overlay.yaml"
+        overlay.write_text(
+            "config_layering:\n  user_defaults: true\n  repo_overrides: true\n  precedence: repo-over-user\n",
+            encoding="utf-8",
+        )
+        result = run(
+            str(PI_JOB),
+            "profile",
+            extra_env={"PI_JOB_PROFILE_OVERLAY": str(overlay)},
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "config_layering")
+
+
+def test_profile_overlay_rejects_invalid_yaml() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        overlay = Path(tmp) / "profile.overlay.yaml"
+        overlay.write_text(": not yaml\n", encoding="utf-8")
+        result = run(
+            str(PI_JOB),
+            "profile",
+            extra_env={"PI_JOB_PROFILE_OVERLAY": str(overlay)},
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "invalid profile overlay")
+        assert_contains(result.stderr, str(overlay))
+
+
+def test_profile_overlay_directory_fails_closed() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        result = run(
+            str(PI_JOB),
+            "profile",
+            extra_env={"PI_JOB_PROFILE_OVERLAY": tmp},
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "not a file")
+
+
+def test_profile_overlay_default_xdg_path() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        overlay_dir = Path(tmp) / "pi-job"
+        overlay_dir.mkdir()
+        overlay = overlay_dir / "profile.overlay.yaml"
+        overlay.write_text("orchestration_defaults:\n  claim_stale_after_hours: 6\n", encoding="utf-8")
+        payload = json.loads(
+            run(
+                str(PI_JOB),
+                "profile",
+                "--json",
+                extra_env={"XDG_CONFIG_HOME": tmp},
+            ).stdout
+        )
+        assert payload["overlay"] == str(overlay)
+        assert payload["orchestration_defaults"]["claim_stale_after_hours"] == 6.0
 
 
 def test_schema_show_json() -> None:
@@ -8434,6 +8643,44 @@ def test_task_tasks_home_override() -> None:
                 os.environ["PI_JOB_TASKS"] = saved
 
 
+def test_pi_job_layout_owns_host_paths() -> None:
+    """Host and install paths come from PiJobLayout for one env mapping."""
+    from pi_job_harness.layout import PiJobLayout
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        env = {
+            "XDG_CONFIG_HOME": str(root / "config"),
+            "XDG_CACHE_HOME": str(root / "cache"),
+            "PI_JOB_TASKS": str(root / "tasks"),
+            "PI_JOB_ARCHIVE": str(root / "archive"),
+            "PI_JOB_WORKTREES": str(root / "worktrees"),
+        }
+        layout = PiJobLayout.from_environ(env)
+        assert layout.tasks_home == (root / "tasks").resolve()
+        assert layout.archive_home == (root / "archive").resolve()
+        assert layout.worktrees_home == (root / "worktrees").resolve()
+        assert layout.config_dir == root / "config" / "pi-job"
+        assert layout.default_profile_overlay_yaml == root / "config" / "pi-job" / "profile.overlay.yaml"
+        assert layout.locks_dir == root / "cache" / "pi-job" / "locks"
+        assert layout.worktree_path(slug="demo", slice_key="s1", repo="repo") == (
+            root / "worktrees" / "demo" / "s1" / "repo"
+        ).resolve()
+        task = root / "tasks" / "demo" / "task.yaml"
+        lock = layout.yaml_task_lock_path(task)
+        assert lock.parent == layout.locks_dir
+        assert lock.suffix == ".lock"
+
+
+def test_pi_job_layout_archive_defaults_beside_tasks() -> None:
+    from pi_job_harness.layout import PiJobLayout
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tasks = Path(tmp) / "pi-job" / "tasks"
+        layout = PiJobLayout.from_environ({"PI_JOB_TASKS": str(tasks)})
+        assert layout.archive_home == (Path(tmp) / "pi-job" / "archive").resolve()
+
+
 def test_resolve_task_arg_slug() -> None:
     """A bare slug resolves to `$PI_JOB_TASKS/<slug>/task.yaml`; the CLI accepts the slug too."""
     module = load_pi_job_module()
@@ -10261,6 +10508,15 @@ def main() -> None:
     test_bootstrap_rejects_unknown_kind()
     test_bootstrap_rejects_unresolved_dependency()
     test_profile_show_json()
+    test_profile_show_prints_overlay_none()
+    test_merge_profile_mappings_maps_merge_lists_replace()
+    test_profile_overlay_merges_scalar_and_shows_path()
+    test_profile_overlay_missing_file_is_noop()
+    test_profile_overlay_rejects_unknown_key()
+    test_profile_overlay_rejects_config_layering()
+    test_profile_overlay_rejects_invalid_yaml()
+    test_profile_overlay_directory_fails_closed()
+    test_profile_overlay_default_xdg_path()
     test_schema_show_json()
     test_kinds_list_json()
     test_kinds_show_json()
@@ -10641,6 +10897,8 @@ if __name__ == "__main__":
     test_project_semantic_mismatch_rolls_back()
     test_task_tasks_home_default()
     test_task_tasks_home_override()
+    test_pi_job_layout_owns_host_paths()
+    test_pi_job_layout_archive_defaults_beside_tasks()
     test_resolve_task_arg_slug()
     test_resolve_task_arg_unknown_slug()
     test_resolve_task_arg_invalid_charset()

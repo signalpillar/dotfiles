@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -20,7 +21,7 @@ class MsgHost(Protocol):
 
     def require_task(self, task_arg: Path | None, *, cmd: str) -> Path: ...
 
-    def open_task_store(self, path: Path) -> Any: ...
+    def open_task_store(self, path: Path, layout: Any) -> Any: ...
 
     def require_initialized(self, task_file: Path, task: dict[str, Any]) -> None: ...
 
@@ -47,6 +48,15 @@ def _require_plans_layout(store: Any, *, die: Any) -> Any:
     if layout is None or not hasattr(layout, "plans_dir"):
         die("msg requires a YAML task file")
     return layout
+
+
+def _open_task_store(host: MsgHost, task_file: Path, layout: Any) -> Any:
+    """Call the host's store opener with the injected layout when it accepts one."""
+
+    params = tuple(inspect.signature(host.open_task_store).parameters)
+    if len(params) >= 2:
+        return host.open_task_store(task_file, layout)
+    return host.open_task_store(task_file)
 
 
 def add_msg_parser(
@@ -86,7 +96,7 @@ def cmd_msg(args: argparse.Namespace, *, host: MsgHost | None = None) -> None:
     """Send or acknowledge a mailbox message. Host supplies task/claim process policy."""
     host = host or _default_host()
     task_file = host.require_task(args.task, cmd="msg")
-    store = host.open_task_store(task_file)
+    store = _open_task_store(host, task_file, args.layout)
     layout = _require_plans_layout(store, die=host.die)
     task = store.read()
     bus = MessageService.from_layout(layout)

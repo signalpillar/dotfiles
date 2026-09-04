@@ -37,6 +37,12 @@ Do not switch to a casual register unless the user asks.
   Do not route around a stale binary with `python -m pi_job_harness.cli`; other sessions call plain `pi-job` and fail the same way.
   Edits to pi-job-harness store, task models, or CLI behaviour need coordinated doc updates (docs-with-model-cuts).
   Update the pi-job skill, harness README, and this file in the same change.
+  If you need a machine-local profile change, write `$XDG_CONFIG_HOME/pi-job/profile.overlay.yaml`.
+  `PI_JOB_PROFILE_OVERLAY` selects another overlay file.
+  Missing overlay files are a no-op.
+  Do not put laptop overrides in the chezmoi-tracked `profile.yaml`.
+  `pi-job profile` prints the shipped path and the overlay path.
+  Host filesystem locations live in `pi_job_harness.layout.PiJobLayout`.
   Named loop packets live in validated profile `loop_packets`.
   Use `pi-job loop --type NAME` to select an exact packet name.
   Keep `pi-job loop` for managers and `pi-job loop --worker` for workers.

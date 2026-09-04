@@ -9,11 +9,12 @@ import re
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field, RootModel, ValidationError, model_validator
 
 from pi_job_harness.errors import die
+from pi_job_harness.layout import PACKAGE_DIR, PiJobLayout
 from pi_job_harness.task import (
     CodingExecutionPolicyDocument,
     ExecutionOwner,
@@ -27,24 +28,45 @@ def resolve_profile_path(package_dir: Path) -> Path:
     Source and editable installs load the tree-root file.
     A wheel install loads the copy placed next to this module at build time.
     """
-    tree = package_dir.parent / "profile.yaml"
-    if tree.is_file():
-        return tree
-    packaged = package_dir / "profile.yaml"
-    if packaged.is_file():
-        return packaged
-    die(f"execution profile not found: looked for {tree} and {packaged}")
+    return PiJobLayout.from_environ(package_dir=package_dir).profile_yaml
 
 
-PROFILE = resolve_profile_path(Path(__file__).resolve().parent)
+PROFILE = resolve_profile_path(PACKAGE_DIR)
+PROFILE_OVERLAY_ENV = PiJobLayout.PROFILE_OVERLAY_ENV
 
 
-class ConfigLayeringDocument(StrictDocument):
-    """Precedence rules for future user and repository profile overlays."""
+def default_profile_overlay_path() -> Path:
+    """Return the host overlay path when `PI_JOB_PROFILE_OVERLAY` is unset."""
 
-    user_defaults: bool = Field(description="Whether user-level defaults participate in configuration.")
-    repo_overrides: bool = Field(description="Whether repository configuration may override user defaults.")
-    precedence: Literal["repo-over-user"] = Field(description="Deterministic precedence order for configuration layers.")
+    return PiJobLayout.from_environ().default_profile_overlay_yaml
+
+
+def resolve_profile_overlay_path() -> Path | None:
+    """Return the overlay file to merge, or None when overlay is off or absent."""
+
+    return PiJobLayout.from_environ().profile_overlay_to_load()
+
+
+def merge_profile_mappings(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> dict[str, Any]:
+    """Deep-merge profile mappings: maps merge; lists and scalars replace."""
+
+    merged = dict(base)
+    for key, value in overlay.items():
+        existing = merged.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            merged[key] = merge_profile_mappings(existing, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _profile_cache_key(path: Path | None) -> tuple[str, int]:
+    if path is None:
+        return ("", 0)
+    try:
+        return (str(path), path.stat().st_mtime_ns)
+    except OSError:
+        return (str(path), 0)
 
 
 class OrchestrationDefaultsDocument(StrictDocument):
@@ -326,7 +348,6 @@ class LoopInstructionPacketsDocument(RootModel[dict[str, str]]):
 class ProfileDocument(StrictDocument):
     """Complete live execution profile loaded by every command."""
 
-    config_layering: ConfigLayeringDocument = Field(description="Configuration overlay capabilities and precedence.")
     orchestration_defaults: OrchestrationDefaultsDocument = Field(
         default_factory=OrchestrationDefaultsDocument,
         description="Task-independent defaults for the owned-cursor claim layer (e.g. staleness TTL).",
@@ -419,13 +440,26 @@ class ProfileDocument(StrictDocument):
         return self
 
 
-@lru_cache(maxsize=1)
 def load_profile_contract() -> dict[str, Any]:
+    overlay = resolve_profile_overlay_path()
+    return _load_profile_contract_cached(_profile_cache_key(PROFILE), _profile_cache_key(overlay))
+
+
+@lru_cache(maxsize=8)
+def _load_profile_contract_cached(
+    shipped_key: tuple[str, int],
+    overlay_key: tuple[str, int],
+) -> dict[str, Any]:
     from pi_job_harness.store.yaml_io import load_yaml_mapping
 
     data = load_yaml_mapping(PROFILE, label="execution profile")
+    overlay_path = Path(overlay_key[0]) if overlay_key[0] else None
+    if overlay_path is not None:
+        overlay_data = load_yaml_mapping(overlay_path, label="profile overlay")
+        data = merge_profile_mappings(data, overlay_data)
     try:
         profile = ProfileDocument.model_validate(data)
     except ValidationError as exc:
-        die(f"profile validation failed for {PROFILE}:\n{exc}")
+        extra = f" (overlay {overlay_path})" if overlay_path is not None else ""
+        die(f"profile validation failed for {PROFILE}{extra}:\n{exc}")
     return profile.model_dump(mode="json", exclude_none=True)

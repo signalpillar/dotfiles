@@ -13,7 +13,8 @@ The main pain was updating CUE from pi-job through fragile regex rewrites, so it
 ```text
 pi_job_harness/         installable package (`cli:main`, task, profile, store, stats, report, app, messaging)
 bin/pi-job              thin shim that imports the package (tests / PATH copies)
-profile.yaml            execution contract (one file; wheel builds copy it into the package)
+profile.yaml            execution contract (tree-root file; wheel builds copy it into the package)
+                        optional host overlay: $XDG_CONFIG_HOME/pi-job/profile.overlay.yaml
 setup.py                copies profile.yaml into the wheel at build
 pyproject.toml          package metadata, uvx entry, ruff
 tests/                  regression tests
@@ -132,7 +133,7 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
         |
         | strict Pydantic validation
         v
-     pi-job  ---- loads ----> profile.yaml
+     pi-job  ---- loads ----> profile.yaml (+ optional host overlay)
         |                     (step_kinds, slice_kinds, toolbelt, artifact_rules)
         |
         +-- status / plan / show
@@ -305,6 +306,14 @@ Run the command by hand when PATH `pi-job` is missing or stale.
 Editable mode matters for more than convenience.
 `chezmoi apply` of `profile.yaml` or any `.py` file takes effect at once, with no reinstall.
 The CLI loads tree-root `profile.yaml` in source and editable installs.
+A host overlay then merges last, if the overlay file exists:
+`$XDG_CONFIG_HOME/pi-job/profile.overlay.yaml` (default `~/.config/pi-job/profile.overlay.yaml`).
+`PI_JOB_PROFILE_OVERLAY` selects another overlay file.
+An empty `PI_JOB_PROFILE_OVERLAY` disables overlay.
+A missing overlay file is a no-op.
+Maps merge; lists and scalars replace.
+The merged document must pass `ProfileDocument`.
+Keep laptop overrides out of the chezmoi-tracked `profile.yaml`.
 A non-editable wheel install loads the copy `setup.py` writes into the package.
 Reinstall only after `pyproject.toml` changes entry points or dependencies.
 
@@ -517,7 +526,9 @@ These commands do not require `--task`.
   Only immediate children of the task home archive; loose YAML and path-opened bundles outside the home are refused.
   Destination keeps the slug unless `--to` renames it; existing destinations fail closed (no overwrite).
   After archive, `list` no longer shows the task and the slug is free for `create`.
-- `pi-job profile [--json]` - show the active execution profile. Human output lists slice/step/toolbelt counts; `--json` dumps the full validated profile.
+- `pi-job profile [--json]` - show the active execution profile.
+  Human output lists shipped path, overlay path (`(none)` when absent), and slice/step/toolbelt counts.
+  `--json` dumps those two path fields plus the full validated merged profile.
 - `pi-job schema [--json]` - show the task document and create-intent input schemas. Human output summarizes model counts; `--json` dumps a complete JSON Schema object with `task` and `create` keys.
 - `pi-job kinds list [--json]` - list all slice kinds with their step templates. `--json` dumps the full slice_kinds catalog.
 - `pi-job kinds show <kind> [--json]` - show one slice kind's details including expanded step entries (title, owner). `--json` adds resolved step metadata.
@@ -860,7 +871,7 @@ Naming collision:
 The status enum is `planned`, `in_progress`, `blocked`, `done`, or `skipped`.
 `status` / `list` / `markdown` report overall task status derived from `plan.slices[].status` (blocked > in_progress > terminals > planned); the top-level `status` field is ignored.
 Pull-request status is `open`, `merged`, or `closed`.
-Profile models document configuration layering, artifact rules and gates, toolbelt aids, step kinds, slice policies, and slice kinds in the same way.
+Profile models document artifact rules and gates, toolbelt aids, step kinds, slice policies, and slice kinds in the same way.
 
 What `pi-job` cares about most:
 
@@ -893,10 +904,12 @@ Write new `pi-job` Python in a functional style.
 ### Shape
 
 Layouts and stores live in `pi_job_harness.store`.
+Host and install paths live in `pi_job_harness.layout`.
 Mailbox behavior lives in `pi_job_harness.messaging`.
 
 | Layer | Owns | Does not |
 |---|---|---|
+| `PiJobLayout` | XDG config/cache, `PI_JOB_TASKS` / `PI_JOB_ARCHIVE` / `PI_JOB_WORKTREES`, shipped `profile.yaml`, overlay path, YAML lock path | Task YAML I/O, mailbox paths |
 | `YamlTaskLayout` / `TaskLayout` | Plans root and store-managed sibling path arithmetic | `_inbox` paths, clock, I/O, profile text |
 | `YamlTaskStore` (and other stores) | Task YAML and store-managed `.plans/` reads/writes under `exclusive()` | Mailbox I/O, hardcoded instruction/packet bodies |
 | `messaging/` | Address, message, `_inbox` paths, mailbox I/O, formatting, service facade, and `msg` argparse/`cmd_msg` | Task YAML mutation |
@@ -936,6 +949,8 @@ Keep free functions for thin wiring (`cmd_*`, argparse, store open/close) and fo
 Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
 `MessageService` owns send, list, and read operations.
 `MailboxPaths` owns all `_inbox` path arithmetic.
+`PiJobLayout` owns host and install path arithmetic (`pi_job_harness/layout.py`).
+Do not re-resolve `XDG_*` or `PI_JOB_TASKS` / `PI_JOB_ARCHIVE` / `PI_JOB_WORKTREES` in other modules.
 `messaging/cli.py` owns the `msg` parser and `cmd_msg`.
 `app.py` registers that parser.
 `cmd_msg` applies CLI policy through host process helpers, then invokes the service and prints.
