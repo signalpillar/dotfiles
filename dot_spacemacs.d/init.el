@@ -1242,10 +1242,6 @@ Open PROJECT's layout on dired at the project root."
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-initialize))
 
-  ;; https://github.com/D4lj337/Emacs-performance
-  (setenv "LSP_USE_PLISTS" "true")
-  (setq lsp-use-plists t)
-
   ;; Speed up package loading and loads package only when needed
   (setq package-quickstart t)
   (setq use-package-always-defer t)
