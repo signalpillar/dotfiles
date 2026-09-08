@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="prototype-jelly.css">
     <!-- Markdown renderer: pinned and constrained by source and DOM allowlists below. -->
     <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+    <!-- Map renderer: Leaflet, plain tags, no build step. Table works without it. -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
     <style>
       /* Layout only. Colours, fonts and every tunable number are injected from the
@@ -205,6 +208,26 @@
       tr:last-child td { border-block-end: 0; }
       td:first-child { font-weight: var(--font-weight-7); }
 
+      /* schools tab */
+      .schools { display: grid; gap: var(--size-3); }
+      .schools-controls { display: grid; gap: var(--size-3); padding: var(--size-3); }
+      .schools-grid { display: grid; gap: var(--size-2); grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+      .schools-field { display: grid; gap: var(--size-1); font-size: var(--font-size-0); color: var(--text-muted); }
+      .schools-field input.plain, .schools-field select.plain { inline-size: 100%; }
+      .schools-map { block-size: 20rem; border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); overflow: hidden; background: var(--muted-bg); }
+      .schools-map.leaflet-container { z-index: 0; }
+      .schools-status { margin: 0; font-size: var(--font-size-0); color: var(--text-muted); line-height: var(--font-lineheight-3); }
+      .schools-table th button { all: unset; cursor: pointer; font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; }
+      .schools-table th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .schools-row { cursor: pointer; }
+      .schools-row.selected { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+      .spec-chips { display: flex; flex-wrap: wrap; gap: var(--size-1); }
+      .spec-chip { border: var(--border-size-1) solid var(--line-strong); background: var(--muted-bg); color: var(--text-muted); border-radius: var(--radius-round); padding: 0 var(--size-2); font-size: var(--font-size-0); white-space: nowrap; }
+      .geo { font-size: var(--font-size-00); text-transform: uppercase; letter-spacing: var(--font-letterspacing-3); font-weight: var(--font-weight-7); }
+      .geo.fresh { color: var(--text-muted); }
+      .geo.manual { color: #00b45f; }
+      .geo.stale, .geo.failed { color: var(--accent); }
+
       .linklist { display: grid; gap: var(--size-2); }
       .linkrow { display: grid; gap: var(--size-1); border: var(--border-size-1) solid var(--line); border-radius: var(--radius-3); background: var(--surface); padding: var(--size-3); text-decoration: none; color: inherit; transition: transform 0.14s var(--ease-3), box-shadow 0.14s var(--ease-3); }
       .linkrow:hover { transform: translateY(-2px); box-shadow: var(--shadow-3); }
@@ -286,7 +309,7 @@
     "defaultTab": "track",
     "defaultMode": "light",
     "tabSize": "small",
-    "storage": { "progress": "gcse-science-f1-roadmap-v1", "mode": "gcse-science-f1-roadmap-mode", "schemaVersion": 1 },
+    "storage": { "progress": "gcse-science-f1-roadmap-v1", "mode": "gcse-science-f1-roadmap-mode", "schools": "gcse-science-f1-schools-v1", "schemaVersion": 1 },
     "media": { "wide": "(min-width: 60rem)", "dark": "(prefers-color-scheme: dark)" },
     "timing": { "libraryTimeoutMs": 6000, "resizeDebounceMs": 150, "revokeObjectUrlMs": 1000, "copyResultResetMs": 2500 },
     "rules": { "unlockWeight": 0.67, "notesMaxLength": 4000, "masteredStatus": "race", "newStatus": "new", "maxStatusPoints": 25 },
@@ -314,10 +337,20 @@
       { "id": "track",     "label": "Track map" },
       { "id": "list",      "label": "Roadmap" },
       { "id": "garage",    "label": "Garage" },
+      { "id": "schools",   "label": "Schools" },
       { "id": "study",     "label": "How to study", "page": "study" },
       { "id": "explainer", "label": "F1 explained", "page": "explainer" }
     ],
     "export": { "filePrefix": "gcse-science-f1-progress", "mimeType": "application/json" },
+    "schools": {
+      "storageVersion": 1,
+      "csvHeaders": ["name", "address", "postcode", "lat", "lon", "expectedGrades", "specialisation", "notes"],
+      "radiusStepsKm": [2, 5, 10, 20, 50],
+      "defaultRadiusKm": 10,
+      "geocode": { "endpoint": "https://nominatim.openstreetmap.org/search", "countrycodes": "gb", "limit": 1, "minIntervalMs": 1100, "timeoutMs": 12000 },
+      "map": { "tileUrl": "https://tile.openstreetmap.org/{z}/{x}/{y}.png", "attribution": "Map data (c) OpenStreetMap contributors", "heightPx": 320 },
+      "csvFilePrefix": "a-level-schools"
+    },
 
     "style": {
       "fonts": {
@@ -431,6 +464,46 @@
       "importSummary": "Found progress for {count} topics. Merge keeps whichever version was updated most recently. Replace throws away what is on this device.",
       "importSummarySkipped": "Found progress for {count} topics, plus {skipped} entries that do not match this roadmap and will be ignored. Merge keeps whichever version was updated most recently. Replace throws away what is on this device.",
       "resetConfirm": "Clear all progress and notes on this device? Export a backup first if you want to keep it.",
+      "schoolsTitle": "A-level schools",
+      "schoolsIntro": "Schools live in this browser only. Import a CSV, set home once, then filter by distance. Distances use km.",
+      "schoolsSearchLabel": "Search schools",
+      "schoolsSearchPlaceholder": "Search name, address, grades, tags, notes...",
+      "schoolsHomeLat": "Home latitude",
+      "schoolsHomeLon": "Home longitude",
+      "schoolsRadius": "Radius (km)",
+      "schoolsRadiusAll": "All distances",
+      "schoolsImport": "Import CSV",
+      "schoolsExport": "Export CSV",
+      "schoolsGeocode": "Find missing locations",
+      "schoolsReset": "Reset schools",
+      "schoolsResetConfirm": "Clear all schools and home on this device? Export a CSV backup first if you want to keep it.",
+      "schoolsColName": "School",
+      "schoolsColPostcode": "Postcode",
+      "schoolsColGrades": "Expected grades",
+      "schoolsColSpec": "Specialisation",
+      "schoolsColDistance": "Distance",
+      "schoolsEmpty": "No schools match. Import a CSV or widen the radius.",
+      "schoolsNoSchools": "No schools yet. Import a CSV to begin.",
+      "schoolsCount": "{shown} of {total} schools",
+      "schoolsCountInRadius": "{shown} of {total} schools within {radius} km",
+      "schoolsNoLocation": "No location",
+      "schoolsGeocodeStates": { "fresh": "located", "manual": "manual", "stale": "needs lookup", "failed": "not found" },
+      "schoolsGeocodeProgress": "Locating {done} of {total}...",
+      "schoolsGeocodeDone": "Location lookup finished: {ok} located, {failed} not found.",
+      "schoolsGeocodeOffline": "Lookup needs network. Rows stay in the table without distances.",
+      "schoolsImportBadCsv": "That file is not a usable CSV, so nothing was changed.",
+      "schoolsImportNothing": "No usable school rows were found in that file, so nothing was changed.",
+      "schoolsImportSummary": "Found {count} schools{skipped}. Merge keeps the newest edit per school. Replace throws away what is on this device.",
+      "schoolsImportSkipped": ", plus {skipped} rows skipped",
+      "schoolsDetailGrades": "Expected grades",
+      "schoolsDetailSpec": "Specialisation",
+      "schoolsDetailAddress": "Address",
+      "schoolsDetailNotes": "Notes per school",
+      "schoolsDetailCoords": "Coordinates",
+      "schoolsRecheck": "Recheck location",
+      "schoolsMapNote": "Map pins follow the current table filter.",
+      "schoolsMapUnavailable": "Map library did not load, so the map is hidden. The table works fully without it.",
+      "schoolsAttribution": "Locations via Nominatim (OpenStreetMap). Map (c) OpenStreetMap contributors.",
       "footer": [
         { "text": "Progress lives in this browser's local storage only, so it stays on this device. Export writes a JSON file you can keep as a backup or move to another device; Import reads it back. Built with " },
         { "text": "Jelly UI", "href": "https://jelly-ui.com/" },
@@ -2055,6 +2128,16 @@
       let zoom = 1;
       let pendingImport = null;
       let selectionToken = 0;
+      /* Schools tab state. Separate from topic progress above. */
+      const SCHOOLS = APP.schools;
+      let schoolStore = loadSchools();
+      let schoolQuery = "";
+      let schoolSort = { key: "name", dir: 1 };
+      let selectedSchoolId = null;
+      let schoolMap = null;
+      let schoolMarkers = [];
+      let geocodeRunning = false;
+      let lastGeocodeAt = 0;
       let catalogPromise = null;
       let paperPromise = null;
       const topicResourceCache = new Map();
@@ -2102,6 +2185,147 @@
           }
         }
         return { entries, skipped };
+      }
+
+      /* ---------------- schools store ---------------- */
+
+      function blankSchoolStore() {
+        return { version: SCHOOLS.storageVersion, home: { lat: null, lon: null, radiusKm: SCHOOLS.defaultRadiusKm }, schools: {} };
+      }
+
+      function loadSchools() {
+        try {
+          const raw = localStorage.getItem(APP.storage.schools);
+          if (!raw) return blankSchoolStore();
+          const parsed = JSON.parse(raw);
+          return sanitiseSchools(parsed).store;
+        } catch (err) {
+          console.warn("Could not read saved schools", err);
+          return blankSchoolStore();
+        }
+      }
+
+      function saveSchools() {
+        try {
+          schoolStore.version = SCHOOLS.storageVersion;
+          localStorage.setItem(APP.storage.schools, JSON.stringify(schoolStore));
+        } catch (err) {
+          console.warn("Could not save schools", err);
+        }
+      }
+
+      function toNumberOrNull(value) {
+        if (value === null || value === undefined || value === "") return null;
+        const n = Number(String(value).trim());
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function validLat(lat) { return typeof lat === "number" && Number.isFinite(lat) && lat >= -90 && lat <= 90; }
+      function validLon(lon) { return typeof lon === "number" && Number.isFinite(lon) && lon >= -180 && lon <= 180; }
+
+      function schoolIdFor(name, postcode) {
+        const slug = (s) => String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+        const base = slug(name) || "school";
+        const tail = slug(postcode);
+        return tail ? base + "--" + tail : base;
+      }
+
+      function sanitiseSchoolValue(value, fallbackId) {
+        if (!value || typeof value !== "object") return null;
+        const name = typeof value.name === "string" ? value.name.trim().slice(0, 200) : "";
+        if (!name) return null;
+        const lat = toNumberOrNull(value.lat);
+        const lon = toNumberOrNull(value.lon);
+        const hasCoords = validLat(lat) && validLon(lon);
+        const state = value.geocodeState === "manual" || value.geocodeState === "fresh" || value.geocodeState === "failed" || value.geocodeState === "stale"
+          ? value.geocodeState
+          : (hasCoords ? "fresh" : "stale");
+        return {
+          id: typeof value.id === "string" && value.id ? value.id.slice(0, 140) : (fallbackId || schoolIdFor(name, value.postcode)),
+          name,
+          address: typeof value.address === "string" ? value.address.trim().slice(0, 500) : "",
+          postcode: typeof value.postcode === "string" ? value.postcode.trim().slice(0, 20) : "",
+          lat: hasCoords ? lat : null,
+          lon: hasCoords ? lon : null,
+          expectedGrades: typeof value.expectedGrades === "string" ? value.expectedGrades.trim().slice(0, 300) : "",
+          specialisation: typeof value.specialisation === "string" ? value.specialisation.trim().slice(0, 500) : "",
+          notes: typeof value.notes === "string" ? value.notes.slice(0, APP.rules.notesMaxLength) : "",
+          geocodeState: hasCoords && state === "stale" ? "fresh" : state,
+          geocodedAt: typeof value.geocodedAt === "string" ? value.geocodedAt : null,
+          updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date().toISOString()
+        };
+      }
+
+      function sanitiseSchools(input) {
+        const store = blankSchoolStore();
+        let skipped = 0;
+        if (!input || typeof input !== "object") return { store, skipped };
+        const home = input.home || {};
+        const lat = toNumberOrNull(home.lat);
+        const lon = toNumberOrNull(home.lon);
+        if (validLat(lat) && validLon(lon)) { store.home.lat = lat; store.home.lon = lon; }
+        const radius = Number(home.radiusKm);
+        if (Number.isFinite(radius) && radius > 0) store.home.radiusKm = Math.min(500, radius);
+        const records = input.schools && typeof input.schools === "object" ? input.schools : input;
+        for (const [key, value] of Object.entries(records)) {
+          if (key === "home" || key === "version") continue;
+          const clean = sanitiseSchoolValue(value, key);
+          if (!clean) { skipped += 1; continue; }
+          store.schools[clean.id] = clean;
+        }
+        return { store, skipped };
+      }
+
+      function haversineKm(aLat, aLon, bLat, bLon) {
+        const R = 6371;
+        const rad = (d) => d * Math.PI / 180;
+        const dLat = rad(bLat - aLat);
+        const dLon = rad(bLon - aLon);
+        const s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 2 * R * Math.asin(Math.sqrt(s));
+      }
+
+      function schoolDistanceKm(school) {
+        if (!validLat(schoolStore.home.lat) || !validLon(schoolStore.home.lon)) return null;
+        if (!validLat(school.lat) || !validLon(school.lon)) return null;
+        return haversineKm(schoolStore.home.lat, schoolStore.home.lon, school.lat, school.lon);
+      }
+
+      function schoolTags(school) {
+        return String(school.specialisation || "").split(",").map((t) => t.trim()).filter(Boolean);
+      }
+
+      function filteredSchools() {
+        const q = schoolQuery.trim().toLowerCase();
+        const homeSet = validLat(schoolStore.home.lat) && validLon(schoolStore.home.lon);
+        const radius = Number(schoolStore.home.radiusKm);
+        const out = [];
+        for (const school of Object.values(schoolStore.schools)) {
+          const dist = schoolDistanceKm(school);
+          if (homeSet && Number.isFinite(radius) && radius > 0 && dist !== null && dist > radius) continue;
+          if (q) {
+            const hay = [school.name, school.address, school.postcode, school.expectedGrades, school.specialisation, school.notes].join(" ").toLowerCase();
+            if (!hay.includes(q)) continue;
+          }
+          out.push({ school, dist });
+        }
+        const dir = schoolSort.dir;
+        const val = (row) => {
+          if (schoolSort.key === "distance") return row.dist === null ? Number.POSITIVE_INFINITY : row.dist;
+          if (schoolSort.key === "postcode") return (row.school.postcode || "").toLowerCase();
+          if (schoolSort.key === "expectedGrades") return (row.school.expectedGrades || "").toLowerCase();
+          if (schoolSort.key === "specialisation") return (row.school.specialisation || "").toLowerCase();
+          return (row.school.name || "").toLowerCase();
+        };
+        out.sort((a, b) => {
+          const va = val(a);
+          const vb = val(b);
+          if (va < vb) return -1 * dir;
+          if (va > vb) return 1 * dir;
+          return a.school.name.localeCompare(b.school.name);
+        });
+        return out;
       }
 
       const statusOf = (id) => (progress[id] && progress[id].status) || APP.rules.newStatus;
@@ -2257,6 +2481,7 @@
         refs.panels = {};
         refs.tabPanels = {};
         const tabs = make(jellyOk ? "jelly-tabs" : "div", { id: "tabs", size: APP.tabSize });
+        refs.tabs = tabs;
         APP.tabs.forEach((tab) => {
           const content = make("div", { style: { marginBlockStart: "var(--size-3)" } });
           refs.panels[tab.id] = content;
@@ -2268,7 +2493,12 @@
           refs.tabPanels[tab.id] = panel;
           tabs.append(panel);
         });
-        tabs.addEventListener("change", (e) => setView(e.target.value || APP.defaultTab));
+        /* Guard the target: change events from inputs inside panels (file
+           pickers, selects) bubble up here and must not switch tabs. */
+        tabs.addEventListener("change", (e) => {
+          if (e.target !== tabs) return;
+          setView(e.target.value || APP.defaultTab);
+        });
 
         /* Without the library there is no tab bar, so supply a plain one and
            switch the panels by hand. Otherwise only the first tab is reachable. */
@@ -2337,8 +2567,9 @@
         refs.drawer = make(jellyOk ? "jelly-drawer" : "div", { label: COPY.notesLabel, side: wideQuery.matches ? "end" : "bottom" }, [refs.detailBody]);
         refs.drawer.addEventListener("close", () => {
           selectionToken += 1;
-          if (selectedId !== null) {
+          if (selectedId !== null || selectedSchoolId !== null) {
             selectedId = null;
+            selectedSchoolId = null;
             renderView();
           }
         });
@@ -2821,6 +3052,17 @@
       function select(id) {
         selectionToken += 1;
         selectedId = id;
+        selectedSchoolId = null;
+        renderDetail();
+        if (jellyOk) refs.drawer.open = true;
+        else refs.drawer.setAttribute("open", "");
+        renderView();
+      }
+
+      function selectSchool(id) {
+        selectionToken += 1;
+        selectedSchoolId = id;
+        selectedId = null;
         renderDetail();
         if (jellyOk) refs.drawer.open = true;
         else refs.drawer.setAttribute("open", "");
@@ -2830,6 +3072,7 @@
       function closeDetail() {
         selectionToken += 1;
         selectedId = null;
+        selectedSchoolId = null;
         if (jellyOk) refs.drawer.open = false;
         else refs.drawer.removeAttribute("open");
         renderView();
@@ -3108,6 +3351,7 @@
 
       function renderDetail() {
         refs.detailBody.replaceChildren();
+        if (selectedSchoolId) { renderSchoolDetail(); return; }
         if (!selectedId) return;
 
         const node = BY_ID.get(selectedId);
@@ -3279,18 +3523,449 @@
         renderView();
       }
 
+      /* ---------------- schools: CSV, geocode, table, map ---------------- */
+
+      function parseCSV(text) {
+        const rows = [];
+        let row = [];
+        let field = "";
+        let quoted = false;
+        const src = String(text || "").replace(/^﻿/, "");
+        for (let i = 0; i < src.length; i += 1) {
+          const c = src[i];
+          if (quoted) {
+            if (c === '"') {
+              if (src[i + 1] === '"') { field += '"'; i += 1; }
+              else quoted = false;
+            } else field += c;
+          } else if (c === '"') quoted = true;
+          else if (c === ",") { row.push(field); field = ""; }
+          else if (c === "\r") { /* wait for \n */ }
+          else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+          else field += c;
+        }
+        row.push(field);
+        rows.push(row);
+        return rows.filter((r) => r.length > 1 || String(r[0] || "").trim() !== "");
+      }
+
+      function csvCell(value) {
+        const s = String(value === null || value === undefined ? "" : value);
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }
+
+      function rowsFromCSV(text) {
+        const rows = parseCSV(text);
+        if (rows.length < 2) return { entries: {}, skipped: 0 };
+        const header = rows[0].map((h) => String(h || "").trim());
+        const entries = {};
+        let skipped = 0;
+        for (const line of rows.slice(1)) {
+          const obj = {};
+          header.forEach((h, i) => { obj[h] = (line[i] || "").trim(); });
+          if (!obj.name) { skipped += 1; continue; }
+          const clean = sanitiseSchoolValue({
+            id: schoolIdFor(obj.name, obj.postcode),
+            name: obj.name,
+            address: obj.address || "",
+            postcode: obj.postcode || "",
+            lat: obj.lat || null,
+            lon: obj.lon || null,
+            expectedGrades: obj.expectedGrades || "",
+            specialisation: obj.specialisation || "",
+            notes: obj.notes || "",
+            geocodeState: obj.lat && obj.lon ? "manual" : "stale",
+            updatedAt: new Date().toISOString()
+          });
+          if (!clean) { skipped += 1; continue; }
+          entries[clean.id] = clean;
+        }
+        return { entries, skipped };
+      }
+
+      function exportSchoolsCSV() {
+        const headers = SCHOOLS.csvHeaders;
+        const lines = [headers.join(",")];
+        for (const school of Object.values(schoolStore.schools).sort((a, b) => a.name.localeCompare(b.name))) {
+          lines.push(headers.map((h) => csvCell(h === "lat" || h === "lon" ? (school[h] === null ? "" : school[h]) : (school[h] || ""))).join(","));
+        }
+        const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = make("a", { href: url, download: SCHOOLS.csvFilePrefix + "-" + new Date().toISOString().slice(0, 10) + ".csv" });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), APP.timing.revokeObjectUrlMs);
+      }
+
+      async function handleSchoolFile(file) {
+        const text = await file.text();
+        const { entries, skipped } = rowsFromCSV(text);
+        const count = Object.keys(entries).length;
+        if (!count) { window.alert(COPY.schoolsImportNothing); return; }
+        const skippedText = skipped ? fill(COPY.schoolsImportSkipped, { skipped }) : "";
+        if (window.confirm(fill(COPY.schoolsImportSummary, { count, skipped: skippedText }) + " [OK]=Merge [Cancel]=Replace")) {
+          applySchoolImport(entries, "merge");
+        } else {
+          applySchoolImport(entries, "replace");
+        }
+        queueGeocode(false);
+      }
+
+      function applySchoolImport(entries, mode) {
+        if (mode === "replace") schoolStore.schools = entries;
+        else {
+          for (const [id, incoming] of Object.entries(entries)) {
+            const existing = schoolStore.schools[id];
+            if (!existing || new Date(incoming.updatedAt) >= new Date(existing.updatedAt || 0)) schoolStore.schools[id] = incoming;
+          }
+        }
+        saveSchools();
+        renderView();
+        renderDetail();
+      }
+
+      function resetSchools() {
+        if (!window.confirm(COPY.schoolsResetConfirm)) return;
+        schoolStore = blankSchoolStore();
+        selectedSchoolId = null;
+        saveSchools();
+        closeDetail();
+        renderView();
+      }
+
+      function geocodeQuery(school) {
+        return [school.name, school.address, school.postcode, "UK"].filter(Boolean).join(", ");
+      }
+
+      async function geocodeOne(school) {
+        const params = new URLSearchParams({ format: "jsonv2", q: geocodeQuery(school), countrycodes: SCHOOLS.geocode.countrycodes, limit: String(SCHOOLS.geocode.limit) });
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), SCHOOLS.geocode.timeoutMs);
+        try {
+          const res = await fetch(SCHOOLS.geocode.endpoint + "?" + params.toString(), { signal: ctrl.signal, headers: { Accept: "application/json" } });
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (!Array.isArray(data) || !data.length) return null;
+          const lat = Number(data[0].lat);
+          const lon = Number(data[0].lon);
+          return validLat(lat) && validLon(lon) ? { lat, lon } : null;
+        } catch (err) {
+          return null;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      async function queueGeocode(onlySelected) {
+        if (geocodeRunning) return;
+        if (!navigator.onLine) { window.alert(COPY.schoolsGeocodeOffline); return; }
+        const targets = Object.values(schoolStore.schools).filter((s) => {
+          if (onlySelected && selectedSchoolId && s.id !== selectedSchoolId) return false;
+          if (s.geocodeState === "manual" || s.geocodeState === "fresh") return false;
+          return !validLat(s.lat) || !validLon(s.lon);
+        });
+        if (!targets.length) { renderView(); return; }
+        geocodeRunning = true;
+        let ok = 0;
+        let failed = 0;
+        renderView();
+        for (const school of targets) {
+          const wait = SCHOOLS.geocode.minIntervalMs - (Date.now() - lastGeocodeAt);
+          if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+          lastGeocodeAt = Date.now();
+          const found = await geocodeOne(school);
+          if (found) {
+            school.lat = found.lat;
+            school.lon = found.lon;
+            school.geocodeState = "fresh";
+            school.geocodedAt = new Date().toISOString();
+            ok += 1;
+          } else {
+            school.geocodeState = "failed";
+            failed += 1;
+          }
+          school.updatedAt = new Date().toISOString();
+          saveSchools();
+          if (view === "schools") renderView();
+        }
+        geocodeRunning = false;
+        saveSchools();
+        renderView();
+        renderDetail();
+      }
+
+      function sortArrow(key) {
+        if (schoolSort.key !== key) return "";
+        return schoolSort.dir === 1 ? " ^" : " v";
+      }
+
+      function renderSchools() {
+        const box = refs.panels.schools;
+        if (!box) return;
+        box.replaceChildren();
+        const wrap = make("div", { class: "schools" });
+
+        const searchInput = make("input", { type: "search", placeholder: COPY.schoolsSearchPlaceholder, class: "plain", value: schoolQuery });
+        searchInput.setAttribute("aria-label", COPY.schoolsSearchLabel);
+        searchInput.addEventListener("input", () => { schoolQuery = searchInput.value; renderSchoolsTable(); });
+
+        const latInput = make("input", { type: "text", inputmode: "decimal", placeholder: "51.5072", class: "plain", value: schoolStore.home.lat === null ? "" : String(schoolStore.home.lat) });
+        latInput.setAttribute("aria-label", COPY.schoolsHomeLat);
+        const lonInput = make("input", { type: "text", inputmode: "decimal", placeholder: "-0.1276", class: "plain", value: schoolStore.home.lon === null ? "" : String(schoolStore.home.lon) });
+        lonInput.setAttribute("aria-label", COPY.schoolsHomeLon);
+        const commitHome = () => {
+          const lat = toNumberOrNull(latInput.value);
+          const lon = toNumberOrNull(lonInput.value);
+          if ((latInput.value.trim() || lonInput.value.trim()) && (!validLat(lat) || !validLon(lon))) return;
+          schoolStore.home.lat = validLat(lat) && validLon(lon) ? lat : null;
+          schoolStore.home.lon = validLat(lat) && validLon(lon) ? lon : null;
+          saveSchools();
+          renderSchoolsTable();
+          renderSchoolMap();
+        };
+        latInput.addEventListener("change", commitHome);
+        lonInput.addEventListener("change", commitHome);
+
+        const radiusSel = make("select", { class: "plain" });
+        radiusSel.setAttribute("aria-label", COPY.schoolsRadius);
+        radiusSel.append(make("option", { value: "", text: COPY.schoolsRadiusAll }));
+        SCHOOLS.radiusStepsKm.forEach((km) => {
+          const opt = make("option", { value: String(km), text: String(km) + " km" });
+          if (Number(schoolStore.home.radiusKm) === km) opt.selected = true;
+          radiusSel.append(opt);
+        });
+        if (!SCHOOLS.radiusStepsKm.includes(Number(schoolStore.home.radiusKm))) radiusSel.value = "";
+        radiusSel.addEventListener("change", () => {
+          const v = Number(radiusSel.value);
+          schoolStore.home.radiusKm = Number.isFinite(v) && v > 0 ? v : 0;
+          saveSchools();
+          renderSchoolsTable();
+          renderSchoolMap();
+        });
+
+        refs.schoolFile = refs.schoolFile || make("input", {
+          type: "file",
+          accept: ".csv,text/csv",
+          class: "sr",
+          on: {
+            change: (e) => {
+              const file = e.target.files && e.target.files[0];
+              if (file) handleSchoolFile(file);
+              e.target.value = "";
+            }
+          }
+        });
+
+        const controls = make("div", { class: "surface schools-controls" }, [
+          make("div", { class: "row" }, [
+            make("strong", { text: COPY.schoolsTitle }),
+            make("span", { class: "push foot", text: COPY.schoolsMapNote })
+          ]),
+          make("p", { class: "schools-status", text: COPY.schoolsIntro }),
+          make("div", { class: "schools-grid" }, [
+            make("label", { class: "schools-field", text: COPY.schoolsSearchLabel }, [searchInput]),
+            make("label", { class: "schools-field", text: COPY.schoolsHomeLat }, [latInput]),
+            make("label", { class: "schools-field", text: COPY.schoolsHomeLon }, [lonInput]),
+            make("label", { class: "schools-field", text: COPY.schoolsRadius }, [radiusSel])
+          ]),
+          make("div", { class: "row" }, [
+            button(COPY.schoolsImport, { variant: "azure", onClick: () => refs.schoolFile.click() }),
+            button(COPY.schoolsExport, { variant: "mint", onClick: exportSchoolsCSV }),
+            button(geocodeRunning ? fill(COPY.schoolsGeocodeProgress, { done: 0, total: 0 }) : COPY.schoolsGeocode, { variant: "platinum", onClick: () => queueGeocode(false) }),
+            button(COPY.schoolsReset, { variant: "platinum", onClick: resetSchools }),
+            refs.schoolFile
+          ]),
+          (refs.schoolsStatus = make("p", { class: "schools-status" })),
+          make("p", { class: "schools-status", text: COPY.schoolsAttribution })
+        ]);
+        wrap.append(controls);
+
+        refs.schoolsMapBox = make("div", { class: "schools-map", id: "schools-map" });
+        wrap.append(refs.schoolsMapBox);
+        refs.schoolsTableBox = make("div", { class: "table-wrap" });
+        wrap.append(refs.schoolsTableBox);
+        box.append(wrap);
+        renderSchoolsTable();
+        renderSchoolMap();
+      }
+
+      function renderSchoolsTable() {
+        if (!refs.schoolsTableBox) return;
+        const rows = filteredSchools();
+        const total = Object.keys(schoolStore.schools).length;
+        const homeSet = validLat(schoolStore.home.lat) && validLon(schoolStore.home.lon);
+        const radiusActive = homeSet && Number(schoolStore.home.radiusKm) > 0;
+        refs.schoolsStatus.textContent = rows.length || total
+          ? fill(radiusActive ? COPY.schoolsCountInRadius : COPY.schoolsCount, { shown: rows.length, total, radius: schoolStore.home.radiusKm })
+          : COPY.schoolsNoSchools;
+
+        const table = make("table", { class: "schools-table" });
+        const headRow = make("tr");
+        const cols = [
+          ["name", COPY.schoolsColName],
+          ["postcode", COPY.schoolsColPostcode],
+          ["expectedGrades", COPY.schoolsColGrades],
+          ["specialisation", COPY.schoolsColSpec],
+          ["distance", COPY.schoolsColDistance]
+        ];
+        cols.forEach(([key, label]) => {
+          const btn = make("button", { text: label + sortArrow(key), on: { click: () => {
+            if (schoolSort.key === key) schoolSort.dir *= -1;
+            else schoolSort = { key, dir: 1 };
+            renderSchoolsTable();
+          } } });
+          btn.setAttribute("aria-label", label);
+          headRow.append(make("th", {}, [btn]));
+        });
+        table.append(make("thead", {}, [headRow]));
+        const body = make("tbody");
+        if (!rows.length) {
+          const tr = make("tr");
+          tr.append(make("td", { colspan: "5", text: total ? COPY.schoolsEmpty : COPY.schoolsNoSchools }));
+          body.append(tr);
+        }
+        rows.forEach(({ school, dist }) => {
+          const tr = make("tr", { class: "schools-row" + (selectedSchoolId === school.id ? " selected" : ""), on: { click: () => selectSchool(school.id) } });
+          tr.setAttribute("data-school-id", school.id);
+          const distText = dist === null ? COPY.schoolsNoLocation : dist.toFixed(1) + " km";
+          const geoLabel = (COPY.schoolsGeocodeStates || {})[school.geocodeState] || school.geocodeState;
+          const specTags = schoolTags(school);
+          const specCell = make("td");
+          if (specTags.length) specCell.append(make("span", { class: "spec-chips" }, specTags.map((t) => make("span", { class: "spec-chip", text: t }))));
+          else specCell.textContent = "";
+          tr.append(
+            make("td", {}, [make("div", { text: school.name }), make("span", { class: "geo " + school.geocodeState, text: geoLabel })]),
+            make("td", { text: school.postcode || "" }),
+            make("td", { text: school.expectedGrades || "" }),
+            specCell,
+            make("td", { text: distText })
+          );
+          body.append(tr);
+        });
+        table.append(body);
+        refs.schoolsTableBox.replaceChildren(table);
+      }
+
+      function renderSchoolMap() {
+        const el = refs.schoolsMapBox;
+        if (!el) return;
+        if (typeof window.L === "undefined") {
+          el.replaceChildren(make("p", { class: "schools-status", text: COPY.schoolsMapUnavailable, style: { padding: "var(--size-3)" } }));
+          return;
+        }
+        const rows = filteredSchools().filter((r) => validLat(r.school.lat) && validLon(r.school.lon));
+        try {
+          if (!schoolMap) {
+            schoolMap = window.L.map(el).setView([54.5, -3.5], 5);
+            window.L.tileLayer(SCHOOLS.map.tileUrl, { attribution: SCHOOLS.map.attribution, maxZoom: 19 }).addTo(schoolMap);
+          }
+          schoolMarkers.forEach((m) => m.remove());
+          schoolMarkers = [];
+          const bounds = [];
+          if (validLat(schoolStore.home.lat) && validLon(schoolStore.home.lon)) {
+            const home = window.L.marker([schoolStore.home.lat, schoolStore.home.lon], { title: "Home" }).addTo(schoolMap);
+            schoolMarkers.push(home);
+            bounds.push([schoolStore.home.lat, schoolStore.home.lon]);
+            const radius = Number(schoolStore.home.radiusKm);
+            if (Number.isFinite(radius) && radius > 0) {
+              const circle = window.L.circle([schoolStore.home.lat, schoolStore.home.lon], { radius: radius * 1000 }).addTo(schoolMap);
+              schoolMarkers.push(circle);
+            }
+          }
+          rows.forEach(({ school }) => {
+            const marker = window.L.marker([school.lat, school.lon], { title: school.name }).addTo(schoolMap);
+            marker.bindPopup("<strong>" + String(school.name).replace(/</g, "&lt;") + "</strong><br>" + String(school.postcode || "").replace(/</g, "&lt;"));
+            marker.on("click", () => selectSchool(school.id));
+            schoolMarkers.push(marker);
+            bounds.push([school.lat, school.lon]);
+          });
+          setTimeout(() => { try { schoolMap.invalidateSize(); } catch (err) { /* keep table */ } }, 0);
+          if (bounds.length) schoolMap.fitBounds(bounds.length === 1 ? [bounds[0], bounds[0]] : bounds, { padding: [24, 24] });
+        } catch (err) {
+          el.replaceChildren(make("p", { class: "schools-status", text: COPY.schoolsMapUnavailable, style: { padding: "var(--size-3)" } }));
+        }
+      }
+
+      function renderSchoolDetail() {
+        const school = schoolStore.schools[selectedSchoolId];
+        if (!school) { selectedSchoolId = null; return; }
+        const dist = schoolDistanceKm(school);
+        const geoLabel = (COPY.schoolsGeocodeStates || {})[school.geocodeState] || school.geocodeState;
+        refs.detailBody.append(
+          make("h2", { text: school.name }),
+          make("div", { class: "row" }, [
+            badge(school.postcode || COPY.schoolsNoLocation, { variant: "platinum", size: "small", outline: true }),
+            badge(dist === null ? COPY.schoolsNoLocation : dist.toFixed(1) + " km", { variant: "platinum", size: "small", outline: true }),
+            badge(geoLabel, { variant: "platinum", size: "small", outline: true })
+          ]),
+          fact(COPY.schoolsDetailAddress, [school.address, school.postcode].filter(Boolean).join(", ") || COPY.schoolsNoLocation),
+          fact(COPY.schoolsDetailGrades, school.expectedGrades || "-"),
+          fact(COPY.schoolsDetailSpec, school.specialisation || "-"),
+          make("div", { class: "fact" }, [
+            make("h3", { text: COPY.schoolsDetailCoords }),
+            make("p", { text: validLat(school.lat) && validLon(school.lon) ? school.lat.toFixed(5) + ", " + school.lon.toFixed(5) : COPY.schoolsNoLocation })
+          ])
+        );
+        const latEdit = make("input", { type: "text", inputmode: "decimal", class: "plain", value: school.lat === null ? "" : String(school.lat) });
+        latEdit.setAttribute("aria-label", COPY.schoolsHomeLat);
+        const lonEdit = make("input", { type: "text", inputmode: "decimal", class: "plain", value: school.lon === null ? "" : String(school.lon) });
+        lonEdit.setAttribute("aria-label", COPY.schoolsHomeLon);
+        const saveCoords = () => {
+          const lat = toNumberOrNull(latEdit.value);
+          const lon = toNumberOrNull(lonEdit.value);
+          if ((latEdit.value.trim() || lonEdit.value.trim()) && (!validLat(lat) || !validLon(lon))) return;
+          school.lat = validLat(lat) && validLon(lon) ? lat : null;
+          school.lon = validLat(lat) && validLon(lon) ? lon : null;
+          school.geocodeState = school.lat === null ? "stale" : "manual";
+          school.updatedAt = new Date().toISOString();
+          saveSchools();
+          renderSchoolsTable();
+          renderSchoolMap();
+          renderDetail();
+        };
+        latEdit.addEventListener("change", saveCoords);
+        lonEdit.addEventListener("change", saveCoords);
+        refs.detailBody.append(
+          make("div", { class: "fact" }, [
+            make("h3", { text: COPY.schoolsDetailCoords }),
+            make("div", { class: "schools-grid" }, [
+              make("label", { class: "schools-field", text: COPY.schoolsHomeLat }, [latEdit]),
+              make("label", { class: "schools-field", text: COPY.schoolsHomeLon }, [lonEdit])
+            ]),
+            make("div", { class: "row" }, [button(COPY.schoolsRecheck, { variant: "azure", onClick: () => queueGeocode(true) })])
+          ]),
+          make("div", { class: "caption", text: COPY.schoolsDetailNotes }),
+          textField("textarea", {
+            label: COPY.schoolsDetailNotes,
+            rows: 4,
+            value: school.notes || "",
+            placeholder: COPY.notesPlaceholder,
+            onInput: (value) => {
+              school.notes = String(value).slice(0, APP.rules.notesMaxLength);
+              school.updatedAt = new Date().toISOString();
+              saveSchools();
+            }
+          })
+        );
+        if (school.updatedAt) {
+          refs.detailBody.append(make("div", { class: "stamp", text: fill(COPY.lastUpdated, { when: new Date(school.updatedAt).toLocaleString() }) }));
+        }
+        refs.detailBody.append(button(COPY.closeButton, { variant: "platinum", block: true, onClick: closeDetail }));
+      }
+
       /* ---------------- views ---------------- */
 
       /* Views the app implements itself, plus one generic renderer for every tab
          that declares a "page" in the manifest. */
-      const VIEW_RENDERERS = { track: renderTrack, list: renderList, garage: renderGarage };
+      const VIEW_RENDERERS = { track: renderTrack, list: renderList, garage: renderGarage, schools: renderSchools };
       const PAGE_TABS = new Map(APP.tabs.filter((t) => t.page).map((t) => [t.id, t.page]));
 
       function renderView() {
         if (PAGE_TABS.has(view)) renderPage(view, PAGE_TABS.get(view));
         else (VIEW_RENDERERS[view] || (() => {}))();
         /* Search and subject filters only apply to the roadmap views. */
-        refs.controls.hidden = PAGE_TABS.has(view);
+        refs.controls.hidden = PAGE_TABS.has(view) || view === "schools";
       }
 
       function setView(next) {
@@ -3303,6 +3978,7 @@
         }
         renderView();
         if (view === "track") requestAnimationFrame(fitZoom);
+        if (view === "schools" && schoolMap) setTimeout(() => { try { schoolMap.invalidateSize(); } catch (err) { /* table stays */ } }, 50);
       }
 
       /* ---------------- boot ---------------- */
@@ -3337,7 +4013,7 @@
       });
 
       document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && selectedId) closeDetail();
+        if (e.key === "Escape" && (selectedId || selectedSchoolId)) closeDetail();
       });
 
       let resizeTimer = null;

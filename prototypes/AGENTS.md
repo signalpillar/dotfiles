@@ -145,6 +145,10 @@ Read them before writing the first line, not after debugging.
 - Jelly defaults to pill / wide radii.
   `prototype-jelly.css` sets `--jelly-prototype-radius` to `var(--radius-2)` and maps the common component radius tokens to it.
   Override that custom property on a prototype only when it needs a different corner language.
+- A `change` listener on `<jelly-tabs>` also receives bubbled `change` events from every input inside the panels.
+  A file picker that clears its own value before the event bubbles reads as a tab switch to the default tab; a radius `<select>` reads as a switch to `"10"`.
+  Guard the handler with `if (e.target !== tabs) return` (2026-09: the schools tab import silently rendered nothing for this reason).
+  This guard also protects the pre-existing progress import, which clears its file input the same way.
 
 ### Open Props
 
@@ -174,6 +178,9 @@ Read them before writing the first line, not after debugging.
 - Exercise both paths: with the library routed in, and with it blocked, so the degraded fallback is actually verified.
 - Re-measure a shadow-DOM click target immediately before each click.
   Switching a tab changes the page height and moves the bar, so coordinates captured earlier miss and look like a broken control.
+- Upgraded `jelly-tabs` segments expose `role="tab"` with the exact label, not `role="button"`.
+  Use `getByRole("tab", { name })` on the upgraded path and `getByRole("button", { name })` on the degraded path.
+  Do not switch tabs in tests by setting `tabs.value` plus a synthetic `change` event: it desyncs the app's view variable from the tab bar and hides real update bugs (2026-09: this masked the bubbled-change bug above for several debug rounds).
 - Parse and cross-check the manifest before opening a browser.
   Verify it is valid JSON, that every referenced id resolves, and that every section `type` has a renderer.
 - Check external links resolve with `curl -o /dev/null -w "%{http_code}" -L` before shipping them.
