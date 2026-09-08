@@ -29,7 +29,7 @@ Do not switch to a casual register unless the user asks.
   Claim a Ready slice (`claim --slice KEY --owner ID`), then `instruction` / `start` / `finish`; on pick-next run `finish --slice-only` then claim the next Ready slice (`advance` is deprecated).
   A named owner resolves its claim when other owners hold claims.
   Duplicate active rows for one named owner fail closed.
-  Packet `Owner:` and `Claim:` identify the session claim; `Role:` identifies profile dispatch.
+  Packet `Owner:` identifies the session claim; `Role:` identifies profile dispatch.
   While a pi-job task is active: role = orchestrator (CLI-only; pause on grill/clarify); this supersedes any default Product Owner (or other) workspace role.
   If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).
   If a documented command fails with `invalid choice`, PATH `pi-job` is stale.

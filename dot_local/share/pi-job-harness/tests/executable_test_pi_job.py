@@ -629,7 +629,8 @@ def test_profiled_task() -> None:
 
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "PI-JOB EXECUTION INSTRUCTION")
-        assert_contains(instruction, "Claim: orchestrator")
+        assert_contains(instruction, "Owner: orchestrator")
+        assert_not_contains(instruction, "Claim:")
         assert_contains(instruction, "Role: orchestrator")
         assert_contains(instruction, "CLI-only store")
         assert_contains(instruction, "Slice: second-slice [implement]")
@@ -638,12 +639,11 @@ def test_profiled_task() -> None:
         assert_contains(instruction, "NEXT ACTION")
         assert_contains(instruction, "STEP")
         assert_contains(instruction, "RECORD RESULTS")
-        assert_contains(instruction, "Do not wait for another user prompt")
+        assert_contains(instruction, "pause on grill/clarify/user-decision")
 
-        assert_contains(instruction, "Todo tracking:")
-        assert_contains(instruction, "Align session todos")
-        assert_contains(instruction, "Future-work capture:")
-        assert_contains(instruction, "Spawn a new slice")
+        assert_contains(instruction, "Todos:")
+        assert_contains(instruction, "Align with `pi-job plan`")
+        assert_contains(instruction, "New work is a new slice")
 
 
 def test_uninitialized_task_requires_orchestration() -> None:
@@ -793,7 +793,8 @@ def test_edit_code_owner_from_step_kinds() -> None:
             },
         })
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        assert_contains(instruction, "Claim: orchestrator")
+        assert_contains(instruction, "Owner: orchestrator")
+        assert_not_contains(instruction, "Claim:")
         assert_contains(instruction, "Role: orchestrator dispatching subagent")
         assert_contains(instruction, "Step kind: edit-code")
         assert_contains(instruction, "Subagent prompt:")
@@ -808,7 +809,8 @@ def test_subagent_instruction_prohibits_direct_task_store_inspection() -> None:
         assert_not_contains(instruction, "Read the task file")
         assert_not_contains(instruction, "open the task YAML")
         assert_contains(instruction, "Subagent prompt:")
-        assert_contains(instruction, "Claim: orchestrator")
+        assert_contains(instruction, "Owner: orchestrator")
+        assert_not_contains(instruction, "Claim:")
         assert_contains(instruction, "implement-slice / edit-code")
         assert_contains(instruction, "markdown --slice")
         assert_contains(instruction, "markdown --slice SLICE_KEY")
@@ -863,7 +865,7 @@ def test_instruction_header_uses_claim_owner_not_step_owner() -> None:
             claim_owner,
         ).stdout
         assert_contains(orchestrator_packet, f"Owner: {claim_owner}")
-        assert_contains(orchestrator_packet, f"Claim: {claim_owner}")
+        assert_not_contains(orchestrator_packet, "Claim:")
         assert_contains(orchestrator_packet, "Role: orchestrator")
         assert_not_contains(orchestrator_packet, "Owner: orchestrator")
 
@@ -881,7 +883,7 @@ def test_instruction_header_uses_claim_owner_not_step_owner() -> None:
             claim_owner,
         ).stdout
         assert_contains(subagent_packet, f"Owner: {claim_owner}")
-        assert_contains(subagent_packet, f"Claim: {claim_owner}")
+        assert_not_contains(subagent_packet, "Claim:")
         assert_contains(subagent_packet, "Role: orchestrator dispatching subagent")
         assert_not_contains(subagent_packet, "Owner: subagent")
 
@@ -938,7 +940,8 @@ def test_subagent_instruction_still_inlines_step_kind_guidance() -> None:
         task = Path(tmp) / "subagent-guidance.yaml"
         task.write_text(subagent_instruction_yaml_task(), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        assert_contains(instruction, "Step kind:")
+        assert_not_contains(instruction, "Step kind:")
+        assert_contains(instruction, "Step: edit-code — Edit code")
         assert_contains(instruction, "Guidance:")
         assert_contains(instruction, "Make the change described by this slice's create-plan step.")
 
@@ -1062,8 +1065,8 @@ def _assert_record_results_block(instruction: str, *, expected_channel_snippets:
         for snippet in expected_channel_snippets:
             assert_contains(instruction, snippet)
     record_idx = instruction.index("RECORD RESULTS")
-    todo_idx = instruction.index("Todo tracking:")
-    assert record_idx < todo_idx, "RECORD RESULTS must appear before Todo tracking"
+    todo_idx = instruction.index("Todos:")
+    assert record_idx < todo_idx, "RECORD RESULTS must appear before Todos"
 
 
 def test_orchestrator_instruction_includes_record_results() -> None:
@@ -1074,8 +1077,8 @@ def test_orchestrator_instruction_includes_record_results() -> None:
         _assert_record_results_block(
             instruction,
             expected_channel_snippets=[
-                "STEP NOTE (finish --note, set-step-note)",
-                "SLICE NOTE (finish --slice-only, set-slice-note)",
+                "step_note: finish --note",
+                "slice_note: finish --slice-only / set-slice-note",
             ],
         )
 
@@ -1086,7 +1089,7 @@ def test_instruction_includes_next_action_and_step_first_layout() -> None:
         task.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "NEXT ACTION")
-        assert_contains(instruction, "Do not wait for another user prompt")
+        assert_contains(instruction, "pause on grill/clarify/user-decision")
         assert_contains(instruction, "Role: orchestrator")
         assert_contains(instruction, "Task:")
         assert_contains(instruction, str(task))  # loose YAML: header names the real path
@@ -1111,6 +1114,58 @@ def test_instruction_includes_next_action_and_step_first_layout() -> None:
         assert step_idx < record_idx, "STEP must appear before RECORD RESULTS"
 
 
+def test_instruction_omits_duplicate_identity() -> None:
+    """Catalog-matching step lines drop title/kind copies; custom titles keep Step kind."""
+
+    with tempfile.TemporaryDirectory() as tmp:
+        matching = Path(tmp) / "matching-kind.yaml"
+        matching.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
+        packet = run(str(PI_JOB), "--task", str(matching), "instruction", "--current").stdout
+        assert_contains(packet, "Owner: orchestrator")
+        assert_not_contains(packet, "Claim:")
+        assert_contains(packet, "Step: explore-context — Explore context")
+        assert_not_contains(packet, "Step title:")
+        assert_not_contains(packet, "Step kind:")
+        assert_contains(packet, "Execute this cursor.")
+        assert_contains(packet, "Execution policy: subagent_required=")
+        assert_contains(packet, "Todos:")
+        assert_not_contains(packet, "Todo tracking:")
+        assert_not_contains(packet, "Future-work capture:")
+        assert_not_contains(packet, "Do not wait for another user prompt")
+
+        mismatch = Path(tmp) / "mismatch-kind.yaml"
+        write_task_yaml(
+            mismatch,
+            {
+                "title": "Custom step title",
+                "status": "in_progress",
+                "orchestration": {
+                    "cursors": [claim_dict("only-slice")],
+                    "policy": _orchestration_policy(),
+                },
+                "plan": {
+                    "note": "",
+                    "slices": [{
+                        "key": "only-slice",
+                        "kind": "implement",
+                        "title": "Only",
+                        "goal": "Check kind line",
+                        "status": "in_progress",
+                        "note": "",
+                        "steps": [
+                            {"key": "edit-code", "title": "Edit", "status": "planned", "note": ""},
+                        ],
+                        "final_steps": [],
+                    }],
+                },
+            },
+        )
+        mismatched = run(str(PI_JOB), "--task", str(mismatch), "instruction", "--current").stdout
+        assert_contains(mismatched, "Step: edit-code — Edit")
+        assert_contains(mismatched, "Step kind: edit-code")
+        assert_not_contains(mismatched, "Step title:")
+
+
 def test_bootstrap_then_claim_instruction_includes_next_action() -> None:
     """create no longer seeds a claim; the agent must claim before instruction has anything
     to derive a position from."""
@@ -1125,7 +1180,7 @@ def test_bootstrap_then_claim_instruction_includes_next_action() -> None:
         run(str(PI_JOB), "--task", str(task), "claim", "--slice", "task-setup", "--owner", DEFAULT_OWNER)
         out = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(out, "NEXT ACTION")
-        assert_contains(out, "Do not wait for another user prompt")
+        assert_contains(out, "pause on grill/clarify/user-decision")
         assert_not_contains(out, "Orchestrator instruction:")
 
 
@@ -1136,7 +1191,7 @@ def test_subagent_instruction_includes_record_results() -> None:
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         _assert_record_results_block(
             instruction,
-            expected_channel_snippets=["STEP NOTE (finish --note, set-step-note)", "REPO (set-worktree)"],
+            expected_channel_snippets=["step_note: finish --note", "repo_work: set-worktree"],
         )
         assert_contains(instruction, "Subagent prompt:")
         assert_contains(instruction, "do not inspect the task store directly")
@@ -1306,7 +1361,7 @@ def test_execution_packet_budget_share_with_team() -> None:
         assert_not_contains(instruction, "Lifecycle recording:")
         assert_not_contains(instruction, "Orchestrator instruction:")
         assert_not_contains(instruction, "PLAN FILE")
-        assert_contains(instruction, "PR (add-pr)")
+        assert_contains(instruction, "pull_request: add-pr")
         assert_not_contains(instruction, "FINDING (add-finding)")
         budget = module.InstructionPacketBudget.measure(instruction)
         limits = module.InstructionPacketBudget
@@ -1510,7 +1565,8 @@ def test_owner_omit_when_sole_claim_and_ambiguous_refuse() -> None:
         # No --owner: sole claim resolves.
         inst = run(str(PI_JOB), "--task", str(sole), "instruction").stdout
         assert_contains(inst, "second-slice / s2")
-        assert_contains(inst, "Claim: orchestrator")
+        assert_contains(inst, "Owner: orchestrator")
+        assert_not_contains(inst, "Claim:")
 
         run(str(PI_JOB), "--task", str(sole), "start", "--model", "openai/gpt-orchestrator")
         out = run(
@@ -1543,7 +1599,7 @@ def test_owner_omit_when_sole_claim_and_ambiguous_refuse() -> None:
         ok = run(str(PI_JOB), "--task", str(multi), "instruction", "--owner", "b").stdout
         assert_contains(ok, "second-slice / s2")
         assert_contains(ok, "Owner: b")
-        assert_contains(ok, "Claim: b")
+        assert_not_contains(ok, "Claim:")
 
 
 def test_finish_named_owner_resolves_its_claim_among_sibling_claims() -> None:
@@ -10015,6 +10071,7 @@ def main() -> None:
     test_edit_code_owner_from_step_kinds()
     test_orchestrator_instruction_includes_record_results()
     test_instruction_includes_next_action_and_step_first_layout()
+    test_instruction_omits_duplicate_identity()
     test_bootstrap_then_claim_instruction_includes_next_action()
     test_subagent_instruction_includes_record_results()
     test_record_results_uses_task_file_and_slice_key_hints()

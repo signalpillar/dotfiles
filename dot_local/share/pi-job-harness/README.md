@@ -105,7 +105,8 @@ Named loop packets live in `profile.yaml`; the harness contains no scheduler or 
   The packet keeps comparison memory in the session and returns text only for qualifying evidence.
 
 Classic `instruction` → pick-next stays valid when no fleet is in use.
-Execution packets print `Owner:` and `Claim:` from the resolved claim.
+Execution packets print `Owner:` from the resolved claim.
+Pick-next packets print `Claim:` for the exhausted owner.
 The profile step owner controls only the `Role:` line.
 
 Messages use one Markdown file under `plans/_inbox/<address>/new/`.

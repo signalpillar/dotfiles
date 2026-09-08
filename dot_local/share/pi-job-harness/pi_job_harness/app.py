@@ -1982,6 +1982,14 @@ def collapse_slice_goal(goal: str, *, slice_key: str) -> str:
     )
 
 
+def step_kind_repeats_step_line(step: TaskStep | None, step_kind: dict[str, Any]) -> bool:
+    """True when the Step: line already names this catalog key and title."""
+
+    if step is None:
+        return False
+    return step.key == step_kind.get("key") and (step.title or "") == (step_kind.get("title") or "")
+
+
 def render_record_results_lines(
     profile: dict[str, Any],
     step_kind: dict[str, Any] | None,
@@ -1998,7 +2006,7 @@ def render_record_results_lines(
         for channel_id in step_kind.get("record_channels") or []:
             blurb = channels["blurbs"].get(channel_id)
             if blurb:
-                lines.append(f"- {blurb}")
+                lines.append(f"- {channel_id}: {blurb}")
     return lines
 
 
@@ -2018,7 +2026,7 @@ class InstructionPacketBudget:
     _SUBAGENT_PROMPT_MARKER: ClassVar[str] = "\nSubagent prompt:"
     _STEP_MARKER: ClassVar[str] = "\nSTEP\n"
     _RECORD_MARKER: ClassVar[str] = "\nRECORD RESULTS\n"
-    _TODO_MARKER: ClassVar[str] = "\nTodo tracking:\n"
+    _TODO_MARKER: ClassVar[str] = "\nTodos:\n"
 
     @classmethod
     def split_execution(cls, instruction: str) -> tuple[str, str]:
@@ -2142,7 +2150,6 @@ def build_instruction(
         step_kind = try_get_step_kind(step.key)
     elif cursor.step:
         step_kind = try_get_step_kind(cursor.step)
-    title = step.title if step else task_slice.title if task_slice else cursor.label()
     note = step.note if step else task_slice.note if task_slice else ""
 
     profile = load_profile_contract()
@@ -2162,7 +2169,6 @@ def build_instruction(
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
         f"Owner: {claim.owner}",
-        f"Claim: {claim.owner}",
         (
             "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
             if owner == "orchestrator"
@@ -2182,7 +2188,6 @@ def build_instruction(
             lines.append(f"Slice note: {task_slice.note}")
     if step:
         lines.append(f"Step: {step.key} — {step.title or '<untitled>'}")
-    lines.append(f"Step title: {title or '<untitled>'}")
     if note:
         lines.append(f"Step note: {note}")
     execution = (step.execution if step else task_slice.execution if task_slice else None)
@@ -2199,9 +2204,8 @@ def build_instruction(
             f"create-plan note must be only `{slice_plan_note_pointer(task_file, task_slice.key)}`)"
         )
     if step_kind:
-        lines += [
-            f"Step kind: {step_kind.get('key')} — {step_kind.get('title', '')}",
-        ]
+        if not step_kind_repeats_step_line(step, step_kind):
+            lines.append(f"Step kind: {step_kind.get('key')} — {step_kind.get('title', '')}")
         validators = step_kind.get("validators") or []
         if validators:
             lines.append(f"Validators: {', '.join(validators)}")
@@ -2246,12 +2250,12 @@ def build_instruction(
     subagent_required = contract_policy.get("subagent_required", True)
     lower_power = contract_policy.get("lower_power_model_preferred", True)
     reviews = contract_policy.get("orchestrator_reviews_subagent", True)
-    lines += [
-        "Execution policy:",
-        f"- subagent_required: {subagent_required}",
-        f"- lower_power_model_preferred: {lower_power}",
-        f"- orchestrator_reviews_subagent: {reviews}",
-    ]
+    lines.append(
+        "Execution policy: "
+        f"subagent_required={subagent_required} "
+        f"lower_power_model_preferred={lower_power} "
+        f"orchestrator_reviews_subagent={reviews}"
+    )
     if step and step.key in ("confirm-layers", "select-toolbelt", "plan-slices"):
         lines.append("")
         lines.extend(format_layer_list_lines(task))
@@ -2269,9 +2273,8 @@ def build_instruction(
     lines.append("")
     lines.extend(render_record_results_lines(profile, step_kind, defaults=packet_defaults))
     lines.append("")
-    lines.append("Todo tracking:")
+    lines.append("Todos:")
     lines.extend(render_packet_lines(packets["todo_tracking"], defaults=packet_defaults))
-    lines.append("Future-work capture:")
     lines.extend(render_packet_lines(packets["future_work"], defaults=packet_defaults))
 
     if owner == "subagent":

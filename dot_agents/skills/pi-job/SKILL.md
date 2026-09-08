@@ -107,7 +107,7 @@ Classic single-session pick-next loop stays unchanged when no fleet is in use.
 7. Repeat from `instruction` until the claimed slice is exhausted
 8. On pick-next: `finish --slice-only` (auto-releases claim) → `show` → claim next Ready → `instruction`
 
-Packet `Owner:` and `Claim:` identify the session claim.
+Packet `Owner:` identifies the session claim.
 Packet `Role:` comes from the profile step owner.
 `start --model` records attribution only.
 Start the slice with `start --slice-only --model <orchestrator>` when needed.

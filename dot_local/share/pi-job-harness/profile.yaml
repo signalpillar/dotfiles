@@ -424,12 +424,12 @@ loop_packets:
     Provide implementation solutions only after an explicit user request. Keep tutoring memory within the active session.
 instruction_packets:
   todo_tracking: |-
-    - Align session todos with `pi-job plan`; set claim {cursor} in_progress until step gates pass or skip is recorded.
+    Align with `pi-job plan`; set this claim in_progress until gates pass or skip is recorded.
   future_work: |-
-    - Spawn a new slice for follow-up work; do not bury actionable items in notes only.
+    New work is a new slice.
   record_results_intro: |-
     Task record is machine-owned; use pi-job commands only (TASK_FILE / SLICE_KEY in header).
-    Channels: pi-job channels. This step:
+    Channels: pi-job channels.
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
     TASK_FILE is the path passed to `--task` (see packet header). SLICE_KEY is the current slice key.
@@ -445,14 +445,11 @@ instruction_packets:
     DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
     Full channel map: pi-job channels (or pi-job channels --step KEY for one step).
   next_action: |-
-    Do not wait for another user prompt.
-    1. Slice lacks execution metadata: `pi-job --task TASK_FILE start --slice-only --owner {owner} --model cursor/grok-4.6`
-    2. `pi-job --task TASK_FILE start --owner {owner} --model cursor/grok-4.6`
+    1. `pi-job --task TASK_FILE start [--slice-only if the slice has no execution metadata] --owner {owner} --model cursor/grok-4.6`
        The model is an attribution hint only. It does not route reviews or debugging.
-    3. Execute cursor {cursor} per this packet.
-    4. `pi-job --task TASK_FILE finish --owner {owner} --slice SLICE_KEY --step STEP_KEY --note '<evidence>'`
-    5. `pi-job --task TASK_FILE instruction --owner {owner}`
-    Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
+    2. Execute this cursor.
+    3. `pi-job --task TASK_FILE finish --owner {owner} --slice SLICE_KEY --step STEP_KEY --note '<evidence>'`
+    4. `pi-job --task TASK_FILE instruction --owner {owner}`
   pick_next_slice: |-
     Your claimed slice has no unfinished steps.
     Array order of plan.slices is not execution order - you choose among Ready slices.
@@ -700,14 +697,14 @@ record_channels:
     Per-step packets list only the channels relevant to that step.
     Run `pi-job channels --step KEY` for one step's blurbs.
   blurbs:
-    decision: DECISION (add-decision) = product, scope, architecture, or policy agreement that later sessions must honor without re-grilling. Not a journal.
-    step_note: STEP NOTE (finish --note, set-step-note) = evidence that THIS step happened or failed (commands, e2e, scan findings, skip reasons). set-step-note for mid-wait progress without finish.
-    slice_note: SLICE NOTE (finish --slice-only, set-slice-note) = cross-step narrative for the slice (blocker story, handoff). set-slice-note for neutral narrative without terminal completion. Not add-decision.
-    plan_file: PLAN FILE (*.plans/<slice-key>.md) = constraint-and-behaviour contract; long prose lives here.
-    plan_note: PLAN NOTE (set-plan-note) = destination / high-level map. Not a progress log.
-    pull_request: PR (add-pr) = delivery lifecycle PR links and status. Sync verify evidence stays in finish --note.
-    repo_work: REPO (set-worktree) = recorded worktree path for this slice's repo work.
-    finding: FINDING (add-finding) = RCA / interrupt evidence in .plans/_findings.md, not long YAML.
+    decision: add-decision
+    step_note: finish --note
+    slice_note: finish --slice-only / set-slice-note
+    plan_file: "*.plans/<slice-key>.md"
+    plan_note: set-plan-note
+    pull_request: add-pr
+    repo_work: set-worktree
+    finding: add-finding
 step_kinds:
   explore-context:
     key: explore-context
