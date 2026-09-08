@@ -870,8 +870,7 @@ class YamlTaskStore:
         if spill_body is not None:
             path = spill_path
             if path is None:
-                stamp = utc_now().replace(":", "").replace("-", "")[:15]
-                path = self.layout.decision_spill_file(date=date, stamp=stamp)
+                die("add_decision spill_path is required (pass --slug or --plan-file)")
             spill_text = (
                 f"# Decision {date}\n\nSource: {source}\n\n{spill_body.rstrip()}\n"
             )
@@ -881,6 +880,8 @@ class YamlTaskStore:
                 rel = path
             yaml_note = f"Plan file: {rel}"
             with self.exclusive():
+                if path.exists():
+                    die(f"decision spill already exists: {path}; choose a different --slug")
                 atomic_write_text(path, spill_text)
 
                 def mutation(task: dict[str, Any]) -> None:

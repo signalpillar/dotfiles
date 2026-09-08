@@ -281,6 +281,8 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       DX and agent experience share the same constructs: clear names and short contracts.
       Persist product/scope/architecture/policy agreements with `pi-job add-decision`
       (and/or the grilled plan); do not leave load-bearing scope choices only in chat.
+      When the decision body spills, pass `--slug kebab-topic` so the file is
+      `_decision-<date>-<slug>.md`, not a UTC stamp.
       Step evidence belongs in `finish --note`, not `add-decision`.
       Token smell: shrink the slice or contract; do not dump more of the task store.
       Naming: `<task-stem>.plans/<slice-key>.md`. create-plan note is ONLY
@@ -290,7 +292,8 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       composition, and call stacks; prose volume is not an acceptance criterion.
       Note what changed; revise the plan FILE and re-grill until it survives.
       After grill survives, capture product/scope choices that should outlive the session
-      with `pi-job add-decision` (date/note/source), not only in chat.
+      with `pi-job add-decision` (date/note/source/`--slug` kebab-topic when the body spills),
+      not only in chat.
       Do not use add-decision for PR, deploy, e2e, or progress chatter.
       When a decision supersedes an earlier one, append a new row whose note begins with
       `SUPERSEDES: YYYY-MM-DD (source) - …` pointing at the superseded entry; never delete
@@ -326,9 +329,20 @@ cli_help:
       decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`.
       Shell-safe: pass --note with single quotes or a HEREDOC; bare backticks in double-quoted
       shell args are command-substituted (example: --note 'Keep expiresAt as-is').
+      When the body spills (long note, --slug, or --plan-file), pass --slug kebab-topic
+      (example: pmos-careplan-eager-construct). The file is `_decision-<date>-<slug>.md`.
+      Do not use a UTC timestamp as the slug.
       To supersede an earlier decision, append a new row; never edit or delete prior rows.
       Prefix the note with `SUPERSEDES: YYYY-MM-DD (source) - …` pointing at the superseded entry
       (example: --note 'SUPERSEDES: 2026-08-04 (chat) - scope now excludes grill.backlog').
+    slug: >-
+      kebab-case topic for the spilled file `_decision-<date>-<slug>.md`
+      (example: pmos-careplan-eager-construct). Required when the note body spills.
+      Do not use a UTC timestamp such as 20260908T143039.
+    plan_file: >-
+      optional explicit spill path (relative to the task dir OK); YAML stores a Plan file: pointer.
+      Prefer --slug so the layout names `_decision-<date>-<slug>.md`.
+      Auto-spills when --slug is set, or when note or task file exceeds soft limits.
   set_step_note:
     command: append or replace a step note without changing status or execution
     note: >-
@@ -650,7 +664,7 @@ instruction_packets:
     - Do not run finish/release/start on the active claim for this investigation.
     - Record RCA/evidence with: pi-job --task {task_file} add-finding --note '...'
       (appends to {pointer}; never long YAML).
-    - Product/scope agreements still use add-decision (prefer short / --plan-file).
+    - Product/scope agreements still use add-decision (prefer short, or --slug kebab-topic).
     - When the fix is clear: add-slice and/or block-slice --gate <fix-slice>.
 
     {finding_status}
@@ -676,6 +690,8 @@ record_channels:
     decision (add-decision) — product, scope, architecture, or policy agreement that
       later sessions must honor without re-grilling. Must still be true if the PR
       never merged. Prefer one sentence + rationale. Not a journal.
+      When the body spills, pass --slug kebab-topic. The file is
+      `_decision-<date>-<slug>.md`. Do not use a UTC timestamp as the slug.
 
     step_note (finish --note, set-step-note) — evidence that THIS step happened or failed:
       commands, e2e results, scan findings, "gap recorded", skip reasons.

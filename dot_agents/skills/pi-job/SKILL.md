@@ -126,6 +126,8 @@ Prefer packet guidance. Typical shape:
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
+When `add-decision` spills a body, pass `--slug kebab-topic`.
+The file is `_decision-YYYY-MM-DD-<topic>.md`, not a UTC stamp.
 Register the first layer with repeatable `layers add --bind SLICE=LAYER` flags.
 This command adds the band and binds all existing implement/spike/research slices atomically.
 Append dependencies with `set-slice --slice CONSUMER --depends-on PRODUCER`.

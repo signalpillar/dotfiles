@@ -154,6 +154,8 @@ class CliHelpAddDecisionDocument(StrictDocument):
 
     command: str = Field(description="Subparser help/description for add-decision.")
     note: str = Field(description="Help text for add-decision --note.")
+    slug: str = Field(description="Help text for add-decision --slug.")
+    plan_file: str = Field(description="Help text for add-decision --plan-file.")
 
 
 class CliHelpFinishDocument(StrictDocument):

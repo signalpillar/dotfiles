@@ -194,6 +194,7 @@ def example_task_mapping(*, title: str = "Example bounded change") -> dict[str, 
 
 
 TASK_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+DECISION_TIMESTAMP_STAMP_RE = re.compile(r"^\d{8}T\d{6}$")
 
 
 def task_tasks_home(*, env: Mapping[str, str] | None = None) -> Path:
@@ -360,6 +361,29 @@ def format_task_list_entry(entry: TaskListEntry) -> str:
 
 def is_task_slug(text: str) -> bool:
     return TASK_SLUG_RE.fullmatch(text) is not None
+
+
+def require_decision_slug(raw: str) -> str:
+    """Validate add-decision --slug: kebab-case topic, never a UTC stamp."""
+
+    slug = raw.strip()
+    if not slug:
+        die(
+            "add-decision spill requires --slug kebab-topic "
+            "(example: pmos-careplan-eager-construct)"
+        )
+    if DECISION_TIMESTAMP_STAMP_RE.fullmatch(slug):
+        die(
+            f"add-decision --slug {slug!r} is a UTC stamp; "
+            "use a kebab-case topic (example: pmos-careplan-eager-construct)"
+        )
+    if not TASK_SLUG_RE.fullmatch(slug):
+        die(
+            f"invalid add-decision --slug {slug!r}; "
+            f"slugs must match {TASK_SLUG_RE.pattern} "
+            "(example: pmos-careplan-eager-construct)"
+        )
+    return slug
 
 
 def resolve_task_arg(raw: str | Path) -> Path:
@@ -5148,20 +5172,24 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
     date = args.date or utc_now()[:10]
     source = args.source or "pi-job add-decision"
     plan_file_arg = getattr(args, "plan_file", None)
+    slug_raw = str(getattr(args, "slug", "") or "")
     soft_limit_hit = len(note) > NOTE_WARN_CHARS or (
         task_file.is_file() and task_file.stat().st_size > TASK_FILE_WARN_BYTES
     )
-    spill = plan_file_arg is not None or soft_limit_hit
+    spill = plan_file_arg is not None or soft_limit_hit or bool(slug_raw.strip())
     spill_path: Path | None = None
-    if plan_file_arg is not None:
-        spill_path = Path(plan_file_arg)
-        if not spill_path.is_absolute():
-            spill_path = (task_file.parent / spill_path).resolve()
     store = open_task_store(task_file)
     written: Path | None = None
     if spill:
         if not isinstance(store, YamlTaskStore):
-            die("add-decision spill (--plan-file / soft limit) requires a YAML task file")
+            die("add-decision spill (--slug / --plan-file / soft limit) requires a YAML task file")
+        slug = require_decision_slug(slug_raw)
+        if plan_file_arg is not None:
+            spill_path = Path(plan_file_arg)
+            if not spill_path.is_absolute():
+                spill_path = (task_file.parent / spill_path).resolve()
+        else:
+            spill_path = store.layout.decision_spill_file(date=date, stamp=slug)
         written = store.add_decision(
             date=date,
             note=note,
@@ -5478,6 +5506,8 @@ def main() -> None:
     cli_help = load_profile_contract()["cli_help"]
     add_decision_help = str(cli_help["add_decision"]["command"])
     add_decision_note_help = str(cli_help["add_decision"]["note"])
+    add_decision_slug_help = str(cli_help["add_decision"]["slug"])
+    add_decision_plan_file_help = str(cli_help["add_decision"]["plan_file"])
     set_step_note_help = str(cli_help["set_step_note"]["command"])
     set_step_note_note_help = str(cli_help["set_step_note"]["note"])
     set_slice_note_help = str(cli_help["set_slice_note"]["command"])
@@ -5947,14 +5977,15 @@ def main() -> None:
     )
     add_decision.add_argument("--source", default="", help="decision origin (default: pi-job add-decision)")
     add_decision.add_argument(
+        "--slug",
+        default="",
+        help=add_decision_slug_help,
+    )
+    add_decision.add_argument(
         "--plan-file",
         type=Path,
         default=None,
-        help=(
-            "write the long note body to this path (relative to the task dir OK); "
-            "YAML stores a Plan file: pointer. Auto-spills under .plans/ when note "
-            f"or task file exceeds soft limits ({NOTE_WARN_CHARS} chars / {TASK_FILE_WARN_BYTES} bytes)."
-        ),
+        help=add_decision_plan_file_help,
     )
     add_decision.set_defaults(fn=cmd_add_decision_cli)
 

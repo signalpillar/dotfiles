@@ -44,6 +44,8 @@ Do not switch to a casual register unless the user asks.
   Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.
   Use `set-slice --slice CONSUMER --depends-on PRODUCER` to append dependency edges.
   Use `set-slice --clear-depends-on` to clear dependency edges.
+  When add-decision spills a body, pass `--slug kebab-topic`.
+  The spilled file is `_decision-YYYY-MM-DD-<topic>.md`.
   Use `pi-job msg` for cross-agent contact.
   The `msg` command lives in `pi_job_harness.messaging`.
   Never send cross-agent messages through terminal panes.

@@ -248,6 +248,7 @@ Short examples:
 
 - UK ConfirmMedication assets resolve via ProgrammeDefinition.defaultPartnerId; no static Graphius maps.
 - Ship with temporary US CDN assets; UK-native assets blocked on uk-treatment-assets-commission before prod.
+- Spill a long rationale with `--slug pmos-careplan-eager-construct` so the file is `_decision-YYYY-MM-DD-pmos-careplan-eager-construct.md`.
 
 **Bad `add-decision` (use `finish --note` / `add-pr` instead)**
 
@@ -484,7 +485,7 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty; route/key checks run only when `--route` or `--key` is passed).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> set-source [--jira J] [--discovered D] [--context C]` - merge into `task.source` (at least one flag required; omitted fields are preserved).
-- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
+- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN [--slug TOPIC]` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). When the body spills, pass `--slug kebab-topic` so the file is `_decision-YYYY-MM-DD-<slug>.md`; do not use a UTC timestamp as the slug. To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
 - `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and append the reason to the current cursor slice note (YAML only; not a decision).
 - `pi-job --task <t> set-slice --slice K [--title T] [--goal G] [--depends-on D] [--clear-depends-on]` - update a YAML slice.
@@ -918,7 +919,7 @@ Mailbox behavior lives in `pi_job_harness.messaging`.
 |---|---|---|
 | Slice plan stub | `ensure_slice_plan_stub` | Profile `slice_plan_stub`; create-plan kinds only; atomic write under lock |
 | Findings log | `add_finding` → `layout.findings_file()` (`_findings.md`) | Append-only; header from `findings_file_header` |
-| Long decision spill | `add_decision(..., spill_body=, spill_path=)` | Soft-limit or `--plan-file`; layout path needs caller `stamp` |
+| Long decision spill | `add_decision(..., spill_body=, spill_path=)` | Soft-limit, `--slug`, or `--plan-file`; `cmd_*` supplies `spill_path`; `--slug` is the topic stamp |
 | Mailbox | `MessageService` → `MailboxPaths` (`_inbox`) | Unique files; no task advisory lock |
 | Block + optional gate | `block_slice(..., gate=)` | One mutation (status/note + `depends_on`) |
 

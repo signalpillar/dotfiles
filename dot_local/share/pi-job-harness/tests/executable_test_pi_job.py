@@ -940,8 +940,8 @@ def _normalize_cli_help_stdout(text: str) -> str:
 
 def _assert_cli_help_uses_profile(command: list[str], entry: dict[str, str]) -> None:
     help_text = _normalize_cli_help_stdout(run(str(PI_JOB), *command, "--help").stdout)
-    assert_contains(help_text, " ".join(str(entry["command"]).split()))
-    assert_contains(help_text, " ".join(str(entry["note"]).split()))
+    for value in entry.values():
+        assert_contains(help_text, " ".join(str(value).split()))
 
 
 def test_add_decision_and_finish_help_describe_channels() -> None:
@@ -1040,6 +1040,7 @@ def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
     assert_contains(instruction, "DX and agent experience share the same constructs")
     assert_contains(instruction, "Persist product/scope/architecture/policy agreements with `pi-job add-decision`")
     assert_contains(instruction, "Step evidence belongs in `finish --note`, not `add-decision`")
+    assert_contains(instruction, "--slug kebab-topic")
     assert_contains(instruction, "Token smell:")
     assert_not_contains(instruction, "approach, files/functions touched, key tradeoffs")
 
@@ -8855,6 +8856,10 @@ def test_add_decision_spills_long_note_to_plan_file() -> None:
             long_note,
             "--source",
             "spill-test",
+            "--slug",
+            "careplan-eager-construct",
+            "--date",
+            "2026-09-08",
         )
         module = load_pi_job_module()
         decisions = module.YamlTaskStore(module.YamlTaskLayout(task)).read().get("decisions") or []
@@ -8863,9 +8868,49 @@ def test_add_decision_spills_long_note_to_plan_file() -> None:
         assert yaml_note.startswith("Plan file:")
         assert long_note not in yaml_note
         rel = yaml_note.removeprefix("Plan file: ").strip()
+        assert rel.endswith("_decision-2026-09-08-careplan-eager-construct.md")
         spilled = (task.parent / rel).resolve()
         assert spilled.is_file()
         assert long_note in spilled.read_text(encoding="utf-8")
+
+
+def test_add_decision_long_note_requires_topic_slug() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "spill-missing-slug.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        result = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-decision",
+            "--note",
+            "x" * 2500,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "--slug")
+        spilled = list((Path(tmp) / "spill-missing-slug.plans").glob("_decision-*.md"))
+        if spilled:
+            raise AssertionError(f"expected no spill files, got {spilled}")
+
+
+def test_add_decision_rejects_timestamp_slug() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "spill-stamp.yaml"
+        write_task_yaml(task, lifecycle_mapping())
+        result = run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-decision",
+            "--note",
+            "x" * 2500,
+            "--slug",
+            "20260908T143039",
+            check=False,
+        )
+        assert result.returncode != 0
+        assert_contains(result.stderr, "UTC stamp")
 
 
 def test_add_slice_creates_plan_stub() -> None:
@@ -10432,6 +10477,8 @@ def main() -> None:
     test_resolve_profile_path_fails_when_missing()
     test_python_package_has_no_terminal_delivery_code()
     test_add_decision_spills_long_note_to_plan_file()
+    test_add_decision_long_note_requires_topic_slug()
+    test_add_decision_rejects_timestamp_slug()
     test_add_slice_creates_plan_stub()
     test_profile_requires_slice_plan_stub_and_findings_header()
     test_profile_validates_named_loop_packets()
