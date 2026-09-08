@@ -48,6 +48,7 @@ Do not switch to a casual register unless the user asks.
   The `msg` command lives in `pi_job_harness.messaging`.
   Never send cross-agent messages through terminal panes.
 - Before showing anyone a Mermaid diagram, validate it with the `mermaid` skill (`~/.agents/skills/mermaid`, `mermaid-validate <file>`) instead of eyeballing the syntax.
+- Before showing anyone a BPMN diagram for demo.bpmn.io, follow the `bpmn-js` skill (`~/.agents/skills/bpmn-js`).
 - Never use the em dash "—".
   Use a plain dash "-" instead.
 - Never hand-edit `CHANGELOG` files or anything marked auto-generated.
