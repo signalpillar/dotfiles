@@ -19,6 +19,11 @@ Turn a chunk of work into a 2-minute, skim-friendly deck a colleague reads async
 - **The diagram is the argument for flow.** Each decision earns its slide with a `Before → After`
   (or flow) that shows the change visually; the bullets only annotate. If you can't draw it and
   you can't table it, you don't understand it well enough yet.
+- **No "before"? Draw the options.** Plenty of decisions have no previous behaviour to contrast: new
+  configuration, a new type, a naming choice, a policy for a case that never existed. Forcing a
+  `Before` line onto one of those invents a state that never existed, and the reader believes it.
+  Draw the alternatives you weighed instead, one per line, labelled by the option rather than by
+  time, and mark the one chosen. See "Options considered" under ASCII patterns.
 - **Name the fork, not just the choice.** Every decision states the alternative you rejected and the
   trade-off ("app-version gating is all-or-nothing"). A decision with no visible alternative reads
   as a fact, not a decision.
@@ -63,7 +68,10 @@ Turn a chunk of work into a 2-minute, skim-friendly deck a colleague reads async
   Tables skim faster async and stay DRY - one row per fact. Use ASCII diagrams for *flow*;
   use tables for *structure* (who/what/when/shape).
 - **ASCII first for causality.** Prefer a diagram over a paragraph for before→after and sequencing.
-  Every decision slide gets a before→after or a flow **or** a comparison table - not a wall of text.
+  Every decision slide gets one of these, never a wall of text: a before→after, an options
+  comparison, a flow, or a comparison table. Pick by what the decision actually is. Before→after
+  when behaviour changed. Options when you chose between candidates and there was no prior state.
+  Flow when the point is sequence.
 - **High level only (slides).** Decisions + trade-offs + sequencing. NO file names, function names, code, or test counts on slides. Appendices may include httpyac / field tables.
 - **Plain language, no wordplay.** Titles and bullets state what was decided literally. No metaphors,
   slogans, puns, or "clever" phrasing. If a reader has to interpret a title to know the decision, rewrite it.
@@ -77,7 +85,7 @@ Turn a chunk of work into a 2-minute, skim-friendly deck a colleague reads async
 
 1. Title + one-line context (what + why now).
 2. The problem — one ASCII diagram of the pain.
-3.–N. One slide per decision: `Decision · <one line>` + before→after ASCII + why (≤3 bullets, name the rejected alternative).
+3.–N. One slide per decision: `Decision · <one line>` + before→after or options ASCII + why (≤3 bullets, name the rejected alternative).
 N+1. Delivery / sequencing — ASCII of the slices and their order + a tiny status legend.
 
 ## ASCII patterns to reuse
@@ -88,6 +96,17 @@ Before / after:
 Before:  answer ──▶ [server logic decides] ──▶ reject
 After:   answer(+token) ──▶ [token present?] ──▶ reject / continue
 ```
+
+Options considered (use when there is no previous behaviour):
+
+```
+Compose:  a + b ──▶ [ merge at run time ] ──▶ result nobody signs off
+Declare:  [ set ] ──▶ one authored result, reviewed as a whole        ← chosen
+```
+
+Label each line with the option, not with a time. Mark the chosen line. Put the rejected option's
+failure mode on its own line, so the trade-off is visible before the reader reaches the bullets.
+Two or three lines is usually enough; if you have five candidates, use a comparison table instead.
 
 Flow / negotiation:
 
