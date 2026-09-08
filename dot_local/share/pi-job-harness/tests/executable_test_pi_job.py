@@ -546,6 +546,36 @@ plan:
 """
 
 
+def wait_for_feedback_instruction_yaml_task(*, owner: str = DEFAULT_OWNER) -> str:
+    """Initialized YAML task with cursor on wait-for-feedback."""
+
+    claim_ts = _now_iso()
+    return f"""title: Wait-for-feedback instruction test
+status: in_progress
+orchestration:
+  cursors:
+    - owner: {owner}
+      slice: impl-slice
+      claimed_at: "{claim_ts}"
+      last_seen: "{claim_ts}"
+plan:
+  note: ""
+  slices:
+    - key: impl-slice
+      kind: implement
+      title: Implement
+      goal: Wait on a PR
+      status: in_progress
+      note: ""
+      steps:
+        - key: wait-for-feedback
+          title: Wait for team feedback
+          status: planned
+          note: ""
+      final_steps: []
+"""
+
+
 def subagent_create_plan_yaml_task(*, slice_key: str = "plan-slice") -> str:
     """Initialized YAML task with cursor on subagent-owned create-plan."""
 
@@ -4836,6 +4866,36 @@ def test_pi_job_feedback_guidance_sqlite_store() -> None:
     lower = guidance.lower()
     if "yml" in lower or "yaml" in lower:
         raise AssertionError("pi-job-feedback guidance must not mention YAML")
+
+
+def test_wait_for_feedback_guidance_names_review_loop() -> None:
+    guidance = load_pi_job_module().get_step_kind("wait-for-feedback")["guidance"]
+    assert_contains(guidance, "nit, contract, extract, merged, or abandoned")
+    assert_contains(guidance, "grill first")
+    assert_contains(guidance, "add-slice --kind implement")
+    assert_contains(guidance, "finish --skip")
+    assert_contains(guidance, "share-with-team")
+    assert_contains(guidance, "depends_on")
+    assert_contains(guidance, "new ticket")
+
+
+def test_wait_for_feedback_instruction_uses_step_next_action() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "wait-for-feedback.yaml"
+        task.write_text(wait_for_feedback_instruction_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        next_idx = instruction.index("NEXT ACTION")
+        step_idx = instruction.index("\nSTEP\n") + 1
+        next_action = instruction[next_idx:step_idx]
+        assert_contains(next_action, "Do not finish this step unless the class is merged or abandoned")
+        assert_contains(next_action, "Classify")
+        assert_contains(next_action, "set-step-note")
+        assert_contains(next_action, "Pause for grill on contract, scope, or extract")
+        assert_not_contains(
+            next_action,
+            "finish --owner orchestrator --slice SLICE_KEY --step STEP_KEY --note '<evidence>'",
+        )
+        assert_contains(instruction, "Replay the extracted hunks")
 
 
 def test_grill_plan_guidance_mentions_set_slice_on_supersede() -> None:
@@ -10226,6 +10286,8 @@ def main() -> None:
     test_plan_slices_seeded_banner_when_non_setup_exists()
     test_setup_grill_guidance_failure_first()
     test_pi_job_feedback_guidance_sqlite_store()
+    test_wait_for_feedback_guidance_names_review_loop()
+    test_wait_for_feedback_instruction_uses_step_next_action()
     test_grill_plan_guidance_mentions_set_slice_on_supersede()
     test_update_task_file_guidance_charter_followups()
     test_add_slice_still_works_with_repo_work_in_schema()

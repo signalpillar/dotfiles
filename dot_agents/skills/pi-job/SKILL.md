@@ -161,6 +161,9 @@ The test runner strips `$PI_JOB_OWNER` before subprocess calls.
 Use `env -u PI_JOB_OWNER` when you run tests or CLI commands manually.
 
 When you change store, task models, or CLI behaviour, update README, this skill, and root `AGENTS.md` together (docs-with-model-cuts).
+A step kind may set `next_action` to replace the default NEXT ACTION checklist.
+`wait-for-feedback` uses that field for the review loop.
+Read the loop via `pi-job profile` or `instruction`; do not restate it here.
 
 Follow README **Agent dev notes**: put a coherent feature surface (e.g. Mermaid export) behind a named class boundary; keep `cmd_*` as thin wiring.
 Example in-tree: `SliceDependencyMermaid` for `show --graph`.

@@ -583,6 +583,14 @@ Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immed
 `finish --skip` with user-declined wording satisfies the scan without a distinct scanner model.
 The CLI does not recognize `vulnerability-scan` by name; it applies the generic `requires_user_decision` and `different_model_from_step` fields declared on any step kind.
 
+### Step NEXT ACTION override
+
+A step kind may set `next_action`.
+When set, `instruction` prints that checklist instead of `instruction_packets.next_action`.
+`wait-for-feedback` uses this for the review loop: classify, act, stay on the step.
+Finish only on merge or abandon.
+Python must not special-case the `wait-for-feedback` key.
+
 ### Migrating from v1 profile/phase model
 
 v1 stored `task.orchestration.profile`, `cursor.phase`, and walked post-slice profile phases.
@@ -919,7 +927,7 @@ Clocks and path stamps live in their I/O edge (`messaging/`, store, or `cmd_*`),
 
 ### Profile vs Python
 
-Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `loop_packets`, `cli_help`, `interrupt_park_steps`).
+Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `loop_packets`, `cli_help`, `interrupt_park_steps`, and optional step-kind `next_action`).
 Python loads and formats them; it must not hardcode parallel copy.
 Examples: `status_interrupt_hint`, `investigate_interrupt`, `loop_packets.manager`, `loop_packets.worker`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
 

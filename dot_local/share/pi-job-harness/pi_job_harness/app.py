@@ -2177,7 +2177,12 @@ def build_instruction(
         "",
         "NEXT ACTION",
     ]
-    lines.extend(render_packet_lines(packets["next_action"], defaults=packet_defaults))
+    next_action_body = packets["next_action"]
+    if step_kind:
+        override = step_kind.get("next_action")
+        if isinstance(override, str) and override.strip():
+            next_action_body = override
+    lines.extend(render_packet_lines(next_action_body, defaults=packet_defaults))
     lines.append("")
     lines.append("STEP")
     if task_slice:

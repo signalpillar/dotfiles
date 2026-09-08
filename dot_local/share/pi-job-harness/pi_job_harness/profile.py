@@ -115,6 +115,13 @@ class StepKindDocument(StrictDocument):
     validators: list[str] = Field(default_factory=list, description="Evidence checks shown to the orchestrator.")
     skip_rule: str | None = Field(default=None, description="Condition under which the step may be skipped.")
     guidance: str | None = Field(default=None, description="Deterministic execution guidance included in instructions.")
+    next_action: str | None = Field(
+        default=None,
+        description=(
+            "When set, instruction prints this NEXT ACTION checklist instead of "
+            "instruction_packets.next_action. Supports the same placeholders as that packet."
+        ),
+    )
     artifact_gates: list[ArtifactGateDocument] = Field(default_factory=list, description="Artifacts required by this step.")
 
 

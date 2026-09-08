@@ -39,6 +39,7 @@ Do not switch to a casual register unless the user asks.
   Update the pi-job skill, harness README, and this file in the same change.
   Named loop packets live in validated profile `loop_packets`.
   Use `pi-job loop --type NAME` to select an exact packet name.
+  A step kind may set `next_action` to replace the default NEXT ACTION checklist.
   Keep `pi-job loop` for managers and `pi-job loop --worker` for workers.
   Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.
   Use `set-slice --slice CONSUMER --depends-on PRODUCER` to append dependency edges.
