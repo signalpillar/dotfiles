@@ -107,7 +107,10 @@ This function should only modify configuration layer settings."
      ;;  )
      ;; lsp
      (markdown :variables
-               markdown-hide-urls t
+               ;; hide-urls runs markdown--fontify-table-alignment on every |.
+               ;; That scan calls markdown-inline-code-at-pos per pipe and hangs
+               ;; TTY edits in files with large GFM tables.
+               markdown-hide-urls nil
                markdown-live-preview-engine 'vmd)
      multiple-cursors
      (org :variables
@@ -1130,9 +1133,22 @@ before packages are loaded."
     (when (display-graphic-p)
       (variable-pitch-mode 1)))
 
+  (defun my/markdown-defer-jit-lock-on-tables ()
+    "Defer jit-lock in buffers with large GFM tables.
+TTY scroll fontifies each new window. Table rows with many
+backticks make `markdown-match-code' expensive."
+    (when (> (how-many "^|" (point-min) (point-max)) 40)
+      (setq-local jit-lock-defer-time 0.05)))
+
+  ;; Skip font-lock while scroll keys are pending. Markdown tables
+  ;; otherwise hitch on every newly visible line.
+  (setq redisplay-skip-fontification-on-input t
+        fast-but-imprecise-scrolling t)
+
   (add-hook 'org-mode-hook #'my/enable-document-variable-pitch)
   (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
   (add-hook 'markdown-mode-hook #'my/enable-document-variable-pitch)
+  (add-hook 'markdown-mode-hook #'my/markdown-defer-jit-lock-on-tables)
 
   (custom-set-faces
    '(org-link ((t (:underline nil :weight normal :slant normal :background nil))))
