@@ -74,6 +74,14 @@ Keep Prev / Next / Back actions in the lower third of the detail when they are t
 - The default component library is [Jelly UI](https://jelly-ui.com).
   It is dependency-free web components, loaded with one module script tag and no build step.
   Wrap the page in `<jelly-theme mode="light">` and use `<jelly-button>`, `<jelly-card>`, `<jelly-tabs>`, `<jelly-input>`, `<jelly-drawer>` and the rest.
+- For data-viewer prototypes with no custom widgets, prefer [Pico CSS](https://picocss.com) over Jelly UI (2026-09: `sixth-form-open-events.html` is the reference).
+  One stylesheet link, semantic HTML, zero JavaScript: no upgrade races, no shadow-DOM testing quirks, no canvas-overflow fixes.
+  Hand-roll tabs (~20 lines of `role=tab` buttons) and detail surfaces (native `<dialog>` / `<details>`).
+  Offline fallback is total, since every control is a native element that keeps working unstyled.
+- Never fetch a sidecar file unconditionally: from `file://` the request fails CORS and spams the console.
+  Gate sidecar loads on `http:`/`https:` and lead with an upload picker plus a visible empty state instead (2026-09: open-events viewer).
+- Paired inputs (lat/lon) must tolerate partial entry: commit only when both fields are non-empty, and never rewrite inputs on invalid input, or tabbing between fields wipes what was typed (2026-09: open-events home entry).
+- Keep user flags (interesting / not interesting) in a separate store map keyed by record name, not on the imported rows, so CSV re-imports preserve them (2026-09: open-events interest).
 - The default token set is [Open Props](https://open-props.style), loaded as a plain stylesheet link.
   Take spacing, radii, shadows, easings, and type scale from its custom properties.
 - Load third-party CSS and JS from a CDN with a plain `<link>` or `<script>` tag.

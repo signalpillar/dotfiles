@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Sixth-Form Open Events</title>
+
+    <!-- Pico: class-light CSS only, no JavaScript, no build step. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- Map renderer: Leaflet, plain tags, no build step. Page works without it. -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <!-- Shared browser foundation. -->
+    <link rel="stylesheet" href="prototype-base.css">
+
+    <style>
+      /* Layout only. Pico owns colour, type and component styling. */
+      body { padding-block-end: var(--pico-spacing); }
+      main { width: min(58rem, 100%); margin-inline: auto; padding: var(--pico-spacing); }
+      .kicker { margin-block-end: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pico-muted-color); }
+      h1 { margin-block-start: 0.25rem; }
+      .controls { display: grid; gap: 0.75rem; margin-block: 1rem; }
+      .controls-row { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+      .controls-row > * { margin-block-end: 0; }
+      fieldset { margin-block-end: 0; }
+      .tabs { display: flex; gap: 0.25rem; margin-block: 1rem 0; }
+      .tabs button { flex: 1 1 0; margin-block-end: 0; }
+      .table-wrap { overflow-x: auto; }
+      table { white-space: normal; }
+      td:first-child { font-weight: var(--pico-font-weight, 600); }
+      .week { margin-block: 1.5rem 0.5rem; }
+      .muted { color: var(--pico-muted-color); }
+      .event-grid { display: grid; gap: 0.5rem; }
+      .event-when { font-weight: 700; }
+      details { margin-block-end: 0.75rem; }
+      details summary { cursor: pointer; }
+      .fact-grid { display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); margin-block: 0.75rem; }
+      .fact-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pico-muted-color); }
+      .fact-grid dd { margin: 0; }
+      dialog article { max-inline-size: min(32rem, 100%); }
+      .map { block-size: 24rem; inline-size: 100%; border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); background: var(--pico-muted-background); }
+      .map.leaflet-container { z-index: 0; font: inherit; }
+      .score { display: inline-block; min-inline-size: 3.2rem; text-align: center; font-weight: 700; }
+      ol.questions { margin-block: 0.5rem; padding-inline-start: 1.25rem; }
+      .pin { display: block; inline-size: 18px; block-size: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); background: #3388ff; }
+      .pin-yes { background: #22a06b; inline-size: 22px; block-size: 22px; }
+      .pin-no { background: #8a93a6; }
+      .interest-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+      .interest-row > * { margin-block-end: 0; flex: 1 1 auto; }
+      .status-line { font-size: 0.85rem; color: var(--pico-muted-color); }
+      @media (max-width: 30rem) {
+        .tabs { flex-direction: column; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main id="app">
+      <p class="kicker" id="kicker"></p>
+      <h1 id="title"></h1>
+      <p class="muted" id="intro"></p>
+
+      <section class="controls" aria-label="Controls">
+        <div class="controls-row">
+          <input type="search" id="search" aria-label="Search schools">
+          <select id="sort" aria-label="Sort"></select>
+          <select id="radius" aria-label="Radius"></select>
+        </div>
+        <div class="controls-row">
+          <button id="locate" type="button"></button>
+          <input type="text" id="home-lat" inputmode="decimal" aria-label="Home latitude">
+          <input type="text" id="home-lon" inputmode="decimal" aria-label="Home longitude">
+        </div>
+        <div class="controls-row">
+          <button id="import-btn" type="button" class="secondary"></button>
+          <button id="export-btn" type="button" class="secondary"></button>
+          <button id="refresh-btn" type="button" class="contrast"></button>
+          <input type="file" id="file" accept=".csv,text/csv" hidden>
+        </div>
+        <p class="status-line" id="status" role="status"></p>
+      </section>
+
+      <section id="empty-state" hidden>
+        <article>
+          <h3 id="empty-title"></h3>
+          <p id="empty-body"></p>
+          <button id="empty-pick" type="button"></button>
+        </article>
+      </section>
+
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button type="button" role="tab" data-view="timeline" aria-selected="true"></button>
+        <button type="button" role="tab" data-view="schools" aria-selected="false"></button>
+        <button type="button" role="tab" data-view="map" aria-selected="false"></button>
+        <button type="button" role="tab" data-view="about" aria-selected="false"></button>
+      </div>
+
+      <section id="panel-timeline" role="tabpanel" aria-label="Timeline"></section>
+      <section id="panel-schools" role="tabpanel" aria-label="Schools" hidden></section>
+      <section id="panel-map" role="tabpanel" aria-label="Map" hidden></section>
+      <section id="panel-about" role="tabpanel" aria-label="About" hidden></section>
+
+      <dialog id="detail">
+        <article>
+          <header>
+            <h3 id="detail-title"></h3>
+          </header>
+          <div id="detail-body"></div>
+          <footer>
+            <button id="detail-close" type="button" class="secondary"></button>
+          </footer>
+        </article>
+      </dialog>
+
+      <p class="muted"><small id="foot"></small></p>
+    </main>
+
+    <!--
+      The single manifest. Copy, thresholds, storage keys and column names live
+      here as plain JSON; the script below is logic only. Edit JSON, never JS,
+      to change what the viewer knows or how it is tuned.
+    -->
+    <script type="application/json" id="manifest">
+{
+  "manifestVersion": 1,
+  "app": {
+    "id": "sixth-form-open-events",
+    "kicker": "Sixth form",
+    "title": "Open Events 2026",
+    "intro": "Open evenings for 25 sixth forms, in date order. Data lives in this browser; refresh it from the CSV at any time.",
+    "sidecar": "sixth-form-open-events.csv",
+    "storage": { "key": "sixth-form-open-events-v1", "schemaVersion": 1 },
+    "timing": { "geoTimeoutMs": 10000 },
+    "radiusStepsKm": [2, 5, 10, 20, 50],
+    "defaultRadiusKm": 10,
+    "columns": {
+      "name": "School", "address": "address", "postcode": "postcode",
+      "lat": "lat", "lon": "lon", "grades": "expectedGrades",
+      "spec": "specialisation", "notes": "notes",
+      "eventDates": "Open Event Date(s) 2026", "time": "Time",
+      "booking": "Booking Required", "bookingNotes": "Booking Link / Notes",
+      "source": "Source URL", "status": "Status",
+      "isoDates": "ISO-8601 Dates (| separated)",
+      "visitReq": "Visit Requirements",
+      "entryBar": "Offer_Entry_Bar",
+      "ofstedGrade": "Ofsted_Grade", "ofstedDate": "Ofsted_Date",
+      "ofstedNote": "Ofsted_SixthForm_Note", "ofstedUrl": "Ofsted_URL",
+      "urn": "URN", "parentCount": "ParentView_Count",
+      "parentPct": "ParentView_Positive_Pct", "parentUrl": "ParentView_URL",
+      "commuteMins": "Commute_Mins_Peak", "commuteRoute": "Commute_Route",
+      "evidenceDate": "Evidence_Checked_Date",
+      "visitDate": "Visit_Date", "visitNotes": "Visit_Notes",
+      "visitScore": "Visit_Score_1_5", "visitQuestions": "Visit_Questions",
+      "communitySignal": "Community_Signal", "communityUrl": "Community_URL"
+    },
+    "map": { "tileUrl": "https://tile.openstreetmap.org/{z}/{x}/{y}.png", "attribution": "Map data (c) OpenStreetMap contributors" },
+    "copy": {
+      "searchLabel": "Search schools",
+      "searchPlaceholder": "Search name, area, subjects, notes...",
+      "sortLabel": "Sort",
+      "sortOptions": [
+        { "id": "event", "label": "Next event first" },
+        { "id": "distance", "label": "Nearest first" },
+        { "id": "name", "label": "Name A to Z" }
+      ],
+      "radiusLabel": "Radius",
+      "radiusAll": "All distances",
+      "radiusKm": "{km} km",
+      "radiusNeedsHome": "Set location to filter by radius",
+      "locateButton": "Use my location",
+      "locating": "Locating...",
+      "locatedOk": "Home set: {lat}, {lon}.",
+      "locateDenied": "Location unavailable. Enter home coordinates manually.",
+      "homeLatLabel": "Home latitude",
+      "homeLonLabel": "Home longitude",
+      "homeLatPlaceholder": "51.3652",
+      "homeLonPlaceholder": "-0.1276",
+      "homeInvalid": "Those coordinates are not valid. Latitude -90 to 90, longitude -180 to 180.",
+      "homeCleared": "Home cleared. Enter coordinates or use your location.",
+      "importButton": "Import CSV",
+      "exportButton": "Export CSV",
+      "refreshButton": "Reload sidecar",
+      "sidecarMissing": "Sidecar CSV not found. Choose a CSV file to load.",
+      "emptyTitle": "No school data yet",
+      "emptyBody": "Upload the open-events CSV to begin. Your data stays in this browser.",
+      "chooseFile": "Choose CSV file",
+      "sidecarLoaded": "{count} schools loaded from {source}.",
+      "importBadCsv": "That file is not a usable CSV, so nothing was changed.",
+      "importOk": "{count} schools imported{skipped}.",
+      "importSkipped": ", {skipped} rows skipped",
+      "exportPrefix": "sixth-form-open-events",
+      "tabTimeline": "Timeline",
+      "tabSchools": "Schools",
+      "tabMap": "Map",
+      "tabAbout": "About",
+      "showPast": "Show past events",
+      "pastCount": "{count} past",
+      "noUpcoming": "No upcoming events in the current filter.",
+      "noSchools": "No schools match the current search.",
+      "noLocation": "Set location",
+      "km": "{km} km",
+      "bookingYes": "Booking needed",
+      "bookingNo": "Drop in",
+      "bookingCheck": "Check school",
+      "statusConfirmed": "Confirmed",
+      "statusVerify": "Verify year",
+      "statusUnpublished": "Contact school",
+      "detailClose": "Close",
+      "detailsButton": "Details",
+      "weekOf": "Week of {date}",
+      "pastHeading": "Past events",
+      "factsEntry": "Entry bar",
+      "factsOfsted": "Ofsted",
+      "ofstedReport": "Full Ofsted report",
+      "ofstedSixthForm": "Sixth form",
+      "parentView": "ParentView",
+      "parentViewSummary": "{count} responses · {pct}% positive",
+      "factsCommute": "Commute",
+      "factsGrades": "Expected grades",
+      "factsSpec": "Specialisation",
+      "factsNotes": "Notes",
+      "factsEvents": "Open events",
+      "factsBooking": "Booking",
+      "factsVisit": "Visit",
+      "factsSource": "Source",
+      "factsQuestions": "Questions to ask",
+      "factsComments": "Comments",
+      "factsScore": "Visit score",
+      "scoreOutOf": "{score}/5",
+      "mapNote": "Pins follow the current search and radius filter.",
+      "mapUnavailable": "Map library did not load, so the map is hidden. Timeline and schools work fully without it.",
+      "mapAttribution": "Pins via OpenStreetMap.",
+      "interestTitle": "Interest",
+      "interestYes": "Interesting",
+      "interestNo": "Not interesting",
+      "interestClear": "Clear",
+      "interestSetYes": "Marked interesting.",
+      "interestSetNo": "Marked not interesting.",
+      "interestCleared": "Interest cleared.",
+      "aboutTitle": "About this data",
+      "aboutBody": "Each row is one school with its open-event dates, booking rules, entry bar, Ofsted grade and commute notes. Evidence was last checked on the date shown per school; confirm details on the school site before travelling.",
+      "aboutRefresh": "Replace the sidecar CSV file and press Reload sidecar, or use Import CSV for any file.",
+      "foot": "Data stays in this browser. Distances are straight-line km from your home."
+    }
+  }
+}
+    </script>
+
+    <script type="module">
+      /* Logic only. Every label, threshold and column name comes from the manifest. */
+      const M = JSON.parse(document.getElementById("manifest").textContent);
+      const APP = M.app;
+      const COPY = APP.copy;
+      const COL = APP.columns;
+      const $ = (id) => document.getElementById(id);
+      const VIEWS = ["timeline", "schools", "map", "about"];
+      const TAB_LABELS = { timeline: COPY.tabTimeline, schools: COPY.tabSchools, map: COPY.tabMap, about: COPY.tabAbout };
+
+      const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : "{" + k + "}"));
+
+      let store = blankStore();
+      let view = "timeline";
+      let query = "";
+      let sortId = "event";
+      let showPast = false;
+
+      function blankStore() {
+        return { version: APP.storage.schemaVersion, hash: null, home: { lat: null, lon: null, radiusKm: APP.defaultRadiusKm }, rows: [], interest: {} };
+      }
+
+      function toNumberOrNull(value) {
+        if (value === null || value === undefined || value === "") return null;
+        const n = Number(String(value).trim());
+        return Number.isFinite(n) ? n : null;
+      }
+      const validLat = (v) => typeof v === "number" && Number.isFinite(v) && v >= -90 && v <= 90;
+      const validLon = (v) => typeof v === "number" && Number.isFinite(v) && v >= -180 && v <= 180;
+
+      function haversineKm(aLat, aLon, bLat, bLon) {
+        const R = 6371;
+        const rad = (d) => (d * Math.PI) / 180;
+        const s = Math.sin(rad(bLat - aLat) / 2) ** 2 +
+          Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(rad(bLon - aLon) / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(s));
+      }
+
+      function distanceKm(row) {
+        if (!validLat(store.home.lat) || !validLon(store.home.lon)) return null;
+        const lat = toNumberOrNull(row[COL.lat]);
+        const lon = toNumberOrNull(row[COL.lon]);
+        if (!validLat(lat) || !validLon(lon)) return null;
+        return haversineKm(store.home.lat, store.home.lon, lat, lon);
+      }
+
+      /* Small RFC4180 parser: quoted commas, escaped quotes, BOM, CRLF. */
+      function parseCSV(text) {
+        const rows = [];
+        let row = [];
+        let field = "";
+        let quoted = false;
+        const src = String(text || "").replace(/^﻿/, "");
+        for (let i = 0; i < src.length; i += 1) {
+          const c = src[i];
+          if (quoted) {
+            if (c === '"') {
+              if (src[i + 1] === '"') { field += '"'; i += 1; }
+              else quoted = false;
+            } else field += c;
+          } else if (c === '"') quoted = true;
+          else if (c === ",") { row.push(field); field = ""; }
+          else if (c === "\r") { /* wait for \n */ }
+          else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+          else field += c;
+        }
+        row.push(field);
+        rows.push(row);
+        return rows.filter((r) => r.length > 1 || String(r[0] || "").trim() !== "");
+      }
+
+      function rowsFromCSV(text) {
+        const grid = parseCSV(text);
+        if (grid.length < 2) return { rows: [], skipped: 0 };
+        const header = grid[0].map((h) => String(h || "").trim());
+        if (!header.includes(COL.name)) return { rows: [], skipped: grid.length - 1 };
+        const rows = [];
+        let skipped = 0;
+        for (const line of grid.slice(1)) {
+          const obj = {};
+          header.forEach((h, i) => { obj[h] = (line[i] || "").trim(); });
+          if (!obj[COL.name]) { skipped += 1; continue; }
+          rows.push(obj);
+        }
+        return { rows, skipped };
+      }
+
+      function hashText(text) {
+        let h = 5381;
+        for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+        return String(h);
+      }
+
+      function saveStore() {
+        try {
+          localStorage.setItem(APP.storage.key, JSON.stringify(store));
+        } catch (err) {
+          console.warn("Could not save viewer data", err);
+        }
+      }
+
+      function loadCached() {
+        try {
+          const raw = localStorage.getItem(APP.storage.key);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          if (!parsed || !Array.isArray(parsed.rows)) return false;
+          store = { ...blankStore(), ...parsed };
+          return store.rows.length > 0;
+        } catch (err) {
+          console.warn("Could not read cached viewer data", err);
+          return false;
+        }
+      }
+
+      /* Events: ISO list is authoritative for sorting; display text labels each instance. */
+      function parseIsoToken(token) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(String(token || "").trim());
+        if (!m) return null;
+        return {
+          day: m[1] + "-" + m[2] + "-" + m[3],
+          date: new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] || 0), Number(m[5] || 0))
+        };
+      }
+
+      function fmtDay(isoDay) {
+        const [y, mo, d] = isoDay.split("-").map(Number);
+        return new Date(y, mo - 1, d).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+      }
+
+      function fmtTime(date) {
+        if (date.getHours() === 0 && date.getMinutes() === 0) return null;
+        return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      }
+
+      function eventsFor(row) {
+        const isoRaw = String(row[COL.isoDates] || "").trim();
+        if (!isoRaw) return [];
+        const display = String(row[COL.eventDates] || "").split(";").map((s) => s.trim()).filter(Boolean);
+        const tokens = isoRaw.split("|").map((s) => s.trim()).filter(Boolean);
+        return tokens
+          .map((token, i) => {
+            const parsed = parseIsoToken(token);
+            if (!parsed) return null;
+            const time = fmtTime(parsed.date);
+            const label = display.length === tokens.length
+              ? display[i]
+              : fmtDay(parsed.day) + (time ? " " + time : "");
+            return { ...parsed, label, row };
+          })
+          .filter(Boolean);
+      }
+
+      /* Visit questions are numbered "1 ... 2 ..." in one cell; split into a list. */
+      function parseQuestions(row) {
+        const raw = String(row[COL.visitQuestions] || "").trim();
+        if (!raw) return [];
+        const items = [...raw.matchAll(/\d+\s+.+?(?=(?:\s+\d+\s+)|$)/gs)]
+          .map((m) => m[0].replace(/^\d+\s+/, "").trim())
+          .filter(Boolean);
+        return items.length ? items : [raw];
+      }
+
+      function visitScore(row) {
+        const n = toNumberOrNull(row[COL.visitScore]);
+        return n !== null && n >= 0 && n <= 5 ? n : null;
+      }
+
+      function questionsList(row) {
+        const items = parseQuestions(row);
+        if (!items.length) return null;
+        return el("ol", { class: "questions" }, items.map((q) => el("li", { text: q })));
+      }
+
+      function commentsBlock(row) {
+        const parts = [];
+        if (row[COL.visitDate]) parts.push(el("p", {}, [el("strong", { text: row[COL.visitDate] })]));
+        if (row[COL.visitNotes]) parts.push(el("p", { text: row[COL.visitNotes] }));
+        if (row[COL.communitySignal]) {
+          const linkEl = link(row[COL.communityUrl], row[COL.communityUrl]);
+          parts.push(el("p", {}, [document.createTextNode(row[COL.communitySignal] + " "), linkEl].filter(Boolean)));
+        }
+        if (!parts.length) return null;
+        return el("div", {}, [el("h4", { text: COPY.factsComments }), ...parts]);
+      }
+
+      function parentViewNodes(row) {
+        const count = toNumberOrNull(row[COL.parentCount]);
+        const pct = toNumberOrNull(row[COL.parentPct]);
+        const url = String(row[COL.parentUrl] || "").trim();
+        if (count !== null && pct !== null) {
+          const text = fill(COPY.parentViewSummary, { count, pct });
+          const l = url ? link(url, text) : null;
+          return [document.createTextNode(COPY.parentView + ": "), l || document.createTextNode(text)];
+        }
+        if (url) return [link(url, COPY.parentView)];
+        return null;
+      }
+
+      function ofstedSummary(row) {
+        const base = [row[COL.ofstedGrade], row[COL.ofstedDate]].filter(Boolean).join(" · ");
+        const pct = toNumberOrNull(row[COL.parentPct]);
+        const count = toNumberOrNull(row[COL.parentCount]);
+        if (base && pct !== null && count !== null) return base + " · PV " + pct + "%";
+        return base || "-";
+      }
+
+      function ofstedDetail(row) {
+        const out = [];
+        const gradeLine = [row[COL.ofstedGrade], row[COL.ofstedDate]].filter(Boolean).join(" · ");
+        const report = link(String(row[COL.ofstedUrl] || "").trim(), COPY.ofstedReport);
+        out.push(el("p", {}, [document.createTextNode(gradeLine || "-"), report ? document.createTextNode(" · ") : null, report].filter(Boolean)));
+        if (row[COL.ofstedNote]) {
+          out.push(el("p", {}, [el("strong", { text: COPY.ofstedSixthForm + ": " }), document.createTextNode(row[COL.ofstedNote])]));
+        }
+        const pv = parentViewNodes(row);
+        if (pv) out.push(el("p", {}, pv));
+        return out;
+      }
+
+      function bookingKind(row) {
+        const b = String(row[COL.booking] || "");
+        if (/^no\b/i.test(b)) return { key: "no", label: COPY.bookingNo };
+        if (/^yes\b/i.test(b)) return { key: "yes", label: COPY.bookingYes };
+        return { key: "check", label: COPY.bookingCheck };
+      }
+
+      function statusKind(row) {
+        const s = String(row[COL.status] || "");
+        if (/^confirmed$/i.test(s)) return COPY.statusConfirmed;
+        if (/^confirmed/i.test(s)) return COPY.statusVerify;
+        return COPY.statusUnpublished;
+      }
+
+      function nextEvent(row) {
+        const today = startOfToday();
+        const upcoming = eventsFor(row).filter((e) => e.date >= today).sort((a, b) => a.date - b.date);
+        return upcoming[0] || null;
+      }
+
+      function startOfToday() {
+        const n = new Date();
+        return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+      }
+
+      function filteredRows() {
+        const q = query.trim().toLowerCase();
+        const homeSet = validLat(store.home.lat) && validLon(store.home.lon);
+        const radius = Number(store.home.radiusKm);
+        const out = [];
+        for (const row of store.rows) {
+          const dist = distanceKm(row);
+          if (homeSet && radius > 0 && dist !== null && dist > radius) continue;
+          if (q) {
+            const hay = [row[COL.name], row[COL.address], row[COL.postcode], row[COL.spec], row[COL.grades], row[COL.entryBar], row[COL.notes]].join(" ").toLowerCase();
+            if (!hay.includes(q)) continue;
+          }
+          out.push({ row, dist, next: nextEvent(row) });
+        }
+        if (sortId === "name") out.sort((a, b) => a.row[COL.name].localeCompare(b.row[COL.name]));
+        else if (sortId === "distance") {
+          out.sort((a, b) => (a.dist === null ? Infinity : a.dist) - (b.dist === null ? Infinity : b.dist) || a.row[COL.name].localeCompare(b.row[COL.name]));
+        } else {
+          out.sort((a, b) => (a.next ? a.next.date : Infinity) - (b.next ? b.next.date : Infinity) || a.row[COL.name].localeCompare(b.row[COL.name]));
+        }
+        return out;
+      }
+
+      function el(tag, props = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props)) {
+          if (value === undefined || value === null || value === false) continue;
+          if (key === "text") node.textContent = value;
+          else if (key === "html") node.innerHTML = value;
+          else if (key === "on") for (const [evt, handler] of Object.entries(value)) node.addEventListener(evt, handler);
+          else node.setAttribute(key, value === true ? "" : String(value));
+        }
+        children.filter(Boolean).forEach((child) => node.append(typeof child === "string" ? document.createTextNode(child) : child));
+        return node;
+      }
+
+      function link(url, text) {
+        if (!url) return null;
+        const a = el("a", { href: url, target: "_blank", rel: "noopener noreferrer", text: text || url });
+        return a;
+      }
+
+      function distText(dist) {
+        return dist === null ? COPY.noLocation : fill(COPY.km, { km: dist.toFixed(1) });
+      }
+
+      function mondayOf(date) {
+        const d = new Date(date);
+        const shift = (d.getDay() + 6) % 7;
+        d.setDate(d.getDate() - shift);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+
+      function renderTimeline() {
+        const box = $("panel-timeline");
+        box.replaceChildren();
+        const rows = filteredRows();
+        const today = startOfToday();
+        const upcoming = [];
+        const past = [];
+        for (const { row, dist } of rows) {
+          for (const e of eventsFor(row)) (e.date >= today ? upcoming : past).push({ ...e, dist });
+        }
+        upcoming.sort((a, b) => a.date - b.date);
+        past.sort((a, b) => b.date - a.date);
+
+        const toggle = el("label", {}, [
+          el("input", { type: "checkbox", role: "switch", on: { change: (e) => { showPast = e.target.checked; renderTimeline(); } } }),
+          document.createTextNode(COPY.showPast + (past.length ? " (" + fill(COPY.pastCount, { count: past.length }) + ")" : ""))
+        ]);
+        toggle.querySelector("input").checked = showPast;
+        box.append(toggle);
+
+        if (!upcoming.length) box.append(el("p", { text: COPY.noUpcoming }));
+        let lastWeek = null;
+        for (const e of upcoming) {
+          const week = mondayOf(e.date).toISOString();
+          if (week !== lastWeek) {
+            lastWeek = week;
+            box.append(el("h3", { class: "week", text: fill(COPY.weekOf, { date: mondayOf(e.date).toLocaleDateString(undefined, { day: "numeric", month: "short" }) }) }));
+          }
+          box.append(eventCard(e));
+        }
+        if (showPast && past.length) {
+          box.append(el("h3", { class: "week", text: COPY.pastHeading }));
+          for (const e of past) box.append(eventCard(e, true));
+        }
+      }
+
+      function eventCard(e, isPast) {
+        const booking = bookingKind(e.row);
+        const card = el("article", { "data-school": e.row[COL.name] }, [
+          el("div", { class: "event-when", text: e.label }),
+          el("div", {}, [
+            el("strong", { text: e.row[COL.name] }),
+            document.createTextNode(" · " + distText(e.dist))
+          ]),
+          el("div", { class: "muted" }, [
+            el("span", { text: booking.label + " · " + statusKind(e.row) })
+          ]),
+          el("div", {}, [
+            el("button", { type: "button", class: "secondary outline", text: COPY.detailsButton, on: { click: () => openDetail(e.row) } })
+          ])
+        ]);
+        if (isPast) card.setAttribute("aria-disabled", "true");
+        return card;
+      }
+
+      function specTags(row) {
+        return String(row[COL.spec] || "").split(/[,;|]/).map((t) => t.trim()).filter(Boolean).slice(0, 6);
+      }
+
+      function renderSchools() {
+        const box = $("panel-schools");
+        box.replaceChildren();
+        const rows = filteredRows();
+        if (!rows.length) {
+          box.append(el("p", { text: COPY.noSchools }));
+          return;
+        }
+        for (const { row, dist, next } of rows) {
+          const score = visitScore(row);
+          const questions = parseQuestions(row);
+          const facts = el("dl", { class: "fact-grid" }, [
+            el("div", {}, [el("dt", { text: COPY.factsEntry }), el("dd", { text: row[COL.entryBar] || row[COL.grades] || "-" })]),
+            el("div", {}, [el("dt", { text: COPY.factsOfsted }), el("dd", { text: ofstedSummary(row) })]),
+            el("div", {}, [el("dt", { text: COPY.factsCommute }), el("dd", { text: [row[COL.commuteMins] ? row[COL.commuteMins] + " min" : null, row[COL.commuteRoute]].filter(Boolean).join(" · ") || distText(dist) })]),
+            el("div", {}, [el("dt", { text: "Distance" }), el("dd", { text: distText(dist) })]),
+            score === null ? null : el("div", {}, [el("dt", { text: COPY.factsScore }), el("dd", {}, [el("strong", { text: fill(COPY.scoreOutOf, { score }) })])]),
+            questions.length ? el("div", {}, [el("dt", { text: COPY.factsQuestions }), el("dd", { text: String(questions.length) })]) : null
+          ]);
+          const tags = specTags(row);
+          const events = eventsFor(row);
+          const card = el("details", { "data-school": row[COL.name] }, [
+            el("summary", { text: row[COL.name] + (interestLabel(getInterest(row)) ? " — " + interestLabel(getInterest(row)) : "") + (next ? " — " + next.label : "") }),
+            facts,
+            tags.length ? el("p", {}, tags.map((t) => el("mark", { text: t }))) : null,
+            events.length
+              ? el("div", { class: "event-grid" }, events.map((e) => el("div", {}, [
+                el("span", { class: "event-when", text: e.label + " " }),
+                el("span", { class: "muted", text: bookingKind(row).label + " · " + statusKind(row) })
+              ])))
+              : el("p", { class: "muted", text: statusKind(row) }),
+            questions.length ? el("div", {}, [el("h4", { text: COPY.factsQuestions }), questionsList(row)]) : null,
+            commentsBlock(row),
+            el("div", {}, [
+              el("button", { type: "button", text: COPY.detailsButton, on: { click: () => openDetail(row) } })
+            ])
+          ]);
+          box.append(card);
+        }
+      }
+
+      /* Interest flags live outside CSV rows so re-imports keep them. */
+      function getInterest(row) {
+        const v = store.interest[row[COL.name]];
+        return v === "yes" || v === "no" ? v : null;
+      }
+
+      function setInterest(row, value) {
+        if (value === "yes" || value === "no") store.interest[row[COL.name]] = value;
+        else delete store.interest[row[COL.name]];
+        saveStore();
+        renderDetailBody(row);
+        renderTimeline();
+        renderSchools();
+        renderMap();
+        updateStatus();
+      }
+
+      function interestLabel(value) {
+        if (value === "yes") return COPY.interestYes;
+        if (value === "no") return COPY.interestNo;
+        return null;
+      }
+
+      function openDetail(row) {
+        renderDetailBody(row);
+        const dialog = $("detail");
+        if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
+      }
+
+      function renderDetailBody(row) {
+        $("detail-title").textContent = row[COL.name];
+        const body = $("detail-body");
+        body.replaceChildren();
+        const current = getInterest(row);
+        const yesBtn = el("button", { type: "button", text: COPY.interestYes, "aria-pressed": current === "yes" ? "true" : "false", on: { click: () => { setInterest(row, current === "yes" ? null : "yes"); $("status").textContent = current === "yes" ? COPY.interestCleared : COPY.interestSetYes; } } });
+        const noBtn = el("button", { type: "button", text: COPY.interestNo, class: "secondary", "aria-pressed": current === "no" ? "true" : "false", on: { click: () => { setInterest(row, current === "no" ? null : "no"); $("status").textContent = current === "no" ? COPY.interestCleared : COPY.interestSetNo; } } });
+        body.append(el("h4", { text: COPY.interestTitle }), el("div", { class: "interest-row", role: "group", "aria-label": COPY.interestTitle }, [yesBtn, noBtn]));
+        const dl = el("dl", { class: "fact-grid" }, [
+          el("div", {}, [el("dt", { text: "Address" }), el("dd", { text: [row[COL.address], row[COL.postcode]].filter(Boolean).join(", ") || "-" })]),
+          el("div", {}, [el("dt", { text: COPY.factsEntry }), el("dd", { text: row[COL.entryBar] || row[COL.grades] || "-" })]),
+          el("div", {}, [el("dt", { text: COPY.factsOfsted }), el("dd", { text: ofstedSummary(row) })]),
+          el("div", {}, [el("dt", { text: COPY.factsCommute }), el("dd", { text: [row[COL.commuteMins] ? row[COL.commuteMins] + " min" : null, row[COL.commuteRoute]].filter(Boolean).join(" · ") || "-" })])
+        ]);
+        body.append(dl);
+        body.append(el("h4", { text: COPY.factsOfsted }), ...ofstedDetail(row));
+        if (row[COL.spec]) body.append(el("h4", { text: COPY.factsSpec }), el("p", { text: row[COL.spec] }));
+        const events = eventsFor(row);
+        if (events.length) {
+          body.append(el("h4", { text: COPY.factsEvents }));
+          for (const e of events) {
+            body.append(el("p", {}, [
+              el("strong", { text: e.label }),
+              el("br"),
+              document.createTextNode((row[COL.time] ? row[COL.time] + ". " : "") + bookingKind(row).label + ". " + (row[COL.bookingNotes] ? row[COL.bookingNotes] + ". " : "") + (row[COL.visitReq] ? row[COL.visitReq] : ""))
+            ]));
+          }
+        }
+        if (row[COL.notes]) body.append(el("h4", { text: COPY.factsNotes }), el("p", { text: row[COL.notes] }));
+        const score = visitScore(row);
+        if (score !== null) body.append(el("p", {}, [el("strong", { text: COPY.factsScore + ": " + fill(COPY.scoreOutOf, { score }) })]));
+        const questions = questionsList(row);
+        if (questions) body.append(el("h4", { text: COPY.factsQuestions }), questions);
+        const comments = commentsBlock(row);
+        if (comments) body.append(comments);
+        const src = link(row[COL.source], COPY.factsSource);
+        if (src) body.append(el("p", {}, [src]));
+      }
+
+      function renderAbout() {
+        const box = $("panel-about");
+        box.replaceChildren();
+        box.append(
+          el("h3", { text: COPY.aboutTitle }),
+          el("p", { text: COPY.aboutBody }),
+          el("p", { text: COPY.aboutRefresh })
+        );
+      }
+
+      /* ---------------- map ---------------- */
+
+      let schoolMap = null;
+      let schoolMarkers = [];
+      let mapBuilt = false;
+
+      /* The Leaflet instance binds to its container element, so the panel
+         shell is built once and only markers update on later renders. */
+      function renderMap() {
+        if (view !== "map") return;
+        const box = $("panel-map");
+        const libOk = typeof window.L !== "undefined";
+        if (!mapBuilt || !box.querySelector("#schools-map") || (libOk && !schoolMap) || (!libOk && !box.querySelector("[data-map-fallback]"))) {
+          mapBuilt = true;
+          schoolMap = null;
+          box.replaceChildren();
+          box.append(el("p", { class: "muted", text: COPY.mapNote }));
+          const mapEl = el("div", { class: "map", id: "schools-map" });
+          box.append(mapEl);
+          box.append(el("p", {}, [el("small", { class: "muted", text: COPY.mapAttribution })]));
+          if (!libOk) {
+            mapEl.replaceChildren(el("p", { "data-map-fallback": "", text: COPY.mapUnavailable, style: "padding: 1rem;" }));
+            return;
+          }
+          try {
+            schoolMap = window.L.map(mapEl).setView([54.5, -3.5], 5);
+            window.L.tileLayer(APP.map.tileUrl, { attribution: APP.map.attribution, maxZoom: 19 }).addTo(schoolMap);
+          } catch (err) {
+            schoolMap = null;
+            mapEl.replaceChildren(el("p", { "data-map-fallback": "", text: COPY.mapUnavailable, style: "padding: 1rem;" }));
+            return;
+          }
+        } else if (!libOk) {
+          return;
+        }
+        try {
+          schoolMap.invalidateSize();
+          schoolMarkers.forEach((m) => m.remove());
+          schoolMarkers = [];
+          const bounds = [];
+          const homeSet = validLat(store.home.lat) && validLon(store.home.lon);
+          if (homeSet) {
+            schoolMarkers.push(window.L.marker([store.home.lat, store.home.lon], { title: "Home" }).addTo(schoolMap));
+            bounds.push([store.home.lat, store.home.lon]);
+            const radius = Number(store.home.radiusKm);
+            if (Number.isFinite(radius) && radius > 0) {
+              schoolMarkers.push(window.L.circle([store.home.lat, store.home.lon], { radius: radius * 1000 }).addTo(schoolMap));
+            }
+          }
+          for (const { row } of filteredRows()) {
+            const lat = toNumberOrNull(row[COL.lat]);
+            const lon = toNumberOrNull(row[COL.lon]);
+            if (!validLat(lat) || !validLon(lon)) continue;
+            const marker = window.L.marker([lat, lon], { title: row[COL.name], icon: pinIcon(getInterest(row)) }).addTo(schoolMap);
+            const next = nextEvent(row);
+            marker.bindPopup("<strong>" + escapeHtml(row[COL.name]) + "</strong><br>" + escapeHtml(next ? next.label : statusKind(row)));
+            marker.on("click", () => openDetail(row));
+            schoolMarkers.push(marker);
+            bounds.push([lat, lon]);
+          }
+          if (bounds.length) schoolMap.fitBounds(bounds.length === 1 ? [bounds[0], bounds[0]] : bounds, { padding: [24, 24] });
+          setTimeout(() => { try { schoolMap.invalidateSize(); } catch (err) { /* map stays */ } }, 0);
+        } catch (err) {
+          const mapEl = box.querySelector("#schools-map");
+          if (mapEl) mapEl.replaceChildren(el("p", { "data-map-fallback": "", text: COPY.mapUnavailable, style: "padding: 1rem;" }));
+          schoolMap = null;
+        }
+      }
+
+      function pinIcon(state) {
+        const cls = state === "yes" ? "pin pin-yes" : state === "no" ? "pin pin-no" : "pin";
+        return window.L.divIcon({ className: "", html: '<span class="' + cls + '"></span>', iconSize: [22, 22], iconAnchor: [11, 11] });
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      function renderAll() {
+        renderTimeline();
+        renderSchools();
+        renderAbout();
+        renderMap();
+        renderEmptyState();
+        updateStatus();
+      }
+
+      function updateStatus() {
+        const total = store.rows.length;
+        const shown = filteredRows().length;
+        $("status").textContent = total
+          ? fill(COPY.sidecarLoaded, { count: shown + "/" + total, source: store.source || APP.sidecar })
+          : COPY.sidecarMissing;
+      }
+
+      /* ---------------- location ---------------- */
+
+      function setHome(lat, lon) {
+        store.home.lat = lat;
+        store.home.lon = lon;
+        saveStore();
+        syncHomeInputs();
+        renderAll();
+      }
+
+      function syncHomeInputs() {
+        $("home-lat").value = store.home.lat === null ? "" : String(store.home.lat);
+        $("home-lon").value = store.home.lon === null ? "" : String(store.home.lon);
+        const homeSet = validLat(store.home.lat) && validLon(store.home.lon);
+        $("radius").disabled = !homeSet;
+        $("radius").title = homeSet ? "" : COPY.radiusNeedsHome;
+      }
+
+      function commitManualHome() {
+        const latRaw = $("home-lat").value.trim();
+        const lonRaw = $("home-lon").value.trim();
+        if (!latRaw && !lonRaw) {
+          store.home.lat = null;
+          store.home.lon = null;
+          $("status").textContent = COPY.homeCleared;
+          saveStore();
+          syncHomeInputs();
+          renderAll();
+          return;
+        }
+        /* One field filled: wait for the other. Never wipe partial input. */
+        if (!latRaw || !lonRaw) return;
+        const lat = toNumberOrNull(latRaw);
+        const lon = toNumberOrNull(lonRaw);
+        if (!validLat(lat) || !validLon(lon)) {
+          $("status").textContent = COPY.homeInvalid;
+          return;
+        }
+        setHome(lat, lon);
+        $("status").textContent = fill(COPY.locatedOk, { lat, lon });
+      }
+
+      function useBrowserLocation() {
+        if (!("geolocation" in navigator)) {
+          $("status").textContent = COPY.locateDenied;
+          return;
+        }
+        $("locate").disabled = true;
+        $("locate").textContent = COPY.locating;
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            $("locate").disabled = false;
+            $("locate").textContent = COPY.locateButton;
+            setHome(Number(pos.coords.latitude.toFixed(5)), Number(pos.coords.longitude.toFixed(5)));
+            $("status").textContent = fill(COPY.locatedOk, { lat: store.home.lat, lon: store.home.lon });
+          },
+          () => {
+            $("locate").disabled = false;
+            $("locate").textContent = COPY.locateButton;
+            $("status").textContent = COPY.locateDenied;
+          },
+          { timeout: APP.timing.geoTimeoutMs }
+        );
+      }
+
+      /* ---------------- data loading ---------------- */
+
+      /* Adjacent files are unreachable from file:// (CORS), so never fetch
+         there: lead with the upload picker instead of logging errors. */
+      function canFetchSidecar() {
+        return window.location.protocol === "http:" || window.location.protocol === "https:";
+      }
+
+      function renderEmptyState() {
+        const show = store.rows.length === 0;
+        $("empty-state").hidden = !show;
+        if (show) {
+          $("empty-title").textContent = COPY.emptyTitle;
+          $("empty-body").textContent = COPY.emptyBody;
+          $("empty-pick").textContent = COPY.chooseFile;
+        }
+      }
+
+      async function loadSidecar() {
+        if (!canFetchSidecar()) return false;
+        let text = null;
+        try {
+          const res = await fetch(APP.sidecar);
+          if (res.ok) text = await res.text();
+        } catch (err) {
+          text = null;
+        }
+        if (text === null) return false;
+        if (hashText(text) === store.hash && store.rows.length) return true;
+        const { rows, skipped } = rowsFromCSV(text);
+        if (!rows.length) return false;
+        store.rows = rows;
+        store.hash = hashText(text);
+        store.source = APP.sidecar + (skipped ? fill(COPY.importSkipped, { skipped }) : "");
+        saveStore();
+        return true;
+      }
+
+      function csvCell(value) {
+        const s = String(value === null || value === undefined ? "" : value);
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }
+
+      function exportCSV() {
+        if (!store.rows.length) return;
+        const headers = Object.keys(store.rows[0]);
+        const lines = [headers.join(",")];
+        for (const row of store.rows) lines.push(headers.map((h) => csvCell(row[h])).join(","));
+        const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = el("a", { href: url, download: APP.copy.exportPrefix + "-" + new Date().toISOString().slice(0, 10) + ".csv" });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      async function handleImportFile(file) {
+        const { rows, skipped } = rowsFromCSV(await file.text());
+        if (!rows.length) {
+          window.alert(COPY.importBadCsv);
+          return;
+        }
+        store.rows = rows;
+        store.hash = null;
+        store.source = file.name + (skipped ? fill(COPY.importSkipped, { skipped }) : "");
+        saveStore();
+        renderAll();
+        $("status").textContent = fill(COPY.importOk, { count: rows.length, skipped: skipped ? fill(COPY.importSkipped, { skipped }) : "" });
+      }
+
+      /* ---------------- boot ---------------- */
+
+      function buildChrome() {
+        $("kicker").textContent = APP.kicker;
+        $("title").textContent = APP.title;
+        $("intro").textContent = APP.intro;
+        $("foot").textContent = COPY.foot;
+
+        const search = $("search");
+        search.setAttribute("aria-label", COPY.searchLabel);
+        search.placeholder = COPY.searchPlaceholder;
+        search.addEventListener("input", () => { query = search.value; renderAll(); });
+
+        const sort = $("sort");
+        sort.setAttribute("aria-label", COPY.sortLabel);
+        COPY.sortOptions.forEach((opt) => sort.append(el("option", { value: opt.id, text: opt.label })));
+        sort.value = sortId;
+        sort.addEventListener("change", (e) => { sortId = e.target.value; renderAll(); });
+
+        const radius = $("radius");
+        radius.setAttribute("aria-label", COPY.radiusLabel);
+        radius.append(el("option", { value: "", text: COPY.radiusAll }));
+        APP.radiusStepsKm.forEach((km) => radius.append(el("option", { value: String(km), text: fill(COPY.radiusKm, { km }) })));
+        radius.value = String(store.home.radiusKm);
+        radius.addEventListener("change", (e) => {
+          const v = Number(e.target.value);
+          store.home.radiusKm = Number.isFinite(v) && v > 0 ? v : 0;
+          if (!e.target.value) e.target.value = "";
+          saveStore();
+          renderAll();
+        });
+
+        $("locate").textContent = COPY.locateButton;
+        $("locate").addEventListener("click", useBrowserLocation);
+        $("home-lat").setAttribute("aria-label", COPY.homeLatLabel);
+        $("home-lat").placeholder = COPY.homeLatPlaceholder;
+        $("home-lon").setAttribute("aria-label", COPY.homeLonLabel);
+        $("home-lon").placeholder = COPY.homeLonPlaceholder;
+        $("home-lat").addEventListener("change", commitManualHome);
+        $("home-lon").addEventListener("change", commitManualHome);
+
+        $("import-btn").textContent = COPY.importButton;
+        $("export-btn").textContent = COPY.exportButton;
+        $("refresh-btn").textContent = COPY.refreshButton;
+        $("import-btn").addEventListener("click", () => $("file").click());
+        $("export-btn").addEventListener("click", exportCSV);
+        $("refresh-btn").addEventListener("click", async () => {
+          if (!canFetchSidecar()) { $("file").click(); return; }
+          if (await loadSidecar()) { renderAll(); }
+          else updateStatus();
+        });
+        $("file").addEventListener("change", (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (file) handleImportFile(file);
+          e.target.value = "";
+        });
+        $("empty-pick").addEventListener("click", () => $("file").click());
+
+        document.querySelectorAll(".tabs [role=tab]").forEach((btn) => {
+          btn.textContent = TAB_LABELS[btn.dataset.view] || btn.dataset.view;
+          btn.addEventListener("click", () => setView(btn.dataset.view));
+        });
+
+        $("detail-close").textContent = COPY.detailClose;
+        $("detail-close").addEventListener("click", () => $("detail").close());
+        $("detail").addEventListener("click", (e) => {
+          if (e.target === $("detail")) $("detail").close();
+        });
+
+        syncHomeInputs();
+      }
+
+      function setView(next) {
+        view = next;
+        document.querySelectorAll(".tabs [role=tab]").forEach((btn) => {
+          btn.setAttribute("aria-selected", btn.dataset.view === next ? "true" : "false");
+        });
+        for (const id of VIEWS) {
+          $("panel-" + id).hidden = id !== next;
+        }
+        if (next === "map") renderMap();
+      }
+
+      window.__EVENTS_TEST__ = {
+        parseCount: (text) => rowsFromCSV(text).rows.length,
+        eventCount: (row) => eventsFor(row).length,
+        questionCount: (row) => parseQuestions(row).length,
+        km: (a, b, c, d) => haversineKm(a, b, c, d)
+      };
+
+      buildChrome();
+      loadCached();
+      renderAll();
+      setView("timeline");
+      loadSidecar().then((ok) => {
+        if (ok) renderAll();
+        else if (!store.rows.length) updateStatus();
+      });
+    </script>
+  </body>
+</html>
