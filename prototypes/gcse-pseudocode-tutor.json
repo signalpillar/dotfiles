@@ -1,0 +1,1554 @@
+{
+  "title": "GCSE Pseudocode Tutor",
+  "tagline": "Static reference for a home tutor. One idea a day. Print one snippet at a time.",
+  "ritual": [
+    "Read",
+    "Predict",
+    "Trace",
+    "Explain",
+    "Name",
+    "Modify",
+    "Challenge"
+  ],
+  "print": {
+    "kicker": "GCSE Computer Science",
+    "studentLabel": "Student slip",
+    "tutorLabel": "Tutor card",
+    "studentHint": "Predict first. Then trace every state change.",
+    "footer": "Code changes state. Trace the state."
+  },
+  "copy": {
+    "back": "Prototypes",
+    "search": "Search day, title, or idea",
+    "allPhases": "All days",
+    "empty": "No lesson matches that search.",
+    "printStudent": "Print student slip",
+    "printTutor": "Print tutor card",
+    "copySnippet": "Copy snippet",
+    "shareSnippet": "Send snippet",
+    "copied": "Copied",
+    "snippets": "{count} snippet",
+    "snippetsMany": "{count} snippets",
+    "dayLabel": "Day {day}",
+    "ideaLabel": "Idea",
+    "cueLabel": "Tutor cue",
+    "traceLabel": "Trace columns",
+    "explainLabel": "Explain",
+    "nameLabel": "Name",
+    "changeLabel": "Modify",
+    "stretchLabel": "Challenge",
+    "keyLabel": "Tutor key",
+    "predictLabel": "Predict",
+    "selectHint": "Pick a day. Print the snippet. Keep the key on this screen."
+  },
+  "patterns": [
+    {
+      "name": "Accumulator",
+      "shape": "sum <- sum + x"
+    },
+    {
+      "name": "Counter",
+      "shape": "count <- count + 1"
+    },
+    {
+      "name": "Flag",
+      "shape": "found <- TRUE"
+    },
+    {
+      "name": "Min/max",
+      "shape": "best <- x"
+    },
+    {
+      "name": "Linear scan",
+      "shape": "FOR EACH x"
+    },
+    {
+      "name": "Two pointers",
+      "shape": "left, right"
+    },
+    {
+      "name": "Nested iteration",
+      "shape": "loop inside loop"
+    },
+    {
+      "name": "Divide and conquer",
+      "shape": "binary search"
+    }
+  ],
+  "phases": [
+    {
+      "id": "phase-1",
+      "title": "Program state",
+      "range": "Days 1 to 9",
+      "blurb": "Variables, conditions, loops, and functions."
+    },
+    {
+      "id": "phase-2",
+      "title": "Arrays and strings",
+      "range": "Days 10 to 18",
+      "blurb": "Index, scan, accumulate, search, two pointers."
+    },
+    {
+      "id": "phase-3",
+      "title": "Algorithms",
+      "range": "Days 19 to 24",
+      "blurb": "Search, nested loops, sort, and work-size intuition."
+    },
+    {
+      "id": "phase-4",
+      "title": "Data structures",
+      "range": "Days 25 to 35",
+      "blurb": "Stack, queue, linked list, and maps."
+    },
+    {
+      "id": "phase-5",
+      "title": "Recursion",
+      "range": "Days 36 to 39",
+      "blurb": "Trace the call stack."
+    },
+    {
+      "id": "phase-6",
+      "title": "Trees and graphs",
+      "range": "Days 40 to 47",
+      "blurb": "Trees, BST, BFS, and DFS."
+    }
+  ],
+  "lessons": [
+    {
+      "id": "day-1",
+      "day": 1,
+      "phase": "phase-1",
+      "title": "Variables",
+      "idea": "A variable holds one value. Assignment replaces that value.",
+      "cue": "Cover the names. Ask for a and b at the end before any tracing.",
+      "snippets": [
+        {
+          "id": "day-1-main",
+          "label": "Main snippet",
+          "code": "a <- 4\nb <- 9\ntemp <- a\na <- b\nb <- temp\nOUTPUT a\nOUTPUT b",
+          "predict": [
+            "What is a at the end?",
+            "What is b at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "a",
+        "b",
+        "temp"
+      ],
+      "explain": "It copies a aside, then moves b into a, then moves the saved copy into b.",
+      "name": "assignment / swap",
+      "change": "Swap x and y instead of a and b. Same three lines.",
+      "stretch": "Rotate three values: a into b, b into c, c into a.",
+      "key": "a is 9. b is 4. temp ends as 4."
+    },
+    {
+      "id": "day-2",
+      "day": 2,
+      "phase": "phase-1",
+      "title": "Arithmetic",
+      "idea": "Expressions compute a new value. Store it if you need it later.",
+      "cue": "Ask for total first, then average. Watch integer vs real if it comes up.",
+      "snippets": [
+        {
+          "id": "day-2-main",
+          "label": "Main snippet",
+          "code": "total <- 12 + 8 + 10\ncount <- 3\naverage <- total / count\nOUTPUT total\nOUTPUT average",
+          "predict": [
+            "What is total?",
+            "What is average?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "total",
+        "count",
+        "average"
+      ],
+      "explain": "It adds three scores, then divides by how many scores there were.",
+      "name": "total / average",
+      "change": "Add a fourth score of 6. What changes?",
+      "stretch": "Compute the average of 5, 5, and 8 without a total variable. Why is total useful?",
+      "key": "total is 30. average is 10."
+    },
+    {
+      "id": "day-3",
+      "day": 3,
+      "phase": "phase-1",
+      "title": "Boolean expressions",
+      "idea": "A Boolean is TRUE or FALSE. Comparisons produce Booleans.",
+      "cue": "Ask them to say TRUE or FALSE, not yes or no.",
+      "snippets": [
+        {
+          "id": "day-3-main",
+          "label": "Main snippet",
+          "code": "n <- 14\neven <- (n MOD 2) = 0\nOUTPUT even",
+          "predict": [
+            "What does n MOD 2 give?",
+            "What is even?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "n",
+        "n MOD 2",
+        "even"
+      ],
+      "explain": "It tests whether dividing n by 2 leaves no remainder.",
+      "name": "Boolean / even test / MOD",
+      "change": "Change it so even is TRUE for odd numbers.",
+      "stretch": "What is even when n is 0?",
+      "key": "n MOD 2 is 0. even is TRUE."
+    },
+    {
+      "id": "day-4",
+      "day": 4,
+      "phase": "phase-1",
+      "title": "IF / ELSE",
+      "idea": "A condition chooses one path. The other path is skipped.",
+      "cue": "Ask which branch runs before they read the assignments.",
+      "snippets": [
+        {
+          "id": "day-4-main",
+          "label": "Main snippet",
+          "code": "a <- 7\nb <- 11\nIF a > b THEN\n    larger <- a\nELSE\n    larger <- b\nENDIF\nOUTPUT larger",
+          "predict": [
+            "Which branch runs?",
+            "What is larger?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "a",
+        "b",
+        "a > b",
+        "larger"
+      ],
+      "explain": "It keeps the number that is bigger.",
+      "name": "selection / max of two",
+      "change": "Find the smaller number instead.",
+      "stretch": "What happens if a and b are equal? Change the code to report a tie.",
+      "key": "a > b is FALSE. larger is 11."
+    },
+    {
+      "id": "day-5",
+      "day": 5,
+      "phase": "phase-1",
+      "title": "Nested conditions",
+      "idea": "An IF inside an ELSE checks the next band only if earlier bands failed.",
+      "cue": "Walk the tests from the top. Stop at the first true one.",
+      "snippets": [
+        {
+          "id": "day-5-main",
+          "label": "Main snippet",
+          "code": "score <- 73\nIF score >= 80 THEN\n    grade <- \"A\"\nELSE\n    IF score >= 70 THEN\n        grade <- \"B\"\n    ELSE\n        IF score >= 60 THEN\n            grade <- \"C\"\n        ELSE\n            grade <- \"U\"\n        ENDIF\n    ENDIF\nENDIF\nOUTPUT grade",
+          "predict": [
+            "Which condition is first true?",
+            "What is grade?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "score",
+        ">= 80",
+        ">= 70",
+        ">= 60",
+        "grade"
+      ],
+      "explain": "It maps a score onto the first matching grade band.",
+      "name": "nested selection / grade boundaries",
+      "change": "Add a grade A* for 90 and above.",
+      "stretch": "What grade does 70 get? What grade does 69 get?",
+      "key": "73 is not >= 80. It is >= 70. grade is B."
+    },
+    {
+      "id": "day-6",
+      "day": 6,
+      "phase": "phase-1",
+      "title": "FOR loop",
+      "idea": "A FOR loop repeats a body. The loop variable steps through a range.",
+      "cue": "Build the table row by row. Do not jump to the formula for 1 to n.",
+      "snippets": [
+        {
+          "id": "day-6-main",
+          "label": "Main snippet",
+          "code": "n <- 5\nsum <- 0\nFOR i <- 1 TO n\n    sum <- sum + i\nNEXT i\nOUTPUT sum",
+          "predict": [
+            "How many times does the body run?",
+            "What is sum at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "sum before add",
+        "sum after add"
+      ],
+      "explain": "It adds each whole number from 1 to n into a running total.",
+      "name": "FOR loop / accumulator",
+      "change": "Sum only the even values from 1 to n.",
+      "stretch": "What is sum when n is 1? When n is 0, this loop body does not run.",
+      "key": "Body runs 5 times. sum is 15."
+    },
+    {
+      "id": "day-7",
+      "day": 7,
+      "phase": "phase-1",
+      "title": "WHILE loop",
+      "idea": "WHILE repeats while a condition stays true. The body must change that condition.",
+      "cue": "Watch n on every row. Ask when the condition becomes false.",
+      "snippets": [
+        {
+          "id": "day-7-main",
+          "label": "Main snippet",
+          "code": "n <- 5\nWHILE n > 0\n    OUTPUT n\n    n <- n - 1\nENDWHILE\nOUTPUT \"done\"",
+          "predict": [
+            "What is printed, in order?",
+            "What is n after the loop?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "n at test",
+        "n > 0",
+        "output"
+      ],
+      "explain": "It prints a countdown, then stops when n is no longer greater than 0.",
+      "name": "WHILE / countdown",
+      "change": "Count up from 1 until n, using WHILE.",
+      "stretch": "What happens if you forget n <- n - 1?",
+      "key": "Prints 5 4 3 2 1 then done. n ends as 0."
+    },
+    {
+      "id": "day-8",
+      "day": 8,
+      "phase": "phase-1",
+      "title": "Functions",
+      "idea": "A function is a named block. A call jumps in, then returns.",
+      "cue": "Trace into square(6). Then come back to OUTPUT.",
+      "snippets": [
+        {
+          "id": "day-8-main",
+          "label": "Main snippet",
+          "code": "FUNCTION square(x)\n    RETURN x * x\nENDFUNCTION\n\nOUTPUT square(6)",
+          "predict": [
+            "What value goes into x?",
+            "What is printed?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "call",
+        "x",
+        "return"
+      ],
+      "explain": "It takes one number and returns that number times itself.",
+      "name": "function call / parameter / return",
+      "change": "Add a function cube(x) and output cube(3).",
+      "stretch": "What does square(square(2)) print?",
+      "key": "x is 6. printed value is 36."
+    },
+    {
+      "id": "day-9",
+      "day": 9,
+      "phase": "phase-1",
+      "title": "Return values",
+      "idea": "A function can choose a value with IF, then hand that value back.",
+      "cue": "Ask which RETURN runs. Only one RETURN runs.",
+      "snippets": [
+        {
+          "id": "day-9-main",
+          "label": "Main snippet",
+          "code": "FUNCTION maxOf(a, b)\n    IF a > b THEN\n        RETURN a\n    ELSE\n        RETURN b\n    ENDIF\nENDFUNCTION\n\nOUTPUT maxOf(9, 4)",
+          "predict": [
+            "Which RETURN runs?",
+            "What is printed?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "call",
+        "a",
+        "b",
+        "a > b",
+        "return"
+      ],
+      "explain": "It compares two values and returns the larger one.",
+      "name": "return value / function selection",
+      "change": "Write minOf(a, b) using the same shape.",
+      "stretch": "What does maxOf(5, 5) return?",
+      "key": "a > b is TRUE. printed value is 9."
+    },
+    {
+      "id": "day-10",
+      "day": 10,
+      "phase": "phase-2",
+      "title": "Array indexing",
+      "idea": "An array holds many values. An index picks one slot.",
+      "cue": "Say the indexes out loud: 0, 1, 2, 3. Then change index 2.",
+      "snippets": [
+        {
+          "id": "day-10-main",
+          "label": "Main snippet",
+          "code": "nums <- [4, 8, 15, 16]\nOUTPUT nums[0]\nnums[2] <- 99\nOUTPUT nums[2]\nOUTPUT nums",
+          "predict": [
+            "What is nums[0]?",
+            "What does nums contain at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "nums[0]",
+        "nums[2]",
+        "nums"
+      ],
+      "explain": "It reads the first slot, then overwrites the slot at index 2.",
+      "name": "index / element / update",
+      "change": "Set the last element to 0. Which index is that?",
+      "stretch": "What happens if you use nums[4] on this array?",
+      "key": "Prints 4, then 99, then [4, 8, 99, 16]."
+    },
+    {
+      "id": "day-11",
+      "day": 11,
+      "phase": "phase-2",
+      "title": "Array traversal",
+      "idea": "A loop plus an index visits every element.",
+      "cue": "Keep i and nums[i] in separate columns.",
+      "snippets": [
+        {
+          "id": "day-11-main",
+          "label": "Main snippet",
+          "code": "nums <- [5, 2, 9]\nFOR i <- 0 TO 2\n    OUTPUT nums[i]\nNEXT i",
+          "predict": [
+            "What is printed, in order?",
+            "Which values does i take?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "nums[i]"
+      ],
+      "explain": "It walks from the first slot to the last slot and prints each value.",
+      "name": "traversal / linear scan",
+      "change": "Print the array from last to first.",
+      "stretch": "Rewrite the loop as FOR i <- 0 TO LEN(nums) - 1.",
+      "key": "Prints 5, 2, 9. i takes 0, 1, 2."
+    },
+    {
+      "id": "day-12",
+      "day": 12,
+      "phase": "phase-2",
+      "title": "Accumulator pattern",
+      "idea": "One variable collects a running result while you scan.",
+      "cue": "Write sum before and after each add. Do not add in your head only.",
+      "snippets": [
+        {
+          "id": "day-12-main",
+          "label": "Main snippet",
+          "code": "nums <- [5, 2, 9, 4]\nsum <- 0\nFOR i <- 0 TO 3\n    sum <- sum + nums[i]\nNEXT i\nOUTPUT sum",
+          "predict": [
+            "What is sum after the first add?",
+            "What is sum at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "nums[i]",
+        "sum"
+      ],
+      "explain": "It adds every element into one running total.",
+      "name": "accumulator",
+      "change": "Accumulate the product instead of the sum. Start product at 1.",
+      "stretch": "What is the right start value if you sum an empty array?",
+      "key": "sum goes 5, 7, 16, 20. Final sum is 20."
+    },
+    {
+      "id": "day-13",
+      "day": 13,
+      "phase": "phase-2",
+      "title": "Minimum / maximum pattern",
+      "idea": "Remember the best value seen so far. Replace it when you see a better one.",
+      "cue": "Start best at nums[0]. Then walk the rest.",
+      "snippets": [
+        {
+          "id": "day-13-main",
+          "label": "Main snippet",
+          "code": "nums <- [5, 2, 9, 4]\nbest <- nums[0]\nFOR i <- 1 TO 3\n    IF nums[i] > best THEN\n        best <- nums[i]\n    ENDIF\nNEXT i\nOUTPUT best",
+          "predict": [
+            "What is best after i is 1?",
+            "What is best at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "nums[i]",
+        "best"
+      ],
+      "explain": "It remembers the largest value seen so far.",
+      "name": "maximum / best-so-far",
+      "change": "Find the smallest value instead.",
+      "stretch": "Why is starting best at 0 wrong for this array? It is not wrong here, but it fails for all-negative arrays.",
+      "key": "After i=1, best is still 5. Final best is 9."
+    },
+    {
+      "id": "day-14",
+      "day": 14,
+      "phase": "phase-2",
+      "title": "Counter pattern",
+      "idea": "A counter goes up by one when a condition matches.",
+      "cue": "Tick the counter only on a match. Leave it on a miss.",
+      "snippets": [
+        {
+          "id": "day-14-main",
+          "label": "Main snippet",
+          "code": "nums <- [7, 2, 7, 9, 7]\ncount <- 0\nFOR i <- 0 TO 4\n    IF nums[i] = 7 THEN\n        count <- count + 1\n    ENDIF\nNEXT i\nOUTPUT count",
+          "predict": [
+            "How many times does count go up?",
+            "What is count at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "nums[i]",
+        "match?",
+        "count"
+      ],
+      "explain": "It counts how many times 7 appears.",
+      "name": "counter",
+      "change": "Count the even numbers instead of the 7s.",
+      "stretch": "What is count if the array has no 7?",
+      "key": "count goes up 3 times. Final count is 3."
+    },
+    {
+      "id": "day-15",
+      "day": 15,
+      "phase": "phase-2",
+      "title": "Linear search",
+      "idea": "Scan from the start. Stop when you find the target, or when the array ends.",
+      "cue": "Ask when found becomes TRUE. The loop then stops.",
+      "snippets": [
+        {
+          "id": "day-15-main",
+          "label": "Main snippet",
+          "code": "nums <- [4, 8, 15, 16, 23]\ntarget <- 16\nfound <- FALSE\npos <- -1\ni <- 0\nWHILE i <= 4 AND found = FALSE\n    IF nums[i] = target THEN\n        found <- TRUE\n        pos <- i\n    ENDIF\n    i <- i + 1\nENDWHILE\nOUTPUT found\nOUTPUT pos",
+          "predict": [
+            "Does it find 16?",
+            "What is pos? How many tests ran?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "nums[i]",
+        "found",
+        "pos"
+      ],
+      "explain": "It looks at each element until it finds the target, then remembers that index.",
+      "name": "linear search / flag",
+      "change": "Search for 10 instead. What are found and pos?",
+      "stretch": "Change it so it finds the last 16 if the array has two of them.",
+      "key": "found is TRUE. pos is 3. It tests indexes 0 to 3."
+    },
+    {
+      "id": "day-16",
+      "day": 16,
+      "phase": "phase-2",
+      "title": "Strings as sequences",
+      "idea": "A string is a sequence of characters. You can index it like an array.",
+      "cue": "Treat each letter as one element. Count only the matches.",
+      "snippets": [
+        {
+          "id": "day-16-main",
+          "label": "Main snippet",
+          "code": "word <- \"banana\"\ncount <- 0\nFOR i <- 0 TO LEN(word) - 1\n    IF word[i] = \"a\" THEN\n        count <- count + 1\n    ENDIF\nNEXT i\nOUTPUT count",
+          "predict": [
+            "What is LEN(word)?",
+            "What is count?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "word[i]",
+        "count"
+      ],
+      "explain": "It counts how many times the letter a appears.",
+      "name": "string scan / counter",
+      "change": "Count the letter n instead.",
+      "stretch": "What is count for \"aaa\"? For \"\"?",
+      "key": "LEN(word) is 6. count is 3."
+    },
+    {
+      "id": "day-17",
+      "day": 17,
+      "phase": "phase-2",
+      "title": "Two pointers",
+      "idea": "Two indexes can walk toward each other and swap as they meet.",
+      "cue": "Fill left, right, and the whole array after every swap.",
+      "snippets": [
+        {
+          "id": "day-17-main",
+          "label": "Main snippet",
+          "code": "items <- [\"A\", \"B\", \"C\", \"D\", \"E\"]\nleft <- 0\nright <- 4\nWHILE left < right\n    temp <- items[left]\n    items[left] <- items[right]\n    items[right] <- temp\n    left <- left + 1\n    right <- right - 1\nENDWHILE\nOUTPUT items",
+          "predict": [
+            "What is items after the first swap?",
+            "What is items at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "left",
+        "right",
+        "items"
+      ],
+      "explain": "It swaps the ends, then moves inward, until the two indexes meet.",
+      "name": "two pointers / reverse",
+      "change": "Reverse only the first four letters, leaving E in place.",
+      "stretch": "Does the middle letter C ever swap? Why not?",
+      "key": "After swap 1: [E, B, C, D, A]. Final: [E, D, C, B, A]. C stays in the middle."
+    },
+    {
+      "id": "day-18",
+      "day": 18,
+      "phase": "phase-2",
+      "title": "Palindrome",
+      "idea": "A palindrome reads the same from both ends. Compare left and right.",
+      "cue": "One mismatch is enough to fail. Do not keep comparing after a fail.",
+      "snippets": [
+        {
+          "id": "day-18-main",
+          "label": "Main snippet",
+          "code": "word <- \"level\"\nleft <- 0\nright <- LEN(word) - 1\nok <- TRUE\nWHILE left < right AND ok = TRUE\n    IF word[left] != word[right] THEN\n        ok <- FALSE\n    ENDIF\n    left <- left + 1\n    right <- right - 1\nENDWHILE\nOUTPUT ok",
+          "predict": [
+            "Which pairs are compared?",
+            "What is ok?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "left",
+        "right",
+        "pair",
+        "ok"
+      ],
+      "explain": "It checks that each pair of letters from the outside matches.",
+      "name": "palindrome / two pointers / flag",
+      "change": "Try the same code on \"lemon\". Where does it fail?",
+      "stretch": "Is a one-letter word a palindrome with this code?",
+      "key": "Pairs: l/l, e/e. ok is TRUE."
+    },
+    {
+      "id": "day-19",
+      "day": 19,
+      "phase": "phase-3",
+      "title": "Linear search revisited",
+      "idea": "Count comparisons. First match stops the search.",
+      "cue": "Ask how many comparisons for first, middle, missing.",
+      "snippets": [
+        {
+          "id": "day-19-main",
+          "label": "Main snippet",
+          "code": "nums <- [11, 42, 7, 42, 19]\ntarget <- 42\ncomparisons <- 0\npos <- -1\ni <- 0\nWHILE i <= 4 AND pos = -1\n    comparisons <- comparisons + 1\n    IF nums[i] = target THEN\n        pos <- i\n    ENDIF\n    i <- i + 1\nENDWHILE\nOUTPUT pos\nOUTPUT comparisons",
+          "predict": [
+            "What is pos?",
+            "How many comparisons?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "nums[i]",
+        "comparisons",
+        "pos"
+      ],
+      "explain": "It finds the first 42 and counts how many tests that took.",
+      "name": "linear search / comparisons",
+      "change": "Search for 19. How many comparisons then?",
+      "stretch": "Search for 5. What are pos and comparisons?",
+      "key": "pos is 1. comparisons is 2. The second 42 is never tested."
+    },
+    {
+      "id": "day-20",
+      "day": 20,
+      "phase": "phase-3",
+      "title": "Binary search",
+      "idea": "On a sorted array, throw away half the remaining range each step.",
+      "cue": "Keep low, high, mid, and the value at mid. Recalculate mid every row.",
+      "snippets": [
+        {
+          "id": "day-20-main",
+          "label": "Main snippet",
+          "code": "array <- [3, 8, 12, 19, 24, 31, 40]\ntarget <- 24\nlow <- 0\nhigh <- 6\nfound <- FALSE\nmid <- -1\nWHILE low <= high AND found = FALSE\n    mid <- (low + high) DIV 2\n    IF array[mid] = target THEN\n        found <- TRUE\n    ELSE\n        IF array[mid] < target THEN\n            low <- mid + 1\n        ELSE\n            high <- mid - 1\n        ENDIF\n    ENDIF\nENDWHILE\nOUTPUT found\nOUTPUT mid",
+          "predict": [
+            "What mid values appear?",
+            "What are found and mid at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "low",
+        "high",
+        "mid",
+        "array[mid]",
+        "found"
+      ],
+      "explain": "It looks at the middle of the live range, then keeps the half that can still hold the target.",
+      "name": "binary search / divide and conquer",
+      "change": "Search for 3. Search for 40. Search for 10.",
+      "stretch": "Why must the array be sorted?",
+      "key": "mid takes 3, then 5, then 4. found is TRUE. mid ends as 4."
+    },
+    {
+      "id": "day-21",
+      "day": 21,
+      "phase": "phase-3",
+      "title": "Nested loops",
+      "idea": "An inner loop finishes all of its turns for each outer turn.",
+      "cue": "Write a row for every (i, j) pair. Cross out i = j.",
+      "snippets": [
+        {
+          "id": "day-21-main",
+          "label": "Main snippet",
+          "code": "nums <- [2, 5, 9]\nFOR i <- 0 TO 2\n    FOR j <- 0 TO 2\n        IF i != j THEN\n            OUTPUT nums[i]\n            OUTPUT nums[j]\n        ENDIF\n    NEXT j\nNEXT i",
+          "predict": [
+            "How many pairs are printed?",
+            "List the pairs."
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "j",
+        "i != j",
+        "pair"
+      ],
+      "explain": "It compares every value with every different value.",
+      "name": "nested iteration / all pairs",
+      "change": "Print each unordered pair once (i < j only).",
+      "stretch": "How many pairs if the array has 4 values, using i != j?",
+      "key": "6 pairs: 2 5, 2 9, 5 2, 5 9, 9 2, 9 5."
+    },
+    {
+      "id": "day-22",
+      "day": 22,
+      "phase": "phase-3",
+      "title": "Bubble sort",
+      "idea": "Each pass swaps neighbours that are out of order. Large values move right.",
+      "cue": "Copy the array after every swap. Then after each pass.",
+      "snippets": [
+        {
+          "id": "day-22-main",
+          "label": "Main snippet",
+          "code": "a <- [4, 1, 3, 2]\nn <- 4\nFOR pass <- 1 TO n - 1\n    FOR i <- 0 TO n - 1 - pass\n        IF a[i] > a[i + 1] THEN\n            temp <- a[i]\n            a[i] <- a[i + 1]\n            a[i + 1] <- temp\n        ENDIF\n    NEXT i\nNEXT pass\nOUTPUT a",
+          "predict": [
+            "What is a after pass 1?",
+            "What is a at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "pass",
+        "i",
+        "a"
+      ],
+      "explain": "It repeatedly swaps adjacent items until the array is in order.",
+      "name": "bubble sort",
+      "change": "Sort descending instead. Flip the comparison.",
+      "stretch": "How many neighbour comparisons happen for n = 4 with this code?",
+      "key": "After pass 1: [1, 3, 2, 4]. Final: [1, 2, 3, 4]. Comparisons: 3 + 2 + 1 = 6."
+    },
+    {
+      "id": "day-23",
+      "day": 23,
+      "phase": "phase-3",
+      "title": "Selection sort",
+      "idea": "Each pass finds the smallest remaining value and swaps it into place.",
+      "cue": "Mark the unsorted start. Track minPos through the inner loop.",
+      "snippets": [
+        {
+          "id": "day-23-main",
+          "label": "Main snippet",
+          "code": "a <- [4, 1, 3, 2]\nn <- 4\nFOR i <- 0 TO n - 2\n    minPos <- i\n    FOR j <- i + 1 TO n - 1\n        IF a[j] < a[minPos] THEN\n            minPos <- j\n        ENDIF\n    NEXT j\n    temp <- a[i]\n    a[i] <- a[minPos]\n    a[minPos] <- temp\nNEXT i\nOUTPUT a",
+          "predict": [
+            "What is minPos when i is 0?",
+            "What is a after the first swap?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "j",
+        "minPos",
+        "a"
+      ],
+      "explain": "It selects the smallest leftover value and puts it at the next front slot.",
+      "name": "selection sort",
+      "change": "Select the largest remaining value and fill from the right.",
+      "stretch": "Does it still swap when the smallest is already at i?",
+      "key": "When i is 0, minPos becomes 1. After first swap: [1, 4, 3, 2]. Final: [1, 2, 3, 4]. Yes, it still swaps a slot with itself."
+    },
+    {
+      "id": "day-24",
+      "day": 24,
+      "phase": "phase-3",
+      "title": "Complexity intuition",
+      "idea": "Linear search grows with n. Binary search grows much slower on a sorted list.",
+      "cue": "Do not start with Big O. Ask how much work for 10, then 100.",
+      "snippets": [
+        {
+          "id": "day-24-main",
+          "label": "Main snippet",
+          "code": "FUNCTION linearSearch(arr, target)\n    FOR i <- 0 TO LEN(arr) - 1\n        IF arr[i] = target THEN\n            RETURN i\n        ENDIF\n    NEXT i\n    RETURN -1\nENDFUNCTION",
+          "predict": [
+            "Worst comparisons for 10 values?",
+            "Worst comparisons for 100 values?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        },
+        {
+          "id": "day-24-binary",
+          "label": "Binary search shape",
+          "code": "FUNCTION binarySearch(arr, target)\n    low <- 0\n    high <- LEN(arr) - 1\n    WHILE low <= high\n        mid <- (low + high) DIV 2\n        IF arr[mid] = target THEN\n            RETURN mid\n        ENDIF\n        IF arr[mid] < target THEN\n            low <- mid + 1\n        ELSE\n            high <- mid - 1\n        ENDIF\n    ENDWHILE\n    RETURN -1\nENDFUNCTION",
+          "predict": [
+            "About how many mid checks for 100 sorted values?",
+            "What if the array is not sorted?"
+          ],
+          "printNote": "Compare work with the linear version. Do not name Big O yet."
+        }
+      ],
+      "trace": [
+        "n",
+        "linear worst",
+        "binary worst (about)"
+      ],
+      "explain": "Linear search may look at every item. Binary search halves the remaining items.",
+      "name": "linear vs binary / work size",
+      "change": "What if the target is first? What if it is absent?",
+      "stretch": "Why does binary search need sorted data?",
+      "key": "Linear worst: 10, then 100. Binary worst is about 4, then 7. Absent is worst for both. First item is best for linear, not special for binary."
+    },
+    {
+      "id": "day-25",
+      "day": 25,
+      "phase": "phase-4",
+      "title": "Stack: push and pop",
+      "idea": "A stack is last-in, first-out. Push adds on top. Pop removes the top.",
+      "cue": "Draw the stack as a column. The top is the last item.",
+      "snippets": [
+        {
+          "id": "day-25-main",
+          "label": "Main snippet",
+          "code": "stack <- []\nPUSH stack, \"A\"\nPUSH stack, \"B\"\nPUSH stack, \"C\"\nOUTPUT POP stack\nOUTPUT POP stack\nOUTPUT stack",
+          "predict": [
+            "What is printed first?",
+            "What remains on the stack?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "action",
+        "stack"
+      ],
+      "explain": "The last item pushed is the first item popped.",
+      "name": "stack / LIFO",
+      "change": "Push D after the first pop. What is the next pop?",
+      "stretch": "What happens if you pop an empty stack?",
+      "key": "Prints C, then B. stack ends as [A]."
+    },
+    {
+      "id": "day-26",
+      "day": 26,
+      "phase": "phase-4",
+      "title": "Stack: reverse a word",
+      "idea": "Push every letter, then pop them all. The letters come out backwards.",
+      "cue": "Show the stack after the whole word is pushed, then after each pop.",
+      "snippets": [
+        {
+          "id": "day-26-main",
+          "label": "Main snippet",
+          "code": "stack <- []\nword <- \"cat\"\nFOR i <- 0 TO LEN(word) - 1\n    PUSH stack, word[i]\nNEXT i\nout <- \"\"\nWHILE NOT ISEMPTY(stack)\n    out <- out + POP stack\nENDWHILE\nOUTPUT out",
+          "predict": [
+            "What is on the stack after the FOR loop?",
+            "What is out?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "stack",
+        "out"
+      ],
+      "explain": "It stores the letters, then rebuilds the word from the top of the stack.",
+      "name": "stack reverse",
+      "change": "Reverse \"stack\" with the same method.",
+      "stretch": "What is out for a one-letter word?",
+      "key": "After the FOR: [c, a, t] with t on top. out is tac."
+    },
+    {
+      "id": "day-27",
+      "day": 27,
+      "phase": "phase-4",
+      "title": "Stack: matching brackets",
+      "idea": "Push an opener. Pop when you see a closer. A leftover or a short stack is a fail.",
+      "cue": "Trace one character at a time. Stop talking in whole-string guesses.",
+      "snippets": [
+        {
+          "id": "day-27-main",
+          "label": "Main snippet",
+          "code": "stack <- []\ntext <- \"(())\"\nok <- TRUE\nFOR i <- 0 TO LEN(text) - 1\n    IF text[i] = \"(\" THEN\n        PUSH stack, \"(\"\n    ELSE\n        IF ISEMPTY(stack) THEN\n            ok <- FALSE\n        ELSE\n            POP stack\n        ENDIF\n    ENDIF\nNEXT i\nIF NOT ISEMPTY(stack) THEN\n    ok <- FALSE\nENDIF\nOUTPUT ok",
+          "predict": [
+            "Is the stack empty at the end?",
+            "What is ok?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "i",
+        "text[i]",
+        "stack",
+        "ok"
+      ],
+      "explain": "Each closer must match a previous opener that is still open.",
+      "name": "stack matching",
+      "change": "Trace \")(\" and \"(()\". Why do both fail?",
+      "stretch": "Extend the idea to () and [] together. What extra do you store on the stack?",
+      "key": "For (()) the stack ends empty. ok is TRUE. )( fails on the first closer. (() fails because one opener remains."
+    },
+    {
+      "id": "day-28",
+      "day": 28,
+      "phase": "phase-4",
+      "title": "Queue",
+      "idea": "A queue is first-in, first-out. Enqueue joins the back. Dequeue leaves the front.",
+      "cue": "Draw a line of people. The first arrival is served first.",
+      "snippets": [
+        {
+          "id": "day-28-main",
+          "label": "Main snippet",
+          "code": "queue <- []\nENQUEUE queue, \"Ali\"\nENQUEUE queue, \"Bea\"\nENQUEUE queue, \"Cal\"\nOUTPUT DEQUEUE queue\nOUTPUT queue",
+          "predict": [
+            "Who leaves first?",
+            "Who is still waiting?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "action",
+        "queue"
+      ],
+      "explain": "The first person in the line is the first person out.",
+      "name": "queue / FIFO",
+      "change": "Dequeue twice. Who is left?",
+      "stretch": "How is this different from the stack in Day 25?",
+      "key": "Ali leaves first. queue ends as [Bea, Cal]."
+    },
+    {
+      "id": "day-29",
+      "day": 29,
+      "phase": "phase-4",
+      "title": "Queue processing",
+      "idea": "Process jobs in arrival order until the queue is empty.",
+      "cue": "Output each job as it is dequeued. Do not reorder.",
+      "snippets": [
+        {
+          "id": "day-29-main",
+          "label": "Main snippet",
+          "code": "jobs <- []\nENQUEUE jobs, \"print\"\nENQUEUE jobs, \"scan\"\nENQUEUE jobs, \"email\"\nWHILE NOT ISEMPTY(jobs)\n    job <- DEQUEUE jobs\n    OUTPUT job\nENDWHILE",
+          "predict": [
+            "What is printed, in order?",
+            "What is jobs at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "job",
+        "jobs after dequeue"
+      ],
+      "explain": "It serves each waiting job in first-in, first-out order.",
+      "name": "queue processing",
+      "change": "A new job \"copy\" arrives after print is done. Where does it sit?",
+      "stretch": "What if you used a stack for jobs instead?",
+      "key": "Prints print, scan, email. jobs ends empty. A late copy job sits at the back."
+    },
+    {
+      "id": "day-30",
+      "day": 30,
+      "phase": "phase-4",
+      "title": "Linked list: pointers",
+      "idea": "A node holds a value and a pointer to the next node. NULL means stop.",
+      "cue": "Draw boxes and arrows. Follow next with a finger.",
+      "snippets": [
+        {
+          "id": "day-30-main",
+          "label": "Main snippet",
+          "code": "nodeA.value <- \"A\"\nnodeA.next <- nodeB\nnodeB.value <- \"B\"\nnodeB.next <- nodeC\nnodeC.value <- \"C\"\nnodeC.next <- NULL\nOUTPUT nodeA.next.value\nOUTPUT nodeA.next.next.value",
+          "predict": [
+            "What is nodeA.next.value?",
+            "What is nodeA.next.next.value?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "expression",
+        "result"
+      ],
+      "explain": "You reach later nodes by following next, not by an index.",
+      "name": "node / pointer / NULL",
+      "change": "What is nodeC.next? What is nodeB.next.value?",
+      "stretch": "If nodeA.next is set to nodeC, what happens to nodeB?",
+      "key": "Prints B, then C. nodeC.next is NULL. Redirecting A to C skips B unless something else points at B."
+    },
+    {
+      "id": "day-31",
+      "day": 31,
+      "phase": "phase-4",
+      "title": "Linked-list traversal",
+      "idea": "Start at the head. Print the value. Move to next. Stop at NULL.",
+      "cue": "current is the only moving part. Write it after every move.",
+      "snippets": [
+        {
+          "id": "day-31-main",
+          "label": "Main snippet",
+          "code": "current <- nodeA\nWHILE current != NULL\n    OUTPUT current.value\n    current <- current.next\nENDWHILE",
+          "predict": [
+            "What is printed?",
+            "What is current at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "current",
+        "output"
+      ],
+      "explain": "It visits every node until there is no next node.",
+      "name": "linked-list traversal",
+      "change": "Print the list in reverse. What extra structure helps?",
+      "stretch": "What happens if you write WHILE current.next != NULL by mistake?",
+      "key": "Prints A, B, C. current ends as NULL. A next-only test would skip the last node."
+    },
+    {
+      "id": "day-32",
+      "day": 32,
+      "phase": "phase-4",
+      "title": "Linked-list search",
+      "idea": "Walk the nodes. Stop when the value matches, or when you hit NULL.",
+      "cue": "Same shape as linear search, but move with next.",
+      "snippets": [
+        {
+          "id": "day-32-main",
+          "label": "Main snippet",
+          "code": "current <- nodeA\ntarget <- \"B\"\nfound <- FALSE\nWHILE current != NULL AND found = FALSE\n    IF current.value = target THEN\n        found <- TRUE\n    ELSE\n        current <- current.next\n    ENDIF\nENDWHILE\nOUTPUT found",
+          "predict": [
+            "Does it find B?",
+            "Where is current when it stops?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "current.value",
+        "found"
+      ],
+      "explain": "It scans nodes in order until the target appears.",
+      "name": "linked-list search",
+      "change": "Search for \"D\". What are found and current?",
+      "stretch": "Why must you move current only in the ELSE?",
+      "key": "found is TRUE. current is nodeB. For D, found is FALSE and current is NULL. Moving after a match would lose the node you found."
+    },
+    {
+      "id": "day-33",
+      "day": 33,
+      "phase": "phase-4",
+      "title": "Linked-list insertion",
+      "idea": "To insert after a node, point the new node at the old next, then swing the old next pointer.",
+      "cue": "Draw before and after. Order of the two pointer writes matters.",
+      "snippets": [
+        {
+          "id": "day-33-main",
+          "label": "Main snippet",
+          "code": "newNode.value <- \"X\"\nnewNode.next <- nodeA.next\nnodeA.next <- newNode",
+          "predict": [
+            "What does A point to after this?",
+            "What does X point to?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "pointer",
+        "before",
+        "after"
+      ],
+      "explain": "It links X between A and the node that used to follow A.",
+      "name": "linked-list insert",
+      "change": "What goes wrong if you set nodeA.next <- newNode first?",
+      "stretch": "Insert X at the front of the list. Which pointer is the head?",
+      "key": "A points to X. X points to B. List is A -> X -> B -> C. If you swing A first, you lose B unless you saved it."
+    },
+    {
+      "id": "day-34",
+      "day": 34,
+      "phase": "phase-4",
+      "title": "Hash map / dictionary",
+      "idea": "A map stores key to value. You look up by key, not by position.",
+      "cue": "Say the key, then the value. Avoid talking about index 0.",
+      "snippets": [
+        {
+          "id": "day-34-main",
+          "label": "Main snippet",
+          "code": "scores <- {}\nscores[\"Sam\"] <- 12\nscores[\"Jo\"] <- 18\nOUTPUT scores[\"Jo\"]\nscores[\"Sam\"] <- 15\nOUTPUT scores[\"Sam\"]",
+          "predict": [
+            "What is printed first?",
+            "What is Sam's score at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "step",
+        "scores"
+      ],
+      "explain": "It stores two named scores, then updates one of them.",
+      "name": "dictionary / key-value",
+      "change": "Add Lee with score 9. Output Lee.",
+      "stretch": "What happens if you output scores[\"Pat\"] when Pat was never stored?",
+      "key": "Prints 18, then 15. Sam was overwritten, not added twice."
+    },
+    {
+      "id": "day-35",
+      "day": 35,
+      "phase": "phase-4",
+      "title": "Frequency map",
+      "idea": "A map can count. Each new key starts at 1. A seen key goes up by 1.",
+      "cue": "After each word, write the whole map.",
+      "snippets": [
+        {
+          "id": "day-35-main",
+          "label": "Main snippet",
+          "code": "words <- [\"cat\", \"dog\", \"cat\", \"bird\", \"dog\", \"cat\"]\nfreq <- {}\nFOR EACH w IN words\n    IF w IN freq THEN\n        freq[w] <- freq[w] + 1\n    ELSE\n        freq[w] <- 1\n    ENDIF\nNEXT\nOUTPUT freq",
+          "predict": [
+            "What is freq after two words?",
+            "What is freq at the end?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "w",
+        "freq"
+      ],
+      "explain": "It counts how often each word occurs.",
+      "name": "frequency map / histogram",
+      "change": "Count letters in \"ababa\" with the same idea.",
+      "stretch": "Which key is the mode here?",
+      "key": "After cat, dog: {cat:1, dog:1}. Final: cat 3, dog 2, bird 1. Mode is cat."
+    },
+    {
+      "id": "day-36",
+      "day": 36,
+      "phase": "phase-5",
+      "title": "Recursive countdown",
+      "idea": "A recursive call repeats the same work on a smaller input until a base case.",
+      "cue": "Write one row per call. The base case is n = 0.",
+      "snippets": [
+        {
+          "id": "day-36-main",
+          "label": "Main snippet",
+          "code": "PROCEDURE countdown(n)\n    IF n = 0 THEN\n        OUTPUT \"done\"\n    ELSE\n        OUTPUT n\n        countdown(n - 1)\n    ENDIF\nENDPROCEDURE\n\ncountdown(3)",
+          "predict": [
+            "What is printed?",
+            "How many calls happen, including the first?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "call",
+        "n",
+        "waiting for"
+      ],
+      "explain": "It prints n, then does the same job for n-1, until n is 0.",
+      "name": "recursion / base case",
+      "change": "Print n after the recursive call. What order do you get?",
+      "stretch": "What happens if the base case is missing?",
+      "key": "Prints 3, 2, 1, done. Calls: countdown(3), (2), (1), (0). Four calls."
+    },
+    {
+      "id": "day-37",
+      "day": 37,
+      "phase": "phase-5",
+      "title": "Factorial",
+      "idea": "The recursive case waits for a smaller answer, then multiplies.",
+      "cue": "Fill the waiting-for column, then unwind the returns.",
+      "snippets": [
+        {
+          "id": "day-37-main",
+          "label": "Main snippet",
+          "code": "FUNCTION factorial(n)\n    IF n = 0 THEN\n        RETURN 1\n    ELSE\n        RETURN n * factorial(n - 1)\n    ENDIF\nENDFUNCTION\n\nOUTPUT factorial(4)",
+          "predict": [
+            "What does factorial(0) return?",
+            "What does factorial(4) return?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "call",
+        "n",
+        "waiting for",
+        "returns"
+      ],
+      "explain": "n! is n times the factorial of n-1. 0! is 1.",
+      "name": "factorial / recursive case",
+      "change": "Trace factorial(1) and factorial(2).",
+      "stretch": "Why is the base 1, not 0?",
+      "key": "factorial(0) returns 1. factorial(4) returns 24. Unwind: 1, 1, 2, 6, 24."
+    },
+    {
+      "id": "day-38",
+      "day": 38,
+      "phase": "phase-5",
+      "title": "Fibonacci",
+      "idea": "Two recursive calls can repeat the same work. Small n already shows the bush.",
+      "cue": "Draw the call tree for fib(5). Circle repeated calls.",
+      "snippets": [
+        {
+          "id": "day-38-main",
+          "label": "Main snippet",
+          "code": "FUNCTION fib(n)\n    IF n <= 1 THEN\n        RETURN n\n    ELSE\n        RETURN fib(n - 1) + fib(n - 2)\n    ENDIF\nENDFUNCTION\n\nOUTPUT fib(5)",
+          "predict": [
+            "What does fib(5) return?",
+            "Which values are computed more than once?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "call",
+        "n",
+        "result"
+      ],
+      "explain": "Each number is the sum of the two before it. The naive tree repeats fib(3) and fib(2).",
+      "name": "fibonacci / repeated calls",
+      "change": "How many times is fib(1) called for fib(5)?",
+      "stretch": "How could a map store answers you already know?",
+      "key": "fib(5) is 5. fib(3) and fib(2) repeat. fib(1) is called several times. A map is memoisation, name it after they see the repeats."
+    },
+    {
+      "id": "day-39",
+      "day": 39,
+      "phase": "phase-5",
+      "title": "Recursive binary search",
+      "idea": "The same half-and-check idea can be a function that calls itself on a smaller range.",
+      "cue": "Link this to Day 20. low and high are now parameters.",
+      "snippets": [
+        {
+          "id": "day-39-main",
+          "label": "Main snippet",
+          "code": "FUNCTION binSearch(arr, target, low, high)\n    IF low > high THEN\n        RETURN -1\n    ENDIF\n    mid <- (low + high) DIV 2\n    IF arr[mid] = target THEN\n        RETURN mid\n    ENDIF\n    IF arr[mid] < target THEN\n        RETURN binSearch(arr, target, mid + 1, high)\n    ELSE\n        RETURN binSearch(arr, target, low, mid - 1)\n    ENDIF\nENDFUNCTION\n\nOUTPUT binSearch([3, 8, 12, 19, 24], 19, 0, 4)",
+          "predict": [
+            "Which mid values appear?",
+            "What is returned?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "low",
+        "high",
+        "mid",
+        "arr[mid]"
+      ],
+      "explain": "It checks the middle, then recurses into the half that can still hold the target.",
+      "name": "recursive binary search",
+      "change": "Search for 3. Search for 11.",
+      "stretch": "What is the base case for \"not found\"?",
+      "key": "mid is 2 (value 12), then 3 (value 19). Returns 3. Not found when low > high."
+    },
+    {
+      "id": "day-40",
+      "day": 40,
+      "phase": "phase-6",
+      "title": "Tree vocabulary",
+      "idea": "A tree has one root. Nodes have children. A leaf has no children.",
+      "cue": "Point at root, parent, child, leaf, and depth before any code run.",
+      "snippets": [
+        {
+          "id": "day-40-main",
+          "label": "Main snippet",
+          "code": "nodeA.value <- \"A\"\nnodeA.left <- nodeB\nnodeA.right <- nodeC\nnodeB.left <- nodeD\nnodeB.right <- nodeE\nnodeC.left <- NULL\nnodeC.right <- NULL\nnodeD.left <- NULL\nnodeD.right <- NULL\nnodeE.left <- NULL\nnodeE.right <- NULL",
+          "predict": [
+            "Who is the root?",
+            "Which nodes are leaves?",
+            "Who is the parent of E?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "node",
+        "parent",
+        "children",
+        "leaf?"
+      ],
+      "explain": "A is the root. B and C are children of A. D and E hang from B. Leaves have no children.",
+      "name": "root / child / parent / leaf / depth",
+      "change": "What is the depth of D if the root is depth 0?",
+      "stretch": "Is C a leaf here? Yes, both of its child pointers are NULL.",
+      "key": "Root is A. Leaves are D, E, C. Parent of E is B. Depth of D is 2."
+    },
+    {
+      "id": "day-41",
+      "day": 41,
+      "phase": "phase-6",
+      "title": "Binary trees",
+      "idea": "A binary tree node has at most two children: left and right. A path is a walk down those links.",
+      "cue": "Follow the code, not the picture in your head.",
+      "snippets": [
+        {
+          "id": "day-41-main",
+          "label": "Main snippet",
+          "code": "current <- nodeA\nOUTPUT current.value\ncurrent <- current.left\nOUTPUT current.value\ncurrent <- current.right\nOUTPUT current.value",
+          "predict": [
+            "What is printed?",
+            "Which path is that?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "current",
+        "output"
+      ],
+      "explain": "It starts at the root, steps left, then steps right from there.",
+      "name": "binary tree / path",
+      "change": "Write the steps that print A then C.",
+      "stretch": "What happens if you step left from C?",
+      "key": "Prints A, B, E. Path A -> B -> E. Left from C is NULL."
+    },
+    {
+      "id": "day-42",
+      "day": 42,
+      "phase": "phase-6",
+      "title": "Binary search tree search",
+      "idea": "In a BST, left is smaller, right is larger. Compare and walk one side.",
+      "cue": "Use this tree: 10, left 6, right 15; 15 has left 12 and right 20.",
+      "snippets": [
+        {
+          "id": "day-42-main",
+          "label": "Main snippet",
+          "code": "current <- root\ntarget <- 12\nWHILE current != NULL AND current.value != target\n    IF target < current.value THEN\n        current <- current.left\n    ELSE\n        current <- current.right\n    ENDIF\nENDWHILE\nIF current = NULL THEN\n    OUTPUT \"absent\"\nELSE\n    OUTPUT \"found\"\nENDIF",
+          "predict": [
+            "Which values are compared?",
+            "What is printed?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "current.value",
+        "compare",
+        "next"
+      ],
+      "explain": "It walks toward the target by choosing the left or right child.",
+      "name": "BST search",
+      "change": "Search for 6. Search for 11.",
+      "stretch": "Why does this fail if 15 sat on the left of 10?",
+      "key": "Compares 10, then 15, then 12. Prints found. 11 walks 10 -> 15 -> 12 then left to NULL: absent."
+    },
+    {
+      "id": "day-43",
+      "day": 43,
+      "phase": "phase-6",
+      "title": "Binary search tree insertion",
+      "idea": "To insert, search until a NULL child. Hang the new node there.",
+      "cue": "Same tree as Day 42. Insert 13. Ask which pointer changes.",
+      "snippets": [
+        {
+          "id": "day-43-main",
+          "label": "Main snippet",
+          "code": "FUNCTION insert(node, value)\n    IF node = NULL THEN\n        newNode.value <- value\n        newNode.left <- NULL\n        newNode.right <- NULL\n        RETURN newNode\n    ENDIF\n    IF value < node.value THEN\n        node.left <- insert(node.left, value)\n    ELSE\n        node.right <- insert(node.right, value)\n    ENDIF\n    RETURN node\nENDFUNCTION\n\ninsert(root, 13)",
+          "predict": [
+            "Which existing node gains a child?",
+            "Left child or right child?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "node.value",
+        "value < node?",
+        "move"
+      ],
+      "explain": "13 is greater than 10 and less than 15 and greater than 12, so it becomes the right child of 12.",
+      "name": "BST insert",
+      "change": "Insert 7. Insert 15 again. What do you decide about duplicates?",
+      "stretch": "Which pointer is the only one that changes for 13?",
+      "key": "12.right becomes 13. For 7: 6.right. Duplicates follow the ELSE here and go right."
+    },
+    {
+      "id": "day-44",
+      "day": 44,
+      "phase": "phase-6",
+      "title": "Tree traversal",
+      "idea": "In-order walks left, then the node, then right. On a BST that prints sorted values.",
+      "cue": "Use the Day 42 tree. Write the call stack, not only the output.",
+      "snippets": [
+        {
+          "id": "day-44-main",
+          "label": "Main snippet",
+          "code": "PROCEDURE inOrder(node)\n    IF node != NULL THEN\n        inOrder(node.left)\n        OUTPUT node.value\n        inOrder(node.right)\n    ENDIF\nENDPROCEDURE\n\ninOrder(root)",
+          "predict": [
+            "What is printed?",
+            "Why is 10 printed after 6?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "call",
+        "node",
+        "output so far"
+      ],
+      "explain": "It fully finishes the left subtree, prints the node, then does the right subtree.",
+      "name": "in-order traversal",
+      "change": "What would pre-order print (node, left, right) on the same tree?",
+      "stretch": "Where does 20 appear, and why last?",
+      "key": "Prints 6, 10, 12, 15, 20. 10 waits until its left child 6 is done. 20 is the last right-most node. Pre-order: 10, 6, 15, 12, 20."
+    },
+    {
+      "id": "day-45",
+      "day": 45,
+      "phase": "phase-6",
+      "title": "Graph representation",
+      "idea": "A graph is nodes plus connections. An adjacency list stores neighbours for each node.",
+      "cue": "Read it as \"who does this person know?\" Do not assume a root.",
+      "snippets": [
+        {
+          "id": "day-45-main",
+          "label": "Main snippet",
+          "code": "friends[\"Ali\"] <- [\"Bea\", \"Cal\"]\nfriends[\"Bea\"] <- [\"Ali\", \"Dee\"]\nfriends[\"Cal\"] <- [\"Ali\"]\nfriends[\"Dee\"] <- [\"Bea\"]\nOUTPUT friends[\"Bea\"]",
+          "predict": [
+            "Who does Bea know?",
+            "Is this graph directed or undirected as stored?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "key",
+        "neighbours"
+      ],
+      "explain": "Each person maps to a list of neighbours.",
+      "name": "graph / adjacency list",
+      "change": "Add a link between Cal and Dee. Which lists change if the graph is undirected?",
+      "stretch": "Can a graph have a cycle? Point to one here.",
+      "key": "Bea knows Ali and Dee. Stored both ways, so treat it as undirected. Cycle: Ali-Bea-Ali. Undirected add: Cal and Dee lists both gain a name."
+    },
+    {
+      "id": "day-46",
+      "day": 46,
+      "phase": "phase-6",
+      "title": "Breadth-first search",
+      "idea": "BFS uses a queue. It visits neighbours before it walks further out.",
+      "cue": "Use the Day 45 graph. Start at Ali. Enqueue neighbours in list order.",
+      "snippets": [
+        {
+          "id": "day-46-main",
+          "label": "Main snippet",
+          "code": "queue <- []\nvisited <- []\nENQUEUE queue, \"Ali\"\nAPPEND visited, \"Ali\"\nWHILE NOT ISEMPTY(queue)\n    person <- DEQUEUE queue\n    OUTPUT person\n    FOR EACH f IN friends[person]\n        IF f NOT IN visited THEN\n            ENQUEUE queue, f\n            APPEND visited, f\n        ENDIF\n    NEXT\nENDWHILE",
+          "predict": [
+            "What is printed?",
+            "Why does Cal appear before Dee?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "person",
+        "queue",
+        "visited"
+      ],
+      "explain": "It explores the graph in layers: first Ali, then Ali's friends, then their new friends.",
+      "name": "BFS / queue",
+      "change": "Start at Dee instead. What order do you get?",
+      "stretch": "Connect this to Day 28. Why a queue, not a stack?",
+      "key": "Prints Ali, Bea, Cal, Dee. Cal is a neighbour of Ali, so Cal is in the first layer. Dee is one step further. Queue keeps that layer order."
+    },
+    {
+      "id": "day-47",
+      "day": 47,
+      "phase": "phase-6",
+      "title": "Depth-first search",
+      "idea": "DFS uses a stack. It walks one branch as deep as it can, then backtracks.",
+      "cue": "Push neighbours in list order. The last pushed neighbour is popped first.",
+      "snippets": [
+        {
+          "id": "day-47-main",
+          "label": "Main snippet",
+          "code": "stack <- []\nvisited <- []\nPUSH stack, \"Ali\"\nWHILE NOT ISEMPTY(stack)\n    person <- POP stack\n    IF person NOT IN visited THEN\n        APPEND visited, person\n        OUTPUT person\n        FOR EACH f IN friends[person]\n            PUSH stack, f\n        NEXT\n    ENDIF\nENDWHILE",
+          "predict": [
+            "What is printed?",
+            "Why is Cal before Bea?"
+          ],
+          "printNote": "Predict first. Then trace every state change."
+        }
+      ],
+      "trace": [
+        "person",
+        "stack",
+        "visited"
+      ],
+      "explain": "It follows one neighbour chain first, because a stack returns the newest node.",
+      "name": "DFS / stack",
+      "change": "Start at Bea. Trace the stack.",
+      "stretch": "Say the pairing: queue with BFS, stack with DFS.",
+      "key": "Prints Ali, Cal, Bea, Dee. Ali pushes Bea then Cal, so Cal is popped first. Queue is BFS. Stack is DFS."
+    }
+  ],
+  "goal": "A home tutor opens one day, prints the snippet, and keeps the key on screen.",
+  "storageKey": "gcse-pseudocode-tutor.day"
+}

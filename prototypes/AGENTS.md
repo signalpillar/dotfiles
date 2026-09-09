@@ -110,6 +110,9 @@ Keep Prev / Next / Back actions in the lower third of the detail when they are t
   It must not contain magic numbers, hard-coded domain facts, or embedded copy.
 - Changing what the prototype knows or how it is tuned should mean editing JSON only, never JavaScript.
 - Keep the manifest valid JSON, not a JavaScript object literal, so it can be extracted, validated, and swapped wholesale.
+- Large lesson or catalog data lives in a neighbouring file, same pattern as `llm-lifecycle-timelines.yaml` and `gcse-science-f1-roadmap/catalog.json`.
+  The HTML keeps a small boot JSON with `dataFile` and load labels.
+  Domain facts stay in the neighbouring file.
 
 ## Learned the Hard Way
 
@@ -157,6 +160,20 @@ Read them before writing the first line, not after debugging.
   The scales are not continuous: sizes run 1 to 8 plus `-00`/`-000`, radii stop at 6 plus `--radius-round`.
 - Inspect the resolved value before choosing a token by name.
   In Open Props, `--font-size-00` is 0.5rem and is too small for normal control labels or explanatory copy.
+
+### Sibling data files
+
+- `file://` cannot `fetch` a neighbouring JSON or YAML file.
+  Show a file picker after a failed load, same as the timelines prototype.
+  GitHub Pages and a local static server load the file automatically.
+
+### Printable tutor slips
+
+- Hide the live chrome with `@media print { .shell, #status { display: none } }` and print a dedicated `.print-sheet` built from the selected snippet.
+  Do not print the on-screen lesson page. The tutor key, filters, and day list leak onto the paper.
+  Build the sheet in the click handler, then call `window.print()`.
+  A student slip gets the snippet, predict questions, and a blank trace table.
+  A tutor card adds the cue and the key.
 
 ### Layout
 

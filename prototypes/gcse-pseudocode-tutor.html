@@ -1,0 +1,793 @@
+<!doctype html>
+<!-- Prototype question: can a home tutor run one printable pseudocode lesson from a static day list? -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>GCSE Pseudocode Tutor</title>
+    <script type="module" src="https://jelly-ui.com/package.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/open-props">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap">
+    <link rel="stylesheet" href="prototype-base.css">
+    <link rel="stylesheet" href="prototype-jelly.css">
+    <style>
+
+
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        --ink: #1b2430;
+        --muted: #5c6675;
+        --paper: #f4efe4;
+        --surface: #fffdf8;
+        --line: #d8d0c2;
+        --accent: #1f4e79;
+        --accent-soft: color-mix(in srgb, var(--accent) 12%, white);
+        --key: #7a3e12;
+        --key-soft: #f6eadc;
+        --code-bg: #f3efe4;
+        --shadow-color: 30 20% 40%;
+        --shadow-strength: 6%;
+      }
+
+      body {
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 28rem),
+          var(--paper);
+      }
+
+      jelly-button:not(:defined),
+      jelly-chip:not(:defined) {
+        min-block-size: 2.75rem;
+        padding: var(--size-1) var(--size-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--surface);
+        cursor: pointer;
+        font-size: var(--font-size-0);
+        font-weight: 700;
+      }
+
+      jelly-button:not(:defined)[block] {
+        display: block;
+        inline-size: 100%;
+      }
+
+      jelly-chip:not(:defined)[aria-pressed="true"],
+      jelly-button:not(:defined).primary,
+      button.primary {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: white;
+      }
+
+      a { color: var(--accent); text-decoration: none; }
+
+      .shell {
+        width: min(88rem, 100%);
+        margin-inline: auto;
+        padding: max(var(--size-3), env(safe-area-inset-top)) var(--size-3) calc(var(--size-8) + env(safe-area-inset-bottom));
+        display: grid;
+        gap: var(--size-4);
+      }
+
+      .top { display: grid; gap: var(--size-2); }
+
+      .back {
+        color: var(--muted);
+        font-size: var(--font-size-0);
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 8vw, 3.2rem);
+        letter-spacing: -0.05em;
+        line-height: 0.95;
+      }
+
+      .tagline, .goal, .hint, .muted {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .goal { max-inline-size: 62ch; }
+
+      .ritual {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-1);
+      }
+
+      .ritual span {
+        display: inline-flex;
+        align-items: center;
+        min-block-size: 1.75rem;
+        padding: 0 var(--size-2);
+        border-radius: var(--radius-round);
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: var(--font-size-00);
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .filters, .workspace { display: grid; gap: var(--size-2); }
+      .workspace { gap: var(--size-3); align-items: start; grid-template-columns: minmax(0, 1fr); }
+
+      .phases {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-1);
+      }
+
+      .search {
+        width: 100%;
+        min-block-size: 2.75rem;
+        padding: 0 var(--size-3);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-2);
+        background: var(--surface);
+      }
+
+      .list, .detail, .snippet, .note, .empty {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+        box-shadow: var(--shadow-2);
+      }
+
+      .list { overflow: hidden; }
+
+      .lesson {
+        display: grid;
+        gap: var(--size-00);
+        width: 100%;
+        padding: var(--size-3);
+        border: 0;
+        border-block-end: 1px solid var(--line);
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .lesson:last-child { border-block-end: 0; }
+      .lesson[aria-pressed="true"] { background: var(--accent-soft); }
+      .lesson strong { font-size: var(--font-size-1); }
+      .lesson span { color: var(--muted); font-size: var(--font-size-0); }
+
+      .inline-detail {
+        border-block-end: 1px solid var(--line);
+        background: color-mix(in srgb, var(--paper) 55%, white);
+      }
+
+      .detail, .empty, .snippet, .note { padding: var(--size-4); }
+      .detail, .empty { display: grid; gap: var(--size-3); }
+      .pane { display: none; }
+
+      .kicker {
+        margin: 0;
+        color: var(--accent);
+        font-size: var(--font-size-00);
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .detail h2, .snippet h3, .note h3 {
+        margin: 0;
+        letter-spacing: -0.03em;
+      }
+
+      .meta, .patterns {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--size-1);
+      }
+
+      .meta span, .pattern {
+        display: inline-flex;
+        min-block-size: 1.6rem;
+        align-items: center;
+        padding: 0 var(--size-2);
+        border-radius: var(--radius-round);
+        background: var(--code-bg);
+        color: var(--muted);
+        font-size: var(--font-size-00);
+        font-weight: 700;
+      }
+
+      .actions, .snippet-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--size-2);
+      }
+
+      .snippet { display: grid; gap: var(--size-2); }
+
+      .snippet pre,
+      .print-sheet pre {
+        margin: 0;
+        overflow-x: auto;
+        padding: var(--size-3);
+        border-radius: var(--radius-2);
+        background: var(--code-bg);
+        font-family: "IBM Plex Mono", var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+        font-size: 0.95rem;
+        font-variant-ligatures: none;
+        line-height: 1.5;
+        tab-size: 4;
+        white-space: pre;
+      }
+
+      .snippet code,
+      .print-sheet code {
+        font-family: inherit;
+        font-size: inherit;
+      }
+
+      ol, ul { margin: 0; padding-inline-start: 1.2rem; }
+      .note.cue { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+      .note.key {
+        border-color: color-mix(in srgb, var(--key) 40%, var(--line));
+        background: var(--key-soft);
+      }
+
+
+      .status {
+        display: grid;
+        gap: var(--size-2);
+        padding: var(--size-4);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-3);
+        background: var(--surface);
+      }
+
+      .status[hidden],
+      #app[hidden] {
+        display: none;
+      }
+
+      .file-picker {
+        display: inline-flex;
+        min-block-size: 2.75rem;
+        align-items: center;
+        padding: var(--size-1) var(--size-3);
+        border-radius: var(--radius-2);
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+        font-size: var(--font-size-0);
+        font-weight: 800;
+        width: max-content;
+      }
+
+      .file-picker input {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        opacity: 0;
+      }
+      .print-sheet { display: none; }
+
+      @media (min-width: 56rem) {
+        .workspace { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); }
+        .pane { display: block; position: sticky; top: var(--size-3); }
+        .inline-detail { display: none; }
+        .actions, .snippet-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      }
+
+      @media print {
+        @page { margin: 12mm; }
+        body { background: white; }
+        .shell,
+        #status { display: none !important; }
+        .print-sheet {
+          display: grid;
+          gap: 12pt;
+          color: black;
+        }
+        .print-sheet h1 { font-size: 22pt; }
+        .print-sheet .label {
+          margin: 0;
+          font-size: 9pt;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .print-sheet pre {
+          font-size: 13pt;
+          line-height: 1.45;
+          background: white;
+          border: 1px solid #bbb;
+          font-family: "IBM Plex Mono", var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+        }
+        .print-sheet table { width: 100%; border-collapse: collapse; }
+        .print-sheet th, .print-sheet td {
+          border: 1px solid #bbb;
+          padding: 8pt;
+          height: 22pt;
+        }
+        .print-sheet .key { background: #f6eadc; padding: 10pt; }
+      }
+
+    
+    </style>
+  </head>
+  <body>
+    <script type="application/json" id="app-manifest">
+{
+  "dataFile": "gcse-pseudocode-tutor.json",
+  "labels": {
+    "loading": "Loading lesson list...",
+    "loadError": "The browser could not read the neighbouring lesson file directly.",
+    "chooseFile": "Open lesson JSON",
+    "chooseHint": "Choose gcse-pseudocode-tutor.json from this folder. A local server or GitHub Pages loads it automatically."
+  }
+}
+    </script>
+    <jelly-theme mode="light">
+      <main class="shell">
+        <header class="top">
+          <a class="back" href="index.html" id="back-link">Prototypes</a>
+          <h1 id="page-title">GCSE Pseudocode Tutor</h1>
+          <p class="tagline" id="page-tagline"></p>
+          <p class="goal" id="page-goal"></p>
+          <div class="ritual" id="ritual"></div>
+        </header>
+        <section class="status" id="status" aria-live="polite">Loading lesson list...</section>
+        <div id="app" hidden>
+          <section class="filters">
+            <div class="phases" id="phases"></div>
+            <input class="search" id="search" type="search" autocomplete="off">
+          </section>
+          <div class="workspace">
+            <div class="list" id="lesson-list"></div>
+            <aside class="pane" id="detail-pane"></aside>
+          </div>
+          <section>
+            <p class="kicker">Patterns</p>
+            <div class="patterns" id="patterns"></div>
+          </section>
+        </div>
+      </main>
+      <div class="print-sheet" id="print-sheet"></div>
+    </jelly-theme>
+    <script>
+
+
+      const boot = JSON.parse(document.getElementById("app-manifest").textContent);
+      const jellyReady = Promise.race([
+        customElements.whenDefined("jelly-button"),
+        new Promise((resolve) => setTimeout(() => resolve("fallback"), 1200))
+      ]).then((value) => value !== "fallback");
+
+      const els = {
+        status: document.getElementById("status"),
+        app: document.getElementById("app"),
+        back: document.getElementById("back-link"),
+        title: document.getElementById("page-title"),
+        tagline: document.getElementById("page-tagline"),
+        goal: document.getElementById("page-goal"),
+        ritual: document.getElementById("ritual"),
+        phases: document.getElementById("phases"),
+        search: document.getElementById("search"),
+        list: document.getElementById("lesson-list"),
+        pane: document.getElementById("detail-pane"),
+        print: document.getElementById("print-sheet"),
+        patterns: document.getElementById("patterns")
+      };
+
+      const wide = window.matchMedia("(min-width: 56rem)");
+      const state = {
+        phase: "all",
+        query: "",
+        day: 1,
+        jelly: false
+      };
+
+      let data = null;
+      let copy = null;
+
+      els.search.addEventListener("input", () => {
+        if (!data) return;
+        state.query = els.search.value.trim().toLowerCase();
+        renderList();
+      });
+      wide.addEventListener("change", () => { if (data) placeDetail(); });
+      window.addEventListener("hashchange", () => {
+        if (!data) return;
+        const day = Number((location.hash.match(/day-(\d+)/) || [])[1]);
+        if (day) selectDay(day);
+      });
+
+      async function load() {
+        els.status.hidden = false;
+        els.status.textContent = boot.labels.loading;
+        els.app.hidden = true;
+        try {
+          const response = await fetch(boot.dataFile);
+          if (!response.ok) throw new Error(`Lesson request failed (${response.status}).`);
+          initialise(await response.json());
+        } catch (error) {
+          showFilePicker(error);
+        }
+      }
+
+      function showFilePicker(error) {
+        els.status.hidden = false;
+        els.app.hidden = true;
+        els.status.replaceChildren();
+        const title = document.createElement("strong");
+        title.textContent = boot.labels.loadError;
+        const hint = document.createElement("p");
+        hint.textContent = boot.labels.chooseHint;
+        const label = document.createElement("label");
+        label.className = "file-picker";
+        label.append(boot.labels.chooseFile);
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json";
+        label.append(input);
+        els.status.append(title, hint, label);
+        if (error) {
+          const detail = document.createElement("p");
+          detail.className = "muted";
+          detail.textContent = error.message;
+          els.status.append(detail);
+        }
+        input.addEventListener("change", async () => {
+          const [file] = input.files;
+          if (!file) return;
+          try {
+            initialise(JSON.parse(await file.text()));
+          } catch (loadError) {
+            showFilePicker(loadError);
+          }
+        });
+      }
+
+      function initialise(raw) {
+        if (!raw || !Array.isArray(raw.lessons) || !raw.lessons.length) {
+          throw new Error("Lesson manifest has no lessons.");
+        }
+        data = raw;
+        copy = data.copy;
+        state.day = initialDay();
+        document.title = data.title;
+        els.back.textContent = copy.back;
+        els.title.textContent = data.title;
+        els.tagline.textContent = data.tagline;
+        els.goal.textContent = data.goal;
+        els.search.placeholder = copy.search;
+        els.ritual.replaceChildren(...data.ritual.map((step) => {
+          const chip = document.createElement("span");
+          chip.textContent = step;
+          return chip;
+        }));
+        els.patterns.replaceChildren(...data.patterns.map((pattern) => {
+          const chip = document.createElement("span");
+          chip.className = "pattern";
+          chip.textContent = `${pattern.name}: ${pattern.shape}`;
+          return chip;
+        }));
+        els.status.hidden = true;
+        els.app.hidden = false;
+        jellyReady.then((ok) => {
+          state.jelly = ok;
+          renderFilters();
+          render();
+        });
+        renderFilters();
+        render();
+      }
+
+      window.addEventListener("load", load);
+
+      function initialDay() {
+        const queryDay = Number(new URL(location.href).searchParams.get("day"));
+        const hashDay = Number((location.hash.match(/day-(\d+)/) || [])[1]);
+        const stored = Number(localStorage.getItem(data.storageKey) || 0);
+        return [queryDay, hashDay, stored, 1].find((day) => lessonByDay(day));
+      }
+
+      function lessonByDay(day) {
+        return data.lessons.find((lesson) => lesson.day === Number(day));
+      }
+
+      function fill(template, values) {
+        return template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ""));
+      }
+
+      function button(label, attrs = {}, primary = false) {
+        const node = state.jelly ? document.createElement("jelly-button") : document.createElement("button");
+        if (state.jelly) {
+          node.setAttribute("size", "small");
+          if (attrs.block) node.setAttribute("block", "");
+        } else {
+          node.className = primary ? "primary" : "";
+          if (attrs.block) node.setAttribute("block", "");
+        }
+        node.textContent = label;
+        node.addEventListener("click", attrs.onClick);
+        return node;
+      }
+
+      function chip(label, pressed, onClick) {
+        const node = state.jelly ? document.createElement("jelly-chip") : document.createElement("button");
+        node.textContent = label;
+        node.setAttribute("aria-pressed", String(pressed));
+        if (pressed && !state.jelly) node.className = "primary";
+        node.addEventListener("click", onClick);
+        return node;
+      }
+
+      function renderFilters() {
+        const items = [{ id: "all", title: copy.allPhases }, ...data.phases];
+        els.phases.replaceChildren(...items.map((phase) =>
+          chip(phase.title, state.phase === phase.id, () => {
+            state.phase = phase.id;
+            renderFilters();
+            renderList();
+          })
+        ));
+      }
+
+      function visibleLessons() {
+        return data.lessons.filter((lesson) => {
+          if (state.phase !== "all" && lesson.phase !== state.phase) return false;
+          if (!state.query) return true;
+          const hay = [lesson.title, lesson.idea, lesson.name, lesson.cue, ...lesson.snippets.map((s) => s.code)]
+            .join("\n")
+            .toLowerCase();
+          return hay.includes(state.query);
+        });
+      }
+
+      function renderList() {
+        const lessons = visibleLessons();
+        els.list.replaceChildren();
+        if (!lessons.length) {
+          const empty = document.createElement("p");
+          empty.className = "empty muted";
+          empty.textContent = copy.empty;
+          els.list.append(empty);
+          return;
+        }
+        for (const lesson of lessons) {
+          const row = document.createElement("button");
+          row.className = "lesson";
+          row.type = "button";
+          row.dataset.day = String(lesson.day);
+          row.setAttribute("aria-pressed", String(lesson.day === state.day));
+          const title = document.createElement("strong");
+          title.textContent = fill(copy.dayLabel, { day: lesson.day }) + " · " + lesson.title;
+          const idea = document.createElement("span");
+          idea.textContent = lesson.idea;
+          row.append(title, idea);
+          row.addEventListener("click", () => selectDay(lesson.day));
+          els.list.append(row);
+        }
+        placeDetail();
+      }
+
+      function selectDay(day) {
+        const lesson = lessonByDay(day);
+        if (!lesson) return;
+        state.day = lesson.day;
+        localStorage.setItem(data.storageKey, String(lesson.day));
+        history.replaceState(null, "", `#day-${lesson.day}`);
+        render();
+      }
+
+      function render() {
+        renderList();
+      }
+
+      function placeDetail() {
+        const detail = renderDetail(lessonByDay(state.day));
+        document.querySelectorAll(".inline-detail").forEach((node) => node.remove());
+        els.pane.replaceChildren();
+        if (wide.matches) {
+          els.pane.append(detail);
+        } else {
+          const row = els.list.querySelector(`[data-day="${state.day}"]`);
+          if (!row) {
+            els.pane.append(detail);
+            return;
+          }
+          const wrap = document.createElement("div");
+          wrap.className = "inline-detail";
+          wrap.append(detail);
+          row.after(wrap);
+        }
+      }
+
+      function renderDetail(lesson) {
+        if (!lesson) {
+          const empty = document.createElement("section");
+          empty.className = "empty";
+          empty.textContent = copy.selectHint;
+          return empty;
+        }
+        const phase = data.phases.find((item) => item.id === lesson.phase);
+        const root = document.createElement("article");
+        root.className = "detail";
+        root.append(
+          line("p", "kicker", phase ? `${phase.title} · ${phase.range}` : ""),
+          line("h2", "", fill(copy.dayLabel, { day: lesson.day }) + " · " + lesson.title),
+          meta(lesson),
+          block(copy.ideaLabel, lesson.idea),
+          block(copy.cueLabel, lesson.cue, "cue")
+        );
+        for (const snippet of lesson.snippets) {
+          root.append(renderSnippet(lesson, snippet));
+        }
+        root.append(
+          block(copy.traceLabel, lesson.trace.join(" · ")),
+          block(copy.explainLabel, lesson.explain),
+          block(copy.nameLabel, lesson.name),
+          block(copy.changeLabel, lesson.change),
+          block(copy.stretchLabel, lesson.stretch),
+          block(copy.keyLabel, lesson.key, "key")
+        );
+        return root;
+      }
+
+      function meta(lesson) {
+        const wrap = document.createElement("div");
+        wrap.className = "meta";
+        const count = lesson.snippets.length;
+        wrap.append(pill(fill(count === 1 ? copy.snippets : copy.snippetsMany, { count })));
+        wrap.append(pill(lesson.name));
+        return wrap;
+      }
+
+      function pill(text) {
+        const node = document.createElement("span");
+        node.textContent = text;
+        return node;
+      }
+
+      function line(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        node.textContent = text;
+        return node;
+      }
+
+      function block(title, body, extra) {
+        const note = document.createElement("section");
+        note.className = extra ? `note ${extra}` : "note";
+        note.append(line("h3", "", title), line("p", "", body));
+        return note;
+      }
+
+      function renderSnippet(lesson, snippet) {
+        const card = document.createElement("section");
+        card.className = "snippet";
+        card.append(line("h3", "", snippet.label));
+        const pre = document.createElement("pre");
+        const code = document.createElement("code");
+        code.textContent = snippet.code;
+        pre.append(code);
+        card.append(pre);
+        const questions = document.createElement("ol");
+        for (const item of snippet.predict) {
+          const li = document.createElement("li");
+          li.textContent = item;
+          questions.append(li);
+        }
+        card.append(line("h3", "", copy.predictLabel), questions);
+        const actions = document.createElement("div");
+        actions.className = "snippet-actions";
+        const copyBtn = button(copy.copySnippet, { block: true, onClick: async () => {
+          await writeClipboard(snippet.code);
+          copyBtn.textContent = copy.copied;
+          setTimeout(() => { copyBtn.textContent = copy.copySnippet; }, 1200);
+        }});
+        actions.append(
+          button(copy.printStudent, { block: true, onClick: () => printSheet(lesson, snippet, "student") }, true),
+          button(copy.printTutor, { block: true, onClick: () => printSheet(lesson, snippet, "tutor") }),
+          copyBtn,
+          button(copy.shareSnippet, { block: true, onClick: () => shareSnippet(lesson, snippet) })
+        );
+        card.append(actions);
+        return card;
+      }
+
+      function printSheet(lesson, snippet, mode) {
+        const phase = data.phases.find((item) => item.id === lesson.phase);
+        const sheet = els.print;
+        sheet.replaceChildren();
+        sheet.append(
+          line("p", "label", `${data.print.kicker} · ${mode === "student" ? data.print.studentLabel : data.print.tutorLabel}`),
+          line("h1", "", fill(copy.dayLabel, { day: lesson.day }) + " · " + lesson.title),
+          line("p", "", lesson.idea)
+        );
+        if (phase) sheet.append(line("p", "muted", `${phase.title} · ${phase.range}`));
+        const pre = document.createElement("pre");
+        const code = document.createElement("code");
+        code.textContent = snippet.code;
+        pre.append(code);
+        sheet.append(line("p", "label", snippet.label), pre);
+        const questions = document.createElement("ol");
+        for (const item of snippet.predict) {
+          const li = document.createElement("li");
+          li.textContent = item;
+          questions.append(li);
+        }
+        sheet.append(line("p", "label", copy.predictLabel), questions);
+        sheet.append(line("p", "label", copy.traceLabel), traceTable(lesson.trace));
+        if (mode === "tutor") {
+          for (const [label, body] of [
+            [copy.cueLabel, lesson.cue],
+            [copy.explainLabel, lesson.explain],
+            [copy.nameLabel, lesson.name],
+            [copy.changeLabel, lesson.change],
+            [copy.stretchLabel, lesson.stretch],
+            [copy.keyLabel, lesson.key]
+          ]) {
+            const box = document.createElement("section");
+            box.className = label === copy.keyLabel ? "key" : "";
+            box.append(line("p", "label", label), line("p", "", body));
+            sheet.append(box);
+          }
+        } else {
+          sheet.append(line("p", "", snippet.printNote || data.print.studentHint));
+        }
+        sheet.append(line("p", "label", data.print.footer));
+        window.print();
+      }
+
+      function traceTable(columns) {
+        const table = document.createElement("table");
+        const head = document.createElement("tr");
+        for (const col of columns) {
+          const th = document.createElement("th");
+          th.textContent = col;
+          head.append(th);
+        }
+        table.append(head);
+        for (let i = 0; i < 8; i += 1) {
+          const row = document.createElement("tr");
+          for (const _ of columns) row.append(document.createElement("td"));
+          table.append(row);
+        }
+        return table;
+      }
+
+      async function writeClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+        const area = document.createElement("textarea");
+        area.value = text;
+        document.body.append(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+
+      async function shareSnippet(lesson, snippet) {
+        const text = `${fill(copy.dayLabel, { day: lesson.day })} · ${lesson.title}\n\n${snippet.code}`;
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: lesson.title, text });
+            return;
+          } catch (error) {
+            if (error && error.name === "AbortError") return;
+          }
+        }
+        await writeClipboard(text);
+      }
+
+    
+    </script>
+  </body>
+</html>
