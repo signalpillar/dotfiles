@@ -21,6 +21,19 @@ dockerise
 .cursor/cost
 .cursor/cost/**
 
+# OMP runtime state. Only ~/.omp/agent/config.yml is managed.
+# A stray `chezmoi add ~/.omp` would pull sessions, caches, and sqlite DBs.
+.omp/gpu_cache.json
+.omp/logs
+.omp/natives
+.omp/run
+.omp/agent/*.db
+.omp/agent/*.db-*
+.omp/agent/cache
+.omp/agent/sessions
+.omp/agent/terminal-sessions
+.omp/agent/last-changelog-version
+
 # Never manage installed dependencies. These are rebuilt by the package manager,
 # and a stray `chezmoi add` of one pulls thousands of files into the source state.
 **/node_modules

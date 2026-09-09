@@ -62,6 +62,13 @@ The script [dot_cursor/executable_statusline.sh](dot_cursor/executable_statuslin
 The setup script [run_onchange_cursor-statusline.sh](run_onchange_cursor-statusline.sh) merges the status line key into `~/.cursor/cli-config.json`.
 Do not add `~/.cursor/cli-config.json` directly to chezmoi.
 
+### Oh My Pi
+
+Managed file: [dot_omp/private_agent/private_config.yml](dot_omp/private_agent/private_config.yml).
+This is `~/.omp/agent/config.yml`.
+The custom status line pins `session` (resume id) and `cost` on the right.
+Do not add the `~/.omp` directory. Sessions, caches, and sqlite files stay local.
+
 ## Shell, Editors, and Tools
 
 - **Shell**: Zsh with Starship prompt, Zoxide, FZF, and Direnv.

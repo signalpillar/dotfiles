@@ -33,6 +33,8 @@ metadata:
 - **Load-edge narrowing**: when a library or FHIR type leaves a nested field optional, validate it at the site that loads the resource. Throw. Do not use `!`. Inner functions then receive the narrowed value. Do not skip this because the field is "always set in practice". This does not license a second fail-closed in a consumer of an already-loaded typed object.
 - **Reuse collaborator output**: before adding a parse, helper, or second load for a fact, open the return type and implementation of every collaborator this unit already calls. Do not infer from the current destructure. If that type already carries the fact, or an object that owns it, use that field. Grep sibling consumers of the same collaborator and copy their access path. Do not re-parse the raw resource the collaborator already loaded. Do not add a fail-closed the loader already performs. Narrow once at the load site; consumers of an already-loaded object consume, they do not re-load. A new `getXFromRaw(resource)` next to a call that already returns `x` or `owner.x` is a review finding.
 - **Shared identity seam**: keep a mint/resolve helper even when it is identity today. Two facades must not fork encodings. Do not inline until the encoding is actually opaque.
+- **Match this project's error handling.** Before a new throw, grep the same package for how failures are typed, which HTTP status they use, and whether they log `error` or `warn` next to the throw. Copy that package unless this failure is a different kind. Flag a raw status on a generic error class when this file already has a typed helper for that status. Flag `warn` immediately before a throw if siblings log `error`. Do not invent a status table the repo does not use.
+
 - **Fault vs empty outcome**: config load failures, missing definitions, and unreadable identifiers are hard fails (throw / HTTP 500). Do not catch them into a valid empty / not-applicable result. Operators must tell a broken identifier from a real empty match.
 - **Pass-through vs policy owner**: a resolver that selects a row passes the row through. It does not allow-list values, invent omitted fields, or fail closed on a field another service owns. Put that policy in the consumer of the field.
 - **Tagged union, no optional-on-some-status fields**: each variant carries only the fields that exist in that state, all required. Drop a shared base that makes a field optional because it is absent on other variants. A status nobody can act on is a throw, not a variant.
@@ -57,6 +59,7 @@ When using this skill for review, also ask:
 - Did this unit re-parse a fact a collaborator already returned? Request using the collaborator field instead.
 - Did the load site skip a nested field the library types as optional? Request a fail-closed check there, not a `!`. Do not request a second fail-closed in a consumer of that loaded object.
 - Does a catch map a config throw into a valid empty result? Request that the throw surface.
+- Did new throws copy this package's error class and log level, or invent a parallel convention? Request a grep of sibling throws.
 - Does a child row repeat a parent field? Request it live once on the parent.
 - Do two reason codes or flags name the same event? Request they fold.
 
@@ -116,6 +119,7 @@ When using this skill for implementation or review, explicitly scan new and chan
 
 - Use stable, kebab-case event keys for observability.
 - Add structured logs before meaningful throws/rejections.
+- Log `error` immediately before a throw. `warn` is for a path that continues. Flag `warn` then throw when this package logs `error` on throw.
 - Include identifiers and decision context fields so failures are diagnosable without stack traces.
 - Keep log messages decision-oriented (what was rejected and why), not implementation-oriented.
 

@@ -1,0 +1,23 @@
+modelRoles:
+  default: cursor/cursor-grok-4.6-fast
+symbolPreset: unicode
+composer:
+  shape: claude
+theme:
+  light: light
+setupVersion: 2
+statusLine:
+  preset: custom
+  leftSegments:
+    - pi
+    - model
+    - mode
+    - collab
+    - path
+    - git
+    - pr
+    - context_pct
+  rightSegments:
+    - session
+    - session_name
+    - cost
