@@ -2563,13 +2563,11 @@ def slice_counts(task_slice: TaskSlice) -> tuple[int, int]:
 def include_expanded_step(step: TaskStep, *, short: bool, current_step: str | None) -> bool:
     """Whether an expanded step belongs in the tree.
 
-    --short keeps the current step and unfinished work only.
+    --short keeps the current step only.
     """
     if not short:
         return True
-    if current_step is not None and step.key == current_step:
-        return True
-    return step.status not in STATUS_DONE
+    return current_step is not None and step.key == current_step
 
 
 def step_line(
@@ -3927,8 +3925,8 @@ def cmd_show(args: argparse.Namespace) -> None:
             done_slices += 1
 
     # With --short, collapse consecutive status==done slices onto one "✓ a, b, c" line.
-    # Skipped and non-done slices still render one-per-line. Expanded slices omit
-    # done/skipped steps except the current step. --all disables both.
+    # Skipped and non-done slices still render one-per-line. Expanded slices keep
+    # the current step only. --all disables both.
     i = 0
     while i < len(slices):
         task_slice = slices[i]
@@ -5833,7 +5831,7 @@ def main() -> None:
         action="store_true",
         help=(
             "collapse consecutive done slices onto one line (names only); "
-            "omit done/skipped steps except the current step; "
+            "keep only the current step; "
             "ignored with --all or --slice"
         ),
     )

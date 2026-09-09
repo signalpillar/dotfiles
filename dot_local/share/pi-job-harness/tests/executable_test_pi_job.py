@@ -2875,8 +2875,8 @@ def test_show_short_collapses_consecutive_done_slices() -> None:
         assert_contains(cursor_out, "delta")
 
 
-def test_show_short_omits_finished_steps() -> None:
-    """--short expands the current slice to current + unfinished steps only."""
+def test_show_short_keeps_current_step_only() -> None:
+    """--short expands the current slice to the current step only."""
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "short-steps.yaml"
         write_task_yaml(task, {
@@ -2938,7 +2938,7 @@ def test_show_short_omits_finished_steps() -> None:
             return keys
 
         out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--color", "never").stdout
-        assert step_keys(out) == ["wait-for-feedback", "e2e-evidence", "ready-for-release"], out
+        assert step_keys(out) == ["wait-for-feedback"], out
         assert_contains(out, "wait-for-feedback   ← current")
         default = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
         assert step_keys(default) == [
@@ -2955,12 +2955,7 @@ def test_show_short_omits_finished_steps() -> None:
         started = run(
             str(PI_JOB), "--task", str(task), "show", "--short", "--started", "--color", "never",
         ).stdout
-        assert step_keys(started) == [
-            "wait-for-feedback",
-            "e2e-evidence",
-            "ready-for-release",
-            "sidecar-left",
-        ], started
+        assert step_keys(started) == ["wait-for-feedback"], started
 
 
 def test_show_started_flag_expands_non_planned_slices() -> None:
@@ -10452,7 +10447,7 @@ def main() -> None:
     test_show_aligns_kind_counts_after_longest_key()
     test_show_omits_kind_counts_and_models_for_done_by_default()
     test_show_short_collapses_consecutive_done_slices()
-    test_show_short_omits_finished_steps()
+    test_show_short_keeps_current_step_only()
     test_show_started_flag_expands_non_planned_slices()
     test_show_color_always_tints_glyphs_never_stays_plain()
     test_show_slice_prints_goal_notes_steps_repo_work()
