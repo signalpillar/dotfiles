@@ -660,15 +660,30 @@ instruction_packets:
 
     # References
 
-    Open this file first. List current concepts only.
+    Open this file first.
+    List current concepts only.
+    Keep this map short.
+    Detail lives in linked files.
 
     ## Current
 
-    (none yet)
+    | Concept | Path | Type | Status | Use |
+    |---|---|---|---|---|
+    | (none yet) | - | - | - | - |
+
+    Type is one of `position`, `gateway`, `concept`, `evidence`.
+    Status is one of `current`, `deprecated`.
+    Use marks `dense` for distilled reasoning or `sparse` for situational reference.
 
     ## Vocabulary
 
     * [glossary.yaml](glossary.yaml) - domain terms (not a concept document)
+
+    ## How to update
+
+    Append one row per new concept in `synthesize`.
+    Mark superseded rows `deprecated`.
+    Never delete rows.
   references_read_first: |-
     Open `references/index.md` before the slice plan.
   status_interrupt_hint: >-
