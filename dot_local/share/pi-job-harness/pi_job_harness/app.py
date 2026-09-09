@@ -2560,6 +2560,18 @@ def slice_counts(task_slice: TaskSlice) -> tuple[int, int]:
     return done, len(task_slice.all_steps)
 
 
+def include_expanded_step(step: TaskStep, *, short: bool, current_step: str | None) -> bool:
+    """Whether an expanded step belongs in the tree.
+
+    --short keeps the current step and unfinished work only.
+    """
+    if not short:
+        return True
+    if current_step is not None and step.key == current_step:
+        return True
+    return step.status not in STATUS_DONE
+
+
 def step_line(
     step: TaskStep,
     *,
@@ -3915,7 +3927,8 @@ def cmd_show(args: argparse.Namespace) -> None:
             done_slices += 1
 
     # With --short, collapse consecutive status==done slices onto one "✓ a, b, c" line.
-    # Skipped and non-done slices still render one-per-line. --all disables collapsing.
+    # Skipped and non-done slices still render one-per-line. Expanded slices omit
+    # done/skipped steps except the current step. --all disables both.
     i = 0
     while i < len(slices):
         task_slice = slices[i]
@@ -3977,6 +3990,8 @@ def cmd_show(args: argparse.Namespace) -> None:
         if expand_steps:
             current_step = positions[task_slice.key].step if is_current else None
             for step in task_slice.steps:
+                if not include_expanded_step(step, short=short, current_step=current_step):
+                    continue
                 lines.append(
                     step_line(
                         step,
@@ -3987,6 +4002,8 @@ def cmd_show(args: argparse.Namespace) -> None:
                     )
                 )
             for step in task_slice.final_steps:
+                if not include_expanded_step(step, short=short, current_step=current_step):
+                    continue
                 lines.append(
                     step_line(
                         step,
@@ -5814,7 +5831,11 @@ def main() -> None:
     show.add_argument(
         "--short",
         action="store_true",
-        help="collapse consecutive done slices onto one line (names only); ignored with --all or --slice",
+        help=(
+            "collapse consecutive done slices onto one line (names only); "
+            "omit done/skipped steps except the current step; "
+            "ignored with --all or --slice"
+        ),
     )
     show.add_argument(
         "--work-first",

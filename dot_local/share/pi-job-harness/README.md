@@ -52,7 +52,7 @@ Given a YAML task file and `profile.yaml`, it can:
 - `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
   (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `msg --to manager|slice:KEY --note TEXT` - send a durable task-scoped message; `msg --read --to ADDRESS` prints and acknowledges it
-- `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
+- `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, omitted done/skipped steps except current, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `stats` / `report --since YYYY-MM-DD` - read-only markdown (or `--json`) from store execution / repo_work; optional `-o PATH` writes without printing
 - `loop` - print a named `loop_packets` entry as one line, without `--task`
@@ -628,7 +628,10 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   With `--relative`, in-bundle paths are bundle-relative; out-of-bundle registered paths stay absolute.
   Pipe to `grep`, `fzf`, or `$EDITOR "$(...)"`.
 - `pi-job --task <t> show [--all] [--started] [--full] [--short] [--status s1,s2] [--color auto|always|never]` - render the task as a cursor-focused slice/step tree with a toolbelt footer.
-  `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`); skipped breaks the run; ignored with `--all`.
+  `--short` collapses consecutive `done` slices onto one line (`✓ a, b, c`).
+  Skipped slices break the run.
+  Expanded slices list the current step and unfinished steps only.
+  Ignored with `--all`.
   By default only the current cursor slice expands.
   `done`/`skipped` slices are completely header-only (no deps, repo_work, or steps) and omit `[kind/n/m]` (footer still has totals), except with `--status`: set `repo_work.worktree` paths are printed so agents can inventory recorded worktrees without `--all`.
   Executor models are omitted unless `--full`.

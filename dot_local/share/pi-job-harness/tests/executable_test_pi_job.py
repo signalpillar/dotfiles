@@ -2875,6 +2875,94 @@ def test_show_short_collapses_consecutive_done_slices() -> None:
         assert_contains(cursor_out, "delta")
 
 
+def test_show_short_omits_finished_steps() -> None:
+    """--short expands the current slice to current + unfinished steps only."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "short-steps.yaml"
+        write_task_yaml(task, {
+            "title": "Short steps",
+            "status": "in_progress",
+            "project": {"name": "Fixture"},
+            "orchestration": {
+                "cursors": [claim_dict("active")],
+                "policy": _orchestration_policy(),
+            },
+            "plan": {
+                "note": "",
+                "slices": [
+                    {
+                        "key": "active",
+                        "kind": "implement",
+                        "title": "Active",
+                        "goal": "g",
+                        "status": "in_progress",
+                        "note": "",
+                        "repos": ["repo-a"],
+                        "steps": [
+                            {"key": "create-plan", "title": "Plan", "status": "done", "note": ""},
+                            {"key": "grill-plan", "title": "Grill", "status": "done", "note": ""},
+                            {"key": "vulnerability-scan", "title": "Scan", "status": "skipped", "note": ""},
+                            {"key": "wait-for-feedback", "title": "Wait", "status": "in_progress", "note": ""},
+                            {"key": "e2e-evidence", "title": "E2E", "status": "planned", "note": ""},
+                            {"key": "ready-for-release", "title": "Ready", "status": "planned", "note": ""},
+                        ],
+                        "final_steps": [],
+                    },
+                    {
+                        "key": "sidecar",
+                        "kind": "implement",
+                        "title": "Sidecar",
+                        "goal": "g",
+                        "status": "in_progress",
+                        "note": "",
+                        "repos": [],
+                        "steps": [
+                            {"key": "sidecar-done", "title": "Done", "status": "done", "note": ""},
+                            {"key": "sidecar-left", "title": "Left", "status": "planned", "note": ""},
+                        ],
+                        "final_steps": [],
+                    },
+                ],
+            },
+        })
+
+        def step_keys(out: str) -> list[str]:
+            keys: list[str] = []
+            glyphs = set("✓⊘▸○·✗")
+            for line in out.splitlines():
+                if not line.startswith("    ") or line.startswith("        "):
+                    continue
+                parts = line.strip().split()
+                if len(parts) >= 2 and parts[0] in glyphs:
+                    keys.append(parts[1])
+            return keys
+
+        out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--color", "never").stdout
+        assert step_keys(out) == ["wait-for-feedback", "e2e-evidence", "ready-for-release"], out
+        assert_contains(out, "wait-for-feedback   ← current")
+        default = run(str(PI_JOB), "--task", str(task), "show", "--color", "never").stdout
+        assert step_keys(default) == [
+            "create-plan",
+            "grill-plan",
+            "vulnerability-scan",
+            "wait-for-feedback",
+            "e2e-evidence",
+            "ready-for-release",
+        ], default
+        all_out = run(str(PI_JOB), "--task", str(task), "show", "--short", "--all", "--color", "never").stdout
+        assert "create-plan" in step_keys(all_out), all_out
+        assert "sidecar-done" in step_keys(all_out), all_out
+        started = run(
+            str(PI_JOB), "--task", str(task), "show", "--short", "--started", "--color", "never",
+        ).stdout
+        assert step_keys(started) == [
+            "wait-for-feedback",
+            "e2e-evidence",
+            "ready-for-release",
+            "sidecar-left",
+        ], started
+
+
 def test_show_started_flag_expands_non_planned_slices() -> None:
     """By default only the current cursor's slice expands. --started additionally
     expands in_progress/blocked slices; done/skipped and still-planned stay collapsed.
@@ -10364,6 +10452,7 @@ def main() -> None:
     test_show_aligns_kind_counts_after_longest_key()
     test_show_omits_kind_counts_and_models_for_done_by_default()
     test_show_short_collapses_consecutive_done_slices()
+    test_show_short_omits_finished_steps()
     test_show_started_flag_expands_non_planned_slices()
     test_show_color_always_tints_glyphs_never_stays_plain()
     test_show_slice_prints_goal_notes_steps_repo_work()
