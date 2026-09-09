@@ -1795,6 +1795,8 @@ def test_scaffold_creates_task_file() -> None:
             raise AssertionError("dry-run wrote a task file")
         if (bundle / "plans").exists():
             raise AssertionError("dry-run scaffolded bundle directories")
+        if (bundle / "references" / "index.md").exists():
+            raise AssertionError("dry-run wrote references/index.md")
 
         out = run(
             str(PI_JOB),
@@ -1810,6 +1812,9 @@ def test_scaffold_creates_task_file() -> None:
         assert task.exists()
         assert (bundle / "plans").is_dir()
         assert (bundle / "references").is_dir()
+        index = bundle / "references" / "index.md"
+        assert index.is_file()
+        assert_contains(index.read_text(encoding="utf-8"), "okf_version")
 
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "Task: Scaffolded example")
@@ -8709,6 +8714,10 @@ def test_scaffold_bundle_dirs_idempotent_preserves_contents() -> None:
         assert bundle_root.is_dir()
         assert (bundle_root / "plans").is_dir()
         assert (bundle_root / "references").is_dir()
+        index = bundle_root / "references" / "index.md"
+        assert index.is_file()
+        assert_contains(index.read_text(encoding="utf-8"), "okf_version")
+        index.write_text("custom map\n", encoding="utf-8")
 
         marker = bundle_root / "plans" / "keep-me.md"
         marker.write_text("keep this\n", encoding="utf-8")
@@ -8716,7 +8725,107 @@ def test_scaffold_bundle_dirs_idempotent_preserves_contents() -> None:
         module.scaffold_bundle_dirs(bundle_root)
         assert marker.is_file()
         assert marker.read_text(encoding="utf-8") == "keep this\n"
+        assert index.read_text(encoding="utf-8") == "custom map\n"
 
+
+
+
+def test_reference_knowledge_status_validate_warn_on_missing_type() -> None:
+    """Bundle status/validate warn on a missing index and untyped concept notes.
+
+    Reserved names and non-markdown files are not concept documents.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "okf-warn"
+        task = bundle / "task.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        refs = bundle / "references"
+        refs.mkdir()
+        (refs / "concept.md").write_text("# Concept\n", encoding="utf-8")
+        (refs / "glossary.yaml").write_text("term: x\n", encoding="utf-8")
+        (refs / "diagram.bpmn").write_text("<bpmn/>\n", encoding="utf-8")
+        (refs / "notes.txt").write_text("plain\n", encoding="utf-8")
+        (refs / "log.md").write_text("# Log\n", encoding="utf-8")
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_contains(status, "warning:")
+        assert_contains(status, "references/index.md missing")
+        assert_contains(status, "missing YAML `type`: concept.md;")
+        assert_not_contains(status, "glossary.yaml")
+        assert_not_contains(status, "diagram.bpmn")
+        assert_not_contains(status, "notes.txt")
+        assert_not_contains(status, "type`: log.md")
+        created = Path(tmp) / "okf-valid"
+        run(str(PI_JOB), "--task", str(created), "create", "--goal", TEST_GOAL)
+        (created / "references" / "concept.md").write_text("# Concept\n", encoding="utf-8")
+        (created / "references" / "index.md").unlink()
+        validate = run(str(PI_JOB), "--task", str(created), "validate").stdout
+        assert_contains(validate, "references/index.md missing")
+        assert_contains(validate, "concept.md")
+
+
+def test_reference_knowledge_skips_reserved_and_typed_notes() -> None:
+    """Typed concept notes plus reserved index/log produce no references warnings."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "okf-ok"
+        task = bundle / "task.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        refs = bundle / "references"
+        refs.mkdir()
+        (refs / "index.md").write_text("# Map\n", encoding="utf-8")
+        (refs / "log.md").write_text("# Log\n", encoding="utf-8")
+        (refs / "concept.md").write_text(
+            "---\ntype: concept\ntitle: Concept\nstatus: stable\n---\n\n# Concept\n",
+            encoding="utf-8",
+        )
+        status = run(str(PI_JOB), "--task", str(task), "status").stdout
+        assert_not_contains(status, "references/index.md missing")
+        assert_not_contains(status, "missing YAML `type`")
+        loose = Path(tmp) / "loose.yaml"
+        write_task_yaml(loose, standard_fixture_mapping())
+        loose_status = run(str(PI_JOB), "--task", str(loose), "status").stdout
+        assert_not_contains(loose_status, "references/index.md missing")
+
+
+def test_reference_knowledge_lint_caps_missing_type_list() -> None:
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        refs = Path(tmp) / "references"
+        refs.mkdir()
+        for i in range(10):
+            (refs / f"c{i}.md").write_text("# n\n", encoding="utf-8")
+        warns = module.ReferenceKnowledgeLint(refs).warnings()
+        joined = "\n".join(warns)
+        assert_contains(joined, "(+2 more)")
+        assert_contains(joined, "c0.md")
+
+
+def test_instruction_bundle_opens_references_index_first() -> None:
+    """Bundle execution packets put the index-first line in STEP, not NEXT ACTION."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "okf-instr"
+        task = bundle / "task.yaml"
+        task.parent.mkdir(parents=True, exist_ok=True)
+        task.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "Open `references/index.md` before the slice plan.")
+        next_action = instruction[: instruction.index("\nSTEP\n")]
+        assert_not_contains(next_action, "references/index.md")
+        loose = Path(tmp) / "okf-loose.yaml"
+        loose.write_text(orchestrator_instruction_yaml_task(), encoding="utf-8")
+        loose_instr = run(str(PI_JOB), "--task", str(loose), "instruction", "--current").stdout
+        assert_not_contains(loose_instr, "Open `references/index.md` before the slice plan.")
+
+
+def test_subagent_instruction_bundle_repeats_references_index() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "okf-sub"
+        task = bundle / "task.yaml"
+        task.parent.mkdir(parents=True, exist_ok=True)
+        task.write_text(subagent_instruction_yaml_task(), encoding="utf-8")
+        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
+        assert_contains(instruction, "Subagent prompt:")
+        prompt = instruction.split("Subagent prompt:", 1)[1]
+        assert_contains(prompt, "Open `references/index.md` before the slice plan.")
 
 def test_create_slug_scaffolds_bundle() -> None:
     """`create` with a bare slug scaffolds `$PI_JOB_TASKS/<slug>/{task.yaml,plans/,references/}`."""
@@ -8735,6 +8844,7 @@ def test_create_slug_scaffolds_bundle() -> None:
             assert (bundle / "task.yaml").is_file()
             assert (bundle / "plans").is_dir()
             assert (bundle / "references").is_dir()
+            assert (bundle / "references" / "index.md").is_file()
 
             status = run(str(PI_JOB), "--task", "demo-slug", "status").stdout
             assert_contains(status, "Initialization: ok")
@@ -8977,6 +9087,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(heartbeat, "Preflight")
     assert_contains(heartbeat, "uv tool install --force --editable")
     assert_contains(heartbeat, "never inject a literal placeholder")
+    assert_contains(heartbeat, "headroom wrap omp")
     assert_not_contains(heartbeat, "leave or close")
     assert "{interval}" not in heartbeat
     assert "{task_file}" not in heartbeat
@@ -9005,6 +9116,8 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "maintain_item",
         "plan_slices_seeded_banner",
         "grill_before_cursor",
+        "references_index_stub",
+        "references_read_first",
     ):
         profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
         del profile["instruction_packets"][field]
@@ -9155,7 +9268,7 @@ def _normalized_slice_worker_boot(module) -> str:
 def test_normalized_manager_and_worker_packets_are_compatible() -> None:
     module = load_pi_job_module()
     expected = {
-        "manager": "0f7a964f6f6c31b8f8fff335a23d75951cd5928b878b9798dd5c31bd17f4f2bd",
+        "manager": "2bb044460b80e189962a87ec9202689e92163b75c351f8a3b90bd09bf78c06d1",
         "worker": "9b79979c5a91cd3678b20a89b9035b189e434d52b1f2f0b2d675405a65ea6b9a",
     }
     actual = {
@@ -10816,6 +10929,11 @@ if __name__ == "__main__":
     test_layout_for_document_path_bundle_and_loose()
     test_derive_bundle_root_task_yaml_parent_dir_self_and_loose_dies()
     test_scaffold_bundle_dirs_idempotent_preserves_contents()
+    test_reference_knowledge_status_validate_warn_on_missing_type()
+    test_reference_knowledge_skips_reserved_and_typed_notes()
+    test_reference_knowledge_lint_caps_missing_type_list()
+    test_instruction_bundle_opens_references_index_first()
+    test_subagent_instruction_bundle_repeats_references_index()
     test_bundle_read_write_and_plan_stub()
     test_store_describe_uses_layout()
     test_bundle_slug_under_home_pure()

@@ -46,6 +46,7 @@ Do not switch to a casual register unless the user asks.
   Use `set-slice --clear-depends-on` to clear dependency edges.
   When add-decision spills a body, pass `--slug kebab-topic`.
   The spilled file is `_decision-YYYY-MM-DD-<topic>.md`.
+  On a bundle task, open `references/index.md` before the slice plan.
   Use `pi-job msg` for cross-agent contact.
   The `msg` command lives in `pi_job_harness.messaging`.
   Never send cross-agent messages through terminal panes.

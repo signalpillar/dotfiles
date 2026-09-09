@@ -43,6 +43,7 @@ from pi_job_harness.project_validation import (
     validate_project_route_and_key,
     validate_real_goal,
 )
+from pi_job_harness.reference_knowledge import ReferenceKnowledgeLint
 from pi_job_harness.store import (
     BundleTaskLayout,
     FsTaskStore,  # noqa: F401 - tests getattr this on the app module
@@ -460,13 +461,15 @@ def derive_bundle_root(resolved: Path) -> Path:
 def scaffold_bundle_dirs(bundle_root: Path) -> None:
     """Create the bundle root, `plans/`, and `references/` (idempotent).
 
-    Never removes or overwrites existing contents; `create --force` relies on
-    this to leave `plans/` / `references/` intact while only `task.yaml` is
-    overwritten.
+    Writes `references/index.md` once when missing. Never removes or
+    overwrites existing contents; `create --force` relies on this to leave
+    `plans/` / `references/` intact while only `task.yaml` is overwritten.
     """
     bundle_root.mkdir(parents=True, exist_ok=True)
     (bundle_root / "plans").mkdir(exist_ok=True)
-    (bundle_root / "references").mkdir(exist_ok=True)
+    references_dir = bundle_root / "references"
+    references_dir.mkdir(exist_ok=True)
+    ReferenceKnowledgeLint(references_dir).ensure_index()
 
 
 def derive_task_slug_from_loose_yaml(doc: Path) -> str | None:
@@ -1156,6 +1159,10 @@ def print_status(
 
     for issue in note_length_warnings(task, task_path):
         print(f"warning: {issue}")
+    lint = ReferenceKnowledgeLint.from_task_arg(task_path)
+    if lint is not None:
+        for issue in lint.warnings():
+            print(f"warning: {issue}")
 
 
 
@@ -2209,6 +2216,8 @@ def build_instruction(
     lines.extend(render_packet_lines(next_action_body, defaults=packet_defaults))
     lines.append("")
     lines.append("STEP")
+    if isinstance(store.layout, BundleTaskLayout):
+        lines.extend(render_packet_lines(packets["references_read_first"], defaults=packet_defaults))
     if task_slice:
         lines.append(f"Slice: {task_slice.key} [{task_slice.kind}] — {task_slice.title or '<untitled>'}")
         if task_slice.goal:
@@ -2310,6 +2319,8 @@ def build_instruction(
         lines.append("")
         lines.append("Subagent prompt:")
         lines.extend(render_packet_lines(packets["subagent_prompt"], defaults=packet_defaults))
+        if isinstance(store.layout, BundleTaskLayout):
+            lines.extend(render_packet_lines(packets["references_read_first"], defaults=packet_defaults))
     return "\n".join(lines)
 
 
@@ -4899,6 +4910,10 @@ def cmd_validate(args: argparse.Namespace) -> None:
         print(f"warning: {issue}")
     for issue in note_length_warnings(task, task_path=task_arg if task_arg.is_file() else None):
         print(f"warning: {issue}")
+    lint = ReferenceKnowledgeLint.from_layout(store.layout)
+    if lint is not None:
+        for issue in lint.warnings():
+            print(f"warning: {issue}")
     if isinstance(store, YamlTaskStore):
         print(f"schema: Pydantic {TaskDocument.__name__}")
         print("note: YAML task files are machine-owned; prefer pi-job commands over manual edits.")

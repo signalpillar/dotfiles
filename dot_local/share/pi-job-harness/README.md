@@ -97,6 +97,7 @@ Named loop packets live in `profile.yaml`; the harness contains no scheduler or 
   - Slice not terminal (`in_progress`, parked on grill/clarify, or blocked): keep claim and window. Do not release.
   - Ready and unowned: spawn, inject `pi-job loop --worker`, add the map row.
   - Dead pane with a live claim on a non-terminal slice: recover the same owner/slice.
+  When you start or recover the worker agent, recommend `headroom wrap omp`.
 
   Worker triage runs first on every tick (same authoritative packet). `pane_current_command` is not liveness: a crashed agent keeps the agent process. Read the pane tail and classify each live claim as stalled, waiting on user, waiting on external, or working. Recover stalled workers, quote a waiting question to the user, live-check an external blocker, and leave working panes alone.
 - **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not wait for a new claim. The manager closes the window. Do not pick-next or claim other slices.
@@ -618,6 +619,10 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Plan and instruction packets print this list on every step.
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
   Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
+  Bundle `references/` concept notes use YAML `type`, `title`, and `status`.
+  Open `references/index.md` first; `create` writes that stub once.
+  `status` and `validate` warn when the index or `type` is missing.
+  Reserved names `index.md` and `log.md` skip `type`.
   Aid `decision-review-deck` is the async decision deck (skill `decision-review-deck`; dated project markdown).
 - `pi-job --task <t> files [--relative]` - print artifact paths one per line (absolute by default): everything under `references/` and `plans/`, plus registered `orchestration.artifacts` paths (including files outside the bundle).
   With `--relative`, in-bundle paths are bundle-relative; out-of-bundle registered paths stay absolute.
@@ -930,7 +935,7 @@ Clocks and path stamps live in their I/O edge (`messaging/`, store, or `cmd_*`),
 
 Instruction and coaching bodies live in `profile.yaml` (`instruction_packets`, `loop_packets`, `cli_help`, `interrupt_park_steps`, and optional step-kind `next_action`).
 Python loads and formats them; it must not hardcode parallel copy.
-Examples: `status_interrupt_hint`, `investigate_interrupt`, `loop_packets.manager`, `loop_packets.worker`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`.
+Examples: `status_interrupt_hint`, `investigate_interrupt`, `loop_packets.manager`, `loop_packets.worker`, `slice_plan_stub`, `findings_file_header`, `bigpicture_stub`, `references_index_stub`, `references_read_first`.
 
 ### Render
 
@@ -944,6 +949,8 @@ Default to pure free functions (see Functional style).
 Use a named class only when one object owns a coherent feature surface (formatting, export, layout, policy) with shared construction state.
 Keep free functions for thin wiring (`cmd_*`, argparse, store open/close) and for pure transforms.
 Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
+`ReferenceKnowledgeLint` owns bundle `references/` frontmatter lint and the index stub write.
+`status`, `validate`, and `create` only construct it and print or call `ensure_index()`.
 `MessageService` owns send, list, and read operations.
 `MailboxPaths` owns all `_inbox` path arithmetic.
 `messaging/cli.py` owns the `msg` parser and `cmd_msg`.

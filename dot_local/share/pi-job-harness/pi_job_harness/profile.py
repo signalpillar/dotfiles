@@ -271,6 +271,19 @@ class InstructionPacketsDocument(StrictDocument):
             "Profile is the only body; Python must not hardcode the spine shape."
         )
     )
+    references_index_stub: str = Field(
+        description=(
+            "Body written once as references/index.md when create scaffolds a bundle "
+            "and the file is missing. Profile is the only body; Python must not "
+            "hardcode the concept-map shape."
+        )
+    )
+    references_read_first: str = Field(
+        description=(
+            "One-line STEP coaching on bundle tasks: open references/index.md "
+            "before the slice plan. Profile is the only body."
+        )
+    )
     status_interrupt_hint: str = Field(
         description=(
             "One-line status coaching when the saved cursor sits on an interrupt-park "
