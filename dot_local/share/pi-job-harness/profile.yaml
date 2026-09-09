@@ -329,20 +329,22 @@ cli_help:
       decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`.
       Shell-safe: pass --note with single quotes or a HEREDOC; bare backticks in double-quoted
       shell args are command-substituted (example: --note 'Keep expiresAt as-is').
-      When the body spills (long note, --slug, or --plan-file), pass --slug kebab-topic
-      (example: pmos-careplan-eager-construct). The file is `_decision-<date>-<slug>.md`.
+      YAML stores a one-line claim plus `path`. The body always writes
+      `_decision-<date>-<slug>.md`. Pass --slug kebab-topic on a long note
+      (example: pmos-careplan-eager-construct). Short notes derive a slug from the claim.
       Do not use a UTC timestamp as the slug.
       To supersede an earlier decision, append a new row; never edit or delete prior rows.
       Prefix the note with `SUPERSEDES: YYYY-MM-DD (source) - …` pointing at the superseded entry
       (example: --note 'SUPERSEDES: 2026-08-04 (chat) - scope now excludes grill.backlog').
     slug: >-
-      kebab-case topic for the spilled file `_decision-<date>-<slug>.md`
-      (example: pmos-careplan-eager-construct). Required when the note body spills.
+      kebab-case topic for `_decision-<date>-<slug>.md`
+      (example: pmos-careplan-eager-construct). Required on a long note.
+      Short notes derive a slug from the claim when --slug is omitted.
       Do not use a UTC timestamp such as 20260908T143039.
     plan_file: >-
-      optional explicit spill path (relative to the task dir OK); YAML stores a Plan file: pointer.
+      optional explicit spill path (relative to the task dir OK).
+      YAML stores the path plus a one-line claim, not a Plan file: pointer.
       Prefer --slug so the layout names `_decision-<date>-<slug>.md`.
-      Auto-spills when --slug is set, or when note or task file exceeds soft limits.
   set_step_note:
     command: append or replace a step note without changing status or execution
     note: >-

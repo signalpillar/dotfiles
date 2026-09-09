@@ -45,8 +45,8 @@ Do not switch to a casual register unless the user asks.
   Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.
   Use `set-slice --slice CONSUMER --depends-on PRODUCER` to append dependency edges.
   Use `set-slice --clear-depends-on` to clear dependency edges.
-  When add-decision spills a body, pass `--slug kebab-topic`.
-  The spilled file is `_decision-YYYY-MM-DD-<topic>.md`.
+  add-decision always writes `_decision-YYYY-MM-DD-<topic>.md`.
+  YAML keeps a one-line claim plus path. Pass `--slug kebab-topic` on a long note.
   On a bundle task, open `references/index.md` before the slice plan.
   Use `pi-job msg` for cross-agent contact.
   The `msg` command lives in `pi_job_harness.messaging`.
@@ -64,3 +64,9 @@ Do not switch to a casual register unless the user asks.
 - When writing commit messages, do not add an agent or AI name as co-author.
 - Bug fixes start by reproducing the bug in an end-to-end setting as close as possible to how a real user hits it.
   Confirm you have found the real cause before fixing.
+- When you change CLI, store, packet, or user-visible behaviour, capture behaviour before the edit.
+  Use a live task, or a fixture bundle that already exercises the path.
+  Record the exact command and the stdout.
+  After the edit, run the same command on the same task.
+  Present both captures in the completion reply.
+  Do not present the change as done without this pair.

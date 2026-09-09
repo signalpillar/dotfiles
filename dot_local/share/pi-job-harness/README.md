@@ -486,7 +486,7 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty; route/key checks run only when `--route` or `--key` is passed).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> set-source [--jira J] [--discovered D] [--context C]` - merge into `task.source` (at least one flag required; omitted fields are preserved).
-- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN [--slug TOPIC]` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). When the body spills, pass `--slug kebab-topic` so the file is `_decision-YYYY-MM-DD-<slug>.md`; do not use a UTC timestamp as the slug. To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
+- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN [--slug TOPIC]` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). YAML stores a one-line claim plus `path`. The body always writes `_decision-YYYY-MM-DD-<slug>.md`. Pass `--slug kebab-topic` on a long note; short notes derive a slug. Do not use a UTC timestamp as the slug. To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
 - `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and append the reason to the current cursor slice note (YAML only; not a decision).
 - `pi-job --task <t> set-slice --slice K [--title T] [--goal G] [--depends-on D] [--clear-depends-on]` - update a YAML slice.
@@ -650,7 +650,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
 - `pi-job --task <t> markdown [--chronological] [--summary | --slice KEY]` - render a portable Markdown preview to stdout.
   Loads through `TaskStore`, validates, and never writes back.
   Uninitialized tasks (no `orchestration`) preview when the document validates.
-  Document order: title/status, project, prominent `## Decisions` (dated bullets; `_none_` when empty), context and remaining metadata (empty sections omitted), a default `## Contents` table of slices (key + title, with `(current)` and status; links to slice anchors), then slices/steps.
+  Document order: title/status, project, prominent `## Decisions` (current rows only; spill bodies inline; `_none_` when empty), context and remaining metadata (empty sections omitted), a default `## Contents` table of slices (key + title, with `(current)` and status; links to slice anchors), then slices/steps.
   Prefer Markdown when recording notes and decisions (`finish --note`, `add-decision`, `set-context`, `set-plan-note`).
   Decisions and nested notes render as blockquotes; context and plan notes render as Markdown prose.
   Titles and headings are escaped.
@@ -927,7 +927,7 @@ Mailbox behavior lives in `pi_job_harness.messaging`.
 |---|---|---|
 | Slice plan stub | `ensure_slice_plan_stub` | Profile `slice_plan_stub`; create-plan kinds only; atomic write under lock |
 | Findings log | `add_finding` → `layout.findings_file()` (`_findings.md`) | Append-only; header from `findings_file_header` |
-| Long decision spill | `add_decision(..., spill_body=, spill_path=)` | Soft-limit, `--slug`, or `--plan-file`; `cmd_*` supplies `spill_path`; `--slug` is the topic stamp |
+| Decision spill | `add_decision(..., spill_body=, spill_path=)` | YAML `add-decision` always spills; YAML row is claim + `path`; `cmd_*` supplies `spill_path`; `--slug` or derived claim slug |
 | Mailbox | `MessageService` → `MailboxPaths` (`_inbox`) | Unique files; no task advisory lock |
 | Block + optional gate | `block_slice(..., gate=)` | One mutation (status/note + `depends_on`) |
 
@@ -945,6 +945,7 @@ Examples: `status_interrupt_hint`, `investigate_interrupt`, `loop_packets.manage
 `markdown --slice` is lean by default (slice body + optional injected plan file).
 Opt in with `--with-decisions` / `--with-preamble`.
 `cmd_markdown` reads plan file bytes at the edge and passes `plan_bodies` / `plan_labels` into pure `render_task_markdown`.
+It also constructs `DecisionIndex` (spill-body I/O + SUPERSEDES filter) and passes that in.
 
 ### Class boundaries
 
@@ -954,6 +955,8 @@ Keep free functions for thin wiring (`cmd_*`, argparse, store open/close) and fo
 Example: `SliceDependencyMermaid` owns all Mermaid `depends_on` graph formatting; `show --graph` only constructs it and prints `.render(task)`.
 `ReferenceKnowledgeLint` owns bundle `references/` frontmatter lint and the index stub write.
 `status`, `validate`, and `create` only construct it and print or call `ensure_index()`.
+`DecisionIndex` owns SUPERSEDES filtering, spill-body resolve, the one-line claim, and `## Decisions`.
+`markdown` and `add-decision` only construct it and print or write the thin YAML row.
 `MessageService` owns send, list, and read operations.
 `MailboxPaths` owns all `_inbox` path arithmetic.
 `messaging/cli.py` owns the `msg` parser and `cmd_msg`.

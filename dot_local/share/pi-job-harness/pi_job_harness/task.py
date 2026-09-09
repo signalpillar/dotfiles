@@ -64,12 +64,17 @@ class DecisionDocument(StrictDocument):
     date: str = Field(description="Decision date, normally formatted as YYYY-MM-DD.")
     note: str = Field(
         description=(
-            "Product, scope, architecture, or policy agreement - not step evidence "
-            "(use finish --note for e2e, PR, deploy, or progress). "
-            "Prefer Markdown; `pi-job markdown` renders it as a blockquote."
+            "Product, scope, architecture, or policy agreement - one-line claim. "
+            "The body lives in `path` when set. Legacy rows may still hold the full "
+            "note or a `Plan file:` pointer. Not step evidence "
+            "(use finish --note for e2e, PR, deploy, or progress)."
         )
     )
     source: str = Field(description="Origin of the decision, such as a chat, issue, or review.")
+    path: str | None = Field(
+        default=None,
+        description="Layout-relative spill file. Absent for legacy inline notes.",
+    )
 
 
 class LayerDocument(StrictDocument):

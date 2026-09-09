@@ -861,12 +861,13 @@ class YamlTaskStore:
         spill_body: str | None = None,
         spill_path: Path | None = None,
     ) -> Path | None:
-        """Append a decision. Optional spill_body writes long prose via layout then stores a pointer.
+        """Append a decision. Optional spill_body writes the file; YAML keeps a thin row.
 
         Returns the spill path when a body was spilled; otherwise None.
         """
+        from pi_job_harness.decision_index import DecisionIndex, claim_from_body
+
         written: Path | None = None
-        yaml_note = note
         if spill_body is not None:
             path = spill_path
             if path is None:
@@ -875,19 +876,18 @@ class YamlTaskStore:
                 f"# Decision {date}\n\nSource: {source}\n\n{spill_body.rstrip()}\n"
             )
             try:
-                rel = path.relative_to(self.path.parent)
+                rel = path.relative_to(self.path.parent).as_posix()
             except ValueError:
-                rel = path
-            yaml_note = f"Plan file: {rel}"
+                rel = str(path)
+            claim = note.strip() or claim_from_body(spill_body)
+            row = DecisionIndex.yaml_row(date=date, source=source, claim=claim, path=rel)
             with self.exclusive():
                 if path.exists():
                     die(f"decision spill already exists: {path}; choose a different --slug")
                 atomic_write_text(path, spill_text)
 
                 def mutation(task: dict[str, Any]) -> None:
-                    task.setdefault("decisions", []).append(
-                        {"date": date, "note": yaml_note, "source": source}
-                    )
+                    task.setdefault("decisions", []).append(row)
 
                 # Nested exclusive reuses the outer lock.
                 self._mutate(mutation)
@@ -896,7 +896,7 @@ class YamlTaskStore:
 
         def mutation(task: dict[str, Any]) -> None:
             task.setdefault("decisions", []).append(
-                {"date": date, "note": yaml_note, "source": source}
+                {"date": date, "note": note, "source": source}
             )
 
         self._mutate(mutation)

@@ -127,8 +127,9 @@ Prefer packet guidance. Typical shape:
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
-When `add-decision` spills a body, pass `--slug kebab-topic`.
-The file is `_decision-YYYY-MM-DD-<topic>.md`, not a UTC stamp.
+`add-decision` always writes `_decision-YYYY-MM-DD-<topic>.md`.
+YAML keeps a one-line claim plus `path`.
+Pass `--slug kebab-topic` on a long note; short notes derive a slug.
 Register the first layer with repeatable `layers add --bind SLICE=LAYER` flags.
 This command adds the band and binds all existing implement/spike/research slices atomically.
 Append dependencies with `set-slice --slice CONSUMER --depends-on PRODUCER`.
@@ -164,6 +165,9 @@ The test runner strips `$PI_JOB_OWNER` before subprocess calls.
 Use `env -u PI_JOB_OWNER` when you run tests or CLI commands manually.
 
 When you change store, task models, or CLI behaviour, update README, this skill, and root `AGENTS.md` together (docs-with-model-cuts).
+Capture behaviour before the edit on a live task or fixture bundle.
+After the edit, run the same command on the same task.
+Present both captures in the completion reply.
 A step kind may set `next_action` to replace the default NEXT ACTION checklist.
 `wait-for-feedback` uses that field for the review loop.
 Read the loop via `pi-job profile` or `instruction`; do not restate it here.

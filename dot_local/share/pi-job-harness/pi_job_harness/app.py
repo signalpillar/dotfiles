@@ -23,6 +23,7 @@ from typing import Any, ClassVar
 import yaml
 from pydantic import ValidationError
 
+from pi_job_harness.decision_index import DecisionIndex, claim_from_body, suggest_slug
 from pi_job_harness.errors import die
 from pi_job_harness.messaging import (
     Address,  # noqa: F401 - tests getattr this on the app module
@@ -2963,24 +2964,14 @@ class SyncCandidateSlices:
     feedback_leftovers: tuple[TaskSlice, ...]
 
 
-def render_decisions_markdown(task: Mapping[str, Any]) -> list[str]:
-    lines = ["## Decisions", ""]
-    decisions = task.get("decisions") or []
-    if not decisions:
-        lines.append("_none_")
-        return lines
-    for decision in decisions:
-        date = escape_md_inline(str(decision.get("date") or ""))
-        source = str(decision.get("source") or "").strip()
-        note = str(decision.get("note") or "")
-        header = f"- **{date}**"
-        if source:
-            header += f" ({escape_md_inline(source)})"
-        lines.append(header)
-        if note:
-            lines.append("")
-            append_blockquote(lines, note, indent="  ")
-    return lines
+def render_decisions_markdown(
+    task: Mapping[str, Any],
+    *,
+    decision_index: DecisionIndex | None = None,
+) -> list[str]:
+    """Delegate ## Decisions to DecisionIndex (current rows, spill bodies inline)."""
+    index = decision_index or DecisionIndex.load(task.get("decisions") or [], None)
+    return index.markdown_lines()
 
 
 def render_project_markdown(task: Mapping[str, Any]) -> list[str]:
@@ -3225,6 +3216,7 @@ def render_task_markdown(
     with_preamble: bool = False,
     plan_bodies: Mapping[str, str] | None = None,
     plan_labels: Mapping[str, str] | None = None,
+    decision_index: DecisionIndex | None = None,
 ) -> str:
     cursors = [claim_position(dict(task), claim) for claim in owned_cursors(dict(task))]
     title = escape_md_inline(str(task.get("title") or "<untitled>"))
@@ -3245,7 +3237,7 @@ def render_task_markdown(
             lines.append("")
 
     if include_decisions:
-        lines.extend(render_decisions_markdown(task))
+        lines.extend(render_decisions_markdown(task, decision_index=decision_index))
         lines.append("")
 
     if include_preamble and not summary:
@@ -3335,6 +3327,8 @@ def cmd_markdown(args: argparse.Namespace) -> None:
         if plan_path.is_file():
             plan_bodies[args.slice] = plan_path.read_text(encoding="utf-8")
             plan_labels[args.slice] = slice_plan_markdown_label(layout, args.slice)
+    task_dir = store.path.parent if isinstance(store, YamlTaskStore) else None
+    decision_index = DecisionIndex.load(task.get("decisions") or [], task_dir)
     print(
         render_task_markdown(
             task,
@@ -3345,6 +3339,7 @@ def cmd_markdown(args: argparse.Namespace) -> None:
             with_preamble=bool(args.with_preamble),
             plan_bodies=plan_bodies,
             plan_labels=plan_labels,
+            decision_index=decision_index,
         ),
         end="",
     )
@@ -5202,18 +5197,32 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
     date = args.date or utc_now()[:10]
     source = args.source or "pi-job add-decision"
     plan_file_arg = getattr(args, "plan_file", None)
-    slug_raw = str(getattr(args, "slug", "") or "")
+    slug_raw = str(getattr(args, "slug", "") or "").strip()
     soft_limit_hit = len(note) > NOTE_WARN_CHARS or (
         task_file.is_file() and task_file.stat().st_size > TASK_FILE_WARN_BYTES
     )
-    spill = plan_file_arg is not None or soft_limit_hit or bool(slug_raw.strip())
-    spill_path: Path | None = None
     store = open_task_store(task_file)
     written: Path | None = None
-    if spill:
-        if not isinstance(store, YamlTaskStore):
-            die("add-decision spill (--slug / --plan-file / soft limit) requires a YAML task file")
-        slug = require_decision_slug(slug_raw)
+    if not isinstance(store, YamlTaskStore):
+        store.add_decision(date=date, note=note, source=source)
+        yaml_note = note
+    else:
+        claim = claim_from_body(note)
+        if slug_raw:
+            slug = require_decision_slug(slug_raw)
+        elif soft_limit_hit:
+            die(
+                "add-decision spill requires --slug kebab-topic "
+                "(example: pmos-careplan-eager-construct)"
+            )
+        else:
+            slug = suggest_slug(claim)
+            if not slug:
+                die(
+                    "add-decision spill requires --slug kebab-topic "
+                    "(example: pmos-careplan-eager-construct)"
+                )
+            slug = require_decision_slug(slug)
         if plan_file_arg is not None:
             spill_path = Path(plan_file_arg)
             if not spill_path.is_absolute():
@@ -5222,17 +5231,13 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
             spill_path = store.layout.decision_spill_file(date=date, stamp=slug)
         written = store.add_decision(
             date=date,
-            note=note,
+            note=claim,
             source=source,
             spill_body=note,
             spill_path=spill_path,
         )
-        # Re-read the pointer note the store wrote for the CLI summary.
         decisions = store.read().get("decisions") or []
         yaml_note = str((decisions[-1] or {}).get("note") or "")
-    else:
-        store.add_decision(date=date, note=note, source=source)
-        yaml_note = note
     print(
         f"added decision ({date}): {yaml_note[:60]}"
         + ("..." if len(yaml_note) > 60 else "")

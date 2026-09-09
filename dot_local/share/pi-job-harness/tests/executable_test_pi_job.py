@@ -4869,7 +4869,8 @@ def test_add_decision_supersede_appends_without_removing_prior() -> None:
             str(PI_JOB), "--task", str(task), "markdown",
             "--slice", "second-slice", "--with-decisions",
         ).stdout
-        assert_contains(md, "Original scope lock")
+        assert_not_contains(md, "Original scope lock")
+        assert_contains(md, "Current only")
         assert_contains(md, "SUPERSEDES:")
         assert_contains(md, "revised scope")
         module = load_pi_job_module()
@@ -6900,6 +6901,11 @@ def test_add_decision_mutation() -> None:
         task_data = store.read()
         assert len(task_data["decisions"]) == 1
         assert task_data["decisions"][0]["note"] == "Test decision"
+        rel = task_data["decisions"][0]["path"]
+        assert rel.endswith("_decision-2026-07-27-test-decision.md")
+        spilled = (task.parent / rel).resolve()
+        assert spilled.is_file()
+        assert "Test decision" in spilled.read_text(encoding="utf-8")
 
 
 def test_set_plan_note_mutation() -> None:
@@ -9057,10 +9063,11 @@ def test_add_decision_spills_long_note_to_plan_file() -> None:
         module = load_pi_job_module()
         decisions = module.YamlTaskStore(module.YamlTaskLayout(task)).read().get("decisions") or []
         assert decisions
-        yaml_note = decisions[-1]["note"]
-        assert yaml_note.startswith("Plan file:")
+        row = decisions[-1]
+        yaml_note = row["note"]
         assert long_note not in yaml_note
-        rel = yaml_note.removeprefix("Plan file: ").strip()
+        assert "Plan file:" not in yaml_note
+        rel = row["path"]
         assert rel.endswith("_decision-2026-09-08-careplan-eager-construct.md")
         spilled = (task.parent / rel).resolve()
         assert spilled.is_file()
@@ -9085,6 +9092,68 @@ def test_add_decision_long_note_requires_topic_slug() -> None:
         spilled = list((Path(tmp) / "spill-missing-slug.plans").glob("_decision-*.md"))
         if spilled:
             raise AssertionError(f"expected no spill files, got {spilled}")
+
+
+
+def test_decision_index_inlines_spill_and_hides_superseded() -> None:
+    """markdown --with-decisions inlines the spill body and drops superseded rows."""
+    with tempfile.TemporaryDirectory() as tmp:
+        bundle = Path(tmp) / "idx"
+        task = bundle / "task.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        plans = bundle / "plans"
+        plans.mkdir()
+        (plans / "_decision-2026-09-09-programme-categories-not-pathways.md").write_text(
+            "# Decision 2026-09-09\n\nSource: team\n\n"
+            "SUPERSEDES: 2026-07-27 (chat:2026-07-27) - programme categories, not pathways.\n"
+            "Do not introduce pathway in new type names.\n",
+            encoding="utf-8",
+        )
+        mapping = standard_fixture_mapping()
+        mapping["decisions"] = [
+            {"date": "2026-07-27", "note": "Keep the existing published HTML URL.", "source": "chat:2026-07-27"},
+            {
+                "date": "2026-09-09",
+                "note": "programme categories, not pathways",
+                "source": "team",
+                "path": "plans/_decision-2026-09-09-programme-categories-not-pathways.md",
+            },
+        ]
+        write_task_yaml(task, mapping)
+        md = run(
+            str(PI_JOB), "--task", str(task), "markdown",
+            "--slice", "second-slice", "--with-decisions",
+        ).stdout
+        assert_contains(md, "Do not introduce pathway in new type names.")
+        assert_contains(md, "plans/_decision-2026-09-09-programme-categories-not-pathways.md")
+        assert_not_contains(md, "Keep the existing published HTML URL.")
+        assert_contains(md, "Current only")
+
+
+def test_add_decision_short_note_always_spills() -> None:
+    """A short add-decision writes the spill file and a claim + path YAML row."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "short-spill" / "task.yaml"
+        run(str(PI_JOB), "--task", str(task), "create", "--empty-plan", "--force")
+        run(
+            str(PI_JOB),
+            "--task",
+            str(task),
+            "add-decision",
+            "--date",
+            "2026-09-09",
+            "--note",
+            "SUPERSEDES: 2026-07-01 (chat) - revised scope",
+            "--source",
+            "grill",
+        )
+        module = load_pi_job_module()
+        row = module.open_task_store(task).read()["decisions"][-1]
+        assert row["note"] == "revised scope"
+        assert row["path"].endswith("_decision-2026-09-09-revised-scope.md")
+        spilled = (task.parent / row["path"]).resolve()
+        assert spilled.is_file()
+        assert "SUPERSEDES: 2026-07-01 (chat)" in spilled.read_text(encoding="utf-8")
 
 
 def test_add_decision_rejects_timestamp_slug() -> None:
@@ -10676,6 +10745,8 @@ def main() -> None:
     test_add_decision_spills_long_note_to_plan_file()
     test_add_decision_long_note_requires_topic_slug()
     test_add_decision_rejects_timestamp_slug()
+    test_decision_index_inlines_spill_and_hides_superseded()
+    test_add_decision_short_note_always_spills()
     test_add_slice_creates_plan_stub()
     test_profile_requires_slice_plan_stub_and_findings_header()
     test_profile_validates_named_loop_packets()
