@@ -28,6 +28,7 @@ Do not switch to a casual register unless the user asks.
   Use `show --short` for the compact tree (current step only).
   Do not open or hand-edit the task store; use the CLI.
   Claim a Ready slice (`claim --slice KEY --owner ID`), then `instruction` / `start` / `finish`; on pick-next run `finish --slice-only` then claim the next Ready slice (`advance` is deprecated).
+  A blocked claimed slice is not pick-next; run `unblock-slice` first.
   A named owner resolves its claim when other owners hold claims.
   Duplicate active rows for one named owner fail closed.
   Packet `Owner:` identifies the session claim; `Role:` identifies profile dispatch.

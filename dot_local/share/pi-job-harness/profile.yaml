@@ -476,6 +476,14 @@ instruction_packets:
     4. `pi-job --task TASK_FILE instruction --owner {owner}`
     Do not wait for the user. If Ready is empty and the task is not done, record a blocker or fix depends_on.
     If the task is done, stop.
+  blocked_slice: |-
+    Your claimed slice is blocked.
+    Open steps may remain. This is not pick-next.
+    Do not finish --slice-only.
+    1. Read the slice note for the blocker.
+    2. When the blocker is gone: `unblock-slice --slice SLICE_KEY`
+    3. `instruction --owner {owner}`
+    Do not claim another slice. Do not pick-next.
   orchestrator: |-
     - Role: orchestrator (CLI-only for the store). Supersedes any default workspace role (e.g. Product Owner) while this task is active.
     - Enter the orchestrator loop immediately after this packet (including right after create, or instruction).

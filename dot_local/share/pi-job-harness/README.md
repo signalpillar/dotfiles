@@ -57,7 +57,7 @@ Given a YAML task file and `profile.yaml`, it can:
 - `stats` / `report --since YYYY-MM-DD` - read-only markdown (or `--json`) from store execution / repo_work; optional `-o PATH` writes without printing
 - `loop` - print a named `loop_packets` entry as one line, without `--task`
   `loop` selects `manager`; `loop --worker` selects `worker`; `loop --type NAME` selects any exact profile key.
-- `instruction` - emit a deterministic packet for the claim's derived active step (or pick-next when the claimed slice is exhausted)
+- `instruction` - emit a deterministic packet for the claim's derived active step (pick-next when exhausted; blocked slice is not pick-next)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
 - `advance` - **deprecated**; always fails with claim/instruction guidance (position is claim + derived step)
@@ -81,7 +81,7 @@ This supersedes any default workspace role such as Product Owner.
 
 1. `pi-job --task <slug> status` (and usually `plan` / `show`)
 2. `pi-job --task <slug> claim --slice KEY --owner ID` (Ready slice; one claim per owner)
-3. `pi-job --task <slug> instruction` (derived active step, or pick-next when exhausted)
+3. `pi-job --task <slug> instruction` (derived active step, pick-next when exhausted, or blocked packet)
 4. `pi-job --task <slug> start --model <provider/model>`
 5. Do that step in the orchestrator session, or launch a subagent when the packet says so
 6. Record evidence / decisions / blockers, then run `finish [--note ...]`
@@ -178,6 +178,7 @@ Across slices: agents claim among Ready slices (depends_on satisfied, unfinished
 via `pi-job show` then `claim --slice/--owner`. Array order of plan.slices is not execution order.
 When the claimed slice has no unfinished steps, instruction injects a pick-next packet;
 `finish --slice-only` auto-releases the claim.
+A blocked claimed slice is not exhausted; instruction names unblock-slice and forbids pick-next.
 Closing work is a closing slice in the plan, not a post-slice phase tail.
 When every slice is done/skipped, pick-next reports done.
 ```

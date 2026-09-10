@@ -5585,6 +5585,18 @@ def test_profile_requires_pick_next_slice_packet() -> None:
         raise AssertionError("profile accepted instruction_packets without required pick_next_slice")
 
 
+def test_profile_requires_blocked_slice_packet() -> None:
+    module = load_pi_job_module()
+    profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
+    del profile["instruction_packets"]["blocked_slice"]
+    try:
+        module.ProfileDocument.model_validate(profile)
+    except module.ValidationError as exc:
+        assert_contains(str(exc), "blocked_slice")
+    else:
+        raise AssertionError("profile accepted instruction_packets without required blocked_slice")
+
+
 def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     module = load_pi_job_module()
     profile = module.load_profile_contract()
@@ -5605,6 +5617,13 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     assert_contains(pick_next, "show")
     assert_contains(pick_next, "claim it")
     assert_contains(pick_next, "instruction --owner {owner}")
+    blocked = packets["blocked_slice"]
+    assert_contains(blocked, "unblock-slice --slice SLICE_KEY")
+    assert_contains(blocked, "instruction --owner {owner}")
+    assert_contains(blocked, "Do not pick-next")
+    assert_contains(blocked, "Do not finish --slice-only")
+    assert_not_contains(blocked, "claim --slice KEY")
+    assert_not_contains(blocked, "pi-job --task")
     assert_contains(packets["orchestrator"], "pick-next packet")
     assert_contains(packets["orchestrator"], "claim a new Ready slice")
     assert_contains(loop_packets["worker"], "Forbidden: claim other slices; pick-next")
@@ -6325,6 +6344,26 @@ def test_set_source_empty_string_overwrites_field() -> None:
         assert source["jira"] == ""
         assert source["discovered"] == "2026-01-01"
         assert source["context"] == "prior discovery note"
+
+
+def test_instruction_blocked_slice_is_not_pick_next() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "instruction-blocked.yaml"
+        mapping = lifecycle_mapping()
+        mapping["plan"]["slices"][0]["status"] = "blocked"
+        mapping["plan"]["slices"][0]["note"] = "wait-for-landing: ticket still open"
+        write_task_yaml(task, mapping)
+        out = run(str(PI_JOB), "--task", str(task), "instruction").stdout
+        assert_contains(out, "PI-JOB SLICE BLOCKED")
+        assert_contains(out, "Blocked slice: implementation")
+        assert_contains(out, "Open steps: vulnerability-scan")
+        assert_contains(out, "unblock-slice --slice SLICE_KEY")
+        assert_contains(out, "instruction --owner orchestrator")
+        assert_contains(out, "Do not pick-next")
+        assert_contains(out, "Do not finish --slice-only")
+        assert_not_contains(out, "PI-JOB PICK NEXT SLICE")
+        assert_not_contains(out, "claim --slice KEY")
+        assert_not_contains(out, "pi-job --task")
 
 
 def test_start_refuses_blocked_slice() -> None:
@@ -9270,6 +9309,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
         "grill_before_cursor",
         "references_index_stub",
         "references_read_first",
+        "blocked_slice",
     ):
         profile = module.load_yaml_mapping(module.PROFILE, label="execution profile")
         del profile["instruction_packets"][field]
@@ -10620,6 +10660,7 @@ def main() -> None:
     test_profile_requires_out_of_band_edit_warning_packet()
     test_profile_requires_next_action_packet()
     test_profile_requires_pick_next_slice_packet()
+    test_profile_requires_blocked_slice_packet()
     test_packet_guidance_separates_claimed_execution_from_pick_next()
     test_warn_if_content_dirty_uses_profile_packet()
     test_profile_requires_sync_pipeline_instructions()
@@ -10662,6 +10703,7 @@ def main() -> None:
     test_block_slice_refuses_done()
     test_unblock_slice_restores_planned()
     test_unblock_slice_refuses_non_blocked()
+    test_instruction_blocked_slice_is_not_pick_next()
     test_start_refuses_blocked_slice()
     test_vulnerability_scan_allows_author_model_at_start()
     test_vulnerability_scan_finish_same_model_refuses()

@@ -214,6 +214,14 @@ class InstructionPacketsDocument(StrictDocument):
             "Use literal TASK_FILE command hints. Supports {cursor}."
         )
     )
+    blocked_slice: str = Field(
+        description=(
+            "Instruction packet body when the claimed slice is blocked. "
+            "Not pick-next. Do not finish --slice-only. Unblock first. "
+            "Name subcommands only (not a full pi-job --task command line). "
+            "Supports {owner}."
+        )
+    )
     orchestrator: str = Field(description="Orchestrator-owned step execution guidance.")
     subagent_orchestrator: str = Field(
         description=(

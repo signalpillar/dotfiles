@@ -100,7 +100,7 @@ Classic single-session pick-next loop stays unchanged when no fleet is in use.
 
 1. `status` / `plan` / `show --short` - where you are; align session todos with `plan`
 2. `claim --slice KEY --owner ID` for a Ready slice (one claim per owner)
-3. `instruction` - step packet for the claim's derived active step, or pick-next when exhausted
+3. `instruction` - step packet for the claim's derived active step, pick-next when exhausted, or blocked packet
 4. `start --model <provider/model>` - before work
 5. Do the step (subagent when the packet says so)
 6. `finish` (with evidence note) or `finish --skip --reason ...`

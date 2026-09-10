@@ -979,10 +979,21 @@ def slice_cursor(task_slice: TaskSlice) -> Cursor:
     return Cursor(slice=task_slice.key)
 
 
+def unfinished_step_keys(task_slice: TaskSlice) -> list[str]:
+    """Return non-terminal step keys in slice order (steps, then final_steps)."""
+    return [
+        step.key
+        for step in (*task_slice.steps, *task_slice.final_steps)
+        if step.status not in STATUS_DONE
+    ]
+
+
 def within_slice_cursor(task: dict[str, Any], slice_key: str) -> Cursor | None:
     """First unfinished step in slice, or None if the slice is missing or has no unfinished steps.
 
     Empty-step actionable slices return a slice-only cursor so init/seed can land somewhere.
+    A blocked slice returns None even when steps remain. That is not exhaustion.
+    `cmd_instruction` emits the blocked packet before treating None as pick-next.
     """
     task_slice = find_slice(task, slice_key)
     if task_slice is None:
@@ -2164,6 +2175,45 @@ def build_pick_next_instruction(
     return "\n".join(lines)
 
 
+def build_blocked_slice_instruction(
+    store: TaskStore,
+    task_file: Path,
+    task: dict[str, Any],
+    claim: OwnedCursor,
+    task_slice: TaskSlice,
+) -> str:
+    """Packet when the claimed slice is blocked. Not pick-next."""
+    require_initialized(task_file, task)
+    profile = load_profile_contract()
+    packets = profile["instruction_packets"]
+    packet_defaults = {
+        "cursor": claim_position(task, claim).label(),
+        "owner": claim.owner,
+        "task_file": str(task_file),
+        "slice_key": task_slice.key,
+    }
+    open_steps = unfinished_step_keys(task_slice)
+    open_label = ", ".join(open_steps) if open_steps else "none"
+    lines = [
+        "PI-JOB SLICE BLOCKED",
+        "",
+        f"Task: {task_display_ref(store)}",
+        f"Repository root: {ROOT}",
+        f"Contract: {PROFILE}",
+        f"Claim: {claim.owner}",
+        f"Blocked slice: {task_slice.key}",
+        f"Open steps: {open_label}",
+        (
+            "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
+        ),
+        "",
+        "NEXT ACTION",
+    ]
+    lines.extend(render_packet_lines(packets["blocked_slice"], defaults=packet_defaults))
+    lines += maintain_block(task, include_empty=False)
+    return "\n".join(lines)
+
+
 def build_instruction(
     store: TaskStore, task_file: Path, task: dict[str, Any], cursor: Cursor, *, claim: OwnedCursor
 ) -> str:
@@ -2364,6 +2414,12 @@ def cmd_instruction(args: argparse.Namespace) -> None:
         require_initialized(task_file, task)
         claim = resolve_claim_for_command(task, args, cmd="instruction", required=True)
         assert claim is not None
+        claimed_slice = find_slice(task, claim.slice)
+        if claimed_slice is not None and claimed_slice.status == "blocked":
+            if isinstance(store, YamlTaskStore):
+                store.touch_claim(owner=claim.owner, now=utc_now())
+            print(build_blocked_slice_instruction(store, task_file, task, claim, claimed_slice))
+            return
         within = within_slice_cursor(task, claim.slice)
         if within is None:
             print(build_pick_next_instruction(store, task_file, task, claim))
@@ -5956,7 +6012,7 @@ def main() -> None:
 
     instruction = sub.add_parser(
         "instruction",
-        help="emit deterministic instructions for the saved cursor (or pick-next when the slice is exhausted)",
+        help="emit deterministic instructions for the saved cursor (pick-next when exhausted; blocked is not pick-next)",
     )
     instruction.add_argument(
         "--current",
