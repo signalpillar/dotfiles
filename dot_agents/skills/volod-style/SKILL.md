@@ -28,9 +28,9 @@ metadata:
 - **Orchestrator vs capability service**: flow or orchestrator services coordinate transitions and inject capability services. They do not open the platform or client for another domain's read or write loop.
 - **Domain package and fixtures**: new capability domains get a folder (`services/<domain>/`) with policy, service, and `__tests__/fixtures` owned by that package. Callers mock the service. Callers do not grow parallel fixture copies of domain rules.
 - **Trust explicit search contracts**: when a client/API search is called with filters (group, status, reason, …), return that result. Do not re-assert the same filters on the response unless there is concrete evidence the client violates those filters. Speculative "broad/malformed response" re-filters are noise and hide the real contract under test (the search call).
-- **Owner service loads owned facts**: if a fact lives on a resource the service already loads, the service reads it. Do not add a caller param that can disagree with storage. Flag a second id when the path resource already determines it (for example a FHIR `CarePlan.subject`).
+- **Owner service loads owned facts**: if a fact lives on a resource the service already loads, the service reads it. Do not add a caller param that can disagree with storage. Flag a second id when the path resource already determines it (for example an order's customer id).
 - **Do not runtime-check typed-required fields**: if this unit's contract type says the field is always present, do not add an `if (!field)` fail-closed in that function. A helper whose only job is "assert non-null of a required field" is a review finding.
-- **Load-edge narrowing**: when a library or FHIR type leaves a nested field optional, validate it at the site that loads the resource. Throw. Do not use `!`. Inner functions then receive the narrowed value. Do not skip this because the field is "always set in practice". This does not license a second fail-closed in a consumer of an already-loaded typed object.
+- **Load-edge narrowing**: when a library type leaves a nested field optional, validate it at the site that loads the resource. Throw. Do not use `!`. Inner functions then receive the narrowed value. Do not skip this because the field is "always set in practice". This does not license a second fail-closed in a consumer of an already-loaded typed object.
 - **Reuse collaborator output**: before adding a parse, helper, or second load for a fact, open the return type and implementation of every collaborator this unit already calls. Do not infer from the current destructure. If that type already carries the fact, or an object that owns it, use that field. Grep sibling consumers of the same collaborator and copy their access path. Do not re-parse the raw resource the collaborator already loaded. Do not add a fail-closed the loader already performs. Narrow once at the load site; consumers of an already-loaded object consume, they do not re-load. A new `getXFromRaw(resource)` next to a call that already returns `x` or `owner.x` is a review finding.
 - **Shared identity seam**: keep a mint/resolve helper even when it is identity today. Two facades must not fork encodings. Do not inline until the encoding is actually opaque.
 - **Match this project's error handling.** Before a new throw, grep the same package for how failures are typed, which HTTP status they use, and whether they log `error` or `warn` next to the throw. Copy that package unless this failure is a different kind. Flag a raw status on a generic error class when this file already has a typed helper for that status. Flag `warn` immediately before a throw if siblings log `error`. Do not invent a status table the repo does not use.
@@ -41,7 +41,7 @@ metadata:
 - **Absence is omit, not a sentinel**: do not encode "none" as `0`, an empty array, or a boolean plus payload pair. A match is the signal. Unmatched means none. `0` is a real value.
 - **Parent-level facts once**: if every child row shares one value, put it on the parent result, not on each child. Do not hardcode a copy of a field that already exists on the parent.
 - **Fold same-event flags**: two reason codes or two booleans that describe one business event become one name. Extra codes are extra branches in every facade.
-- **Key vs id**: an internal catalog/config key is `*Key`. An external provider identifier is `*Id`. Do not name a key `Id`. FHIR identifier systems follow the same split.
+- **Key vs id**: an internal catalog/config key is `*Key`. An external provider identifier is `*Id`. Do not name a key `Id`. External identifier systems follow the same split.
 
 ### Architecture review checklist
 
@@ -68,7 +68,7 @@ When using this skill for review, also ask:
 When reviewing or writing an HTTP facade, scan every new or changed request field. This checklist exists because a non-empty string check shipped where a UUID check belonged.
 
 - **Id format, not presence only.** UUID resource ids must fail closed on format at the HTTP boundary. `z.string().min(1)` is a review finding. Use the repo helper: Zod 3 `z.string().uuid()`, Zod 4 `z.uuid()`, or an existing `RequiredUuid`. Add a test that a non-UUID is 400 and does not call the domain service.
-- **Do not take a redundant caller id.** If the path resource already determines the subject (for example a FHIR `CarePlan.subject`), do not also require that id on the query or body unless product asked for an ownership check. Derive it. Flag duplicate ids that can disagree.
+- **Do not take a redundant caller id.** If the path resource already determines the subject (for example an order's customer id), do not also require that id on the query or body unless product asked for an ownership check. Derive it. Flag duplicate ids that can disagree.
 - **One schema, one type.** Do not hand-write an interface that repeats a Zod object. Use `z.infer<typeof Schema>`. Flag the duplicate.
 - **`Exclude` vs `Omit`.** Narrow a string-literal union with `Exclude<T, "X">`. `Omit` is for object keys. Flag the wrong helper.
 - **Exhaustive `switch`.** If every typed member has a `case`, do not add a `default` throw or `assertNever` that cannot run. TypeScript already forces a new `case` when the union grows. Keep a fail-closed `case` only when that member is in the union and must not leak (for example a write-only reason on GET).
@@ -125,8 +125,23 @@ When using this skill for implementation or review, explicitly scan new and chan
 
 ## Testing style
 
+- **Behavior, not implementation**: test the observable contract (what this unit composed, which collaborator it called, what the caller gets). Do not lock private wiring, exact mock call counts beyond isolation, or a collaborator's public throw, getter, or narrowing. A refactor that keeps the same outputs must not force a test rewrite.
 - Add tests for each new branch and edge case, not just happy paths.
-- Prefer `test.each` for cases that exercise the same behavior with different inputs or expected outputs instead of duplicating test bodies.
+- Prefer `test.each` for cases that exercise the same behavior with different inputs, expected outputs, or which independent sibling arms are present, instead of duplicating test bodies.
+- **Presence matrix**: independent sibling arms (two records, two catalogs, two getters) are table rows, not new `it()` blocks. Titles that differ only by "both exist" / "only X exists" / "only Y exists" are one `test.each` or one dual-arm test plus spy assertions. Isolation ("other catalog not called") is a spy on those cases, not another test.
+- **This unit's contract**: do not re-assert a collaborator's public throw, getter, or narrowing. That behavior has a symmetrical unit test on the collaborator. This unit asserts what it composed and which collaborator it called.
+
+### Lean tests (why this bar)
+
+Popular review skills check spec and standards, not test shape ([mattpocock/code-review](https://skills.sh/mattpocock/skills/code-review), [warp review-pr](https://skills.sh/warpdotdev/common-skills/review-pr), Sentry PR review). Lean-test rules come from:
+
+- [Kent C. Dodds — Write tests. Not too many.](https://kentcdodds.com/blog/write-tests): test behavior, not implementation details. Coverage past the useful cases is carry cost.
+- [Testdouble Redundant Coverage](https://github.com/testdouble/contributing-tests/wiki/Redundant-Coverage): one production path specified in many tests means one change breaks many files.
+- [Testdouble Symmetrical Unit Test](https://github.com/testdouble/contributing-tests/wiki/Symmetrical-Unit-Test): this unit's spec does not specify its dependency.
+- [Testdouble Necessary & Sufficient](https://github.com/testdouble/contributing-tests/wiki/Necessary-%26-Sufficient): no extra cases that lock implementation.
+- [addyosmani code-review-and-quality](https://github.com/addyosmani/agent-skills/blob/main/skills/code-review-and-quality/SKILL.md): review tests first; fewer lines if they suffice.
+
+Scan for: title pairs that differ only by which sibling is present; a reader test that re-throws a model getter; spies that only prove wiring.
 - Reuse existing fixtures and test doubles when they express the required scenario.
 - When existing fixtures do not fit, create focused reusable fixtures rather than duplicating setup or object literals across tests.
 - Extract assertion helpers when multiple tests repeat the same group of assertions (for example, zero writes or contract invariants).
@@ -140,13 +155,16 @@ When using this skill for implementation or review, explicitly scan new and chan
 
 When using this skill for review, explicitly scan changed tests for avoidable duplication.
 
-- Request `test.each` when multiple tests differ only in input, expected output, or a small scenario parameter.
+- Request `test.each` when multiple tests differ only in input, expected output, which sibling arm is present, or a small scenario parameter.
 - Request reuse of an existing fixture when duplicated setup already has a shared representation.
 - Request a new focused fixture when repeated setup has no suitable reusable fixture.
 - Request a call/request builder with overrides when the same `service.call({ ... })` object appears more than twice.
 - Drop a new test that only swaps an id this unit does not interpret, then hits a branch another test already covers. If this unit is pass-through and policy lives in another service or config file, one pass-through assertion is enough. Do not add one test per downstream policy id.
+- Scan changed `it()` titles in this spec and sibling specs in the same package. Flag pairs that differ only by which sibling resource is present. Example that must fail review: "yields distinct primary and secondary entries when both records exist" next to "throws not-found from primary when only secondary exists". Fold or drop the second. The throw already lives on the collection type.
+- Drop a test that re-asserts a collaborator's public throw or getter. Redundant coverage of a dependency is a finding.
+- Flag a test that would fail if a collaborator were refactored while this unit's outputs stayed the same. That test specifies implementation, not behavior.
 - Request an assertion helper when tests duplicate identical multi-line assertion blocks across cases.
-- Keep separate tests when parameterization would hide materially different behavior or make failures harder to understand.
+- Keep separate tests only when the branch is a different decision (catalog miss, leaky lookup, empty read), not when the same decision runs against a different sibling subset.
 - Request fixture ownership under the new domain package when domain scenarios still live only under the orchestrator test folder.
 - Request a fixtures file when builders and test doubles accumulate inline in the spec file.
 - If a later PR must honour an id this PR mints, add `it.failing` here that encodes that consumer contract. The next PR must make it pass and drop `.failing`. Do not leave the seam untested because the consumer is not in this PR.

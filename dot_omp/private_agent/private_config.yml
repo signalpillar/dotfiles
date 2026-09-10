@@ -4,7 +4,7 @@ symbolPreset: unicode
 composer:
   shape: claude
 theme:
-  light: light
+  light: light-coral
 setupVersion: 2
 statusLine:
   preset: custom
@@ -21,3 +21,4 @@ statusLine:
     - session
     - session_name
     - cost
+omitThinking: true

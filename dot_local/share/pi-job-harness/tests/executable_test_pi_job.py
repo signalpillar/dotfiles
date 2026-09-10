@@ -974,6 +974,9 @@ def test_subagent_instruction_still_inlines_step_kind_guidance() -> None:
         assert_contains(instruction, "Step: edit-code — Edit code")
         assert_contains(instruction, "Guidance:")
         assert_contains(instruction, "Make the change described by this slice's create-plan step.")
+        assert_contains(instruction, "volod-style")
+        assert_contains(instruction, "skills/volod-style/SKILL.md")
+        assert_contains(instruction, "Before the first edit")
 
 
 def test_subagent_instruction_create_plan_includes_plan_path() -> None:
@@ -4962,6 +4965,22 @@ def test_synthesize_guidance_distinguishes_store_from_bundle() -> None:
     guidance = load_pi_job_module().get_step_kind("synthesize")["guidance"]
     assert_contains(guidance, "CLI-only")
     assert_contains(guidance, "bundle files")
+
+
+def test_edit_code_guidance_requires_volod_style_before_edit() -> None:
+    kind = load_pi_job_module().get_step_kind("edit-code")
+    guidance = kind["guidance"]
+    assert_contains(guidance, "Make the change described by this slice's create-plan step.")
+    assert_contains(guidance, "Before the first edit")
+    assert_contains(guidance, "volod-style")
+    assert_contains(guidance, "skills/volod-style/SKILL.md")
+    assert_contains(guidance, "does not replace")
+    assert_contains(guidance, "code-review")
+    validators = kind.get("validators") or []
+    if "volod-style-loaded-before-first-edit" not in validators:
+        raise AssertionError(
+            f"edit-code validators must include volod-style-loaded-before-first-edit: {validators}"
+        )
 
 
 def test_wait_for_feedback_guidance_names_review_loop() -> None:
@@ -10713,6 +10732,8 @@ def main() -> None:
     test_setup_grill_guidance_failure_first()
     test_pi_job_feedback_guidance_sqlite_store()
     test_synthesize_guidance_distinguishes_store_from_bundle()
+    test_edit_code_guidance_requires_volod_style_before_edit()
+    test_subagent_instruction_still_inlines_step_kind_guidance()
     test_wait_for_feedback_guidance_names_review_loop()
     test_wait_for_feedback_instruction_uses_step_next_action()
     test_grill_plan_guidance_mentions_set_slice_on_supersede()

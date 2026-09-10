@@ -965,7 +965,13 @@ step_kinds:
     validators:
       - coding-policy-recorded
       - worktree-used-when-repo-editing
-    guidance: Make the change described by this slice's create-plan step. Use a worktree when editing a repo other than the current one.
+      - volod-style-loaded-before-first-edit
+    guidance: >-
+      Make the change described by this slice's create-plan step. Use a worktree
+      when editing a repo other than the current one. Before the first edit, load
+      and follow the volod-style skill (skills/volod-style/SKILL.md) in full.
+      Write to that bar. Following it while coding does not replace the later
+      distinct code-review pass.
   verify:
     key: verify
     title: Verify
