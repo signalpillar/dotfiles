@@ -462,15 +462,17 @@ def derive_bundle_root(resolved: Path) -> Path:
 def scaffold_bundle_dirs(bundle_root: Path) -> None:
     """Create the bundle root, `plans/`, and `references/` (idempotent).
 
-    Writes `references/index.md` once when missing. Never removes or
-    overwrites existing contents; `create --force` relies on this to leave
-    `plans/` / `references/` intact while only `task.yaml` is overwritten.
+    Writes `references/index.md` once when missing. Creates `wiki/` and
+    `working/` when missing. Never removes or overwrites existing contents;
+    `create --force` relies on this to leave `plans/` / `references/` intact
+    while only `task.yaml` is overwritten.
     """
     bundle_root.mkdir(parents=True, exist_ok=True)
     (bundle_root / "plans").mkdir(exist_ok=True)
     references_dir = bundle_root / "references"
-    references_dir.mkdir(exist_ok=True)
-    ReferenceKnowledgeLint(references_dir).ensure_index()
+    lint = ReferenceKnowledgeLint(references_dir)
+    lint.ensure_layout()
+    lint.ensure_index()
 
 
 def derive_task_slug_from_loose_yaml(doc: Path) -> str | None:

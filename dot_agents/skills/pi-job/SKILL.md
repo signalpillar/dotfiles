@@ -122,6 +122,7 @@ Slice-worker windows follow `pi-job loop --worker`: one owner, one slice, stop a
 Prefer packet guidance. Typical shape:
 
 - Bundle tasks: open `references/index.md` before the slice plan
+- Durable pages: `references/wiki/` (index rows). Step notes: `references/working/` (no index row)
 - `status` | `plan` | `markdown [--slice SLICE_KEY] [--with-decisions]` | `show [--short] [--slice SLICE_KEY]` | `instruction`
 - Subagent-owned steps: the packet orders `markdown --slice --with-decisions` first for binding `## Decisions`
 - Interrupt/RCA while a claim is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not release/claim-hop unless needed

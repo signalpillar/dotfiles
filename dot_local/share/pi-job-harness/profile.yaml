@@ -704,13 +704,19 @@ instruction_packets:
 
     * [glossary.yaml](glossary.yaml) - domain terms (not a concept document)
 
+    Durable pages live in `wiki/`.
+    Step notes live in `working/`.
+    Do not list working files in this table.
+
     ## How to update
 
-    Append one row per new concept in `synthesize`.
+    Append one row per new `wiki/` page in `synthesize`.
     Mark superseded rows `deprecated`.
     Never delete rows.
   references_read_first: |-
     Open `references/index.md` before the slice plan.
+    Durable pages live in `references/wiki/`.
+    Step notes live in `references/working/`.
   status_interrupt_hint: >-
     A claim is parked on a user-decision step; interrupt work OK via investigate / add-finding / add-slice / block-slice
   investigate_interrupt: |-
@@ -795,6 +801,8 @@ step_kinds:
       Read the adjacent code and documents needed to act.
       Record known repositories, primary user journeys, and adjacent context - or explicitly note none apply.
       Locate the canonical systems and domains catalog for confirm-layers.
+      When this step needs a note, write `references/working/<slice>-explore-context.md`.
+      Do not add an index row. Do not write `references/wiki/`.
   confirm-layers:
     key: confirm-layers
     title: Confirm task.layers bands
@@ -870,6 +878,8 @@ step_kinds:
       Look up factual questions instead of asking the user.
       Ask only for decisions that materially affect scope or behaviour.
       Skip when current-state mapping already answers the implementation-relevant questions.
+      When this step needs a note, write `references/working/<slice>-clarify-scope.md`.
+      Do not add an index row. Do not write `references/wiki/`.
   grill:
     key: grill
     title: Grill overall scope
@@ -1146,7 +1156,10 @@ step_kinds:
     record_channels: [step_note, finding]
     validators:
       - evidence-backed-findings
-    guidance: Gather evidence-backed findings for the research question.
+    guidance: >-
+      Gather evidence-backed findings for the research question.
+      Write the note at `references/working/<slice>-investigate.md`.
+      Do not add an index row. Do not write `references/wiki/`.
   synthesize:
     key: synthesize
     title: Synthesize
@@ -1157,8 +1170,10 @@ step_kinds:
     guidance: >-
       Produce the answer or doc; call out open questions.
       The task store stays CLI-only. Write references/ and glossary.yaml as bundle files.
-      Write concept notes under references/ with YAML type, title, and status.
-      Refresh references/index.md to list current concepts only.
+      Write durable pages under references/wiki/ with YAML type, title, and status.
+      Type is one of position, gateway, concept, evidence.
+      Refresh references/index.md with one row per wiki page.
+      Do not add working notes to the index.
       Mark superseded notes deprecated; do not delete them.
       When domain-vocabulary is registered, fold settled terms into references/glossary.yaml.
   collect-references:

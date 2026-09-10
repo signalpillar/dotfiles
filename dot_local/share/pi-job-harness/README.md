@@ -629,9 +629,11 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Plan and instruction packets print this list on every step.
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
   Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
-  Bundle `references/` concept notes use YAML `type`, `title`, and `status`.
-  Open `references/index.md` first; `create` writes that stub once.
-  `status` and `validate` warn when the index or `type` is missing.
+  Durable concept notes live in `references/wiki/` with YAML `type`, `title`, and `status`.
+  Type is one of `position`, `gateway`, `concept`, `evidence`.
+  Step notes live in `references/working/` and stay off the index.
+  Open `references/index.md` first; `create` writes that stub once and makes `wiki/` plus `working/`.
+  `status` and `validate` warn when the index is missing, a wiki page lacks a valid `type`, a wiki page is unlisted, or markdown sits outside `wiki/` and `working/`.
   Reserved names `index.md` and `log.md` skip `type`.
   Aid `decision-review-deck` is the async decision deck (skill `decision-review-deck`; dated project markdown).
 - `pi-job --task <t> files [--relative]` - print artifact paths one per line (absolute by default): everything under `references/` and `plans/`, plus registered `orchestration.artifacts` paths (including files outside the bundle).

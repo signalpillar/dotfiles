@@ -8855,9 +8855,13 @@ def test_scaffold_bundle_dirs_idempotent_preserves_contents() -> None:
         assert bundle_root.is_dir()
         assert (bundle_root / "plans").is_dir()
         assert (bundle_root / "references").is_dir()
+        assert (bundle_root / "references" / "wiki").is_dir()
+        assert (bundle_root / "references" / "working").is_dir()
         index = bundle_root / "references" / "index.md"
         assert index.is_file()
         assert_contains(index.read_text(encoding="utf-8"), "okf_version")
+        assert_contains(index.read_text(encoding="utf-8"), "wiki/")
+        assert_contains(index.read_text(encoding="utf-8"), "working/")
         index.write_text("custom map\n", encoding="utf-8")
 
         marker = bundle_root / "plans" / "keep-me.md"
@@ -8872,17 +8876,21 @@ def test_scaffold_bundle_dirs_idempotent_preserves_contents() -> None:
 
 
 def test_reference_knowledge_status_validate_warn_on_missing_type() -> None:
-    """Bundle status/validate warn on a missing index and untyped concept notes.
+    """Bundle status/validate warn on a missing index and untyped wiki notes.
 
-    Reserved names and non-markdown files are not concept documents.
+    Reserved names, working notes, and non-markdown files are not wiki pages.
     """
     with tempfile.TemporaryDirectory() as tmp:
         bundle = Path(tmp) / "okf-warn"
         task = bundle / "task.yaml"
         write_task_yaml(task, standard_fixture_mapping())
         refs = bundle / "references"
-        refs.mkdir()
-        (refs / "concept.md").write_text("# Concept\n", encoding="utf-8")
+        wiki = refs / "wiki"
+        working = refs / "working"
+        wiki.mkdir(parents=True)
+        working.mkdir()
+        (wiki / "concept.md").write_text("# Concept\n", encoding="utf-8")
+        (working / "slice-explore-context.md").write_text("# dump\n", encoding="utf-8")
         (refs / "glossary.yaml").write_text("term: x\n", encoding="utf-8")
         (refs / "diagram.bpmn").write_text("<bpmn/>\n", encoding="utf-8")
         (refs / "notes.txt").write_text("plain\n", encoding="utf-8")
@@ -8890,18 +8898,19 @@ def test_reference_knowledge_status_validate_warn_on_missing_type() -> None:
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_contains(status, "warning:")
         assert_contains(status, "references/index.md missing")
-        assert_contains(status, "missing YAML `type`: concept.md;")
+        assert_contains(status, "missing YAML `type`: wiki/concept.md;")
         assert_not_contains(status, "glossary.yaml")
         assert_not_contains(status, "diagram.bpmn")
         assert_not_contains(status, "notes.txt")
         assert_not_contains(status, "type`: log.md")
+        assert_not_contains(status, "slice-explore-context.md")
         created = Path(tmp) / "okf-valid"
         run(str(PI_JOB), "--task", str(created), "create", "--goal", TEST_GOAL)
-        (created / "references" / "concept.md").write_text("# Concept\n", encoding="utf-8")
+        (created / "references" / "wiki" / "concept.md").write_text("# Concept\n", encoding="utf-8")
         (created / "references" / "index.md").unlink()
         validate = run(str(PI_JOB), "--task", str(created), "validate").stdout
         assert_contains(validate, "references/index.md missing")
-        assert_contains(validate, "concept.md")
+        assert_contains(validate, "wiki/concept.md")
 
 
 def test_reference_knowledge_skips_reserved_and_typed_notes() -> None:
@@ -8912,15 +8921,23 @@ def test_reference_knowledge_skips_reserved_and_typed_notes() -> None:
         write_task_yaml(task, standard_fixture_mapping())
         refs = bundle / "references"
         refs.mkdir()
-        (refs / "index.md").write_text("# Map\n", encoding="utf-8")
+        (refs / "wiki").mkdir()
+        (refs / "working").mkdir()
+        (refs / "index.md").write_text(
+            "# Map\n| x | [wiki/concept.md](wiki/concept.md) | concept | current | dense |\n",
+            encoding="utf-8",
+        )
         (refs / "log.md").write_text("# Log\n", encoding="utf-8")
-        (refs / "concept.md").write_text(
-            "---\ntype: concept\ntitle: Concept\nstatus: stable\n---\n\n# Concept\n",
+        (refs / "working" / "slice-investigate.md").write_text("# dump\n", encoding="utf-8")
+        (refs / "wiki" / "concept.md").write_text(
+            "---\ntype: concept\ntitle: Concept\nstatus: current\n---\n\n# Concept\n",
             encoding="utf-8",
         )
         status = run(str(PI_JOB), "--task", str(task), "status").stdout
         assert_not_contains(status, "references/index.md missing")
         assert_not_contains(status, "missing YAML `type`")
+        assert_not_contains(status, "outside wiki/ or working/")
+        assert_not_contains(status, "missing from index.md")
         loose = Path(tmp) / "loose.yaml"
         write_task_yaml(loose, standard_fixture_mapping())
         loose_status = run(str(PI_JOB), "--task", str(loose), "status").stdout
@@ -8932,12 +8949,52 @@ def test_reference_knowledge_lint_caps_missing_type_list() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         refs = Path(tmp) / "references"
         refs.mkdir()
+        wiki = refs / "wiki"
+        wiki.mkdir()
         for i in range(10):
-            (refs / f"c{i}.md").write_text("# n\n", encoding="utf-8")
+            (wiki / f"c{i}.md").write_text("# n\n", encoding="utf-8")
         warns = module.ReferenceKnowledgeLint(refs).warnings()
         joined = "\n".join(warns)
         assert_contains(joined, "(+2 more)")
-        assert_contains(joined, "c0.md")
+        assert_contains(joined, "wiki/c0.md")
+
+
+
+def test_reference_knowledge_warns_on_stray_invalid_unlisted_and_step_named() -> None:
+    """Wiki layout lint covers location, closed types, index rows, and step names."""
+    module = load_pi_job_module()
+    with tempfile.TemporaryDirectory() as tmp:
+        refs = Path(tmp) / "references"
+        wiki = refs / "wiki"
+        wiki.mkdir(parents=True)
+        (refs / "index.md").write_text("# Map\n", encoding="utf-8")
+        (refs / "stray.md").write_text("---\ntype: concept\n---\n\n# stray\n", encoding="utf-8")
+        (wiki / "bad-type.md").write_text("---\ntype: Reference\n---\n\n# bad\n", encoding="utf-8")
+        (wiki / "slice-explore-context.md").write_text(
+            "---\ntype: evidence\n---\n\n# dump\n", encoding="utf-8"
+        )
+        (wiki / "unlisted.md").write_text("---\ntype: concept\n---\n\n# u\n", encoding="utf-8")
+        joined = "\n".join(module.ReferenceKnowledgeLint(refs).warnings())
+        assert_contains(joined, "outside wiki/ or working/: stray.md")
+        assert_contains(joined, "invalid YAML `type`: wiki/bad-type.md")
+        assert_contains(joined, "step-note names: wiki/slice-explore-context.md")
+        assert_contains(joined, "missing from index.md")
+        assert_contains(joined, "wiki/unlisted.md")
+
+
+def test_packet_guidance_separates_wiki_from_working() -> None:
+    module = load_pi_job_module()
+    kinds = module.load_profile_contract()["step_kinds"]
+    packets = module.load_profile_contract()["instruction_packets"]
+    assert_contains(kinds["explore-context"]["guidance"], "references/working/")
+    assert_contains(kinds["explore-context"]["guidance"], "Do not write `references/wiki/`")
+    assert_contains(kinds["investigate"]["guidance"], "references/working/")
+    assert_contains(kinds["clarify-scope"]["guidance"], "references/working/")
+    assert_contains(kinds["synthesize"]["guidance"], "references/wiki/")
+    assert_contains(kinds["synthesize"]["guidance"], "Do not add working notes to the index")
+    assert_contains(packets["references_index_stub"], "wiki/")
+    assert_contains(packets["references_index_stub"], "working/")
+    assert_contains(packets["references_read_first"], "references/wiki/")
 
 
 def test_instruction_bundle_opens_references_index_first() -> None:
@@ -11148,6 +11205,8 @@ if __name__ == "__main__":
     test_reference_knowledge_status_validate_warn_on_missing_type()
     test_reference_knowledge_skips_reserved_and_typed_notes()
     test_reference_knowledge_lint_caps_missing_type_list()
+    test_reference_knowledge_warns_on_stray_invalid_unlisted_and_step_named()
+    test_packet_guidance_separates_wiki_from_working()
     test_instruction_bundle_opens_references_index_first()
     test_subagent_instruction_bundle_repeats_references_index()
     test_bundle_read_write_and_plan_stub()

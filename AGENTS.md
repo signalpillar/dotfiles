@@ -50,6 +50,7 @@ Do not switch to a casual register unless the user asks.
   add-decision always writes `_decision-YYYY-MM-DD-<topic>.md`.
   YAML keeps a one-line claim plus path. Pass `--slug kebab-topic` on a long note.
   On a bundle task, open `references/index.md` before the slice plan.
+  Durable pages live in `references/wiki/`. Step notes live in `references/working/`.
   Use `pi-job msg` for cross-agent contact.
   The `msg` command lives in `pi_job_harness.messaging`.
   Never send cross-agent messages through terminal panes.
