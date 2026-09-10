@@ -107,10 +107,7 @@ This function should only modify configuration layer settings."
      ;;  )
      ;; lsp
      (markdown :variables
-               ;; hide-urls runs markdown--fontify-table-alignment on every |.
-               ;; That scan calls markdown-inline-code-at-pos per pipe and hangs
-               ;; TTY edits in files with large GFM tables.
-               markdown-hide-urls nil
+               markdown-hide-urls t
                markdown-live-preview-engine 'vmd)
      multiple-cursors
      (org :variables
@@ -382,9 +379,10 @@ It should only modify the values of Spacemacs settings."
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
+                         paper
+                         tango
                          (doric-almond :package doric-themes)
                          naysayer
-                         paper
                          vs-light
                          leuven
                          doom-acario-light
@@ -984,6 +982,7 @@ before packages are loaded."
              (not (eq system-type 'darwin)))
     (setq interprogram-cut-function #'my/osc52-yank-to-host))
 
+
   (spacemacs/set-leader-keys
     "n s y" #'vv/syllabus-append-region
     "n s Y" #'vv/syllabus-new-file-and-append
@@ -1018,9 +1017,14 @@ before packages are loaded."
           'my/ts-signature-type-face))
 
   ;; -----
+  ;; TTY frames cannot render :box (GUI-only, pixel based). Use a light
+  ;; yellow background instead, so function names/defs stand out in terminal.
   (custom-set-faces
    '(font-lock-type-face ((t (:inherit default))))          ; types
-   '(font-lock-function-name-face ((t (:box (:line-width -1) :weight normal)))) ; signatures / defs
+   `(font-lock-function-name-face
+     ((t ,(if (display-graphic-p)
+              '(:box (:line-width -1) :weight normal)
+            '(:background "#fdf6b2" :foreground "#3a3000" :weight bold))))) ; signatures / defs
    '(font-lock-variable-name-face ((t (:inherit default))))
    '(font-lock-string-face ((t (:inherit default))))
    '(font-lock-constant-face ((t (:inherit default))))
@@ -1133,22 +1137,9 @@ before packages are loaded."
     (when (display-graphic-p)
       (variable-pitch-mode 1)))
 
-  (defun my/markdown-defer-jit-lock-on-tables ()
-    "Defer jit-lock in buffers with large GFM tables.
-TTY scroll fontifies each new window. Table rows with many
-backticks make `markdown-match-code' expensive."
-    (when (> (how-many "^|" (point-min) (point-max)) 40)
-      (setq-local jit-lock-defer-time 0.05)))
-
-  ;; Skip font-lock while scroll keys are pending. Markdown tables
-  ;; otherwise hitch on every newly visible line.
-  (setq redisplay-skip-fontification-on-input t
-        fast-but-imprecise-scrolling t)
-
   (add-hook 'org-mode-hook #'my/enable-document-variable-pitch)
   (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
   (add-hook 'markdown-mode-hook #'my/enable-document-variable-pitch)
-  (add-hook 'markdown-mode-hook #'my/markdown-defer-jit-lock-on-tables)
 
   (custom-set-faces
    '(org-link ((t (:underline nil :weight normal :slant normal :background nil))))
@@ -1258,6 +1249,10 @@ Open PROJECT's layout on dired at the project root."
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-initialize))
 
+  ;; https://github.com/D4lj337/Emacs-performance
+  (setenv "LSP_USE_PLISTS" "true")
+  (setq lsp-use-plists t)
+
   ;; Speed up package loading and loads package only when needed
   (setq package-quickstart t)
   (setq use-package-always-defer t)
@@ -1348,7 +1343,10 @@ This function is called at the very end of Spacemacs initialization."
    ;; If there is more than one, they won't work right.
    '(font-lock-comment-face ((t (:inherit shadow))))
    '(font-lock-constant-face ((t (:inherit default))))
-   '(font-lock-function-name-face ((t (:box (:line-width -1) :weight normal))))
+   `(font-lock-function-name-face
+     ((t ,(if (display-graphic-p)
+              '(:box (:line-width -1) :weight normal)
+            '(:background "#fdf6b2" :foreground "#3a3000" :weight bold)))))
    '(font-lock-keyword-face ((t (:inherit default))))
    '(font-lock-string-face ((t (:inherit default))))
    '(font-lock-type-face ((t (:inherit default))))
