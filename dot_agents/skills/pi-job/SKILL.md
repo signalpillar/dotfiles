@@ -86,7 +86,7 @@ pi-job --task SLUG claim --slice KEY --owner ID
 After create or any `instruction` packet: enter the orchestrator loop immediately.
 Do not wait for the user to say "continue".
 Pause only for user-decision steps (clarify/grill/requires_user_decision) or a recorded blocker.
-Follow the packet's `NEXT ACTION` checklist (command hints use `TASK_FILE` / `SLICE_KEY`;
+Follow the packet's `NEXT ACTION` checklist (subcommands only, with `SLICE_KEY` / `{owner}`;
 the packet header shows `Task:` as slug when under the home, else a path).
 After create, run `pi-job loop` and arm your own `/loop` from that instruction (resolve TASK).
 Use `pi-job loop --type NAME` for another exact, profile-defined loop packet.

@@ -27,6 +27,7 @@ Do not switch to a casual register unless the user asks.
 - For durable multi-step work tracked in a task file, use the `pi-job` skill (`~/.agents/skills/pi-job`) and `pi-job --task <file> status`.
   Use `show --short` for the compact tree (current step only).
   Do not open or hand-edit the task store; use the CLI.
+  Bundle files under `references/` and `plans/` are agent-authored.
   Claim a Ready slice (`claim --slice KEY --owner ID`), then `instruction` / `start` / `finish`; on pick-next run `finish --slice-only` then claim the next Ready slice (`advance` is deprecated).
   A blocked claimed slice is not pick-next; run `unblock-slice` first.
   A named owner resolves its claim when other owners hold claims.

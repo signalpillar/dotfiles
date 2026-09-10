@@ -204,14 +204,16 @@ class InstructionPacketsDocument(StrictDocument):
     next_action: str = Field(
         description=(
             "Concrete next-action checklist at the top of every instruction packet. "
-            "Use literal TASK_FILE command hints (not interpolated paths). Supports {cursor}."
+            "Name subcommands only (not a full pi-job --task command line). "
+            "Supports {owner}."
         )
     )
     pick_next_slice: str = Field(
         description=(
             "Instruction packet body when the current slice has no unfinished steps. "
-            "Orchestrator must pick from Ready via show + advance --slice/--step. "
-            "Use literal TASK_FILE command hints. Supports {cursor}."
+            "Orchestrator must pick from Ready via show then claim. "
+            "Name subcommands only (not a full pi-job --task command line). "
+            "Supports {owner}."
         )
     )
     blocked_slice: str = Field(

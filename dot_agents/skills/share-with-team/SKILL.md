@@ -215,3 +215,5 @@ Ask clarifying questions if the problem is not clear.
 ## Notes
 
 - Never push directly to `main`/`master`; push a feature branch and open a PR.
+- Before push on an existing PR branch, run `git pull --no-rebase` (or equivalent) when the remote branch advanced.
+- When `repo_work` already has an open PR URL for this repo, update that PR. Do not open a second PR.

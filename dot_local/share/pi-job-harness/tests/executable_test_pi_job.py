@@ -4958,6 +4958,12 @@ def test_pi_job_feedback_guidance_sqlite_store() -> None:
         raise AssertionError("pi-job-feedback guidance must not mention YAML")
 
 
+def test_synthesize_guidance_distinguishes_store_from_bundle() -> None:
+    guidance = load_pi_job_module().get_step_kind("synthesize")["guidance"]
+    assert_contains(guidance, "CLI-only")
+    assert_contains(guidance, "bundle files")
+
+
 def test_wait_for_feedback_guidance_names_review_loop() -> None:
     guidance = load_pi_job_module().get_step_kind("wait-for-feedback")["guidance"]
     assert_contains(guidance, "nit, contract, extract, merged, or abandoned")
@@ -4981,7 +4987,7 @@ def test_wait_for_feedback_instruction_uses_step_next_action() -> None:
         assert_contains(next_action, "Classify")
         assert_contains(next_action, "set-step-note")
         assert_contains(next_action, "Pause for grill on contract, scope, or extract")
-        assert_not_contains(
+        assert_contains(
             next_action,
             "finish --owner orchestrator --slice SLICE_KEY --step STEP_KEY --note '<evidence>'",
         )
@@ -5617,6 +5623,10 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     assert_contains(pick_next, "show")
     assert_contains(pick_next, "claim it")
     assert_contains(pick_next, "instruction --owner {owner}")
+    assert_contains(packets["record_results_intro"], "Bundle files")
+    assert_contains(packets["record_results_intro"], "agent-authored")
+    assert_not_contains(next_action, "pi-job --task")
+    assert_not_contains(pick_next, "pi-job --task")
     blocked = packets["blocked_slice"]
     assert_contains(blocked, "unblock-slice --slice SLICE_KEY")
     assert_contains(blocked, "instruction --owner {owner}")
@@ -10637,6 +10647,7 @@ def main() -> None:
     test_plan_slices_seeded_banner_when_non_setup_exists()
     test_setup_grill_guidance_failure_first()
     test_pi_job_feedback_guidance_sqlite_store()
+    test_synthesize_guidance_distinguishes_store_from_bundle()
     test_wait_for_feedback_guidance_names_review_loop()
     test_wait_for_feedback_instruction_uses_step_next_action()
     test_grill_plan_guidance_mentions_set_slice_on_supersede()

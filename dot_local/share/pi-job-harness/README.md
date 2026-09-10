@@ -179,6 +179,7 @@ via `pi-job show` then `claim --slice/--owner`. Array order of plan.slices is no
 When the claimed slice has no unfinished steps, instruction injects a pick-next packet;
 `finish --slice-only` auto-releases the claim.
 A blocked claimed slice is not exhausted; instruction names unblock-slice and forbids pick-next.
+NEXT ACTION names subcommands only.
 Closing work is a closing slice in the plan, not a post-slice phase tail.
 When every slice is done/skipped, pick-next reports done.
 ```

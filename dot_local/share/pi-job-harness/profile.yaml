@@ -446,6 +446,7 @@ instruction_packets:
     New work is a new slice.
   record_results_intro: |-
     Task record is machine-owned; use pi-job commands only (TASK_FILE / SLICE_KEY in header).
+    Bundle files (references/, plans/, glossary) are agent-authored; write those paths.
     Channels: pi-job channels.
   task_record_discipline: |-
     The task record is machine-owned; do not open or edit the task store directly.
@@ -462,18 +463,18 @@ instruction_packets:
     DX and agent experience share the same constructs: clear names, small packets, and machine-readable contracts help both.
     Full channel map: pi-job channels (or pi-job channels --step KEY for one step).
   next_action: |-
-    1. `pi-job --task TASK_FILE start [--slice-only if the slice has no execution metadata] --owner {owner} --model cursor/grok-4.6`
+    1. `start [--slice-only if the slice has no execution metadata] --owner {owner} --model cursor/grok-4.6`
        The model is an attribution hint only. It does not route reviews or debugging.
     2. Execute this cursor.
-    3. `pi-job --task TASK_FILE finish --owner {owner} --slice SLICE_KEY --step STEP_KEY --note '<evidence>'`
-    4. `pi-job --task TASK_FILE instruction --owner {owner}`
+    3. `finish --owner {owner} --slice SLICE_KEY --step STEP_KEY --note '<evidence>'`
+    4. `instruction --owner {owner}`
   pick_next_slice: |-
     Your claimed slice has no unfinished steps.
     Array order of plan.slices is not execution order - you choose among Ready slices.
-    1. If the slice itself is not yet done/skipped: `pi-job --task TASK_FILE finish --slice-only` (auto-releases your claim)
-    2. Run `pi-job --task TASK_FILE show` and inspect Ready-marked slices
-    3. Choose one Ready slice (deps satisfied; unfinished) and claim it: `pi-job --task TASK_FILE claim --slice KEY --owner {owner}`
-    4. `pi-job --task TASK_FILE instruction --owner {owner}`
+    1. If the slice itself is not yet done/skipped: `finish --slice-only` (auto-releases your claim)
+    2. Run `show` and inspect Ready-marked slices
+    3. Choose one Ready slice (deps satisfied; unfinished) and claim it: `claim --slice KEY --owner {owner}`
+    4. `instruction --owner {owner}`
     Do not wait for the user. If Ready is empty and the task is not done, record a blocker or fix depends_on.
     If the task is done, stop.
   blocked_slice: |-
@@ -1065,7 +1066,7 @@ step_kinds:
       2. Live-check `sync`, then `gh pr view`.
       3. Classify. State the class in one line. Follow Guidance for that class.
       4. After nit, contract, or extract: `set-step-note` and stay on this step. Do not finish.
-      5. After merged or abandoned: `finish` as Guidance says, then `instruction --owner {owner}`.
+      5. After merged or abandoned: `finish --owner {owner} --slice SLICE_KEY --step STEP_KEY --note '<evidence>'`, then `instruction --owner {owner}`.
       Pause for grill on contract, scope, or extract.
     guidance: |-
       This step stays in progress until the PR merges or you abandon it.
@@ -1139,6 +1140,7 @@ step_kinds:
       - open-questions-called-out
     guidance: >-
       Produce the answer or doc; call out open questions.
+      The task store stays CLI-only. Write references/ and glossary.yaml as bundle files.
       Write concept notes under references/ with YAML type, title, and status.
       Refresh references/index.md to list current concepts only.
       Mark superseded notes deprecated; do not delete them.
