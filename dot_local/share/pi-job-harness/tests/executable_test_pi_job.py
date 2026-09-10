@@ -973,7 +973,7 @@ def test_subagent_instruction_still_inlines_step_kind_guidance() -> None:
         assert_not_contains(instruction, "Step kind:")
         assert_contains(instruction, "Step: edit-code — Edit code")
         assert_contains(instruction, "Guidance:")
-        assert_contains(instruction, "Make the change described by this slice's create-plan step.")
+        assert_contains(instruction, "Implement only the current micro-contract in this slice's plan file.")
         assert_contains(instruction, "volod-style")
         assert_contains(instruction, "skills/volod-style/SKILL.md")
         assert_contains(instruction, "Before the first edit")
@@ -1025,17 +1025,12 @@ plan:
 
 def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
     """Phrase-lock the profile-owned create-plan / grill-plan contract in instruction packets."""
-    assert_contains(instruction, "constraint-and-behaviour contract")
-    assert_contains(
-        instruction,
-        "brief, intent, types and composition, call stacks, system behaviour",
-    )
-    assert_contains(instruction, "constraints, verification")
-    assert_contains(instruction, "optional short touch surface")
-    assert_contains(instruction, "Types and composition")
-    assert_contains(instruction, "Call stacks")
+    assert_contains(instruction, "current micro-contract")
+    assert_contains(instruction, "types, call stacks, assertion, must-not, verification")
+    assert_contains(instruction, "One file per slice")
+    assert_contains(instruction, "Never create a second plan file")
     assert_contains(instruction, "one indented stack")
-    assert_contains(instruction, "prefer pseudo-code")
+    assert_contains(instruction, "Do not add Brief, Intent, System behaviour")
     assert_contains(
         instruction,
         "Do not move delivery status, cursor, or session journals into plan files",
@@ -1046,6 +1041,7 @@ def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
     assert_contains(instruction, "--slug kebab-topic")
     assert_contains(instruction, "Token smell:")
     assert_not_contains(instruction, "approach, files/functions touched, key tradeoffs")
+    assert_not_contains(instruction, "optional short touch surface")
 
 
 def test_create_plan_instruction_defines_constraint_and_behaviour_contract() -> None:
@@ -1064,9 +1060,8 @@ def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> N
         _assert_constraint_and_behaviour_plan_contract(instruction)
         assert_contains(
             instruction,
-            "Challenge behaviour, boundaries, must-not constraints, verification, types and",
+            "Challenge the visible types, call stacks, assertion, must-not, and verification command",
         )
-        assert_contains(instruction, "composition, and call stacks")
         assert_contains(instruction, "prose volume is not an acceptance criterion")
         assert_contains(instruction, "capture product/scope choices that should outlive the session")
         assert_contains(instruction, "Do not use add-decision for PR, deploy, e2e, or progress chatter")
@@ -4970,7 +4965,8 @@ def test_synthesize_guidance_distinguishes_store_from_bundle() -> None:
 def test_edit_code_guidance_requires_volod_style_before_edit() -> None:
     kind = load_pi_job_module().get_step_kind("edit-code")
     guidance = kind["guidance"]
-    assert_contains(guidance, "Make the change described by this slice's create-plan step.")
+    assert_contains(guidance, "Implement only the current micro-contract in this slice's plan file.")
+    assert_contains(guidance, "Do not create a second plan file")
     assert_contains(guidance, "Before the first edit")
     assert_contains(guidance, "volod-style")
     assert_contains(guidance, "skills/volod-style/SKILL.md")
@@ -9329,16 +9325,22 @@ def test_add_slice_creates_plan_stub() -> None:
         module = load_pi_job_module()
         template = module.load_profile_contract()["instruction_packets"]["slice_plan_stub"]
         # Stub body must come from the profile template, not a Python hardcode.
-        assert_contains(template, "## Types and composition")
+        assert_contains(template, "## Types")
         assert_contains(template, "## Call stacks")
-        assert_contains(template, "## Brief")
-        assert_contains(template, "## Intent")
-        assert_contains(template, "## Open questions")
-        assert_contains(body, "## Types and composition")
+        assert_contains(template, "## Assertion")
+        assert_contains(template, "## Must-not")
+        assert_contains(template, "## Verification")
+        assert_not_contains(template, "## Brief")
+        assert_not_contains(template, "## Intent")
+        assert_not_contains(template, "## Open questions")
+        assert_contains(body, "## Types")
         assert_contains(body, "## Call stacks")
-        assert_contains(body, "## Brief")
-        assert_contains(body, "## Intent")
-        assert_contains(body, "## Open questions")
+        assert_contains(body, "## Assertion")
+        assert_contains(body, "## Must-not")
+        assert_contains(body, "## Verification")
+        assert_not_contains(body, "## Brief")
+        assert_not_contains(body, "## Intent")
+        assert_not_contains(body, "## Open questions")
         assert_contains(body, "## Goal")
         assert_contains(body, "Ship a stub")
         assert_contains(body, "# new-impl")

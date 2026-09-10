@@ -240,7 +240,8 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 - Session todos should track the slice/step plan from `plan`, not a separate profile phase list.
 - Prefer small context: `status` / `show --slice` / `markdown --slice` / `instruction` over loading the whole task file.
   Token smell: if a step needs a huge dump, shrink the contract or the slice.
-- Sibling slice plans are succinct constraint-and-behaviour contracts (brief, intent, types and composition, call stacks, behaviour, constraints, verification).
+- Sibling slice plans are the current micro-contract (types, call stacks, assertion, must-not, verification).
+  One file per slice; revise in place. Never a second plan file.
   Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
   Step evidence belongs in `finish --note`, not `add-decision`.
   Full wording lives in profile `plan_and_grill_guardrail` (thin pointer only here).
@@ -696,8 +697,9 @@ Catalog entries may include an `example` build instruction; follow it when writi
 **Setup slice** maps current behaviour before step `grill` interrogates overall task scope.
 
 **Implement and spike slices** must lead with `create-plan` then `grill-plan` before other work in that slice.
-Sibling plan files are succinct constraint-and-behaviour contracts
-(brief, intent, types and composition, call stacks, behaviour, constraints, verification).
+Sibling plan files are the current micro-contract
+(types, call stacks, assertion, must-not, verification).
+One file per slice; revise in place.
 Full wording (required sections, grill axes, task-store boundary, naming, skip exception) lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
 Do not restate that contract here.
 

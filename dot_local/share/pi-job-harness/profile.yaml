@@ -265,16 +265,18 @@ pr_template_guardrail: &pr_template_guidance |-
   (avoids the "must first push" abort).
 plan_and_grill_guardrail: &plan_and_grill_guidance |-
   Before other implement/spike steps, lead with create-plan then grill-plan:
-  (1) create-plan - sibling Markdown plan file as a constraint-and-behaviour contract
-      (not a how-to essay or delivery journal).
-      Required sections: brief, intent, types and composition, call stacks, system behaviour,
-      constraints, verification; optional short touch surface.
-      Brief: one short paragraph - who uses it, what they get, why it exists.
-      Intent binds behaviour; do not put must/must-not rules only in Brief.
-      Types and composition: prefer pseudo-code (fenced type/interface sketch, any
-      language tag) plus prose boundaries.
-      Call stacks: one indented stack (e.g. handler -> service -> store); note
-      test/memory swaps inline; prefer a shallow stack over `Call stacks: N/A - <reason>`.
+  (1) create-plan - sibling Markdown plan file as the current micro-contract
+      (not a how-to essay, delivery journal, or full-slice design).
+      One file per slice. Never create a second plan file for the same slice.
+      Revise the same path in place for the next increment.
+      Required sections: types, call stacks, assertion, must-not, verification.
+      Types: one fenced type or interface sketch for this increment only.
+      Call stacks: one indented stack for this increment (e.g. handler -> service -> store).
+      Prefer a shallow stack over `Call stacks: N/A - <reason>`.
+      Assertion: one failing test or one behaviour bullet a human can check in seconds.
+      Must-not: the boundaries this increment must not cross.
+      Verification: the exact command that proves this increment.
+      Do not add Brief, Intent, System behaviour, Touch surface, or Open questions.
       Do not restate the slice goal; do not inline the plan body in the task file.
       Do not move delivery status, cursor, or session journals into plan files
       (pi-job store owns those).
@@ -288,9 +290,9 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       Naming: `<task-stem>.plans/<slice-key>.md`. create-plan note is ONLY
       `Plan file: <task-stem>.plans/<slice-key>.md` (relative to the task file's directory).
   (2) grill-plan - grill-me skill (skills/grill-me/SKILL.md).
-      Challenge behaviour, boundaries, must-not constraints, verification, types and
-      composition, and call stacks; prose volume is not an acceptance criterion.
-      Note what changed; revise the plan FILE and re-grill until it survives.
+      Challenge the visible types, call stacks, assertion, must-not, and verification command;
+      prose volume is not an acceptance criterion.
+      Note what changed; revise the same plan FILE and re-grill until it survives.
       After grill survives, capture product/scope choices that should outlive the session
       with `pi-job add-decision` (date/note/source/`--slug` kebab-topic when the body spills),
       not only in chat.
@@ -302,7 +304,7 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       `--goal …` (refuses done/skipped slices; spawn a follow-up slice instead).
   Advance blocks past incomplete create-plan/grill-plan. Distinct from setup `grill`.
   Exception: trivial single-file edit may skip both (status: skipped, one-line reason) -
-  same class as coding_execution.exceptions; only way to omit types and composition / call stacks.
+  same class as coding_execution.exceptions; only way to omit types / call stacks / assertion.
   Soft enforcement: guidance + phrase locks + seeded stub; no hard plan-file heading linter.
   If a seed stub already exists, revise it rather than starting blank.
 sync_pipeline_instructions: |-
@@ -577,40 +579,24 @@ instruction_packets:
     ## Depends on
     {depends_on}
 
-    ## Brief
-    - (who uses it / what they get / why it exists)
-
-    ## Intent
-    -
-
-    ## Types and composition
+    ## Types
     ```ts
-    // prefer fenced type/interface sketch + prose boundaries
+    // one type or interface sketch for this increment
     ```
 
     ## Call stacks
     ```ts
-    // one indented stack; note test/memory swaps inline when they matter
-    // shallow: edit-code -> file -> function  (prefer over N/A)
+    // one indented stack for this increment
     ```
 
-    ## System behaviour
-    -
+    ## Assertion
+    - (one failing test or one behaviour bullet)
 
-    ## Constraints
+    ## Must-not
     -
 
     ## Verification
-    -
-
-    ## Touch surface
-    -
-
-    ## Open questions
-    -
-
-    ## Decisions
-    - (slice-local; product decisions go via add-decision)
+    - (exact command that proves this increment)
   findings_file_header: |-
     # Findings
 
@@ -767,7 +753,8 @@ record_channels:
     slice_note (finish --slice-only, set-slice-note) — cross-step narrative for the slice (blocker story, handoff).
       Use set-slice-note for neutral narrative without finishing the slice. Not add-decision.
 
-    plan_file (*.plans/<slice-key>.md) — constraint-and-behaviour contract. Long prose lives here.
+    plan_file (*.plans/<slice-key>.md) - current micro-contract (types, call stacks, assertion, must-not, verification).
+      One file per slice; revise in place. Not a journal.
 
     plan_note (set-plan-note) — destination / high-level map. Not a progress log.
 
@@ -966,12 +953,19 @@ step_kinds:
       - coding-policy-recorded
       - worktree-used-when-repo-editing
       - volod-style-loaded-before-first-edit
-    guidance: >-
-      Make the change described by this slice's create-plan step. Use a worktree
-      when editing a repo other than the current one. Before the first edit, load
-      and follow the volod-style skill (skills/volod-style/SKILL.md) in full.
+    guidance: |-
+      Implement only the current micro-contract in this slice's plan file.
+      Do not implement the rest of the slice goal in this step.
+      If types or the assertion are missing, write that artifact first and stop.
+      Use a worktree when editing a repo other than the current one.
+      Before the first edit, load and follow the volod-style skill
+      (skills/volod-style/SKILL.md) in full.
       Write to that bar. Following it while coding does not replace the later
       distinct code-review pass.
+      Stop when the plan Verification command is green.
+      If the slice goal still has work, replace the same plan file with the next
+      types, call stacks, assertion, must-not, and verification blocks.
+      Do not create a second plan file.
   verify:
     key: verify
     title: Verify
@@ -979,7 +973,9 @@ step_kinds:
     record_channels: [step_note]
     validators:
       - relevant-tests-or-gap-recorded
-    guidance: Run the relevant tests/checks for what changed, or record the gap.
+    guidance: >-
+      Run the Verification command from this slice's plan file, or record the gap.
+      Feed the agent the exact compiler, type-check, or test output, not a summary.
   code-review:
     key: code-review
     title: Run a distinct volod-style review
