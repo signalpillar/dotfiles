@@ -99,8 +99,16 @@ Named loop packets live in `profile.yaml`; the harness contains no scheduler or 
   - Dead pane with a live claim on a non-terminal slice: recover the same owner/slice.
   When you start or recover the worker agent, recommend `headroom wrap omp`.
 
-  Worker triage runs first on every tick (same authoritative packet). `pane_current_command` is not liveness: a crashed agent keeps the agent process. Read the pane tail and classify each live claim as stalled, waiting on user, waiting on external, or working. Recover stalled workers, quote a waiting question to the user, live-check an external blocker, and leave working panes alone.
+  Read the manager mailbox first.
+  Answer worker clarification from work in progress, or ask the user and relay.
+  Worker triage then classifies each live claim as stalled, waiting on user, waiting on external, or working.
+  `pane_current_command` is not liveness: a crashed agent keeps the agent process.
+  Recover stalled workers, quote a waiting question to the user, live-check an external blocker, and leave working panes alone.
 - **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not wait for a new claim. The manager closes the window. Do not pick-next or claim other slices.
+  When a worker needs a fact about other slices, recorded decisions, or fleet WIP, it contacts the manager with `msg --to manager`.
+  The manager answers from work-in-progress evidence.
+  When that evidence does not answer, the manager asks the user and relays the answer.
+  Do not treat that mailbox question as Waiting on user.
 - **Tutor:** run `pi-job loop --type tutor` through the host loop every ten minutes during the active session.
   The packet performs read-only tutoring against the active working directory.
   The packet keeps comparison memory in the session and returns text only for qualifying evidence.

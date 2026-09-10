@@ -9292,6 +9292,9 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(heartbeat, "uv tool install --force --editable")
     assert_contains(heartbeat, "never inject a literal placeholder")
     assert_contains(heartbeat, "headroom wrap omp")
+    assert_contains(heartbeat, "Worker clarification")
+    assert_contains(heartbeat, "work in progress")
+    assert_contains(heartbeat, "ask the user, then relay")
     assert_not_contains(heartbeat, "leave or close")
     assert "{interval}" not in heartbeat
     assert "{task_file}" not in heartbeat
@@ -9304,6 +9307,8 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(worker_boot, "do not claim another Ready slice")
     assert_contains(worker_boot, "Manager will close this window")
     assert_contains(worker_boot, "Do not wait for a new claim")
+    assert_contains(worker_boot, "contact the manager")
+    assert_contains(worker_boot, "msg --to manager")
     assert "{owner}" not in worker_boot
     assert "{task_file}" not in worker_boot
     assert not worker_boot.lstrip().startswith("/loop")
@@ -9473,8 +9478,8 @@ def _normalized_slice_worker_boot(module) -> str:
 def test_normalized_manager_and_worker_packets_are_compatible() -> None:
     module = load_pi_job_module()
     expected = {
-        "manager": "2bb044460b80e189962a87ec9202689e92163b75c351f8a3b90bd09bf78c06d1",
-        "worker": "9b79979c5a91cd3678b20a89b9035b189e434d52b1f2f0b2d675405a65ea6b9a",
+        "manager": "86f6ca2ad46dc65d507f1a4f8512c66fb4b7c20f20532e8edfb6b932e77ae867",
+        "worker": "7798f8d4dce091e413dcd10f1a8c8233687c200478893b970479031e2c0ca533",
     }
     actual = {
         "manager": hashlib.sha256(_normalized_orchestrator_heartbeat(module).encode()).hexdigest(),

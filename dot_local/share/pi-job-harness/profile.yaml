@@ -395,7 +395,7 @@ loop_packets:
     Preflight once before the first spawn: run pi-job --task TASK status and pi-job --task TASK msg --read --to manager.
     On invalid choice or unrecognized arguments, PATH pi-job is stale: run uv tool install --force --editable ~/.local/share/pi-job-harness, then retry; do not substitute python -m pi_job_harness.cli, because every spawned worker calls plain pi-job.
 
-    Tick: status/show, then pi-job --task TASK msg --read --to manager when unread, then apply window lifecycle, sleep.
+    Tick: status/show, then pi-job --task TASK msg --read --to manager when unread, answer worker clarification, then apply window lifecycle, sleep.
     Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs.
     On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
 
@@ -411,6 +411,13 @@ loop_packets:
     Send pi-job --task TASK msg --to slice:KEY only for slices with a live claim.
     Never notify done slices.
     Do not pick-next or execute slice steps as manager.
+
+    Worker clarification: workers ask the manager about other slices, recorded decisions, or fleet WIP.
+    After msg --read --to manager, judge each such question against work in progress.
+    Search status, show, markdown --with-decisions, slice plans, findings, and live claims.
+    When that evidence answers the question, reply with msg --to slice:KEY --note '<answer>'.
+    When that evidence does not answer, ask the user, then relay the answer to the slice.
+    Do not treat a worker clarification as Waiting on user.
 
     Worker triage: run this on every tick, before window lifecycle.
     pane_current_command is not liveness; a crashed agent still shows the agent process.
@@ -428,8 +435,17 @@ loop_packets:
 
     Report one line per worker each tick with owner, slice, step, class, and next action.
     Never report a worker as healthy from the process name alone.
-  worker: >-
-    ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo. Loop: read pi-job --task TASK msg --read --to slice:SLICE, then run pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal. When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice. Manager will close this window. Do not wait for a new claim. Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
+  worker: |-
+    ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo.
+    Loop: read pi-job --task TASK msg --read --to slice:SLICE, then run pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal.
+    When this slice is exhausted: finish --slice-only then stop; do not claim another Ready slice.
+    Manager will close this window.
+    Do not wait for a new claim.
+    Pause only on requires_user_decision, clarify/grill, or a recorded blocker.
+    When you need a fact about other slices, recorded decisions, or fleet WIP, contact the manager.
+    Do not ask the user in the pane for those facts.
+    Send: pi-job --task TASK msg --to manager --note '<question>'.
+    Then wait and read: pi-job --task TASK msg --read --to slice:SLICE.
   tutor: |-
     Tutor the project in the active agent working directory. Never edit project files.
     Inspect safe project text files only. Exclude secrets, credentials, generated files, dependencies, and binaries.

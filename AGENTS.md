@@ -53,6 +53,8 @@ Do not switch to a casual register unless the user asks.
   Use `pi-job msg` for cross-agent contact.
   The `msg` command lives in `pi_job_harness.messaging`.
   Never send cross-agent messages through terminal panes.
+  Workers ask the manager about other slices, recorded decisions, or fleet WIP.
+  The manager answers from work in progress, or asks the user and relays the answer.
 - Before showing anyone a Mermaid diagram, validate it with the `mermaid` skill (`~/.agents/skills/mermaid`, `mermaid-validate <file>`) instead of eyeballing the syntax.
 - Before showing anyone a BPMN diagram for demo.bpmn.io, follow the `bpmn-js` skill (`~/.agents/skills/bpmn-js`).
 - Never use the em dash "—".

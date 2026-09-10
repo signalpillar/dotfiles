@@ -94,6 +94,8 @@ Use `pi-job loop --type tutor` for read-only session tutoring against the active
 
 Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
 Close a worker window when its slice is done or skipped; keep claim and window when the slice is in_progress, parked, or blocked.
+Workers contact the manager (`msg --to manager`) for facts from other slices or recorded decisions.
+The manager answers from work in progress, or asks the user and relays the answer.
 Classic single-session pick-next loop stays unchanged when no fleet is in use.
 
 ## Orchestrator loop
@@ -124,6 +126,7 @@ Prefer packet guidance. Typical shape:
 - Subagent-owned steps: the packet orders `markdown --slice --with-decisions` first for binding `## Decisions`
 - Interrupt/RCA while a claim is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not release/claim-hop unless needed
 - Cross-agent contact: `msg --to manager|slice:KEY --note TEXT`; consume with `msg --read --to ADDRESS`
+- Worker clarification: ask the manager about other slices or recorded decisions; the manager judges work in progress, then the user if needed
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
