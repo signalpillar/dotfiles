@@ -1379,7 +1379,7 @@ def test_instruction_collapses_long_slice_goal() -> None:
         )
         instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instruction, "…")
-        assert_contains(instruction, "full goal: pi-job --task TASK_FILE markdown --slice setup-slice --with-decisions")
+        assert_contains(instruction, "full goal: markdown --slice setup-slice --with-decisions")
         assert_not_contains(instruction, long_goal)
 
 
@@ -5627,6 +5627,9 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     assert_contains(packets["record_results_intro"], "agent-authored")
     assert_not_contains(next_action, "pi-job --task")
     assert_not_contains(pick_next, "pi-job --task")
+    assert_not_contains(packets["subagent_orchestrator"], "pi-job --task")
+    assert_not_contains(packets["subagent_prompt"], "pi-job --task")
+    assert_not_contains(packets["task_record_discipline"], "pi-job --task TASK_FILE")
     blocked = packets["blocked_slice"]
     assert_contains(blocked, "unblock-slice --slice SLICE_KEY")
     assert_contains(blocked, "instruction --owner {owner}")

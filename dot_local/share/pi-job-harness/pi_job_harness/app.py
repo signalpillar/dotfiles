@@ -2021,7 +2021,7 @@ def collapse_slice_goal(goal: str, *, slice_key: str) -> str:
         preview += "…"
     return (
         f"{preview}\n"
-        f"(full goal: pi-job --task TASK_FILE markdown --slice {slice_key} --with-decisions)"
+        f"(full goal: markdown --slice {slice_key} --with-decisions)"
     )
 
 
