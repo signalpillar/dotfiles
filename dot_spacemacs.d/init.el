@@ -55,6 +55,14 @@ This function should only modify configuration layer settings."
    dotspacemacs-configuration-layers
    '(yaml
      whisper
+     (treemacs :variables
+               treemacs-use-follow-mode t
+               treemacs-use-scope-type 'Perspectives
+               treemacs-use-git-mode 'simple
+               reemacs-use-all-the-icons-theme t
+               treemacs-collapse-dirs 3
+               treemacs-use-filewatch-mode t
+               )
      html
      ;; (github-copilot
      ;;  :variables
@@ -193,7 +201,7 @@ This function should only modify configuration layer settings."
                  lsp-javascript-implicit-project-config-experimental-decorators t
                  lsp-clients-typescript-prefer-use-project-ts-server t
                  )
-     neotree
+     ;; neotree
      (tree-sitter :variables
                   ;; spacemacs-tree-sitter-hl-black-list '(js2-mode rjsx-mode)
                   tree-sitter-syntax-highlight-enable t
@@ -220,7 +228,7 @@ This function should only modify configuration layer settings."
                                       paper-theme
                                       naysayer-theme
                                       cue-mode
-                                      hyperbole
+                                      ;; hyperbole
                                       ;; based on https://github.com/d12frosted/environment/blob/master/emacs/lisp/init-ui.el
                                       fontaine
                                       fancy-compilation
