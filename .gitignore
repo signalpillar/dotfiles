@@ -7,3 +7,4 @@
 
 # FogLAMP scan lock (editToken is secret)
 .foglamp/
+.aider*

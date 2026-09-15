@@ -89,15 +89,12 @@ Rules:
 
 ## PR description
 
-Before writing or editing a PR body, ask which template to use. Do not pick one. Wait for the answer.
-
-Offer these three choices, even when a repo template file exists:
-
-1. **repository** - the file in the repo (`.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or a file under `.github/PULL_REQUEST_TEMPLATE/`). Fill that template exactly.
-2. **full** - vocabulary, end-to-end flow, decisions, quirks, errors, limitations, tests.
-3. **hybrid** - pyramid lead plus call-stack diagram. A reviewer can stop after §1.
-
-If the user has not answered, do not write or edit the PR description.
+Always write the hybrid template.
+Do not ask whether to use repository, full, or hybrid.
+Do not look for a repo PR template.
+Do not read `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or files under `.github/PULL_REQUEST_TEMPLATE/`.
+Do not append repo-template sections to the PR body.
+The PR body is hybrid only.
 
 **Link the decisions.** When the PR description references a decision constant by short code (e.g. `<DECISION-SLUG>`), include a link to where the constant is defined. The link saves the reviewer a grep; it does not substitute for naming the trade-off in prose. Example:
 
@@ -109,56 +106,20 @@ If the user has not answered, do not write or edit the PR description.
 
 If a decision is mentioned only in passing (e.g. "still honours <DECISION-SLUG>"), the link is optional - link the ones the reviewer is most likely to want to read.
 
-### Template: full
-
-```
-## <TICKET> · <parent-ticket if sub-task> (<scope label e.g. slice 0>) — <one-line summary>
-
-Ticket: <tracker-url>/browse/<TICKET>
-
-### Vocabulary
-<!-- Define domain terms upfront so reviewers don't have to guess.
-     One line per term. Include the key nouns/concepts introduced or relied on by this PR. -->
-
-- **<term>** — <definition>
-
-### How <feature> works
-<!-- Narrative of the end-to-end user/system flow, written in the present tense after this PR lands.
-     Use a numbered list for flows with a clear sequence.
-     This is the most valuable section — write it so a reviewer unfamiliar with the domain
-     can follow the full path. Name the system/actor at each step. -->
-
-1. ...
-
-### What this PR adds
-<!-- One bolded sentence per decision, followed by one line of rationale.
-     Reference decision slugs where they exist.
-     End with any known limitation or deferred work. -->
-
-**<Decision summary (DECISION-SLUG)>:** <why this approach, not alternatives>
-
-### <System/API quirk> (if applicable)
-<!-- Document any surprising behaviour discovered — contract gaps, silent failures,
-     normalisation hacks. Explain why it exists and how this PR handles it. -->
-
-### Errors (HTTP 200, errors in body)
-
-| slug | code | when |
-|---|---|---|
-| `<slug>` | `BAD_USER_INPUT` | <condition> |
-
-### Known limitation (if applicable)
-<!-- Be explicit about what is deliberately NOT done in this PR and why.
-     Name the follow-up slice or open question. -->
-
-### Tests
-<!-- Two to three sentences. Name the categories of coverage (unit, integration, e2e).
-     Call out any specific regression guard added for a discovered edge case. -->
-```
-
 ### Template: hybrid
 
 Pyramid lead, then the call-stack. Omit §4 when this PR does not change the error or API surface.
+
+§1 is three facts, in this order, in plain product language — readable to a reviewer who only saw the previous merged PR:
+
+1. Who still consumes what / what is missing for the member or client.
+2. What this PR builds or changes, named as a product/contract fact — not a function or type name.
+3. What this PR does not do (no query yet, next slice, etc.).
+
+Do not open §1 with new type names, function names, or in-group labels from earlier PRs. Those belong in §3 (call stack) or the files list.
+
+**Bad:** `resolveProgrammeDefinition now builds the existing shape from the purchase.`
+**Good:** `A member who bought only an add-on still has to look like an ordinary programme to the client and GraphQL. This PR builds that existing programme-definition shape from the purchase plus bundle intake. It does not wire any query yet.`
 
 ````
 ## <TICKET> · <parent-ticket if sub-task> — <one-line change>
@@ -166,7 +127,7 @@ Pyramid lead, then the call-stack. Omit §4 when this PR does not change the err
 Ticket: <tracker-url>/browse/<TICKET>
 
 ### 1. In one line
-<problem>. <this PR's change>.
+<who still consumes what / what is missing>. <this PR's product/contract change>. <what this PR does not do>.
 
 ### 2. Decision
 **<slug>:** <chosen approach>. Not <rejected approach>, because <reason>.
@@ -198,9 +159,9 @@ This PR owns **B**. It does not own **C**.
 Name A/B/C as real systems or services, not placeholders. Mark the changed node with `<--- this PR`. Name the follow-up on C when work is split across slices.
 
 **What makes a good PR description:**
-- **Ask first** - do not assume repository, full, or hybrid.
-- **Hybrid: lead then map** - §1 is the problem and change; §3 shows where the PR sits in the call stack.
-- **Full: vocabulary first** - reviewers can't follow the decisions section without shared terminology.
+- **Always hybrid** - do not ask repository, full, or hybrid.
+- **Hybrid only** - do not read or append a repo PR template.
+- **Hybrid: lead then map** - §1 is the product gap (consumer, this PR, not-in-this-PR), not a code name; §3 shows where the PR sits in the call stack.
 - **Write the flow as it works now** - not "I changed X to do Y" but "the user does A, the client calls B, the service checks C." Present tense, full path.
 - **Name decisions with slugs** - a slug lets reviewers trace to the decision source without searching.
 - **Surface quirks explicitly** - if you discovered a system bug or gap and worked around it, say so. Hiding it makes the workaround look like a design choice.
