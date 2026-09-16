@@ -13,6 +13,15 @@ metadata:
 - Keep change scope tight, prefer incremental delivery, and avoid speculative refactors.
 - Prioritize explicit behavior, observability, and test coverage for every new code path.
 
+## Review output
+
+- Report findings in three tiers: 🔴 Critical Issues, 🟡 Suggestions, ✅ Good Practices.
+- Mark 🔴 only when the code risks wrong behavior, data exposure, or a broken contract.
+- For each 🔴 and 🟡 finding, give the file, the line, and the problem in one sentence.
+- Add a fix with a code example plus the reason for the change.
+- When the diff earns it, name one ✅ practice per review.
+- When the caller names focus areas, weigh those areas first.
+
 ## Architecture and design principles
 
 - **Single responsibility boundaries**: define one service as the source of truth for each domain decision (e.g., policy/rule resolution), and make downstream code consume that output.
@@ -76,6 +85,23 @@ When reviewing or writing an HTTP facade, scan every new or changed request fiel
 - **Scopes match reads and writes.** Declare inbound scopes for every resource the handler reads or writes. `@Tags` is documentation only. GET stays non-mutating: read scopes only, including nested reads (discount history, preferences), not only the path resource. Flag a mutating route that still has only a read scope. Flag a GET that under-scopes its reads.
 - **Boolean field docs cover both polarities.** If a flag is true in only one current state, say when it is true and when it is false.
 - **Do not leak internals on consumer DTOs.** Hide catalog keys, provider ids, and matched-rule ids unless product named them as consumer fields. Consumers send opaque option ids.
+
+### Security review checklist
+
+- Validate untrusted input at the boundary.
+- Reject malformed values fail-closed.
+- Check authentication and authorization on every new route or handler.
+- Flag logs, errors, and responses that carry secrets or unrelated identities.
+- Flag queries, commands, or markup built by concatenating input.
+- For each rejected input, request a test that stops before the domain service.
+
+### Performance review checklist
+
+- Flag quadratic loops and repeated work over growing collections.
+- Flag large allocations or copies on hot paths.
+- Flag database queries inside loops and request one batched read.
+- Flag repeated computations of one value and request a single computation.
+- When the path handles unbounded input, request a measurement or complexity note.
 
 ## API and service behavior practices
 
@@ -188,6 +214,8 @@ Use this skill for implementation/review tasks in any backend service where you 
 
 - clear service boundaries
 - safe failure behavior
+- secure input handling
+- efficient hot paths
 - high-signal observability
 - maintainable test design
 
