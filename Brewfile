@@ -3,6 +3,7 @@
 
 tap "buo/cask-upgrade"
 tap "d12frosted/emacs-plus"
+tap "abue-ammar/tinycast"
 
 # Core Tools
 brew "mplayer"
@@ -79,6 +80,7 @@ cask "temurin" # Java
 cask "claude-code"
 cask "antigravity-cli"
 cask "opensuperwhisper"
+cask "tinycast" # https://github.com/abue-ammar/tinycast
 
 # Fonts
 cask "font-jetbrains-mono-nerd-font"

@@ -89,6 +89,8 @@
 [github]
 	user = signalpillar
 
+[user]
+	email = 72226+signalpillar@users.noreply.github.com
 
 # [interactive]
 #     diffFilter = delta --color-only
