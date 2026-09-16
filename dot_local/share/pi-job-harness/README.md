@@ -98,7 +98,7 @@ Named loop packets live in `profile.yaml`; the harness contains no scheduler or 
   - Slice not terminal (`in_progress`, parked on grill/clarify, or blocked): keep claim and window. Do not release.
   - Ready and unowned: spawn, inject `pi-job loop --worker`, add the map row.
   - Dead pane with a live claim on a non-terminal slice: recover the same owner/slice.
-  When you start or recover the worker agent, recommend `headroom wrap omp`.
+  When you start or recover the worker agent, recommend `headroom wrap agent`.
 
   Read the manager mailbox first.
   Answer worker clarification from work in progress, or ask the user and relay.
