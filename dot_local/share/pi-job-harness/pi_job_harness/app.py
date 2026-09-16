@@ -25,6 +25,7 @@ from pydantic import ValidationError
 
 from pi_job_harness.decision_index import DecisionIndex, claim_from_body, suggest_slug
 from pi_job_harness.errors import die
+from pi_job_harness.layout import PiJobLayout
 from pi_job_harness.messaging import (
     Address,  # noqa: F401 - tests getattr this on the app module
     Message,
@@ -199,34 +200,31 @@ TASK_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DECISION_TIMESTAMP_STAMP_RE = re.compile(r"^\d{8}T\d{6}$")
 
 
-def task_tasks_home(*, env: Mapping[str, str] | None = None) -> Path:
+def task_tasks_home(layout: PiJobLayout) -> Path:
     """Central pi-job task home; `PI_JOB_TASKS` overrides the default location."""
-    source = os.environ if env is None else env
-    raw = source.get("PI_JOB_TASKS", "~/.local/share/pi-job/tasks")
-    return Path(raw).expanduser().resolve()
+    return layout.tasks_home
 
 
-def task_archive_home(*, env: Mapping[str, str] | None = None) -> Path:
+def task_archive_home(layout: PiJobLayout) -> Path:
     """Archived task home; `PI_JOB_ARCHIVE` overrides, else sibling `archive/` of the tasks home."""
-    source = os.environ if env is None else env
-    raw = source.get("PI_JOB_ARCHIVE")
-    if raw:
-        return Path(raw).expanduser().resolve()
-    return task_tasks_home(env=env).parent / "archive"
+    return layout.archive_home
 
 
-def bundle_slug_under_home(layout: BundleTaskLayout) -> str | None:
+def bundle_slug_under_home(
+    task_layout: BundleTaskLayout,
+    host_layout: PiJobLayout,
+) -> str | None:
     """Bundle slug when `layout.bundle_root` is an immediate child of `task_tasks_home()`.
 
     Mirrors the home-membership rule `list` uses to enumerate bundles: a bundle opened by
     path from anywhere else (or nested deeper under the home) is not slug-addressable and
     has no display slug, even though its directory name looks like one."""
-    if layout.bundle_root.parent == task_tasks_home():
-        return layout.bundle_root.name
+    if task_layout.bundle_root.parent == task_tasks_home(host_layout):
+        return task_layout.bundle_root.name
     return None
 
 
-def task_display_ref(store: TaskStore) -> str:
+def task_display_ref(store: TaskStore, host_layout: PiJobLayout) -> str:
     """Display identity for `--task`, used as the `Task:` header in status output and
     instruction/plan/sync/wayfinder packets.
 
@@ -237,7 +235,7 @@ def task_display_ref(store: TaskStore) -> str:
     """
     layout = getattr(store, "layout", None)
     if isinstance(layout, BundleTaskLayout):
-        slug = bundle_slug_under_home(layout)
+        slug = bundle_slug_under_home(layout, host_layout)
         if slug is not None:
             return slug
     if isinstance(layout, (YamlTaskLayout, BundleTaskLayout)):
@@ -245,14 +243,12 @@ def task_display_ref(store: TaskStore) -> str:
     return store.describe()
 
 
-def worktrees_home(*, env: Mapping[str, str] | None = None) -> Path:
+def worktrees_home(layout: PiJobLayout) -> Path:
     """Central pi-job worktree home; `PI_JOB_WORKTREES` overrides the default location.
 
     Advisory only: `pi-job` never creates directories or git worktrees here, it only
     recommends and records absolute paths under this convention."""
-    source = os.environ if env is None else env
-    raw = source.get("PI_JOB_WORKTREES", "~/.local/share/pi-job/worktrees")
-    return Path(raw).expanduser().resolve()
+    return layout.worktrees_home
 
 
 def iter_home_bundle_docs(home: Path) -> list[tuple[str, Path]]:
@@ -388,7 +384,7 @@ def require_decision_slug(raw: str) -> str:
     return slug
 
 
-def resolve_task_arg(raw: str | Path) -> Path:
+def resolve_task_arg(raw: str | Path, layout: PiJobLayout) -> Path:
     """Resolve a `--task` CLI value to a concrete path, before `open_task_store` runs.
 
     A bare slug (charset `^[a-z0-9]+(?:-[a-z0-9]+)*$`) resolves only inside
@@ -402,7 +398,7 @@ def resolve_task_arg(raw: str | Path) -> Path:
     """
     text = str(raw)
     if is_task_slug(text):
-        doc = task_tasks_home() / text / BundleTaskLayout.DOCUMENT_NAME
+        doc = task_tasks_home(layout) / text / BundleTaskLayout.DOCUMENT_NAME
         if not doc.is_file():
             die(f"unknown task slug {text!r}; expected {doc}")
         return doc.resolve()
@@ -416,7 +412,7 @@ def resolve_task_arg(raw: str | Path) -> Path:
 
 
 
-def resolve_create_task_arg(raw: str | Path) -> Path:
+def resolve_create_task_arg(raw: str | Path, layout: PiJobLayout) -> Path:
     """Resolve a `--task` CLI value for `create`, before any bundle may exist.
 
     Slug resolution mirrors `resolve_task_arg` (same charset, same invalid-token
@@ -428,7 +424,7 @@ def resolve_create_task_arg(raw: str | Path) -> Path:
     """
     text = str(raw)
     if is_task_slug(text):
-        return (task_tasks_home() / text / BundleTaskLayout.DOCUMENT_NAME).resolve()
+        return (task_tasks_home(layout) / text / BundleTaskLayout.DOCUMENT_NAME).resolve()
     if "/" not in text and "\\" not in text:
         die(
             f"invalid task slug {text!r}; slugs must match {TASK_SLUG_RE.pattern} "
@@ -491,7 +487,7 @@ def derive_task_slug_from_loose_yaml(doc: Path) -> str | None:
     return stem if is_task_slug(stem) else None
 
 
-def resolve_project_dest(raw: str | Path) -> Path:
+def resolve_project_dest(raw: str | Path, layout: PiJobLayout) -> Path:
     """Resolve `project --to` to a bundle root directory.
 
     A bare slug (charset `^[a-z0-9]+(?:-[a-z0-9]+)*$`) resolves under `task_tasks_home()`,
@@ -503,7 +499,7 @@ def resolve_project_dest(raw: str | Path) -> Path:
     """
     text = str(raw)
     if is_task_slug(text):
-        return task_tasks_home() / text
+        return task_tasks_home(layout) / text
     if "/" not in text and "\\" not in text:
         die(
             f"invalid task slug {text!r} for --to; slugs must match {TASK_SLUG_RE.pattern} "
@@ -601,19 +597,19 @@ def task_slug_for_worktree(store: TaskStore, task_path: Path) -> str | None:
 
 
 def recommend_worktree_path(
-    *, store: TaskStore, task_path: Path, slice_key: str, repo: str
+    *,
+    store: TaskStore,
+    task_path: Path,
+    slice_key: str,
+    repo: str,
+    layout: PiJobLayout,
 ) -> tuple[str, str | None]:
     """Recommended `$PI_JOB_WORKTREES/<slug>/<slice>/<repo>` path, plus an optional note.
 
     The slug segment is omitted for a non-bundle-backed task (loose YAML or directory
     store); the note then explains how to get a slug-addressable recommendation."""
     slug = task_slug_for_worktree(store, task_path)
-    segments = [worktrees_home()]
-    if slug:
-        segments.append(slug)
-    segments.append(slice_key)
-    segments.append(repo)
-    path = str(Path(*segments))
+    path = str(layout.worktree_path(slug=slug, slice_key=slice_key, repo=repo))
     note = (
         None
         if slug
@@ -1547,7 +1543,7 @@ def resolve_owner_for_claim(args: argparse.Namespace) -> str:
 
 def cmd_claim(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("claim requires a YAML task file (owned cursors are a YAML-only feature)")
     owner = resolve_owner_for_claim(args)
@@ -1597,7 +1593,7 @@ def cmd_claim(args: argparse.Namespace) -> None:
 
 def cmd_release(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("release requires a YAML task file (owned cursors are a YAML-only feature)")
     with store.exclusive():
@@ -1612,7 +1608,7 @@ def cmd_release(args: argparse.Namespace) -> None:
 
 def cmd_start(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     with lifecycle_lock(store):
         task = store.read()
         require_initialized(task_file, task)
@@ -1652,7 +1648,7 @@ def cmd_start(args: argparse.Namespace) -> None:
 
 def cmd_finish(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     with lifecycle_lock(store):
         task = store.read()
         require_initialized(task_file, task)
@@ -1835,7 +1831,11 @@ def enforce_owner_policy(
         return
 
 
-def build_plan(store: TaskStore, task: dict[str, Any]) -> str:
+def build_plan(
+    store: TaskStore,
+    task: dict[str, Any],
+    layout: PiJobLayout,
+) -> str:
     claims = owned_cursors(task)
     positions = {claim.owner: claim_position(task, claim) for claim in claims}
     ready = ready_slices(task)
@@ -1849,7 +1849,7 @@ def build_plan(store: TaskStore, task: dict[str, Any]) -> str:
     lines = [
         "PI-JOB TASK PLAN",
         "",
-        f"Task: {task_display_ref(store)}",
+        f"Task: {task_display_ref(store, layout)}",
         f"Contract: {PROFILE}",
         f"Task cursors: {cursors_label}",
         f"Ready slices: {ready_label}",
@@ -2129,7 +2129,11 @@ class InstructionPacketBudget:
 
 
 def build_pick_next_instruction(
-    store: TaskStore, task_file: Path, task: dict[str, Any], claim: OwnedCursor
+    store: TaskStore,
+    task_file: Path,
+    task: dict[str, Any],
+    claim: OwnedCursor,
+    layout: PiJobLayout,
 ) -> str:
     """Packet when claim's slice has no unfinished steps - owner picks via show."""
     require_initialized(task_file, task)
@@ -2146,7 +2150,7 @@ def build_pick_next_instruction(
     lines = [
         "PI-JOB PICK NEXT SLICE",
         "",
-        f"Task: {task_display_ref(store)}",
+        f"Task: {task_display_ref(store, layout)}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Claim: {claim.owner}",
@@ -2183,6 +2187,7 @@ def build_blocked_slice_instruction(
     task: dict[str, Any],
     claim: OwnedCursor,
     task_slice: TaskSlice,
+    layout: PiJobLayout,
 ) -> str:
     """Packet when the claimed slice is blocked. Not pick-next."""
     require_initialized(task_file, task)
@@ -2199,7 +2204,7 @@ def build_blocked_slice_instruction(
     lines = [
         "PI-JOB SLICE BLOCKED",
         "",
-        f"Task: {task_display_ref(store)}",
+        f"Task: {task_display_ref(store, layout)}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Claim: {claim.owner}",
@@ -2217,7 +2222,13 @@ def build_blocked_slice_instruction(
 
 
 def build_instruction(
-    store: TaskStore, task_file: Path, task: dict[str, Any], cursor: Cursor, *, claim: OwnedCursor
+    store: TaskStore,
+    task_file: Path,
+    task: dict[str, Any],
+    cursor: Cursor,
+    *,
+    claim: OwnedCursor,
+    layout: PiJobLayout,
 ) -> str:
     require_initialized(task_file, task)
     task_slice = find_current_slice(task, cursor)
@@ -2248,7 +2259,7 @@ def build_instruction(
     lines = [
         "PI-JOB EXECUTION INSTRUCTION",
         "",
-        f"Task: {task_display_ref(store)}",
+        f"Task: {task_display_ref(store, layout)}",
         f"Repository root: {ROOT}",
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
@@ -2379,7 +2390,7 @@ def build_instruction(
 
 def cmd_status(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     unread = (
         MessageService.from_layout(store.layout).list(unread_only=True)
@@ -2387,7 +2398,7 @@ def cmd_status(args: argparse.Namespace) -> None:
         else []
     )
     print_status(
-        task_display_ref(store),
+        task_display_ref(store, args.layout),
         task,
         task_path=task_file,
         unread=unread,
@@ -2410,7 +2421,7 @@ def cmd_advance(args: argparse.Namespace) -> None:
 
 def cmd_instruction(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     with lifecycle_lock(store):
         task = store.read()
         require_initialized(task_file, task)
@@ -2420,26 +2431,30 @@ def cmd_instruction(args: argparse.Namespace) -> None:
         if claimed_slice is not None and claimed_slice.status == "blocked":
             if isinstance(store, YamlTaskStore):
                 store.touch_claim(owner=claim.owner, now=utc_now())
-            print(build_blocked_slice_instruction(store, task_file, task, claim, claimed_slice))
+            print(build_blocked_slice_instruction(store, task_file, task, claim, claimed_slice, args.layout))
             return
         within = within_slice_cursor(task, claim.slice)
         if within is None:
-            print(build_pick_next_instruction(store, task_file, task, claim))
+            print(build_pick_next_instruction(store, task_file, task, claim, args.layout))
             return
         if isinstance(store, YamlTaskStore):
             store.touch_claim(owner=claim.owner, now=utc_now())
-    print(build_instruction(store, task_file, task, within, claim=claim))
+    print(build_instruction(store, task_file, task, within, claim=claim, layout=args.layout))
 
 
 def cmd_plan(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     require_initialized(task_file, task)
-    print(build_plan(store, task))
+    print(build_plan(store, task, args.layout))
 
 
-def build_wayfinder_context(store: TaskStore, task: dict[str, Any]) -> str:
+def build_wayfinder_context(
+    store: TaskStore,
+    task: dict[str, Any],
+    layout: PiJobLayout,
+) -> str:
     """Reconstruct the Wayfinder map from the task file at the slice level (no step
     detail): the destination, recorded decisions, in-progress/done slice notes, and the
     planned work split into frontier (takeable now) vs fog (blocked by unfinished deps).
@@ -2470,7 +2485,7 @@ def build_wayfinder_context(store: TaskStore, task: dict[str, Any]) -> str:
     lines = [
         "PI-JOB WAYFINDER CONTEXT",
         "",
-        f"Task: {task_display_ref(store)}",
+        f"Task: {task_display_ref(store, layout)}",
         "",
         "DESTINATION:",
         f"  {destination}" if destination else "  <unset>",
@@ -2504,19 +2519,19 @@ def build_wayfinder_context(store: TaskStore, task: dict[str, Any]) -> str:
 
 def cmd_wayfinder_context(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     require_initialized(task_file, task)
-    print(build_wayfinder_context(store, task))
+    print(build_wayfinder_context(store, task, args.layout))
 
 
 def cmd_sync(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     require_initialized(task_file, task)
     status_filter = set(args.status.split(",")) if args.status else None
-    print(build_sync_instruction(store, task, status_filter))
+    print(build_sync_instruction(store, task, status_filter, args.layout))
 
 
 def sync_candidate_slices(task: dict[str, Any], status_filter: set[str] | None) -> SyncCandidateSlices:
@@ -2579,7 +2594,10 @@ def _append_sync_slice_lines(lines: list[str], task_slice: TaskSlice, *, prefix:
 
 
 def build_sync_instruction(
-    store: TaskStore, task: dict[str, Any], status_filter: set[str] | None
+    store: TaskStore,
+    task: dict[str, Any],
+    status_filter: set[str] | None,
+    layout: PiJobLayout,
 ) -> str:
     candidates = sync_candidate_slices(task, status_filter)
     pipeline_text = load_profile_contract()["sync_pipeline_instructions"]
@@ -2587,7 +2605,7 @@ def build_sync_instruction(
     lines = [
         "PI-JOB SYNC PIPELINE",
         "",
-        f"Task: {task_display_ref(store)}",
+        f"Task: {task_display_ref(store, layout)}",
         f"Repository root: {ROOT}",
         f"{len(candidates.blocking)} slice(s) to verify.",
         "",
@@ -3374,7 +3392,7 @@ def cmd_markdown(args: argparse.Namespace) -> None:
     if (args.with_decisions or args.with_preamble) and not args.slice:
         die("markdown: --with-decisions / --with-preamble require --slice")
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     plan_bodies: dict[str, str] = {}
     plan_labels: dict[str, str] = {}
@@ -3910,7 +3928,7 @@ class SliceDependencyMermaid:
 
 def cmd_show(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     require_initialized(task_file, task)
     claims = owned_cursors(task)
@@ -4161,7 +4179,7 @@ def validated_layer_binds(
 
 def cmd_layers(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="layers")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("layers requires a YAML task file")
     task = store.read()
@@ -4229,7 +4247,7 @@ def cmd_layers(args: argparse.Namespace) -> None:
 
 
 def cmd_files(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task)
+    store = open_task_store(args.task, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("files requires a YAML task file or bundle store")
     task = store.read()
@@ -4239,7 +4257,7 @@ def cmd_files(args: argparse.Namespace) -> None:
 
 
 def cmd_toolbelt(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task)
+    store = open_task_store(args.task, args.layout)
     task = store.read()
     task_file = args.task
     require_initialized(task_file, task)
@@ -4266,7 +4284,7 @@ def cmd_toolbelt(args: argparse.Namespace) -> None:
 
 
 def cmd_maintain(args: argparse.Namespace) -> None:
-    store = open_task_store(args.task)
+    store = open_task_store(args.task, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("maintain requires a YAML task file or bundle store")
     task = store.read()
@@ -4498,7 +4516,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     if task_file.exists() and not args.force:
         die(f"destination YAML task already exists: {task_file}\npass --force to overwrite, or choose another --task path")
     scaffold_bundle_dirs(task_file.parent)
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("create --from requires a YAML task file")
     with store.exclusive():
@@ -4513,7 +4531,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
     print("claim → <none>")
     print(f"next: {_suggest_first_claim(canonical_repr)}")
     print()
-    print(build_plan(store, canonical_repr))
+    print(build_plan(store, canonical_repr, args.layout))
     seed_block = build_seed_slice_plans_block(store.layout, canonical_repr, assembled_slices)
     if seed_block:
         print()
@@ -4528,7 +4546,7 @@ def _create_from_intent(args: argparse.Namespace) -> None:
 
 def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
     """Initialize orchestration on an existing task that has no orchestration yet."""
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     if task.get("orchestration"):
         die(
@@ -4568,7 +4586,7 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
     print("claim → <none>")
     print(f"next: {_suggest_first_claim(task)}")
     print()
-    print(build_plan(store, task))
+    print(build_plan(store, task, args.layout))
     if args.kind and prior_slice_count == 0:
         print_decisions_after_slice_add(
             task,
@@ -4626,13 +4644,13 @@ def cmd_create(args: argparse.Namespace) -> None:
 
     scaffold_bundle_dirs(task_file.parent)
     atomic_write_text(task_file, content)
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     print(f"created: {task_file}")
     print("claim → <none>")
     print(f"next: {_suggest_first_claim(task)}")
     print()
-    print(build_plan(store, task))
+    print(build_plan(store, task, args.layout))
     seed_block = build_seed_slice_plans_block(
         store.layout, task, [dict(s) for s in (task.get("plan") or {}).get("slices") or []]
     )
@@ -4653,7 +4671,7 @@ CLI_FILLABLE_SLICE_FIELDS = {"repos": lambda args: split_csv(args.repos), "depen
 
 def cmd_add_slice(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
 
     if not args.kind:
@@ -4734,7 +4752,7 @@ BASELINE_STEP_FIELDS = {"key", "title", "status", "note"}
 
 def cmd_add_step(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
 
     slices = task.get("plan", {}).get("slices", [])
@@ -4770,11 +4788,11 @@ def cmd_list(args: argparse.Namespace) -> None:
     individual bundle that fails to load (bad YAML, failed validation) is skipped with a
     stderr warning rather than aborting the whole listing.
     Ready frontier stays on `pi-job status` / `show`, not on this overview."""
-    home = task_tasks_home()
+    home = task_tasks_home(args.layout)
     entries: list[TaskListEntry] = []
     for slug, doc in iter_home_bundle_docs(home):
         try:
-            task = open_task_store(doc).read()
+            task = open_task_store(doc, args.layout).read()
             entries.append(
                 TaskListEntry(
                     slug=slug,
@@ -4805,17 +4823,17 @@ def cmd_archive(args: argparse.Namespace) -> None:
     `$PI_JOB_ARCHIVE` (or `<tasks-home-parent>/archive`); `--to` renames on move.
     """
     task_file = require_task(args.task, cmd="archive")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore) or not isinstance(store.layout, BundleTaskLayout):
         die("archive requires a task bundle under $PI_JOB_TASKS, not a loose YAML file")
-    slug = bundle_slug_under_home(store.layout)
+    slug = bundle_slug_under_home(store.layout, args.layout)
     if slug is None:
         die(
             "archive requires a bundle that is an immediate child of the task home "
-            f"({task_tasks_home()}); got {store.describe()}"
+            f"({task_tasks_home(args.layout)}); got {store.describe()}"
         )
     dest_slug = args.to or slug
-    archive_home = task_archive_home()
+    archive_home = task_archive_home(args.layout)
     if args.dry_run:
         dest = archive_home_bundle(
             bundle_root=store.layout.bundle_root,
@@ -4837,7 +4855,7 @@ def cmd_archive(args: argparse.Namespace) -> None:
 
 def cmd_set_worktree(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     slices = task.get("plan", {}).get("slices", [])
     slice_dict = next((s for s in slices if s.get("key") == args.slice), None)
@@ -4858,7 +4876,11 @@ def cmd_set_worktree(args: argparse.Namespace) -> None:
 
     if args.path is None:
         path, note = recommend_worktree_path(
-            store=store, task_path=task_file, slice_key=args.slice, repo=args.repo
+            store=store,
+            task_path=task_file,
+            slice_key=args.slice,
+            repo=args.repo,
+            layout=args.layout,
         )
         print(f"recommended worktree path: {path}")
         if note:
@@ -4875,7 +4897,7 @@ def cmd_set_worktree(args: argparse.Namespace) -> None:
 
 def cmd_add_pr(args: argparse.Namespace) -> None:
     task_file = args.task
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     slices = task.get("plan", {}).get("slices", [])
     if not any(s.get("key") == args.slice for s in slices):
@@ -4903,7 +4925,7 @@ def cmd_project(args: argparse.Namespace) -> None:
     dirs/files remain at the old location. On any failure, the freshly scaffolded
     destination is rolled back and the source is left untouched.
     """
-    src_store = open_task_store(args.task)
+    src_store = open_task_store(args.task, args.layout)
     if not isinstance(src_store, YamlTaskStore) or not isinstance(src_store.layout, YamlTaskLayout):
         die(
             "project requires a loose YAML task source, not a bundle or directory store: "
@@ -4912,13 +4934,17 @@ def cmd_project(args: argparse.Namespace) -> None:
     loose_layout = src_store.layout
     plans_dir = loose_layout.plans_dir
 
-    bundle_root = resolve_project_dest(args.to)
+    bundle_root = resolve_project_dest(args.to, args.layout)
     dest_doc = bundle_root / BundleTaskLayout.DOCUMENT_NAME
     if dest_doc.exists():
         die(f"destination {dest_doc} already exists; project never overwrites (no --force)")
 
     scaffold_bundle_dirs(bundle_root)
-    dst_store = YamlTaskStore(BundleTaskLayout(bundle_root), create_only=True)
+    dst_store = YamlTaskStore(
+        BundleTaskLayout(bundle_root),
+        args.layout,
+        create_only=True,
+    )
 
     try:
         project(src_store, dst_store)
@@ -4933,7 +4959,7 @@ def cmd_project(args: argparse.Namespace) -> None:
 
     removed = delete_loose_source(loose_layout.document_path, plans_dir)
     print(f"projected {src_store.describe()} -> {dst_store.describe()}")
-    home = task_tasks_home()
+    home = task_tasks_home(args.layout)
     if bundle_root.parent == home:
         print(f"slug: {bundle_root.name}")
     for path in removed:
@@ -4943,7 +4969,7 @@ def cmd_project(args: argparse.Namespace) -> None:
 def cmd_validate(args: argparse.Namespace) -> None:
     """Validate storage syntax, the Pydantic task contract, and profile structure."""
     task_arg = args.task
-    store = open_task_store(task_arg)
+    store = open_task_store(task_arg, args.layout)
     task = store.read()
     slice_key = getattr(args, "slice", None)
     if slice_key is not None:
@@ -5042,7 +5068,7 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
             "at least one of --title, --goal, --layer, --clear-layer, "
             "--depends-on, or --clear-depends-on is required"
         )
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("set-slice requires a YAML task file")
     task = store.read()
@@ -5101,7 +5127,7 @@ def cmd_set_slice(args: argparse.Namespace) -> None:
 
 def cmd_block_slice(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="block-slice")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("block-slice requires a YAML task file")
     task = store.read()
@@ -5128,7 +5154,7 @@ def cmd_block_slice(args: argparse.Namespace) -> None:
 
 def cmd_unblock_slice(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="unblock-slice")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("unblock-slice requires a YAML task file")
     task = store.read()
@@ -5148,7 +5174,7 @@ def cmd_set_step_note(args: argparse.Namespace) -> None:
         die("set-step-note --replace requires --note")
     if args.note is None:
         die("set-step-note requires --note")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     task_slice = find_slice(task, args.slice)
     if task_slice is None:
@@ -5171,7 +5197,7 @@ def cmd_set_slice_note(args: argparse.Namespace) -> None:
         die("set-slice-note --replace requires --note")
     if args.note is None:
         die("set-slice-note requires --note")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     task_slice = find_slice(task, args.slice)
     if task_slice is None:
@@ -5189,7 +5215,7 @@ def cmd_set_source(args: argparse.Namespace) -> None:
             fields[attr] = value
     if not fields:
         die("at least one field is required (--jira, --discovered, --context)")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     store.set_source(fields)
     print(f"updated source: {', '.join(f'{k}={v}' for k, v in fields.items())}")
 
@@ -5206,7 +5232,7 @@ def cmd_set_project(args: argparse.Namespace) -> None:
         die("title must be non-empty")
     if not fields and title is None:
         die("at least one field is required (--title, --key, --name, --route, --context)")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     route_supplied = getattr(args, "route", None) is not None
     key_supplied = getattr(args, "key", None) is not None
     if route_supplied or key_supplied:
@@ -5242,7 +5268,7 @@ def cmd_set_context(args: argparse.Namespace) -> None:
         text = args.file_path.read_text(encoding="utf-8")
     elif text is None:
         die("--context <text> or --file <path> is required")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     store.set_context(text)
     print("updated context")
 
@@ -5259,7 +5285,7 @@ def cmd_add_decision_cli(args: argparse.Namespace) -> None:
     soft_limit_hit = len(note) > NOTE_WARN_CHARS or (
         task_file.is_file() and task_file.stat().st_size > TASK_FILE_WARN_BYTES
     )
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     written: Path | None = None
     if not isinstance(store, YamlTaskStore):
         store.add_decision(date=date, note=note, source=source)
@@ -5314,7 +5340,7 @@ def cmd_add_finding(args: argparse.Namespace) -> None:
     note = args.note
     if not note:
         die("--note is required")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("add-finding requires a YAML task file")
     source = args.source or "pi-job add-finding"
@@ -5380,7 +5406,7 @@ def cmd_investigate(args: argparse.Namespace) -> None:
         die("--topic is required")
     note = (args.note or "").strip()
     source = args.source or f"investigate:{topic}"
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("investigate requires a YAML task file")
     task = store.read()
@@ -5412,7 +5438,7 @@ def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
     reason = args.reason
     if not reason:
         die("--reason is required")
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("acknowledge-edit requires a YAML task file")
     task = store.read()
@@ -5435,7 +5461,7 @@ def cmd_acknowledge_edit(args: argparse.Namespace) -> None:
 def cmd_remove_slice(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="remove-slice")
     key = args.key
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     task = store.read()
     status_map = slice_status_map(task)
     if key not in status_map:
@@ -5458,7 +5484,7 @@ def task_slices_map(task: dict[str, Any]) -> dict[str, TaskSlice]:
 def cmd_set_plan_note_cli(args: argparse.Namespace) -> None:
     task_file = require_task(args.task, cmd="set-plan-note")
     note = args.note if args.note is not None else ""
-    store = open_task_store(task_file)
+    store = open_task_store(task_file, args.layout)
     store.set_plan_note(note)
     print("updated plan note")
 
@@ -5480,7 +5506,7 @@ def cmd_stats(args: argparse.Namespace) -> None:
 
     wait_keys: set[str] = set() if args.no_default_wait_keys else set(DEFAULT_WAIT_KEYS)
     wait_keys.update(args.wait_key or [])
-    store = open_task_store(args.task)
+    store = open_task_store(args.task, args.layout)
     task = store.read()
     payload = build_stats(task, _task_label(Path(args.task)), frozenset(wait_keys))
     body = render_json(payload) if args.json_output else render_markdown(payload)
@@ -5500,7 +5526,7 @@ def cmd_report(args: argparse.Namespace) -> None:
         since = parse_since(args.since)
     except ValueError as exc:
         die(str(exc))
-    store = open_task_store(args.task)
+    store = open_task_store(args.task, args.layout)
     task = store.read()
     rows = build_report(task, since)
     label = _task_label(Path(args.task))
@@ -5510,13 +5536,17 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 def cmd_profile(args: argparse.Namespace) -> None:
     profile = load_profile_contract()
+    overlay = args.layout.profile_overlay_to_load()
+    overlay_value = str(overlay) if overlay is not None else None
     if args.json_output:
-        print(json.dumps(profile, indent=2))
+        payload = {"profile": str(PROFILE), "overlay": overlay_value, **profile}
+        print(json.dumps(payload, indent=2))
         return
     kinds = profile.get("slice_kinds", {})
     steps = profile.get("step_kinds", {})
     aids = profile.get("toolbelt", {})
     print(f"Profile: {PROFILE}")
+    print(f"Overlay: {overlay_value if overlay_value is not None else '(none)'}")
     print(f"Slice kinds ({len(kinds)}): {', '.join(sorted(kinds))}")
     print(f"Step kinds ({len(steps)}): {', '.join(sorted(steps))}")
     print(f"Toolbelt aids ({len(aids)}): {', '.join(sorted(aids))}")
@@ -5594,7 +5624,8 @@ def cmd_kinds(args: argparse.Namespace) -> None:
 
 
 
-def main() -> None:
+def main(layout: PiJobLayout | None = None) -> None:
+    layout = layout or PiJobLayout.from_environ()
     slice_kinds = sorted(valid_slice_kinds())
     cli_help = load_profile_contract()["cli_help"]
     add_decision_help = str(cli_help["add_decision"]["command"])
@@ -6343,13 +6374,14 @@ def main() -> None:
     project_cmd.set_defaults(fn=cmd_project)
 
     args = ap.parse_args()
+    args.layout = layout
     if args.task is None:
         if args.cmd not in TASK_OPTIONAL_COMMANDS:
             die(missing_task_message(args.cmd))
     elif args.cmd == "create":
-        args.task = resolve_create_task_arg(args.task)
+        args.task = resolve_create_task_arg(args.task, layout)
     else:
-        args.task = resolve_task_arg(args.task)
+        args.task = resolve_task_arg(args.task, layout)
     args.fn(args)
 
 

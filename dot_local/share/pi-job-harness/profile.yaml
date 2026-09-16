@@ -1,9 +1,5 @@
 # Live execution profile validated by ProfileDocument in pi_job_harness/profile.py.
 # Mapping keys must match each entry's key field; step and slice references must resolve.
-config_layering:
-  user_defaults: true
-  repo_overrides: true
-  precedence: repo-over-user
 orchestration_defaults:
   claim_stale_after_hours: 24
 artifact_rules:
@@ -409,7 +405,6 @@ loop_packets:
     Ready and unowned: spawn a window, inject slice_worker_boot (pi-job loop --worker), start the same agent/harness used today, add the map row.
     Build each injected prompt from that map row: substitute the real OWNER, SLICE, and TASK before you send it; never inject a literal placeholder such as slice:YOUR_SLICE.
     Dead pane with a live claim on a non-terminal slice: recover same owner/slice.
-    When you start or recover the worker agent, recommend `headroom wrap omp`.
     Send pi-job --task TASK msg --to slice:KEY only for slices with a live claim.
     Never notify done slices.
     Do not pick-next or execute slice steps as manager.

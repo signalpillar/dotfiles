@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from pi_job_harness.errors import die
+from pi_job_harness.layout import PiJobLayout
 from pi_job_harness.store.text import merge_note, utc_now
 from pi_job_harness.store.yaml_io import (
     atomic_create_text,
@@ -204,8 +205,15 @@ class YamlTaskStore:
     wording; the store only performs I/O against `layout.document_path`.
     """
 
-    def __init__(self, layout: YamlTaskLayout | BundleTaskLayout, *, create_only: bool = False) -> None:
+    def __init__(
+        self,
+        layout: YamlTaskLayout | BundleTaskLayout,
+        host_layout: PiJobLayout,
+        *,
+        create_only: bool = False,
+    ) -> None:
         self.layout = layout
+        self.host_layout = host_layout
         self.create_only = create_only
         self._lock_depth = 0
         self._digest_warn_suppressed = 0
@@ -262,7 +270,7 @@ class YamlTaskStore:
                 self._lock_depth -= 1
             return
 
-        lock_path = yaml_task_lock_path(self.path)
+        lock_path = yaml_task_lock_path(self.path, self.host_layout)
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with lock_path.open("a+", encoding="utf-8") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
