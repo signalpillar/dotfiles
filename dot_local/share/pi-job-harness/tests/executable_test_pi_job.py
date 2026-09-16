@@ -1101,7 +1101,7 @@ plan:
 def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
     """Phrase-lock the profile-owned create-plan / grill-plan contract in instruction packets."""
     assert_contains(instruction, "current micro-contract")
-    assert_contains(instruction, "types, call stacks, assertion, must-not, verification")
+    assert_contains(instruction, "call stacks, assertion, must-not, verification")
     assert_contains(instruction, "One file per slice")
     assert_contains(instruction, "Never create a second plan file")
     assert_contains(instruction, "one indented stack")
@@ -1135,7 +1135,7 @@ def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> N
         _assert_constraint_and_behaviour_plan_contract(instruction)
         assert_contains(
             instruction,
-            "Challenge the visible types, call stacks, assertion, must-not, and verification command",
+            "Challenge the visible call stacks, assertion, must-not, and verification command",
         )
         assert_contains(instruction, "prose volume is not an acceptance criterion")
         assert_contains(instruction, "capture product/scope choices that should outlive the session")
@@ -9572,7 +9572,7 @@ def test_add_slice_creates_plan_stub() -> None:
         module = load_pi_job_module()
         template = module.load_profile_contract()["instruction_packets"]["slice_plan_stub"]
         # Stub body must come from the profile template, not a Python hardcode.
-        assert_contains(template, "## Types")
+        assert_not_contains(template, "## Types")
         assert_contains(template, "## Call stacks")
         assert_contains(template, "## Assertion")
         assert_contains(template, "## Must-not")
@@ -9580,7 +9580,7 @@ def test_add_slice_creates_plan_stub() -> None:
         assert_not_contains(template, "## Brief")
         assert_not_contains(template, "## Intent")
         assert_not_contains(template, "## Open questions")
-        assert_contains(body, "## Types")
+        assert_not_contains(body, "## Types")
         assert_contains(body, "## Call stacks")
         assert_contains(body, "## Assertion")
         assert_contains(body, "## Must-not")

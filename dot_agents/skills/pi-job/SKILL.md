@@ -146,7 +146,7 @@ Append dependencies with `set-slice --slice CONSUMER --depends-on PRODUCER`.
 Clear them with `set-slice --slice CONSUMER --clear-depends-on`.
 Slice plans live under the layout: bundle `plans/<slice-key>.md`, or legacy
 `<task-stem>.plans/<slice-key>.md` until projected (one micro-contract per
-slice: types, call stacks, assertion, must-not, verification; see profile `plan_and_grill_guardrail`).
+slice: call stacks, assertion, must-not, verification; see profile `plan_and_grill_guardrail`).
 
 ## Wayfinder
 
