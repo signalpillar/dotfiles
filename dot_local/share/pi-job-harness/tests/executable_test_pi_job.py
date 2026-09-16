@@ -9616,7 +9616,7 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(heartbeat, "Preflight")
     assert_contains(heartbeat, "uv tool install --force --editable")
     assert_contains(heartbeat, "never inject a literal placeholder")
-    assert_contains(heartbeat, "headroom wrap agent")
+    assert_not_contains(heartbeat, "headroom")
     assert_contains(heartbeat, "Worker clarification")
     assert_contains(heartbeat, "work in progress")
     assert_contains(heartbeat, "ask the user, then relay")
