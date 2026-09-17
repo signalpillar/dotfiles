@@ -101,6 +101,7 @@ Use `pi-job loop --type tutor` for read-only session tutoring against the active
 Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
 Packet bodies live in profile `loop_packets`.
 Read them with those commands.
+Add `--oneline` when you inject a packet with `tmux send-keys`, which submits at every newline.
 Do not restate them here.
 Classic single-session pick-next loop stays unchanged when no fleet is in use.
 

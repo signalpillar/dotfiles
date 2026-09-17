@@ -9549,56 +9549,58 @@ def test_status_shows_blocked_and_interrupt_hint() -> None:
         assert_contains(out, "investigate")
 
 
-def _normalized_orchestrator_heartbeat(module) -> str:
-    body = module.load_profile_contract()["loop_packets"]["manager"]
-    return " ".join(str(body).split())
+def _sectioned_loop_packet(module, type_name: str) -> str:
+    body = module.load_profile_contract()["loop_packets"][type_name]
+    return str(body).strip("\n")
 
 
-def _normalized_slice_worker_boot(module) -> str:
-    body = module.load_profile_contract()["loop_packets"]["worker"]
+def _oneline_loop_packet(module, type_name: str) -> str:
+    body = module.load_profile_contract()["loop_packets"][type_name]
     return " ".join(str(body).split())
 
 
 def test_render_orchestrator_heartbeat() -> None:
     module = load_pi_job_module()
     rendered = module.render_orchestrator_heartbeat()
-    expected = _normalized_orchestrator_heartbeat(module)
-    assert rendered == expected
+    assert rendered == _sectioned_loop_packet(module, "manager")
     assert_not_contains(rendered, "{interval}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
-    assert len(rendered.splitlines()) == 1
 
 
 def test_render_slice_worker_boot() -> None:
     module = load_pi_job_module()
     rendered = module.render_slice_worker_boot()
-    expected = _normalized_slice_worker_boot(module)
-    assert rendered == expected
+    assert rendered == _sectioned_loop_packet(module, "worker")
     assert_not_contains(rendered, "{owner}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
-    assert len(rendered.splitlines()) == 1
 
 
 def test_loop_command_prints_heartbeat_without_task() -> None:
     module = load_pi_job_module()
-    expected = _normalized_orchestrator_heartbeat(module)
-    res = run(str(PI_JOB), "loop")
-    stdout = res.stdout.rstrip("\n")
-    assert stdout == expected
+    stdout = run(str(PI_JOB), "loop").stdout.rstrip("\n")
+    assert stdout == _sectioned_loop_packet(module, "manager")
     assert not stdout.lstrip().startswith("/loop")
-    assert len(stdout.splitlines()) == 1
 
 
 def test_loop_worker_prints_slice_worker_boot() -> None:
     module = load_pi_job_module()
-    expected = _normalized_slice_worker_boot(module)
-    res = run(str(PI_JOB), "loop", "--worker")
-    stdout = res.stdout.rstrip("\n")
-    assert stdout == expected
+    stdout = run(str(PI_JOB), "loop", "--worker").stdout.rstrip("\n")
+    assert stdout == _sectioned_loop_packet(module, "worker")
     assert not stdout.lstrip().startswith("/loop")
-    assert len(stdout.splitlines()) == 1
+
+
+def test_loop_keeps_profile_sections_and_oneline_collapses_them() -> None:
+    """Default output stays readable; --oneline stays safe for terminal injection."""
+    module = load_pi_job_module()
+    for selector, type_name in ((["loop"], "manager"), (["loop", "--worker"], "worker")):
+        sectioned = run(str(PI_JOB), *selector).stdout.rstrip("\n")
+        if len(sectioned.splitlines()) < 2:
+            raise AssertionError(f"{type_name} packet lost its profile sections")
+        collapsed = run(str(PI_JOB), *selector, "--oneline").stdout.rstrip("\n")
+        assert collapsed == _oneline_loop_packet(module, type_name)
+        assert len(collapsed.splitlines()) == 1
 
 
 def test_loop_type_selects_named_packets() -> None:
@@ -9607,22 +9609,23 @@ def test_loop_type_selects_named_packets() -> None:
     worker = run(str(PI_JOB), "loop", "--worker").stdout
     assert run(str(PI_JOB), "loop", "--type", "manager").stdout == manager
     assert run(str(PI_JOB), "loop", "--type", "worker").stdout == worker
-    tutor = run(str(PI_JOB), "loop", "--type", "tutor").stdout
-    assert tutor.rstrip("\n") == " ".join(
-        module.load_profile_contract()["loop_packets"]["tutor"].split()
-    )
-    assert len(tutor.rstrip("\n").splitlines()) == 1
+    tutor = run(str(PI_JOB), "loop", "--type", "tutor").stdout.rstrip("\n")
+    assert tutor == _sectioned_loop_packet(module, "tutor")
 
 
 def test_loop_selection_is_data_driven() -> None:
     module = load_pi_job_module()
     original_loader = module.load_profile_contract
-    module.load_profile_contract = lambda: {"loop_packets": {"manager": "M", "worker": "W", "extra": " A\n B "}}
+    module.load_profile_contract = lambda: {"loop_packets": {"manager": "M", "worker": "W", "extra": "A\nB"}}
     try:
         output = io.StringIO()
         with redirect_stdout(output):
             module.cmd_loop(argparse.Namespace(worker=False, type_name="extra"))
-        assert output.getvalue() == "A B\n"
+        assert output.getvalue() == "A\nB\n"
+        collapsed = io.StringIO()
+        with redirect_stdout(collapsed):
+            module.cmd_loop(argparse.Namespace(worker=False, type_name="extra", oneline=True))
+        assert collapsed.getvalue() == "A B\n"
     finally:
         module.load_profile_contract = original_loader
 
@@ -10807,6 +10810,7 @@ def main() -> None:
     test_render_slice_worker_boot()
     test_loop_command_prints_heartbeat_without_task()
     test_loop_worker_prints_slice_worker_boot()
+    test_loop_keeps_profile_sections_and_oneline_collapses_them()
     test_loop_type_selects_named_packets()
     test_loop_selection_is_data_driven()
     test_profile_json_exposes_named_loop_packets()

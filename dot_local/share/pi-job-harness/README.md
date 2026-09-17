@@ -56,8 +56,9 @@ Given a YAML task file and `profile.yaml`, it can:
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, current step only, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
 - `stats` / `report --since YYYY-MM-DD` - read-only markdown (or `--json`) from store execution / repo_work; optional `-o PATH` writes without printing
-- `loop` - print a named `loop_packets` entry as one line, without `--task`
+- `loop` - print a named `loop_packets` entry with its profile sections, without `--task`
   `loop` selects `manager`; `loop --worker` selects `worker`; `loop --type NAME` selects any exact profile key.
+  `loop --oneline` collapses the packet to one physical line for terminal injectors that replay a newline as a prompt submit (`tmux send-keys`).
 - `instruction` - emit a deterministic packet for the claim's derived active step (pick-next when exhausted; blocked slice is not pick-next)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)

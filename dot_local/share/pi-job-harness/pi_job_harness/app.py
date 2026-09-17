@@ -5349,13 +5349,21 @@ def cmd_add_finding(args: argparse.Namespace) -> None:
     print(f"path: {path}")
 
 
-def render_loop_packet(type_name: str) -> str:
-    """Pure: load one named loop packet collapsed to one physical line."""
+def render_loop_packet(type_name: str, *, oneline: bool = False) -> str:
+    """Pure: load one named loop packet, sectioned by default.
+
+    `oneline` collapses every blank line and indent into one physical line, for
+    terminal injectors that replay a newline as a prompt submit and would
+    otherwise send the packet in fragments at every section break.
+    """
     packets = load_profile_contract()["loop_packets"]
     if type_name not in packets:
         valid = ", ".join(sorted(packets))
         die(f"unknown loop type {type_name!r}; valid types: {valid}")
-    return " ".join(str(packets[type_name]).split())
+    body = str(packets[type_name])
+    if oneline:
+        return " ".join(body.split())
+    return body.strip("\n")
 
 
 def render_orchestrator_heartbeat() -> str:
@@ -5374,7 +5382,7 @@ def cmd_loop(args: argparse.Namespace) -> None:
         if getattr(args, "worker", False)
         else ("manager" if args.type_name is None else args.type_name)
     )
-    print(render_loop_packet(type_name))
+    print(render_loop_packet(type_name, oneline=getattr(args, "oneline", False)))
 
 
 def render_investigate_interrupt(
@@ -6163,6 +6171,14 @@ def main(layout: PiJobLayout | None = None) -> None:
         dest="type_name",
         metavar="NAME",
         help="print the exact, case-sensitive named loop packet",
+    )
+    loop.add_argument(
+        "--oneline",
+        action="store_true",
+        help=(
+            "collapse the packet to one physical line for terminal injectors that "
+            "replay a newline as a prompt submit"
+        ),
     )
     loop.set_defaults(fn=cmd_loop)
 
