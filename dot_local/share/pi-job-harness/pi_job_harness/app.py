@@ -5385,6 +5385,94 @@ def cmd_loop(args: argparse.Namespace) -> None:
     print(render_loop_packet(type_name, oneline=getattr(args, "oneline", False)))
 
 
+BOOT_PLACEHOLDERS = ("TASK", "SLICE", "OWNER")
+"""Bare uppercase tokens a loop packet leaves for the spawner to resolve."""
+
+
+def substitute_boot_placeholders(packet: str, *, task: str, slice_key: str, owner: str) -> str:
+    """Pure: resolve the bare TASK / SLICE / OWNER tokens in a loop packet.
+
+    A plain word boundary is too loose here: `\\bTASK\\b` also matches inside
+    `TASK-orchestrators`, and `SLICE` inside `SLICE_KEY`. Rejecting `-` and `_`
+    neighbours keeps those compound names intact.
+    """
+    values = {"TASK": task, "SLICE": slice_key, "OWNER": owner}
+    for token in BOOT_PLACEHOLDERS:
+        packet = re.sub(rf"(?<![\w-]){token}(?![\w-])", values[token], packet)
+    return packet
+
+
+def render_worker_boot(
+    *,
+    task_label: str,
+    task_slice: TaskSlice,
+    owner: str,
+    plan_file: Path,
+    claim_step: str | None,
+    oneline: bool = False,
+) -> str:
+    """Pure: the worker packet with identity, plan path, and worktrees resolved.
+
+    The packet stays the single source of role and protocol. This adds only the
+    per-slice facts the store already owns, so a spawner never hand-copies them.
+    """
+    packet = substitute_boot_placeholders(
+        render_loop_packet("worker"),
+        task=task_label,
+        slice_key=task_slice.key,
+        owner=owner,
+    )
+    context = [
+        "",
+        "CONTEXT (from the task store; do not restate it in the pane)",
+        f"- Task: {task_label}",
+        f"- Slice: {task_slice.key} [{task_slice.kind}] - {task_slice.title}",
+        f"- Owner: {owner}",
+        f"- Slice plan (must-not and verification live here): {plan_file}",
+        f"- Step packet: pi-job --task {task_label} instruction --owner {owner}",
+    ]
+    if claim_step:
+        context.append(f"- Claimed step: {claim_step}")
+    else:
+        context.append(f"- No claim yet: pi-job --task {task_label} claim --slice {task_slice.key} --owner {owner}")
+    for repo_name in sorted(task_slice.repo_work or {}):
+        work = (task_slice.repo_work or {})[repo_name] or {}
+        worktree = work.get("worktree")
+        if worktree:
+            context.append(f"- Worktree[{repo_name}]: {worktree}")
+    body = packet + "\n" + "\n".join(context)
+    if oneline:
+        return " ".join(body.split())
+    return body
+
+
+def cmd_boot(args: argparse.Namespace) -> None:
+    task_file = require_task(args.task, cmd="boot")
+    store = open_task_store(task_file, args.layout)
+    task = store.read()
+    task_slice = find_slice(task, args.slice)
+    if task_slice is None:
+        keys = ", ".join(sorted(sl.key for sl in task_slices(task))) or "<none>"
+        die(f"unknown slice {args.slice!r}; known slices: {keys}")
+    if task_slice.status in STATUS_DONE:
+        die(f"slice {task_slice.key!r} is {task_slice.status}; boot a non-terminal slice instead")
+    claim = next(
+        (c for c in owned_cursors(task) if c.owner == args.owner and c.slice == task_slice.key),
+        None,
+    )
+    claim_step = claim_position(task, claim).step if claim else None
+    print(
+        render_worker_boot(
+            task_label=task_display_ref(store, args.layout),
+            task_slice=task_slice,
+            owner=args.owner,
+            plan_file=slice_plan_file(task_file, task_slice.key),
+            claim_step=claim_step,
+            oneline=args.oneline,
+        )
+    )
+
+
 def render_investigate_interrupt(
     *,
     task_file: Path,
@@ -6181,6 +6269,25 @@ def main(layout: PiJobLayout | None = None) -> None:
         ),
     )
     loop.set_defaults(fn=cmd_loop)
+
+    boot = sub.add_parser(
+        "boot",
+        help=(
+            "print the worker loop packet with TASK/SLICE/OWNER resolved, plus the slice "
+            "plan path and recorded worktrees; use instead of a hand-written boot prompt"
+        ),
+    )
+    boot.add_argument("--slice", required=True, help="slice key this worker owns")
+    boot.add_argument("--owner", required=True, help="claim owner identity for this worker")
+    boot.add_argument(
+        "--oneline",
+        action="store_true",
+        help=(
+            "collapse the prompt to one physical line for terminal injectors that "
+            "replay a newline as a prompt submit"
+        ),
+    )
+    boot.set_defaults(fn=cmd_boot)
 
     acknowledge_edit = sub.add_parser(
         "acknowledge-edit",

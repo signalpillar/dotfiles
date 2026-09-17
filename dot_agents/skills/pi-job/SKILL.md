@@ -98,11 +98,12 @@ After create, run `pi-job loop` and arm your own `/loop` from that instruction (
 Use `pi-job loop --type NAME` for another exact, profile-defined loop packet.
 Use `pi-job loop --type tutor` for read-only session tutoring against the active working directory.
 
-Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
+Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome.
+Spawn a slice window with `pi-job --task SLUG boot --slice KEY --owner ID`, which resolves the worker packet and appends store context.
 Packet bodies live in profile `loop_packets`.
 Read them with those commands.
 Add `--oneline` when you inject a packet with `tmux send-keys`, which submits at every newline.
-Do not restate them here.
+Do not restate them here, and do not hand-write a boot prompt.
 Classic single-session pick-next loop stays unchanged when no fleet is in use.
 
 ## Orchestrator loop

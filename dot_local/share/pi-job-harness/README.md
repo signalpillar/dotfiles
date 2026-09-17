@@ -59,6 +59,7 @@ Given a YAML task file and `profile.yaml`, it can:
 - `loop` - print a named `loop_packets` entry with its profile sections, without `--task`
   `loop` selects `manager`; `loop --worker` selects `worker`; `loop --type NAME` selects any exact profile key.
   `loop --oneline` collapses the packet to one physical line for terminal injectors that replay a newline as a prompt submit (`tmux send-keys`).
+- `boot --slice KEY --owner ID` - print the ready-to-inject worker prompt: the `worker` packet with `TASK` / `SLICE` / `OWNER` resolved, plus slice title, plan path, claimed step, and recorded worktrees. Refuses an unknown or terminal slice. Use it instead of a hand-written boot file.
 - `instruction` - emit a deterministic packet for the claim's derived active step (pick-next when exhausted; blocked slice is not pick-next)
 - `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
@@ -96,9 +97,10 @@ Named loop packets live in `profile.yaml`; the harness contains no scheduler or 
 - **Manager:** run `pi-job loop` and arm `/loop` from that text. Watch Ready slices, keep a tmux session of worker windows, spawn/recover windows, inject worker boot. Do not execute slice steps in the manager session.
   Window lifecycle, inbox drain, and worker triage live in `loop_packets.manager`.
   Read them with `pi-job loop`. Do not restate them here.
-- **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice.
+- **Slice worker:** each window starts from `pi-job --task <slug> boot --slice KEY --owner ID`, which resolves the packet placeholders and appends store context. Bound to one owner and one slice.
   Exhaustion, messaging, and recording rules live in `loop_packets.worker`.
   Read them with `pi-job loop --worker`. Do not restate them here.
+  Do not hand-write a boot prompt: a copied slice goal or worktree drifts from the store, and per-slice constraints belong in the slice plan must-not.
 - **Tutor:** run `pi-job loop --type tutor` through the host loop every ten minutes during the active session.
   Packet body lives in `loop_packets.tutor`.
 

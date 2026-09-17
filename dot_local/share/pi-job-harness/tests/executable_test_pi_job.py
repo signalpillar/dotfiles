@@ -9603,6 +9603,80 @@ def test_loop_keeps_profile_sections_and_oneline_collapses_them() -> None:
         assert len(collapsed.splitlines()) == 1
 
 
+def test_boot_resolves_worker_placeholders_and_store_context() -> None:
+    """boot replaces the hand-written worker prompt: no bare tokens, context from the store."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "boot.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        out = run(str(PI_JOB), "--task", str(task), "boot", "--slice", "second-slice", "--owner", "w1").stdout
+        assert_not_contains(out, "SCOPE: OWNER, SLICE, TASK")
+        assert_not_contains(out, "--to slice:SLICE")
+        assert_not_contains(out, "instruction --owner OWNER")
+        assert_contains(out, "--owner w1")
+        assert_contains(out, "slice:second-slice")
+        assert_contains(out, "- Slice plan (must-not and verification live here):")
+        assert_contains(out, "plans/second-slice.md")
+        collapsed = run(
+            str(PI_JOB), "--task", str(task), "boot",
+            "--slice", "second-slice", "--owner", "w1", "--oneline",
+        ).stdout.rstrip("\n")
+        assert len(collapsed.splitlines()) == 1
+
+
+def test_boot_reports_worktree_and_missing_claim() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "boot-claim.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        unclaimed = run(str(PI_JOB), "--task", str(task), "boot", "--slice", "second-slice", "--owner", "w1").stdout
+        assert_contains(unclaimed, "No claim yet: pi-job --task")
+        assert_contains(unclaimed, "claim --slice second-slice --owner w1")
+        run(str(PI_JOB), "--task", str(task), "claim", "--slice", "second-slice", "--owner", "w1")
+        run(
+            str(PI_JOB), "--task", str(task), "set-worktree",
+            "--slice", "second-slice", "--repo", "demo", "--path", "/tmp/demo-worktree",
+        )
+        claimed = run(str(PI_JOB), "--task", str(task), "boot", "--slice", "second-slice", "--owner", "w1").stdout
+        assert_contains(claimed, "- Claimed step: ")
+        assert_not_contains(claimed, "No claim yet")
+        assert_contains(claimed, "- Worktree[demo]: /tmp/demo-worktree")
+
+
+def test_boot_refuses_unknown_and_terminal_slice() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "boot-guard.yaml"
+        write_task_yaml(task, standard_fixture_mapping())
+        unknown = run(
+            str(PI_JOB), "--task", str(task), "boot",
+            "--slice", "nope", "--owner", "w1", check=False,
+        )
+        assert unknown.returncode != 0
+        assert_contains(unknown.stderr, "unknown slice 'nope'")
+        terminal = run(
+            str(PI_JOB), "--task", str(task), "boot",
+            "--slice", "first", "--owner", "w1", check=False,
+        )
+        assert terminal.returncode != 0
+        assert_contains(terminal.stderr, "boot a non-terminal slice instead")
+
+
+def test_boot_requires_task() -> None:
+    missing = run(str(PI_JOB), "boot", "--slice", "second-slice", "--owner", "w1", check=False)
+    assert missing.returncode != 0
+    assert_contains(missing.stderr, "--task is required for `pi-job boot`")
+
+
+def test_substitute_boot_placeholders_keeps_compound_tokens() -> None:
+    """Word-boundary substitution must not corrupt SLICE_KEY or TASK-orchestrators."""
+    module = load_pi_job_module()
+    out = module.substitute_boot_placeholders(
+        "OWNER on SLICE in TASK; keep SLICE_KEY and TASK-orchestrators",
+        task="t1",
+        slice_key="s1",
+        owner="o1",
+    )
+    assert out == "o1 on s1 in t1; keep SLICE_KEY and TASK-orchestrators"
+
+
 def test_loop_type_selects_named_packets() -> None:
     module = load_pi_job_module()
     manager = run(str(PI_JOB), "loop").stdout
@@ -10811,6 +10885,11 @@ def main() -> None:
     test_loop_command_prints_heartbeat_without_task()
     test_loop_worker_prints_slice_worker_boot()
     test_loop_keeps_profile_sections_and_oneline_collapses_them()
+    test_boot_resolves_worker_placeholders_and_store_context()
+    test_boot_reports_worktree_and_missing_claim()
+    test_boot_refuses_unknown_and_terminal_slice()
+    test_boot_requires_task()
+    test_substitute_boot_placeholders_keeps_compound_tokens()
     test_loop_type_selects_named_packets()
     test_loop_selection_is_data_driven()
     test_profile_json_exposes_named_loop_packets()
