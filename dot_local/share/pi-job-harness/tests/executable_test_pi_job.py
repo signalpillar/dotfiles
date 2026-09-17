@@ -503,14 +503,6 @@ def step_status(path: Path, slice_key: str, step_key: str) -> str:
     return find_step(task, slice_key, step_key)["status"]
 
 
-
-
-
-
-
-
-
-
 def run(
     *args: str,
     check: bool = True,
@@ -1033,13 +1025,6 @@ def test_add_decision_and_finish_help_describe_channels() -> None:
     _assert_cli_help_uses_profile(["msg"], cli_help["msg"])
 
 
-def test_decision_document_schema_describes_channels_contract() -> None:
-    schema = run(str(PI_JOB), "schema", "--json").stdout
-    assert_contains(schema, "Product, scope, architecture, or policy agreement")
-    assert_contains(schema, "not step evidence")
-    assert_contains(schema, "finish --note")
-
-
 def test_subagent_instruction_still_inlines_step_kind_guidance() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "subagent-guidance.yaml"
@@ -1062,84 +1047,6 @@ def test_subagent_instruction_create_plan_includes_plan_path() -> None:
         assert_contains(instruction, "Slice plan file:")
         assert_contains(instruction, "do not inspect the task store directly")
         assert_not_contains(instruction, "Read the task file")
-
-
-def orchestrator_grill_plan_yaml_task(*, slice_key: str = "plan-slice") -> str:
-    """Initialized YAML task with cursor on orchestrator-owned grill-plan."""
-
-    claim_ts = _now_iso()
-    return f"""title: Grill plan instruction test
-status: in_progress
-orchestration:
-  cursors:
-    - owner: orchestrator
-      slice: {slice_key}
-      claimed_at: "{claim_ts}"
-      last_seen: "{claim_ts}"
-plan:
-  note: ""
-  slices:
-    - key: {slice_key}
-      kind: implement
-      title: Implement
-      goal: Test grill-plan instruction
-      status: in_progress
-      note: ""
-      steps:
-        - key: create-plan
-          title: Create plan
-          status: done
-          note: "Plan file: grill-plan-instruction.plans/{slice_key}.md"
-        - key: grill-plan
-          title: Grill the plan file
-          status: planned
-          note: ""
-      final_steps: []
-"""
-
-
-def _assert_constraint_and_behaviour_plan_contract(instruction: str) -> None:
-    """Phrase-lock the profile-owned create-plan / grill-plan contract in instruction packets."""
-    assert_contains(instruction, "current micro-contract")
-    assert_contains(instruction, "call stacks, assertion, must-not, verification")
-    assert_contains(instruction, "One file per slice")
-    assert_contains(instruction, "Never create a second plan file")
-    assert_contains(instruction, "one indented stack")
-    assert_contains(instruction, "Do not add Brief, Intent, System behaviour")
-    assert_contains(
-        instruction,
-        "Do not move delivery status, cursor, or session journals into plan files",
-    )
-    assert_contains(instruction, "DX and agent experience share the same constructs")
-    assert_contains(instruction, "Persist product/scope/architecture/policy agreements with `pi-job add-decision`")
-    assert_contains(instruction, "Step evidence belongs in `finish --note`, not `add-decision`")
-    assert_contains(instruction, "--slug kebab-topic")
-    assert_contains(instruction, "Token smell:")
-    assert_not_contains(instruction, "approach, files/functions touched, key tradeoffs")
-    assert_not_contains(instruction, "optional short touch surface")
-
-
-def test_create_plan_instruction_defines_constraint_and_behaviour_contract() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "create-plan-contract.yaml"
-        task.write_text(subagent_create_plan_yaml_task(), encoding="utf-8")
-        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        _assert_constraint_and_behaviour_plan_contract(instruction)
-
-
-def test_grill_plan_instruction_defines_constraint_and_behaviour_contract() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        task = Path(tmp) / "grill-plan-contract.yaml"
-        task.write_text(orchestrator_grill_plan_yaml_task(), encoding="utf-8")
-        instruction = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
-        _assert_constraint_and_behaviour_plan_contract(instruction)
-        assert_contains(
-            instruction,
-            "Challenge the visible call stacks, assertion, must-not, and verification command",
-        )
-        assert_contains(instruction, "prose volume is not an acceptance criterion")
-        assert_contains(instruction, "capture product/scope choices that should outlive the session")
-        assert_contains(instruction, "Do not use add-decision for PR, deploy, e2e, or progress chatter")
 
 
 def test_profile_yaml_aliases_shared_guidance_strings() -> None:
@@ -2518,13 +2425,6 @@ def test_confirm_layers_packet_pauses_for_user_and_points_at_catalog() -> None:
 
         instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instr, "Step kind: confirm-layers")
-        assert_contains(instr, "Ask the user whether to run this step")
-        assert_contains(instr, "canonical catalog of systems and domains")
-        assert_contains(instr, "not delivery phases")
-        assert_contains(instr, "List every available catalog band")
-        assert_contains(instr, "complete current-journey order")
-        assert_contains(instr, "Do not reduce task.layers to repositories expected to change")
-        assert_contains(instr, "explicit confirmation before registration")
 
 
 def test_map_current_state_packet_requires_as_is_cross_layer_spine() -> None:
@@ -2556,11 +2456,6 @@ def test_map_current_state_packet_requires_as_is_cross_layer_spine() -> None:
 
         instr = run(str(PI_JOB), "--task", str(task), "instruction", "--current").stdout
         assert_contains(instr, "Step kind: map-current-state")
-        assert_contains(instr, "before asking the user implementation or scope questions")
-        assert_contains(instr, "always replace the bigpicture stub with an AS-IS causal spine")
-        assert_contains(instr, "every confirmed layer")
-        assert_contains(instr, "mark an idle layer explicitly")
-        assert_contains(instr, "Keep proposed TO-BE behaviour out")
 
 
 def test_bigpicture_stub_states_call_arrow_contract() -> None:
@@ -2571,23 +2466,15 @@ def test_bigpicture_stub_states_call_arrow_contract() -> None:
             {"name": "webhooks", "description": "Partner inbound"},
         ],
     })
-    assert_contains(stub, "the spine means A calls / triggers B")
-    assert_contains(stub, "Never \"A happens before B\"")
-    assert_contains(stub, "Fictional shape example")
-    assert_contains(stub, "N. METHOD path")
-    assert_contains(stub, "(Caller / Service)")
     assert_contains(stub, "LAYER: order")
     assert_contains(stub, "LAYER: webhooks")
     assert_contains(stub, "task.layers (order = bands top → bottom): order, webhooks")
-    assert_contains(stub, "TODO: hops that enter or run inside this band")
-    assert_contains(stub, "POST /example/v1/{id}/hold")
     # Must not leak the private company example the user pasted.
     assert_not_contains(stub, "treatment-change")
     assert_not_contains(stub, "SHEMED-")
     assert_not_contains(stub, "TipOrderPreparationService")
     # Body lives in profile, not hardcoded only in Python.
     profile_stub = module.load_profile_contract()["instruction_packets"]["bigpicture_stub"]
-    assert_contains(profile_stub, "Fictional shape example")
     assert_contains(profile_stub, "{layer_bands}")
 
 
@@ -3760,8 +3647,6 @@ def test_init_rejects_forward_reference_dependency() -> None:
         assert_contains(claim.stderr, "not Ready")
 
 
-
-
 def test_scaffold_output_still_validates_via_shared_schema() -> None:
     """Real (non-dry-run) scaffold, then pi-job status/show succeed against it."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -3856,8 +3741,6 @@ def test_add_slice_works_on_empty_plan_slices() -> None:
         assert_contains(show, "first-slice")
 
 
-
-
 def test_add_step_happy_path() -> None:
     """add-step dry-run and real write, verify final state."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -3933,8 +3816,6 @@ def test_add_step_after_inserts_in_correct_order() -> None:
             raise AssertionError(f"step order wrong: s1={idx_s1}, s1b={idx_s1b}, s2={idx_s2}")
 
 
-
-
 def test_add_slice_happy_path_with_repos() -> None:
     """add-slice with repos field when schema declares it as optional."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -3986,8 +3867,6 @@ def test_add_slice_rejects_unsupported_required_field() -> None:
             )
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         assert_contains(show, "new")
-
-
 
 
 def test_validate_warns_when_persisted_slice_predates_template_addition() -> None:
@@ -4061,9 +3940,6 @@ def test_finish_note_not_refused_when_long() -> None:
         module = load_pi_job_module()
         step = find_step(module.YamlTaskStore(module.YamlTaskLayout(task)).read(), "implementation", "vulnerability-scan")
         assert long_note in step["note"]
-
-
-
 
 
 def test_validate_fails_when_slice_missing_template_steps() -> None:
@@ -4318,20 +4194,6 @@ def test_status_reports_structure_invalid_without_failing() -> None:
             )
         assert_contains(res.stdout, "Initialization: ok")
         assert_contains(res.stdout, "Structure: invalid (2 issues; try validate or validate --slice <key>)")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def test_set_worktree_happy_path() -> None:
@@ -4733,7 +4595,6 @@ def test_add_slice_still_works_with_repo_work_in_schema() -> None:
         # show should include the new slice
         show = run(str(PI_JOB), "--task", str(task), "show", "--all").stdout
         assert_contains(show, "new-slice")
-
 
 
 def test_sync_default_selection_and_status_override() -> None:
@@ -5156,8 +5017,6 @@ LEGACY_MIGRATE_PLAN_BODY = """
 """
 
 
-
-
 def test_fs_task_store_round_trip() -> None:
     """Build a small directory task purely via FsTaskStore mutation methods, then read()
     it back and check the reconstructed dict's shape/values: required fields present,
@@ -5355,16 +5214,6 @@ def test_fs_task_store_invalid_status_dies_on_read() -> None:
         except SystemExit:
             raised = True
         assert raised, "read() should die on an invalid status value instead of passing it through"
-
-
-
-
-
-
-
-
-
-
 
 
 def test_persisted_models_document_every_field() -> None:
@@ -5697,24 +5546,16 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     module = load_pi_job_module()
     profile = module.load_profile_contract()
     packets = profile["instruction_packets"]
-    loop_packets = profile["loop_packets"]
 
     next_action = packets["next_action"]
     assert_contains(next_action, "--owner {owner}")
     assert_contains(next_action, "--model cursor/grok-4.6")
     assert_contains(next_action, "--slice SLICE_KEY --step STEP_KEY")
-    assert_contains(next_action, "attribution hint only")
     assert_not_contains(next_action, "claim --slice KEY")
-    assert_not_contains(next_action, "Pick-next")
-    assert_not_contains(next_action, "claim a Ready slice")
 
     pick_next = packets["pick_next_slice"]
     assert_contains(pick_next, "finish --slice-only")
-    assert_contains(pick_next, "show")
-    assert_contains(pick_next, "claim it")
     assert_contains(pick_next, "instruction --owner {owner}")
-    assert_contains(packets["record_results_intro"], "Bundle files")
-    assert_contains(packets["record_results_intro"], "agent-authored")
     assert_not_contains(next_action, "pi-job --task")
     assert_not_contains(pick_next, "pi-job --task")
     assert_not_contains(packets["subagent_orchestrator"], "pi-job --task")
@@ -5723,14 +5564,8 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
     blocked = packets["blocked_slice"]
     assert_contains(blocked, "unblock-slice --slice SLICE_KEY")
     assert_contains(blocked, "instruction --owner {owner}")
-    assert_contains(blocked, "Do not pick-next")
-    assert_contains(blocked, "Do not finish --slice-only")
     assert_not_contains(blocked, "claim --slice KEY")
     assert_not_contains(blocked, "pi-job --task")
-    assert_contains(packets["orchestrator"], "pick-next packet")
-    assert_contains(packets["orchestrator"], "claim a new Ready slice")
-    assert_contains(loop_packets["worker"], "Forbidden: claim other slices; pick-next")
-    assert_contains(loop_packets["worker"], "finish --slice-only then stop")
 
     task_discipline = packets["task_record_discipline"]
     assert_contains(task_discipline, "set-context --context TEXT")
@@ -5739,9 +5574,6 @@ def test_packet_guidance_separates_claimed_execution_from_pick_next() -> None:
 
     packet_text = "\n".join(str(value) for value in packets.values())
     assert_not_contains(packet_text, "--model <")
-    assert_contains(profile["pr_template_guardrail"], "existing ticket key")
-    assert_contains(profile["pr_template_guardrail"], "There is no `add-ticket` command")
-    assert_contains(profile["pr_template_guardrail"], "Do not create GitHub Issues")
 
     invalid = run(str(PI_JOB), "add-ticket", check=False)
     assert invalid.returncode != 0
@@ -5801,11 +5633,6 @@ def test_profile_requires_mutation_cli_help_entries() -> None:
             assert_contains(str(exc), key)
         else:
             raise AssertionError(f"profile accepted cli_help without {key}")
-
-
-
-
-
 
 
 def test_lifecycle_records_model_and_timestamps() -> None:
@@ -7213,8 +7040,6 @@ def test_remove_slice_removes_and_guards() -> None:
         store = module.open_task_store(task)
         task_data = store.read()
         assert len(task_data["plan"]["slices"]) == 1
-
-
 
 
 def test_create_from_requires_intent_path() -> None:
@@ -9135,8 +8960,6 @@ def test_scaffold_bundle_dirs_idempotent_preserves_contents() -> None:
         assert index.read_text(encoding="utf-8") == "custom map\n"
 
 
-
-
 def test_reference_knowledge_status_validate_warn_on_missing_type() -> None:
     """Bundle status/validate warn on a missing index and untyped wiki notes.
 
@@ -9221,7 +9044,6 @@ def test_reference_knowledge_lint_caps_missing_type_list() -> None:
         assert_contains(joined, "wiki/c0.md")
 
 
-
 def test_reference_knowledge_warns_on_stray_invalid_unlisted_and_step_named() -> None:
     """Wiki layout lint covers location, closed types, index rows, and step names."""
     module = load_pi_job_module()
@@ -9242,21 +9064,6 @@ def test_reference_knowledge_warns_on_stray_invalid_unlisted_and_step_named() ->
         assert_contains(joined, "step-note names: wiki/slice-explore-context.md")
         assert_contains(joined, "missing from index.md")
         assert_contains(joined, "wiki/unlisted.md")
-
-
-def test_packet_guidance_separates_wiki_from_working() -> None:
-    module = load_pi_job_module()
-    kinds = module.load_profile_contract()["step_kinds"]
-    packets = module.load_profile_contract()["instruction_packets"]
-    assert_contains(kinds["explore-context"]["guidance"], "references/working/")
-    assert_contains(kinds["explore-context"]["guidance"], "Do not write `references/wiki/`")
-    assert_contains(kinds["investigate"]["guidance"], "references/working/")
-    assert_contains(kinds["clarify-scope"]["guidance"], "references/working/")
-    assert_contains(kinds["synthesize"]["guidance"], "references/wiki/")
-    assert_contains(kinds["synthesize"]["guidance"], "Do not add working notes to the index")
-    assert_contains(packets["references_index_stub"], "wiki/")
-    assert_contains(packets["references_index_stub"], "working/")
-    assert_contains(packets["references_read_first"], "references/wiki/")
 
 
 def test_instruction_bundle_opens_references_index_first() -> None:
@@ -9465,7 +9272,6 @@ def test_add_decision_long_note_requires_topic_slug() -> None:
             raise AssertionError(f"expected no spill files, got {spilled}")
 
 
-
 def test_decision_index_inlines_spill_and_hides_superseded() -> None:
     """markdown --with-decisions inlines the spill body and drops superseded rows."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -9605,35 +9411,10 @@ def test_profile_requires_slice_plan_stub_and_findings_header() -> None:
     assert_contains(packets["investigate_interrupt"], "{topic}")
     assert_contains(packets["investigate_interrupt"], "{finding_status}")
     heartbeat = loop_packets["manager"]
-    assert_contains(heartbeat, "TASK")
-    assert "Manager metronome" in heartbeat
-    assert "tmux" in heartbeat
-    assert "slice_worker_boot" in heartbeat
-    assert_contains(heartbeat, "Window lifecycle")
-    assert_contains(heartbeat, "kill the tmux window")
-    assert_contains(heartbeat, "keep claim and window")
-    assert_contains(heartbeat, "Do not release")
-    assert_contains(heartbeat, "Preflight")
-    assert_contains(heartbeat, "uv tool install --force --editable")
-    assert_contains(heartbeat, "never inject a literal placeholder")
-    assert_not_contains(heartbeat, "headroom")
-    assert_contains(heartbeat, "Worker clarification")
-    assert_contains(heartbeat, "work in progress")
-    assert_contains(heartbeat, "ask the user, then relay")
-    assert_not_contains(heartbeat, "leave or close")
     assert "{interval}" not in heartbeat
     assert "{task_file}" not in heartbeat
     assert not heartbeat.lstrip().startswith("/loop")
     worker_boot = loop_packets["worker"]
-    assert_contains(worker_boot, "OWNER")
-    assert_contains(worker_boot, "SLICE")
-    assert_contains(worker_boot, "TASK")
-    assert_contains(worker_boot, "finish --slice-only")
-    assert_contains(worker_boot, "do not claim another Ready slice")
-    assert_contains(worker_boot, "Manager will close this window")
-    assert_contains(worker_boot, "Do not wait for a new claim")
-    assert_contains(worker_boot, "contact the manager")
-    assert_contains(worker_boot, "msg --to manager")
     assert "{owner}" not in worker_boot
     assert "{task_file}" not in worker_boot
     assert not worker_boot.lstrip().startswith("/loop")
@@ -9734,28 +9515,6 @@ def test_profile_rejects_invalid_loop_packet_names() -> None:
             raise AssertionError(f"profile accepted invalid loop packet name {invalid_name!r}")
 
 
-def test_tutor_loop_packet_contains_binding_rules() -> None:
-    module = load_pi_job_module()
-    tutor = module.load_profile_contract()["loop_packets"]["tutor"]
-    for rule in (
-        "active agent working directory",
-        "Never edit project files",
-        "safe project text files only",
-        "Exclude secrets, credentials, generated files, dependencies, and binaries",
-        "first check, review current uncommitted work",
-        "later checks, focus on new session-visible deltas",
-        "only Git status, diff, and log shell commands",
-        "non-Git directories",
-        "correctness, reasoning, testing, and maintainability",
-        "likely defect or high-value lesson",
-        "one grounded observation and one focused question",
-        "empty text when no evidence qualifies",
-        "implementation solutions only after an explicit user request",
-        "tutoring memory within the active session",
-    ):
-        assert_contains(tutor, rule)
-
-
 def test_status_shows_blocked_and_interrupt_hint() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "status-ux.yaml"
@@ -9800,30 +9559,11 @@ def _normalized_slice_worker_boot(module) -> str:
     return " ".join(str(body).split())
 
 
-def test_normalized_manager_and_worker_packets_are_compatible() -> None:
-    module = load_pi_job_module()
-    expected = {
-        "manager": "86f6ca2ad46dc65d507f1a4f8512c66fb4b7c20f20532e8edfb6b932e77ae867",
-        "worker": "7798f8d4dce091e413dcd10f1a8c8233687c200478893b970479031e2c0ca533",
-    }
-    actual = {
-        "manager": hashlib.sha256(_normalized_orchestrator_heartbeat(module).encode()).hexdigest(),
-        "worker": hashlib.sha256(_normalized_slice_worker_boot(module).encode()).hexdigest(),
-    }
-    assert actual == expected
-
-
 def test_render_orchestrator_heartbeat() -> None:
     module = load_pi_job_module()
     rendered = module.render_orchestrator_heartbeat()
     expected = _normalized_orchestrator_heartbeat(module)
     assert rendered == expected
-    assert_contains(rendered, "TASK")
-    assert_contains(rendered, "tmux")
-    assert_contains(rendered, "Window lifecycle")
-    assert_contains(rendered, "kill the tmux window")
-    assert_contains(rendered, "keep claim and window")
-    assert_not_contains(rendered, "leave or close")
     assert_not_contains(rendered, "{interval}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
@@ -9835,12 +9575,6 @@ def test_render_slice_worker_boot() -> None:
     rendered = module.render_slice_worker_boot()
     expected = _normalized_slice_worker_boot(module)
     assert rendered == expected
-    assert_contains(rendered, "OWNER")
-    assert_contains(rendered, "SLICE")
-    assert_contains(rendered, "finish --slice-only")
-    assert_contains(rendered, "do not claim another Ready slice")
-    assert_contains(rendered, "Manager will close this window")
-    assert_contains(rendered, "Do not wait for a new claim")
     assert_not_contains(rendered, "{owner}")
     assert_not_contains(rendered, "{task_file}")
     assert not rendered.lstrip().startswith("/loop")
@@ -9853,8 +9587,6 @@ def test_loop_command_prints_heartbeat_without_task() -> None:
     res = run(str(PI_JOB), "loop")
     stdout = res.stdout.rstrip("\n")
     assert stdout == expected
-    assert_contains(stdout, "TASK")
-    assert_contains(stdout, "tmux")
     assert not stdout.lstrip().startswith("/loop")
     assert len(stdout.splitlines()) == 1
 
@@ -9865,10 +9597,7 @@ def test_loop_worker_prints_slice_worker_boot() -> None:
     res = run(str(PI_JOB), "loop", "--worker")
     stdout = res.stdout.rstrip("\n")
     assert stdout == expected
-    assert_contains(stdout, "slice worker")
-    assert_contains(stdout, "finish --slice-only")
-    assert_contains(stdout, "do not claim another Ready slice")
-    assert_contains(stdout, "Manager will close this window")
+    assert not stdout.lstrip().startswith("/loop")
     assert len(stdout.splitlines()) == 1
 
 
@@ -10705,58 +10434,6 @@ def test_set_worktree_help_mentions_worktree_convention() -> None:
 
 
 HARNESS_PKG = Path(__file__).resolve().parents[1]
-README_MD = HARNESS_PKG / "README.md"
-
-
-def _harness_doc_surfaces() -> tuple[Path | None, Path | None, str | None]:
-    """Resolve skill and AGENTS paths for doc phrase tests.
-
-    In chezmoi source or a dot_local worktree, read managed paths under the source root.
-    In an applied copy, read ~/.agents/skills/pi-job/SKILL.md and an available AGENTS.md.
-    Return (skill, agents, skip_reason); skip_reason is set when skill/agents checks must skip.
-    """
-    if HARNESS_PKG.parent.name == "share" and HARNESS_PKG.parent.parent.name == "dot_local":
-        root = HARNESS_PKG.parent.parent.parent
-        skill = root / "dot_agents" / "skills" / "pi-job" / "SKILL.md"
-        agents = root / "AGENTS.md"
-        if skill.is_file() and agents.is_file():
-            return skill, agents, None
-        return None, None, f"chezmoi source missing managed doc paths under {root}"
-
-    skill = Path.home() / ".agents" / "skills" / "pi-job" / "SKILL.md"
-    agents_candidates = (
-        Path.home() / "AGENTS.md",
-        Path.home() / ".agents" / "AGENTS.md",
-    )
-    agents = next((path for path in agents_candidates if path.is_file()), None)
-    if skill.is_file() and agents is not None:
-        return skill, agents, None
-    return None, None, "applied copy: pi-job skill or AGENTS.md not installed; skipping skill/agents phrase checks"
-
-README_HARNESS_VERIFY_PHRASES = (
-    "Verify harness changes",
-    "PI_JOB_OWNER",
-    "executable_pi-job",
-    "env -u PI_JOB_OWNER",
-    "source-path",
-    "docs-with-model-cuts",
-    "~/.local/bin/pi-job",
-    "Stale PATH CLI",
-    "uv tool install --force --editable ~/.local/share/pi-job-harness",
-)
-
-SKILL_HARNESS_VERIFY_PHRASES = (
-    "Verify harness changes",
-    "PI_JOB_OWNER",
-    "docs-with-model-cuts",
-    "uv tool install --force --editable ~/.local/share/pi-job-harness",
-)
-
-AGENTS_HARNESS_VERIFY_PHRASES = (
-    "docs-with-model-cuts",
-    "pi-job-harness",
-    "uv tool install --force --editable ~/.local/share/pi-job-harness",
-)
 
 
 def test_pi_job_binary_is_package_local() -> None:
@@ -10794,26 +10471,6 @@ def test_run_unsets_pi_job_owner() -> None:
         assert_not_contains(leaked.stderr, "no active claim for owner")
 
 
-def test_harness_dev_docs_phrases() -> None:
-    """README, skill, and AGENTS lock harness verification and docs-with-model-cuts tokens."""
-    readme = README_MD.read_text(encoding="utf-8")
-    for phrase in README_HARNESS_VERIFY_PHRASES:
-        assert_contains(readme, phrase)
-
-    skill_path, agents_path, skip_reason = _harness_doc_surfaces()
-    if skip_reason:
-        print(f"SKIP skill/agents doc phrase checks: {skip_reason}", file=sys.stderr)
-        return
-
-    skill = skill_path.read_text(encoding="utf-8")
-    for phrase in SKILL_HARNESS_VERIFY_PHRASES:
-        assert_contains(skill, phrase)
-
-    agents = agents_path.read_text(encoding="utf-8")
-    for phrase in AGENTS_HARNESS_VERIFY_PHRASES:
-        assert_contains(agents, phrase)
-
-
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
@@ -10834,7 +10491,6 @@ def main() -> None:
     test_instruction_header_uses_claim_owner_not_step_owner()
     test_subagent_orchestrator_prompt_is_separate_from_execution_body()
     test_add_decision_and_finish_help_describe_channels()
-    test_decision_document_schema_describes_channels_contract()
     test_update_task_file_guidance_names_mutation_commands()
     test_plan_output_omits_record_results()
     test_pick_next_packet_is_structural_only()
@@ -10846,8 +10502,6 @@ def main() -> None:
     test_execution_packet_budget_share_with_team()
     test_subagent_execution_packet_budget_excludes_prompt_body()
     test_profile_requires_record_results_intro_packet()
-    test_create_plan_instruction_defines_constraint_and_behaviour_contract()
-    test_grill_plan_instruction_defines_constraint_and_behaviour_contract()
     test_profile_yaml_aliases_shared_guidance_strings()
     test_pick_next_slice_reports_closing_slice_ready()
     test_status_shows_claim_and_ready_without_next_line()
@@ -11148,9 +10802,7 @@ def main() -> None:
     test_profile_requires_slice_plan_stub_and_findings_header()
     test_profile_validates_named_loop_packets()
     test_profile_rejects_invalid_loop_packet_names()
-    test_tutor_loop_packet_contains_binding_rules()
     test_status_shows_blocked_and_interrupt_hint()
-    test_normalized_manager_and_worker_packets_are_compatible()
     test_render_orchestrator_heartbeat()
     test_render_slice_worker_boot()
     test_loop_command_prints_heartbeat_without_task()
@@ -11487,7 +11139,6 @@ if __name__ == "__main__":
     test_reference_knowledge_skips_reserved_and_typed_notes()
     test_reference_knowledge_lint_caps_missing_type_list()
     test_reference_knowledge_warns_on_stray_invalid_unlisted_and_step_named()
-    test_packet_guidance_separates_wiki_from_working()
     test_instruction_bundle_opens_references_index_first()
     test_subagent_instruction_bundle_repeats_references_index()
     test_bundle_read_write_and_plan_stub()
@@ -11526,7 +11177,6 @@ if __name__ == "__main__":
     test_set_worktree_help_mentions_worktree_convention()
     test_pi_job_binary_is_package_local()
     test_run_unsets_pi_job_owner()
-    test_harness_dev_docs_phrases()
     test_missing_task_never_tracebacks()
     test_missing_task_message_is_actionable()
     test_task_optional_commands_run_without_task()

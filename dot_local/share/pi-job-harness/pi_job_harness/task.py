@@ -59,14 +59,15 @@ class StepDocument(StrictDocument):
 
 
 class DecisionDocument(StrictDocument):
-    """Product/scope decision that later sessions must honor without re-grilling."""
+    """Task-goal product/scope decision that another slice must honor without this slice plan or code."""
 
     date: str = Field(description="Decision date, normally formatted as YYYY-MM-DD.")
     note: str = Field(
         description=(
-            "Product, scope, architecture, or policy agreement - one-line claim. "
+            "Task-goal product, scope, or policy claim that a worker on a different "
+            "slice needs without this slice plan or code. "
             "The body lives in `path` when set. Legacy rows may still hold the full "
-            "note or a `Plan file:` pointer. Not step evidence "
+            "note or a `Plan file:` pointer. Not slice-local code or step evidence "
             "(use finish --note for e2e, PR, deploy, or progress)."
         )
     )

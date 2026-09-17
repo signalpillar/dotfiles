@@ -93,25 +93,13 @@ This supersedes any default workspace role such as Product Owner.
 Named loop packets live in `profile.yaml`; the harness contains no scheduler or tmux spawn code.
 
 - **Manager:** run `pi-job loop` and arm `/loop` from that text. Watch Ready slices, keep a tmux session of worker windows, spawn/recover windows, inject worker boot. Do not execute slice steps in the manager session.
-  Close vs keep (authoritative wording is `loop_packets.manager`):
-  - Slice done or skipped: release remaining claim, kill the worker window, drop the map row. Do not ask.
-  - Slice not terminal (`in_progress`, parked on grill/clarify, or blocked): keep claim and window. Do not release.
-  - Ready and unowned: spawn, inject `pi-job loop --worker`, add the map row.
-  - Dead pane with a live claim on a non-terminal slice: recover the same owner/slice.
-
-  Read the manager mailbox first.
-  Answer worker clarification from work in progress, or ask the user and relay.
-  Worker triage then classifies each live claim as stalled, waiting on user, waiting on external, or working.
-  `pane_current_command` is not liveness: a crashed agent keeps the agent process.
-  Recover stalled workers, quote a waiting question to the user, live-check an external blocker, and leave working panes alone.
-- **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice. On slice exhaustion: `finish --slice-only` then stop. Do not wait for a new claim. The manager closes the window. Do not pick-next or claim other slices.
-  When a worker needs a fact about other slices, recorded decisions, or fleet WIP, it contacts the manager with `msg --to manager`.
-  The manager answers from work-in-progress evidence.
-  When that evidence does not answer, the manager asks the user and relays the answer.
-  Do not treat that mailbox question as Waiting on user.
+  Window lifecycle, inbox drain, and worker triage live in `loop_packets.manager`.
+  Read them with `pi-job loop`. Do not restate them here.
+- **Slice worker:** each window starts from `pi-job loop --worker` (replace literal `OWNER` / `SLICE` / `TASK`). Bound to one owner and one slice.
+  Exhaustion, messaging, and recording rules live in `loop_packets.worker`.
+  Read them with `pi-job loop --worker`. Do not restate them here.
 - **Tutor:** run `pi-job loop --type tutor` through the host loop every ten minutes during the active session.
-  The packet performs read-only tutoring against the active working directory.
-  The packet keeps comparison memory in the session and returns text only for qualifying evidence.
+  Packet body lives in `loop_packets.tutor`.
 
 Classic `instruction` → pick-next stays valid when no fleet is in use.
 Execution packets print `Owner:` from the resolved claim.
@@ -240,19 +228,18 @@ They appear in `instruction` and `plan` for orchestrator self-check.
 - Session todos should track the slice/step plan from `plan`, not a separate profile phase list.
 - Prefer small context: `status` / `show --slice` / `markdown --slice` / `instruction` over loading the whole task file.
   Token smell: if a step needs a huge dump, shrink the contract or the slice.
-- Sibling slice plans are the current micro-contract (call stacks, assertion, must-not, verification).
-  One file per slice; revise in place. Never a second plan file.
-  Persist product/scope/architecture/policy agreements with `add-decision` (and/or the grilled plan), not only in chat.
-  Step evidence belongs in `finish --note`, not `add-decision`.
-  Full wording lives in profile `plan_and_grill_guardrail` (thin pointer only here).
+- Sibling slice plans, grill, and `add-decision` membership live in profile `plan_and_grill_guardrail`.
+  Do not restate that contract here.
 - Developer experience and agent experience share the same constructs: clear names, modular boundaries, and machine-readable contracts help both.
 
 ## Channels
 
 Authoritative channel rules live in `profile.yaml`
-(`instruction_packets.task_record_discipline`).
+(`record_channels.catalog` and `instruction_packets.task_record_discipline`).
 CLI help for `add-decision` / `finish --note` lives in `profile.yaml` `cli_help`
 (loaded into `--help`; do not hardcode those strings in Python).
+Read them with `pi-job channels` and `pi-job add-decision --help`.
+Do not restate those bodies here.
 
 Short examples:
 
@@ -262,11 +249,13 @@ Short examples:
 - Ship with temporary US CDN assets; UK-native assets blocked on uk-treatment-assets-commission before prod.
 - Spill a long rationale with `--slug pmos-careplan-eager-construct` so the file is `_decision-YYYY-MM-DD-pmos-careplan-eager-construct.md`.
 
-**Bad `add-decision` (use `finish --note` / `add-pr` instead)**
+**Bad `add-decision` (use the slice plan, wiki, code, `finish --note`, or `add-pr`)**
 
+- URL-only e2e harness on graphius-full-e2e-devuk-run.
+- Grill survived for graphius-pathways-reader.
+- Pin overlay to @emed-labs/weight-loss-programme-definitions-lib@9.25.0-next.1.
+- resolveHostProgrammeDefinition lives in src/pmos.
 - PR #3420 MERGED + deployed to dev-uk.
-- e2e passed for assetUrl on ConfirmMedication.
-- RESOLVED: folded mapping into SHEMED-2329.
 
 **Good `finish --note`**
 
@@ -505,7 +494,7 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> set-project --title T --key K --name N --route R --context C` - update `task.title` and/or merge into `task.project` (at least one flag required; `--title` must be non-empty; route/key checks run only when `--route` or `--key` is passed).
 - `pi-job --task <t> set-context --context TEXT` or `--file PATH` - replace `task.context`.
 - `pi-job --task <t> set-source [--jira J] [--discovered D] [--context C]` - merge into `task.source` (at least one flag required; omitted fields are preserved).
-- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN [--slug TOPIC]` - append a product/scope decision (not step evidence; use `finish --note` or `set-step-note`; date defaults to today UTC; source defaults to `pi-job add-decision`). YAML stores a one-line claim plus `path`. The body always writes `_decision-YYYY-MM-DD-<slug>.md`. Pass `--slug kebab-topic` on a long note; short notes derive a slug. Do not use a UTC timestamp as the slug. To supersede an earlier decision, append a new row whose note begins with `SUPERSEDES: YYYY-MM-DD (source) - …`; never edit or delete prior rows.
+- `pi-job --task <t> add-decision --date YYYY-MM-DD --note RATIONALE --source ORIGIN [--slug TOPIC]` - append a decision row. Flags, spill naming, and SUPERSEDES live in `profile.yaml` `cli_help.add_decision` (`pi-job add-decision --help`).
 - `pi-job --task <t> set-plan-note --note TEXT` - set `task.plan.note`.
 - `pi-job --task <t> acknowledge-edit --reason R` - refresh `orchestration.content_digest` after a legitimate hand-edit and append the reason to the current cursor slice note (YAML only; not a decision).
 - `pi-job --task <t> set-slice --slice K [--title T] [--goal G] [--depends-on D] [--clear-depends-on]` - update a YAML slice.
@@ -707,10 +696,7 @@ Catalog entries may include an `example` build instruction; follow it when writi
 **Setup slice** maps current behaviour before step `grill` interrogates overall task scope.
 
 **Implement and spike slices** must lead with `create-plan` then `grill-plan` before other work in that slice.
-Sibling plan files are the current micro-contract
-(call stacks, assertion, must-not, verification).
-One file per slice; revise in place.
-Full wording (required sections, grill axes, task-store boundary, naming, skip exception) lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
+Full wording lives in `plan_and_grill_guardrail` and the create-plan / grill-plan step guidance in `profile.yaml`.
 Do not restate that contract here.
 
 ## Charting foggy work: wayfinder
@@ -721,7 +707,7 @@ The map is the task file itself: `decisions` and slices, readable by any later s
 - `pi-job --task <t> wayfinder-context` - print the map reconstructed from the task file at the slice level (no step noise): the `DESTINATION` (`plan.note`), recorded `DECISIONS`, `IN PROGRESS / DONE` slices, the `FRONTIER` (planned slices whose dependencies are satisfied), and the `FOG` (planned slices still blocked, with their unmet dependencies).
   Read-only; reuses the same `is_actionable` logic as the Ready frontier.
 - The `wayfinder` step drives the wayfinder skill (installed separately), using this task file as its issue tracker; the pi-job skill's Wayfinder section holds the map-to-task-file mapping.
-  It loads the map with `wayfinder-context`, spawns as many subagents as needed to resolve unknowns (research the world, prototype to see, grill the user), records scope/architecture resolutions with `add-decision` (not PR/e2e/deploy chatter), and grows the plan with `add-slice`.
+  It loads the map with `wayfinder-context`, spawns as many subagents as needed to resolve unknowns (research the world, prototype to see, grill the user), records task-goal resolutions with `add-decision` (membership in `plan_and_grill_guardrail`), and grows the plan with `add-slice`.
   It creates `fog` slices for areas still too foggy or decidable only after other work, and implement/research/spike slices for work now clear.
 - A `fog` slice (`clarify-scope → wayfinder → plan-slices`) is a deferred decision-branch, scheduled by `depends_on` so it is charted only once its prerequisites land.
   Its `wayfinder` step recurses, so charting one area can spawn further fog slices for its sub-fog.

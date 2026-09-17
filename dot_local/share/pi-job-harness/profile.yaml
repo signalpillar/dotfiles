@@ -276,8 +276,11 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       Do not move delivery status, cursor, or session journals into plan files
       (pi-job store owns those).
       DX and agent experience share the same constructs: clear names and short contracts.
-      Persist product/scope/architecture/policy agreements with `pi-job add-decision`
-      (and/or the grilled plan); do not leave load-bearing scope choices only in chat.
+      Persist a task-goal agreement with `pi-job add-decision` only when a worker
+      on a different slice needs the fact without this slice plan or code.
+      Revise the same slice plan for slice-local choices (must-not / verification).
+      Write wiki only for a shared operator runbook.
+      Do not leave a load-bearing task-goal choice only in chat.
       When the decision body spills, pass `--slug kebab-topic` so the file is
       `_decision-<date>-<slug>.md`, not a UTC stamp.
       Step evidence belongs in `finish --note`, not `add-decision`.
@@ -288,9 +291,13 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       Challenge the visible call stacks, assertion, must-not, and verification command;
       prose volume is not an acceptance criterion.
       Note what changed; revise the same plan FILE and re-grill until it survives.
-      After grill survives, capture product/scope choices that should outlive the session
-      with `pi-job add-decision` (date/note/source/`--slug` kebab-topic when the body spills),
-      not only in chat.
+      After grill survives, apply the membership test.
+      On a clear pass, record one add-decision for the surviving task-goal lock
+      (date/note/source/`--slug` kebab-topic when the body spills), not only in chat.
+      Do not record each grill turn, "grill survived", function names, file paths,
+      error strings, lib pins, or e2e harness shape.
+      Fleet: on doubt, ask the manager; add-decision only after the manager or user names it.
+      Solo: on doubt, ask the user.
       Do not use add-decision for PR, deploy, e2e, or progress chatter.
       When a decision supersedes an earlier one, append a new row whose note begins with
       `SUPERSEDES: YYYY-MM-DD (source) - …` pointing at the superseded entry; never delete
@@ -321,7 +328,7 @@ sync_pipeline_instructions: |-
   (and every listed in_progress/blocked slice has been checked).
 cli_help:
   add_decision:
-    command: append a product/scope decision (not step evidence; use finish --note or set-step-note)
+    command: append a task-goal product/scope decision (not slice-local code; use finish --note or set-step-note)
     note: >-
       decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`.
       Shell-safe: pass --note with single quotes or a HEREDOC; bare backticks in double-quoted
@@ -392,7 +399,7 @@ loop_packets:
     Preflight once before the first spawn: run pi-job --task TASK status and pi-job --task TASK msg --read --to manager.
     On invalid choice or unrecognized arguments, PATH pi-job is stale: run uv tool install --force --editable ~/.local/share/pi-job-harness, then retry; do not substitute python -m pi_job_harness.cli, because every spawned worker calls plain pi-job.
 
-    Tick: status/show, then pi-job --task TASK msg --read --to manager when unread, answer worker clarification, then apply window lifecycle, sleep.
+    Tick: status/show, then always run pi-job --task TASK msg --read --to manager, dispose every message, then apply window lifecycle, sleep.
     Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs.
     On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
 
@@ -408,12 +415,27 @@ loop_packets:
     Never notify done slices.
     Do not pick-next or execute slice steps as manager.
 
-    Worker clarification: workers ask the manager about other slices, recorded decisions, or fleet WIP.
-    After msg --read --to manager, judge each such question against work in progress.
-    Search status, show, markdown --with-decisions, slice plans, findings, and live claims.
-    When that evidence answers the question, reply with msg --to slice:KEY --note '<answer>'.
-    When that evidence does not answer, ask the user, then relay the answer to the slice.
-    Do not treat a worker clarification as Waiting on user.
+    Inbox: on every tick run pi-job --task TASK msg --read --to manager even when status shows Inbox: <none>.
+    Process those messages before pane triage and before the tick report.
+    Give every drained message one disposition: answered, investigating, blocked, routed, or informational.
+    Report those dispositions in the tick report.
+    Same-tick: acknowledge blockers and gate failures to the worker with msg --to slice:KEY.
+    Hold that worker: do not change expectations or product contract until the cause is known.
+
+    Worker messages: questions, reports, gate failures, and progress notes all count.
+    Judge each against work in progress.
+    Search status, show, markdown --with-decisions, slice plans, findings, live claims, and cited artifacts.
+    Verification inspects the source artifact, raw rows, and the expected contract.
+    Repeating the worker summary is not verification.
+    When that evidence answers, reply with msg --to slice:KEY --note '<answer>'.
+    Classify unexplained mismatches as technical, environmental, known gap, or product ambiguity.
+    Ask the user only for genuine product ambiguity; then relay the answer to the slice.
+    Do not convert unexplained failures into a user decision.
+    Do not treat a worker message as Waiting on user.
+    When a worker asks whether to record a decision, apply the cross-slice task-goal test.
+    Reply with one destination: add-decision, slice plan, or wiki.
+    Do not treat "decisions recorded" as evidence or progress.
+    After a blocker or gate failure clears: msg the slice to resume, wake the pane with tmux send-keys, and confirm movement on the next tick.
 
     Worker triage: run this on every tick, before window lifecycle.
     pane_current_command is not liveness; a crashed agent still shows the agent process.
@@ -442,6 +464,14 @@ loop_packets:
     Do not ask the user in the pane for those facts.
     Send: pi-job --task TASK msg --to manager --note '<question>'.
     Then wait and read: pi-job --task TASK msg --read --to slice:SLICE.
+    Do not add-decision for this slice's code, plan, or run mechanics.
+    On doubt about a task-goal fact, ask the manager; wait for add-decision, slice plan, or wiki.
+    Do not report a decision count as progress.
+    Self-improvement: when you learn a procedure by trial, and you or another worker runs it again, write references/wiki/<topic>.md.
+    Record preconditions, exact commands, and the failure you hit.
+    Keep it a short memo: commands and constraints, no prose.
+    Add one row to references/index.md.
+    Bundle tasks only. Not a diary, not step evidence.
   tutor: |-
     Tutor the project in the active agent working directory. Never edit project files.
     Inspect safe project text files only. Exclude secrets, credentials, generated files, dependencies, and binaries.
@@ -526,7 +556,8 @@ instruction_packets:
     Before any other work, run: markdown --slice SLICE_KEY --with-decisions
     Treat every ## Decisions entry as binding. If SUPERSEDED/RESOLVED, follow the superseding entry.
     On conflict or a blocking decision, STOP and report - do not re-litigate.
-    New product/scope/architecture/policy decisions only via add-decision.
+    New add-decision only for a task-goal fact another slice needs without this slice plan or code.
+    A choice already in this slice diff, plan, or wiki is not an add-decision.
     Step evidence (e2e, PR/merge/deploy, WIP/RESOLVED progress) via finish --note / add-pr / plan file - never add-decision.
     RCA / interrupt evidence via add-finding (appends to .plans/_findings.md), not add-decision.
     For sibling-step evidence in this slice after decisions are loaded, run: show --slice SLICE_KEY
@@ -706,7 +737,7 @@ instruction_packets:
     - Do not run finish/release/start on the active claim for this investigation.
     - Record RCA/evidence with: pi-job --task {task_file} add-finding --note '...'
       (appends to {pointer}; never long YAML).
-    - Product/scope agreements still use add-decision (prefer short, or --slug kebab-topic).
+    - Task-goal product/scope still uses add-decision (prefer short, or --slug kebab-topic).
     - When the fix is clear: add-slice and/or block-slice --gate <fix-slice>.
 
     {finding_status}
@@ -729,9 +760,12 @@ record_channels:
   catalog: |-
     Task-record write channels (which command for which fact):
 
-    decision (add-decision) — product, scope, architecture, or policy agreement that
-      later sessions must honor without re-grilling. Must still be true if the PR
-      never merged. Prefer one sentence + rationale. Not a journal.
+    decision (add-decision) - task-goal product, scope, or policy that a worker
+      on a different slice needs without this slice plan or code.
+      Prefer one sentence + rationale. Not a journal.
+      Do not record grill turns, "grill survived", function names, file paths,
+      error strings, lib pins, PR sequencing, or e2e harness shape.
+      Those belong in the slice plan, wiki, code, or finish --note.
       When the body spills, pass --slug kebab-topic. The file is
       `_decision-<date>-<slug>.md`. Do not use a UTC timestamp as the slug.
 
@@ -910,7 +944,8 @@ step_kinds:
       decisions, and the current frontier/fog of research and fog slices. Take those as given - do not
       re-decide resolved areas. pi-job orchestrates, it does not execute, so spawn as many subagents as
       needed to reduce uncertainty (research the world, prototype to see, grill the user). Record
-      scope/architecture resolutions with `add-decision`; record research evidence with `finish --note`
+      task-goal resolutions with `add-decision` only when another slice needs the fact without this
+      slice plan or code; record research evidence with `finish --note`
       on the wayfinder step or grow implement/research slices. Then create whatever slices the chart calls for with
       `pi-job add-slice` and the appropriate depends_on: fog slices for areas still too foggy or
       decidable only after other work is done, and implement/research/spike slices for work now clear

@@ -99,9 +99,9 @@ Use `pi-job loop --type NAME` for another exact, profile-defined loop packet.
 Use `pi-job loop --type tutor` for read-only session tutoring against the active working directory.
 
 Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome; `pi-job loop --worker` is the first prompt for a spawned slice window.
-Close a worker window when its slice is done or skipped; keep claim and window when the slice is in_progress, parked, or blocked.
-Workers contact the manager (`msg --to manager`) for facts from other slices or recorded decisions.
-The manager answers from work in progress, or asks the user and relays the answer.
+Packet bodies live in profile `loop_packets`.
+Read them with those commands.
+Do not restate them here.
 Classic single-session pick-next loop stays unchanged when no fleet is in use.
 
 ## Orchestrator loop
@@ -121,7 +121,8 @@ Packet `Role:` comes from the profile step owner.
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 `advance` is deprecated; do not use it.
 
-Slice-worker windows follow `pi-job loop --worker`: one owner, one slice, stop after `finish --slice-only`; do not wait for a new claim; do not pick-next.
+Slice-worker windows follow `pi-job loop --worker`.
+Do not restate that packet here.
 
 ## Reads (do not open the store)
 
@@ -133,20 +134,18 @@ Prefer packet guidance. Typical shape:
 - Subagent-owned steps: the packet orders `markdown --slice --with-decisions` first for binding `## Decisions`
 - Interrupt/RCA while a claim is parked: `investigate` / `add-finding` (appends `.plans/_findings.md`); do not release/claim-hop unless needed
 - Cross-agent contact: `msg --to manager|slice:KEY --note TEXT`; consume with `msg --read --to ADDRESS`
-- Worker clarification: ask the manager about other slices or recorded decisions; the manager judges work in progress, then the user if needed
 - Do not dump the whole task document into context
 
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
-`add-decision` always writes `_decision-YYYY-MM-DD-<topic>.md`.
-YAML keeps a one-line claim plus `path`.
-Pass `--slug kebab-topic` on a long note; short notes derive a slug.
+`add-decision` membership, spill naming, and SUPERSEDES live in profile `plan_and_grill_guardrail` and `cli_help.add_decision`.
+Read them with `pi-job add-decision --help` and `pi-job channels`.
 Register the first layer with repeatable `layers add --bind SLICE=LAYER` flags.
 This command adds the band and binds all existing implement/spike/research slices atomically.
 Append dependencies with `set-slice --slice CONSUMER --depends-on PRODUCER`.
 Clear them with `set-slice --slice CONSUMER --clear-depends-on`.
 Slice plans live under the layout: bundle `plans/<slice-key>.md`, or legacy
-`<task-stem>.plans/<slice-key>.md` until projected (one micro-contract per
-slice: call stacks, assertion, must-not, verification; see profile `plan_and_grill_guardrail`).
+`<task-stem>.plans/<slice-key>.md` until projected.
+Contract wording lives in profile `plan_and_grill_guardrail`.
 
 ## Wayfinder
 

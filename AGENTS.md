@@ -28,11 +28,6 @@ Do not switch to a casual register unless the user asks.
   Use `show --short` for the compact tree (current step only).
   Do not open or hand-edit the task store; use the CLI.
   Bundle files under `references/` and `plans/` are agent-authored.
-  Claim a Ready slice (`claim --slice KEY --owner ID`), then `instruction` / `start` / `finish`; on pick-next run `finish --slice-only` then claim the next Ready slice (`advance` is deprecated).
-  A blocked claimed slice is not pick-next; run `unblock-slice` first.
-  A named owner resolves its claim when other owners hold claims.
-  Duplicate active rows for one named owner fail closed.
-  Packet `Owner:` identifies the session claim; `Role:` identifies profile dispatch.
   While a pi-job task is active: role = orchestrator (CLI-only; pause on grill/clarify); this supersedes any default Product Owner (or other) workspace role.
   If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).
   If a documented command fails with `invalid choice`, PATH `pi-job` is stale.
@@ -45,23 +40,9 @@ Do not switch to a casual register unless the user asks.
   Missing overlay files are a no-op.
   Do not put laptop overrides in the chezmoi-tracked `profile.yaml`.
   `pi-job profile` prints the shipped path and the overlay path.
-  Host filesystem locations live in `pi_job_harness.layout.PiJobLayout`.
-  Named loop packets live in validated profile `loop_packets`.
-  Use `pi-job loop --type NAME` to select an exact packet name.
-  A step kind may set `next_action` to replace the default NEXT ACTION checklist.
-  Keep `pi-job loop` for managers and `pi-job loop --worker` for workers.
-  Use `layers add --bind SLICE=LAYER` to register the first band and bind existing layered-kind slices atomically.
-  Use `set-slice --slice CONSUMER --depends-on PRODUCER` to append dependency edges.
-  Use `set-slice --clear-depends-on` to clear dependency edges.
-  add-decision always writes `_decision-YYYY-MM-DD-<topic>.md`.
-  YAML keeps a one-line claim plus path. Pass `--slug kebab-topic` on a long note.
-  On a bundle task, open `references/index.md` before the slice plan.
-  Durable pages live in `references/wiki/`. Step notes live in `references/working/`.
-  Use `pi-job msg` for cross-agent contact.
-  The `msg` command lives in `pi_job_harness.messaging`.
-  Never send cross-agent messages through terminal panes.
-  Workers ask the manager about other slices, recorded decisions, or fleet WIP.
-  The manager answers from work in progress, or asks the user and relays the answer.
+  Instruction packets, loop packets, channel rules, and CLI help live in that profile.
+  Read them with `pi-job instruction`, `pi-job loop`, `pi-job channels`, and `pi-job <cmd> --help`.
+  Do not restate them here.
 - Before showing anyone a Mermaid diagram, validate it with the `mermaid` skill (`~/.agents/skills/mermaid`, `mermaid-validate <file>`) instead of eyeballing the syntax.
 - Before showing anyone a BPMN diagram for demo.bpmn.io, follow the `bpmn-js` skill (`~/.agents/skills/bpmn-js`).
 - Never use the em dash "—".
