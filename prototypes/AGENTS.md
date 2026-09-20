@@ -212,7 +212,7 @@ Read them before writing the first line, not after debugging.
   (`Failed to load resource: net::ERR_FAILED`, `... 404 (Not Found)`).
   Filtering `requestfailed` events by URL substring does not catch these; filter the console-error
   text by pattern too, or the intentional block/404 in one test path reads as a real failure
-  (2026-09: `ldf-teen-trail` CDN-blocked and missing-sidecar test paths).
+  (2026-09: `event-trail` CDN-blocked and missing-sidecar test paths).
 - Check external links resolve with `curl -o /dev/null -w "%{http_code}" -L` before shipping them.
 - Test servers must serve relative shared assets such as `prototype-base.css` and `prototype-jelly.css`.
   A page that works from disk can otherwise appear correct while tests silently receive a 404 for its foundation.
@@ -261,7 +261,7 @@ Read them before writing the first line, not after debugging.
   identity/traceability field (an id, a source URL), since the app cannot show that row honestly at
   all, but sanitise a bad soft/enum field (a rating outside its known set) to a neutral fallback on
   just that row instead of failing an otherwise-good file over one bad value
-  (2026-09: `ldf-teen-trail`, an unrecognised `rating` renders as "Unrated" rather than rejecting the
+  (2026-09: `event-trail`, an unrecognised `rating` renders as "Unrated" rather than rejecting the
   whole import).
 - Give each section or item a `type` and keep a lookup of renderers keyed by it.
   Adding a new kind of content then means adding one JSON block and one small function, and a missing renderer is a one-line check to catch.

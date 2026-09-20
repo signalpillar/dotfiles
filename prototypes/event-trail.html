@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>LDF Teen Trail</title>
+    <title>Event Trail</title>
 
     <!-- Pico: class-light CSS only, no JavaScript, no build step. -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
@@ -44,6 +44,7 @@
       .fact-grid dd { margin: 0; }
       details.about-block { margin-block: 1.5rem 0.75rem; }
       details.about-block summary { cursor: pointer; }
+      #copy-link-btn { width: auto; margin-block: 0.6rem 0; }
       .about-body h4 { margin-block-end: 0.3rem; }
       .about-body ul { margin-block-start: 0.25rem; }
       .about-body li { margin-block-end: 0.4rem; }
@@ -91,8 +92,9 @@
 
       <section id="foot-sections"></section>
 
-      <details class="about-block" id="about-block" open>
+      <details class="about-block" id="for-agents" open>
         <summary id="about-summary"></summary>
+        <button id="copy-link-btn" type="button" class="secondary outline"></button>
         <div class="about-body" id="about-body"></div>
       </details>
 
@@ -108,12 +110,12 @@
 {
   "manifestVersion": 1,
   "app": {
-    "id": "ldf-teen-trail",
-    "kicker": "Festival day planner",
-    "title": "Design Trail",
-    "intro": "Any day's events, grouped by walkable neighbourhood and rated for a chosen audience. Upload a JSON file to begin; everything stays in this browser.",
-    "sidecar": "ldf-teen-trail.json",
-    "storage": { "key": "ldf-teen-trail-v1", "schemaVersion": 1 },
+    "id": "event-trail",
+    "kicker": "Day planner",
+    "title": "Event Trail",
+    "intro": "Any day's events, grouped by walkable neighbourhood and rated for a chosen audience. Hand an agent the link to “For AI agents” below to have it build a compatible file, then upload it here — nothing leaves this browser.",
+    "sidecar": "event-trail.json",
+    "storage": { "key": "event-trail-v1", "schemaVersion": 1 },
     "fields": {
       "id": "id", "title": "title", "type": "type", "rating": "rating",
       "time": "time", "allDay": "all_day", "start": "start",
@@ -149,7 +151,7 @@
       "chooseFile": "Choose JSON file",
       "importBadJson": "That file is not usable: {reason}",
       "importOk": "{count} events imported from {source}.",
-      "exportPrefix": "ldf-teen-trail",
+      "exportPrefix": "event-trail",
       "doneAriaLabel": "Mark visited",
       "doneLabel": "Visited",
       "sourceLinkLabel": "Source listing",
@@ -163,6 +165,9 @@
       "aboutEyebrow": "For AI agents",
       "aboutHeading": "Producing a compatible events file",
       "aboutIntro": "If you are an agent asked to build or update a file for this page, this section is written for you. A person using the app can skip it.",
+      "copyLinkButton": "Copy link to this section",
+      "copyLinkOk": "Link copied. Paste it wherever you're briefing the agent.",
+      "copyLinkFail": "Could not copy automatically — copy this page's URL and add \"#for-agents\".",
       "aboutSections": [
         {
           "heading": "Required on every event",
@@ -517,6 +522,23 @@
         body.append(el("p", { html: mdInline(COPY.aboutMinimal) }));
       }
 
+      /* A direct, shareable link to the agent spec: this page's URL plus the
+         "for-agents" fragment, so a person can hand it to any agent without
+         explaining where the instructions live. */
+      function sectionLink() {
+        return window.location.href.split("#")[0] + "#for-agents";
+      }
+
+      async function copySectionLink() {
+        const url = sectionLink();
+        try {
+          await navigator.clipboard.writeText(url);
+          $("status").textContent = COPY.copyLinkOk;
+        } catch (err) {
+          $("status").textContent = COPY.copyLinkFail;
+        }
+      }
+
       function renderAll() {
         renderRatingFilters();
         renderTypeFilters();
@@ -619,10 +641,13 @@
         });
         $("empty-pick").addEventListener("click", () => $("file").click());
 
+        $("copy-link-btn").textContent = COPY.copyLinkButton;
+        $("copy-link-btn").addEventListener("click", copySectionLink);
+
         renderAbout();
       }
 
-      window.__LDF_TRAIL_TEST__ = {
+      window.__EVENT_TRAIL_TEST__ = {
         parseEvents,
         zoneCount: (rows) => zoneGroups(rows).size,
         isTopPick
