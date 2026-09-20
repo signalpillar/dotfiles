@@ -75,6 +75,7 @@
           <button id="import-btn" type="button" class="secondary"></button>
           <button id="export-btn" type="button" class="secondary"></button>
           <button id="refresh-btn" type="button" class="contrast"></button>
+          <button id="clear-btn" type="button" class="secondary outline"></button>
           <input type="file" id="file" accept="application/json,.json" hidden>
         </div>
         <p class="status-line" id="status" role="status"></p>
@@ -113,7 +114,7 @@
     "id": "event-trail",
     "kicker": "Day planner",
     "title": "Event Trail",
-    "intro": "Any day's events, grouped by walkable neighbourhood and rated for a chosen audience. Hand an agent the link to “For AI agents” below to have it build a compatible file, then upload it here — nothing leaves this browser.",
+    "intro": "Any day's events, grouped by walkable neighbourhood and rated for a chosen audience. Hand an agent the link to “For AI agents” below to have it build a compatible file, then upload it here — nothing leaves this browser. First visit loads a bundled example once; upload your own file any time to replace it, and it stays put on reload.",
     "sidecar": "event-trail.json",
     "storage": { "key": "event-trail-v1", "schemaVersion": 1 },
     "fields": {
@@ -143,8 +144,11 @@
       "typeAll": "All types",
       "importButton": "Import JSON",
       "exportButton": "Export JSON",
-      "refreshButton": "Reload sidecar",
-      "sidecarMissing": "Sidecar JSON not found. Choose a JSON file to load.",
+      "refreshButton": "Reset to example",
+      "clearButton": "Clear data",
+      "clearConfirm": "Clear the loaded events and visited-marks from this browser? This can't be undone here — export first if you want a copy.",
+      "exampleLabel": "the bundled example (London Design Festival, 20 Sept 2026)",
+      "sidecarMissing": "No bundled example found. Choose a JSON file to load.",
       "sidecarLoaded": "{count} events loaded from {source}.",
       "emptyTitle": "No events loaded yet",
       "emptyBody": "Upload an events JSON file to begin. Your data and visited-marks stay in this browser.",
@@ -273,6 +277,10 @@
         }
       }
 
+      /* Returns whether this browser has ever saved state for this app —
+         not whether that state currently has rows. A deliberate Clear saves
+         an empty store; that must still count as "visited before" so boot
+         does not silently re-fetch the bundled example on top of it. */
       function loadCached() {
         try {
           const raw = localStorage.getItem(APP.storage.key);
@@ -280,7 +288,7 @@
           const parsed = JSON.parse(raw);
           if (!parsed || !Array.isArray(parsed.rows)) return false;
           store = { ...blankStore(), ...parsed, done: parsed.done || {} };
-          return store.rows.length > 0;
+          return true;
         } catch (err) {
           console.warn("Could not read cached trail data", err);
           return false;
@@ -576,9 +584,16 @@
         }
         store.rows = parsed.rows;
         store.hash = hashText(text);
-        store.source = APP.sidecar;
+        store.source = COPY.exampleLabel;
         saveStore();
         return true;
+      }
+
+      function clearData() {
+        if (!window.confirm(COPY.clearConfirm)) return;
+        store = blankStore();
+        saveStore();
+        renderAll();
       }
 
       async function handleImportFile(file) {
@@ -627,9 +642,13 @@
         $("import-btn").textContent = COPY.importButton;
         $("export-btn").textContent = COPY.exportButton;
         $("refresh-btn").textContent = COPY.refreshButton;
+        $("clear-btn").textContent = COPY.clearButton;
         $("import-btn").addEventListener("click", () => $("file").click());
         $("export-btn").addEventListener("click", exportJSON);
+        $("clear-btn").addEventListener("click", clearData);
         $("refresh-btn").addEventListener("click", async () => {
+          // Explicit-only: this is the one action that pulls the bundled
+          // example back in over whatever is currently loaded.
           if (!canFetchSidecar()) { $("file").click(); return; }
           if (await loadSidecar()) renderAll();
           else $("status").textContent = COPY.sidecarMissing;
@@ -654,12 +673,18 @@
       };
 
       buildChrome();
-      loadCached();
+      const visitedBefore = loadCached();
       renderAll();
-      loadSidecar().then((ok) => {
-        if (ok) renderAll();
-        else if (!store.rows.length) $("status").textContent = COPY.sidecarMissing;
-      });
+      // Auto-fetch the bundled example only on a genuinely first visit.
+      // Once this browser has any saved state — the example, an upload, or
+      // an explicit Clear — a reload must never silently overwrite it;
+      // "Reset to example" is the deliberate way back to the bundled data.
+      if (!visitedBefore) {
+        loadSidecar().then((ok) => {
+          if (ok) renderAll();
+          else $("status").textContent = COPY.sidecarMissing;
+        });
+      }
     </script>
   </body>
 </html>
