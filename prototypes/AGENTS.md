@@ -208,6 +208,11 @@ Read them before writing the first line, not after debugging.
   Do not switch tabs in tests by setting `tabs.value` plus a synthetic `change` event: it desyncs the app's view variable from the tab bar and hides real update bugs (2026-09: this masked the bubbled-change bug above for several debug rounds).
 - Parse and cross-check the manifest before opening a browser.
   Verify it is valid JSON, that every referenced id resolves, and that every section `type` has a renderer.
+- A deliberately blocked or 404'd request logs a *generic* console error with no URL in its text
+  (`Failed to load resource: net::ERR_FAILED`, `... 404 (Not Found)`).
+  Filtering `requestfailed` events by URL substring does not catch these; filter the console-error
+  text by pattern too, or the intentional block/404 in one test path reads as a real failure
+  (2026-09: `ldf-teen-trail` CDN-blocked and missing-sidecar test paths).
 - Check external links resolve with `curl -o /dev/null -w "%{http_code}" -L` before shipping them.
 - Test servers must serve relative shared assets such as `prototype-base.css` and `prototype-jelly.css`.
   A page that works from disk can otherwise appear correct while tests silently receive a 404 for its foundation.
@@ -252,6 +257,12 @@ Read them before writing the first line, not after debugging.
 
 - The manifest is the schema, so sanitise anything read from `localStorage` or an imported file against it.
   Drop unknown ids and unknown enum values rather than trusting the payload.
+- Split validation by what the field is *for*: reject the whole import over a missing or duplicate
+  identity/traceability field (an id, a source URL), since the app cannot show that row honestly at
+  all, but sanitise a bad soft/enum field (a rating outside its known set) to a neutral fallback on
+  just that row instead of failing an otherwise-good file over one bad value
+  (2026-09: `ldf-teen-trail`, an unrecognised `rating` renders as "Unrated" rather than rejecting the
+  whole import).
 - Give each section or item a `type` and keep a lookup of renderers keyed by it.
   Adding a new kind of content then means adding one JSON block and one small function, and a missing renderer is a one-line check to catch.
 - Templated copy beats string concatenation in code.

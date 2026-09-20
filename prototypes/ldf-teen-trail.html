@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>LDF Teen Trail</title>
+
+    <!-- Pico: class-light CSS only, no JavaScript, no build step. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <!-- Shared browser foundation. -->
+    <link rel="stylesheet" href="prototype-base.css">
+
+    <style>
+      /* Layout only. Pico owns colour, type and component styling, except
+         the four rating states below, which Pico has no equivalent for. */
+      body { padding-block-end: var(--pico-spacing); }
+      main { width: min(58rem, 100%); margin-inline: auto; padding: var(--pico-spacing); }
+      .kicker { margin-block-end: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pico-muted-color); }
+      h1 { margin-block-start: 0.25rem; }
+      .controls { display: grid; gap: 0.75rem; margin-block: 1rem; }
+      .controls-row { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+      .controls-row > * { margin-block-end: 0; }
+      .chip-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      .chip-row button { margin-block-end: 0; width: auto; padding-inline: 0.8rem; }
+      .status-line { font-size: 0.85rem; color: var(--pico-muted-color); }
+      .zone-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-block: 1.5rem 0.5rem; }
+      .zone-heading .muted { font-size: 0.8rem; }
+      .stop-grid { display: grid; gap: 0.75rem; }
+      article.stop { margin-block-end: 0; }
+      .stop-top { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-block-end: 0.35rem; }
+      .stop-meta { color: var(--pico-muted-color); font-size: 0.85rem; }
+      .stop-verdict { margin-block: 0.35rem; }
+      .stop-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-block-start: 0.5rem; }
+      .stop-foot label { margin-block-end: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+      .stop.done { opacity: 0.55; }
+      .stop.done .stop-title { text-decoration: line-through; }
+      /* Semantic rating colours: a fixed four-state scale Pico's <mark> does not encode. */
+      mark.rating-high { background: #f6b3a8; }
+      mark.rating-med-high { background: #f3d9a1; }
+      mark.rating-med { background: #b9e0d3; }
+      mark.rating-low { background: #d8dce2; }
+      .fact-grid { display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); margin-block: 0.75rem; }
+      .fact-grid dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pico-muted-color); }
+      .fact-grid dd { margin: 0; }
+      details.about-block { margin-block: 1.5rem 0.75rem; }
+      details.about-block summary { cursor: pointer; }
+      .about-body h4 { margin-block-end: 0.3rem; }
+      .about-body ul { margin-block-start: 0.25rem; }
+      .about-body li { margin-block-end: 0.4rem; }
+      .about-body pre { white-space: pre-wrap; }
+      @media (max-width: 30rem) {
+        .stop-foot { flex-direction: column; align-items: flex-start; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main id="app">
+      <p class="kicker" id="kicker"></p>
+      <h1 id="title"></h1>
+      <p class="muted" id="intro"></p>
+
+      <section class="controls" aria-label="Controls">
+        <div class="controls-row">
+          <input type="search" id="search" aria-label="Search">
+        </div>
+        <div class="controls-row">
+          <div class="chip-row" id="rating-filters" role="group" aria-label="Rating filter"></div>
+        </div>
+        <div class="controls-row">
+          <div class="chip-row" id="type-filters" role="group" aria-label="Event type filter"></div>
+        </div>
+        <div class="controls-row">
+          <button id="import-btn" type="button" class="secondary"></button>
+          <button id="export-btn" type="button" class="secondary"></button>
+          <button id="refresh-btn" type="button" class="contrast"></button>
+          <input type="file" id="file" accept="application/json,.json" hidden>
+        </div>
+        <p class="status-line" id="status" role="status"></p>
+      </section>
+
+      <section id="empty-state" hidden>
+        <article>
+          <h3 id="empty-title"></h3>
+          <p id="empty-body"></p>
+          <button id="empty-pick" type="button"></button>
+        </article>
+      </section>
+
+      <section id="trail"></section>
+
+      <section id="foot-sections"></section>
+
+      <details class="about-block" id="about-block" open>
+        <summary id="about-summary"></summary>
+        <div class="about-body" id="about-body"></div>
+      </details>
+
+      <p class="muted"><small id="foot"></small></p>
+    </main>
+
+    <!--
+      The single manifest. Copy, thresholds, storage keys and field names live
+      here as plain JSON; the script below is logic only. Edit JSON, never JS,
+      to change what the viewer knows, says, or is tuned to.
+    -->
+    <script type="application/json" id="manifest">
+{
+  "manifestVersion": 1,
+  "app": {
+    "id": "ldf-teen-trail",
+    "kicker": "Festival day planner",
+    "title": "Design Trail",
+    "intro": "Any day's events, grouped by walkable neighbourhood and rated for a chosen audience. Upload a JSON file to begin; everything stays in this browser.",
+    "sidecar": "ldf-teen-trail.json",
+    "storage": { "key": "ldf-teen-trail-v1", "schemaVersion": 1 },
+    "fields": {
+      "id": "id", "title": "title", "type": "type", "rating": "rating",
+      "time": "time", "allDay": "all_day", "start": "start",
+      "neighbourhood": "neighbourhood", "zone": "zone",
+      "venue": "venue", "address": "address", "verdict": "verdict",
+      "description": "description", "flag": "flag", "excludedReason": "excluded_reason",
+      "sourceUrl": "source_url", "retrievedAt": "retrieved_at"
+    },
+    "ratings": [
+      { "id": "high", "label": "High", "weight": 3 },
+      { "id": "med-high", "label": "Med-High", "weight": 2 },
+      { "id": "med", "label": "Medium", "weight": 1 },
+      { "id": "low", "label": "Low", "weight": 0 }
+    ],
+    "topPicksMinWeight": 2,
+    "flagKinds": {
+      "online": { "heading": "Try from your phone", "note": "Digital, not a physical stop in any zone." },
+      "excluded": { "heading": "Not on today's route", "note": "Listed by the source but not reachable as part of this walk." }
+    },
+    "copy": {
+      "searchLabel": "Search",
+      "searchPlaceholder": "Search title, venue, neighbourhood...",
+      "filterAll": "All ratings",
+      "filterTop": "Top picks only",
+      "typeAll": "All types",
+      "importButton": "Import JSON",
+      "exportButton": "Export JSON",
+      "refreshButton": "Reload sidecar",
+      "sidecarMissing": "Sidecar JSON not found. Choose a JSON file to load.",
+      "sidecarLoaded": "{count} events loaded from {source}.",
+      "emptyTitle": "No events loaded yet",
+      "emptyBody": "Upload an events JSON file to begin. Your data and visited-marks stay in this browser.",
+      "chooseFile": "Choose JSON file",
+      "importBadJson": "That file is not usable: {reason}",
+      "importOk": "{count} events imported from {source}.",
+      "exportPrefix": "ldf-teen-trail",
+      "doneAriaLabel": "Mark visited",
+      "doneLabel": "Visited",
+      "sourceLinkLabel": "Source listing",
+      "zoneStat": "{count} stops · {high} High/Med-High",
+      "statsEntries": "{count} entries loaded",
+      "statsHigh": "{count} rated High/Med-High",
+      "statsZones": "{count} walkable zones",
+      "noMatches": "No events match the current search and filters.",
+      "unratedLabel": "Unrated",
+      "sanitizedNote": "{count} item(s) had an unrecognised rating and are shown unrated.",
+      "aboutEyebrow": "For AI agents",
+      "aboutHeading": "Producing a compatible events file",
+      "aboutIntro": "If you are an agent asked to build or update a file for this page, this section is written for you. A person using the app can skip it.",
+      "aboutSections": [
+        {
+          "heading": "Required on every event",
+          "items": [
+            "`id` — string, unique within the file. Reuse the source site's own slug when it has one.",
+            "`title` — string, the event's published name.",
+            "`source_url` — absolute URL to that specific event's own listing page, not a search or category page. This is the traceability link: anyone reading a card must be able to follow it back and independently check what you wrote."
+          ]
+        },
+        {
+          "heading": "Strongly recommended",
+          "items": [
+            "`retrieved_at` — ISO date or datetime for when you fetched the source, not the event's own date.",
+            "`type` — the event's own category in the source's own wording (e.g. \"Exhibition / Installation\", \"Talk / Panel\", \"Open Studio / Showroom\", \"Shop / Market\", \"Product Launch / Presentation\", \"Workshop\", \"Design Expo\", \"Tour / Design Trail\"). Don't invent categories the source doesn't use.",
+            "`rating` — one of `high` / `med-high` / `med` / `low`: your editorial judgment of appeal to whatever audience you were told to assess for. Weigh hands-on vs passive, sensory or conceptual novelty, free/open vs gated, a landmark venue, and how flexible the hours are. Put the actual reasoning in `verdict`, not just the label.",
+            "`verdict` — one plain sentence aimed at the person deciding whether to go. Concrete, no hedging, no restating the title.",
+            "`time`, `all_day`, `start` — `time` is a display string (\"13:00 – 16:45\", \"Anytime\", \"Time TBC\"); `all_day` is boolean; `start` is 24h \"HH:MM\" for sort order, or `null` when all-day or genuinely unpublished. Never invent a time the source doesn't give.",
+            "`neighbourhood` — human-readable area name.",
+            "`zone` — a walking-cluster label grouping neighbourhoods roughly a 15–20 minute walk apart, used to group cards for route planning. Reuse the exact same string for every event in that cluster; grouping is by string equality, not geocoding.",
+            "`venue`, `address` — short venue line, and a fuller address.",
+            "`description` — a longer blurb, kept close to the source's own wording."
+          ]
+        },
+        {
+          "heading": "Traceability rules",
+          "items": [
+            "Every field you assert (time, venue, address, description) should be verifiable from `source_url`. If a value isn't stated by the source, omit it or set it `null` — don't guess or infer from similar events.",
+            "Editorial fields (`rating`, `verdict`, `zone`) are your own judgment layered on sourced facts — keep that layering out of factual fields like `address`."
+          ]
+        },
+        {
+          "heading": "`flag` / `excluded_reason`",
+          "items": [
+            "Omit `flag` (or set `null`) for a normal physical stop — it gets grouped into its `zone`.",
+            "`\"online\"` — no physical venue to visit (a webinar, an app, a link-only talk). Shown in its own section, never inside a zone.",
+            "`\"excluded\"` plus a one-sentence `excluded_reason` — technically listed but not actually reachable as part of this walk (wrong city, no fixed time published, requires access you don't have). Shown in a footer, out of the route entirely."
+          ]
+        }
+      ],
+      "aboutValidation": "What this app checks on load: every `id` non-empty and unique in the file; every `title` and `source_url` non-empty. An unrecognised `rating` is not rejected — that one item is shown unrated instead of failing the whole file. A structurally bad file (not an array, or missing `id`/`title`/`source_url`) shows an inline error naming the offending item.",
+      "aboutMinimal": "Minimal valid event: { \"id\": \"...\", \"title\": \"...\", \"source_url\": \"...\" } — everything else is optional and produces a sparser card.",
+      "foot": "Data, filters and visited-marks stay in this browser. Nothing is uploaded anywhere."
+    }
+  }
+}
+    </script>
+
+    <script type="module">
+      /* Logic only. Every label, threshold and field name comes from the manifest. */
+      const M = JSON.parse(document.getElementById("manifest").textContent);
+      const APP = M.app;
+      const COPY = APP.copy;
+      const F = APP.fields;
+      const $ = (id) => document.getElementById(id);
+
+      const fill = (template, vars) => String(template).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : "{" + k + "}"));
+      const mdInline = (s) => escapeHtml(String(s)).replace(/`([^`]+)`/g, "<code>$1</code>");
+
+      const RATING_BY_ID = Object.fromEntries(APP.ratings.map((r) => [r.id, r]));
+
+      let store = blankStore();
+      let query = "";
+      let ratingMode = "all";
+      let activeType = null;
+
+      function blankStore() {
+        return { version: APP.storage.schemaVersion, hash: null, source: null, rows: [], done: {} };
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      function el(tag, props = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [key, value] of Object.entries(props)) {
+          if (value === undefined || value === null || value === false) continue;
+          if (key === "text") node.textContent = value;
+          else if (key === "html") node.innerHTML = value;
+          else if (key === "on") for (const [evt, handler] of Object.entries(value)) node.addEventListener(evt, handler);
+          else node.setAttribute(key, value === true ? "" : String(value));
+        }
+        children.filter(Boolean).forEach((child) => node.append(typeof child === "string" ? document.createTextNode(child) : child));
+        return node;
+      }
+
+      function link(url, text) {
+        if (!url) return null;
+        return el("a", { href: url, target: "_blank", rel: "noopener noreferrer", text: text || url });
+      }
+
+      function hashText(text) {
+        let h = 5381;
+        for (let i = 0; i < text.length; i += 1) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+        return String(h);
+      }
+
+      function saveStore() {
+        try {
+          localStorage.setItem(APP.storage.key, JSON.stringify(store));
+        } catch (err) {
+          console.warn("Could not save trail data", err);
+        }
+      }
+
+      function loadCached() {
+        try {
+          const raw = localStorage.getItem(APP.storage.key);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          if (!parsed || !Array.isArray(parsed.rows)) return false;
+          store = { ...blankStore(), ...parsed, done: parsed.done || {} };
+          return store.rows.length > 0;
+        } catch (err) {
+          console.warn("Could not read cached trail data", err);
+          return false;
+        }
+      }
+
+      /* Structural checks reject the file (id/title/source_url are the
+         traceability contract). An unrecognised rating is sanitised to null
+         rather than rejecting an otherwise-good file over one bad enum. */
+      function parseEvents(data) {
+        if (!Array.isArray(data)) throw new Error("must be a JSON array of event objects");
+        if (data.length === 0) throw new Error("the array is empty");
+        const seen = new Set();
+        let sanitized = 0;
+        const rows = data.map((e, i) => {
+          if (!e || typeof e !== "object") throw new Error("item " + i + " is not an object");
+          const id = e[F.id];
+          const title = e[F.title];
+          const sourceUrl = e[F.sourceUrl];
+          if (!id) throw new Error('item ' + i + ' (\"' + (title || "?") + '\") is missing \"' + F.id + '\"');
+          if (seen.has(id)) throw new Error('duplicate id \"' + id + '\"');
+          seen.add(id);
+          if (!title) throw new Error('item with id \"' + id + '\" is missing \"' + F.title + '\"');
+          if (!sourceUrl) throw new Error('item \"' + title + '\" is missing \"' + F.sourceUrl + '\" (every event must be traceable back to its source)');
+          let rating = e[F.rating] || null;
+          if (rating && !RATING_BY_ID[rating]) { rating = null; sanitized += 1; }
+          const flag = e[F.flag] === "online" || e[F.flag] === "excluded" ? e[F.flag] : null;
+          return { ...e, [F.rating]: rating, [F.flag]: flag };
+        });
+        return { rows, sanitized };
+      }
+
+      function ratingWeight(row) {
+        const r = RATING_BY_ID[row[F.rating]];
+        return r ? r.weight : -1;
+      }
+
+      function isTopPick(row) {
+        return ratingWeight(row) >= APP.topPicksMinWeight;
+      }
+
+      function matchesSearch(row, q) {
+        if (!q) return true;
+        const hay = [row[F.title], row[F.venue], row[F.neighbourhood], row[F.type]].filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(q);
+      }
+
+      function routableRows() {
+        return store.rows.filter((r) => !r[F.flag]);
+      }
+
+      function filteredRoutableRows() {
+        const q = query.trim().toLowerCase();
+        return routableRows().filter((row) => {
+          if (ratingMode === "top" && !isTopPick(row)) return false;
+          if (activeType && (row[F.type] || "") !== activeType) return false;
+          return matchesSearch(row, q);
+        });
+      }
+
+      function zoneGroups(rows) {
+        const zones = new Map();
+        for (const row of rows) {
+          const z = row[F.zone] || row[F.neighbourhood] || "Unsorted";
+          if (!zones.has(z)) zones.set(z, []);
+          zones.get(z).push(row);
+        }
+        for (const rows of zones.values()) {
+          rows.sort((a, b) => {
+            const ad = a[F.allDay] ? "9" : "0", bd = b[F.allDay] ? "9" : "0";
+            const as = ad + (a[F.start] || "24:00"), bs = bd + (b[F.start] || "24:00");
+            if (as !== bs) return as < bs ? -1 : 1;
+            return ratingWeight(b) - ratingWeight(a);
+          });
+        }
+        return zones;
+      }
+
+      function ratingBadge(row) {
+        const r = RATING_BY_ID[row[F.rating]];
+        return el("mark", { class: r ? "rating-" + r.id : "", text: r ? r.label : COPY.unratedLabel });
+      }
+
+      function timeText(row) {
+        if (row[F.allDay]) return "Anytime";
+        return row[F.time] || "Time TBC";
+      }
+
+      function isDone(row) {
+        return !!store.done[row[F.id]];
+      }
+
+      function setDone(row, value) {
+        if (value) store.done[row[F.id]] = true;
+        else delete store.done[row[F.id]];
+        saveStore();
+      }
+
+      function stopCard(row) {
+        const done = isDone(row);
+        const card = el("article", { class: "stop" + (done ? " done" : ""), "data-id": row[F.id] }, [
+          el("div", { class: "stop-top" }, [
+            ratingBadge(row),
+            el("span", { class: "stop-meta", text: row[F.type] || "" })
+          ]),
+          el("h5", { class: "stop-title", text: row[F.title] }),
+          el("p", { class: "stop-meta" }, [
+            el("strong", { text: timeText(row) }),
+            row[F.neighbourhood] ? document.createTextNode(" · " + row[F.neighbourhood]) : null
+          ]),
+          row[F.venue] ? el("p", { class: "stop-meta", title: row[F.address] || "", text: row[F.venue] }) : null,
+          row[F.verdict] ? el("p", { class: "stop-verdict", text: row[F.verdict] }) : null,
+          el("div", { class: "stop-foot" }, [
+            el("label", {}, [
+              el("input", {
+                type: "checkbox", role: "switch", "aria-label": COPY.doneAriaLabel, checked: done || undefined,
+                on: { change: (e) => { setDone(row, e.target.checked); card.classList.toggle("done", e.target.checked); } }
+              }),
+              document.createTextNode(COPY.doneLabel)
+            ]),
+            row[F.sourceUrl] ? link(row[F.sourceUrl], COPY.sourceLinkLabel) : null
+          ])
+        ]);
+        return card;
+      }
+
+      function foldCard(row) {
+        const reason = row[F.excludedReason] || row[F.verdict] || "";
+        return el("article", {}, [
+          el("h5", { text: row[F.title] }),
+          el("p", { class: "stop-meta", text: row[F.neighbourhood] || "" }),
+          reason ? el("p", { text: reason }) : null,
+          row[F.sourceUrl] ? link(row[F.sourceUrl], COPY.sourceLinkLabel) : null
+        ]);
+      }
+
+      function renderTrail() {
+        const box = $("trail");
+        box.replaceChildren();
+        const rows = filteredRoutableRows();
+        const zones = zoneGroups(rows);
+        if (!rows.length) {
+          box.append(el("p", { class: "muted", text: COPY.noMatches }));
+        }
+        for (const [zone, items] of zones) {
+          const high = items.filter(isTopPick).length;
+          box.append(
+            el("div", { class: "zone-heading" }, [
+              el("h4", { text: zone }),
+              el("span", { class: "muted", text: fill(COPY.zoneStat, { count: items.length, high }) })
+            ]),
+            el("div", { class: "stop-grid" }, items.map(stopCard))
+          );
+        }
+      }
+
+      function renderFoldSections() {
+        const box = $("foot-sections");
+        box.replaceChildren();
+        for (const kind of ["online", "excluded"]) {
+          const items = store.rows.filter((r) => r[F.flag] === kind);
+          if (!items.length) continue;
+          const conf = APP.flagKinds[kind] || {};
+          box.append(
+            el("h4", { text: conf.heading || kind }),
+            conf.note ? el("p", { class: "muted", text: conf.note }) : null,
+            el("div", { class: "stop-grid" }, items.map(foldCard))
+          );
+        }
+      }
+
+      function renderStats() {
+        const total = store.rows.length;
+        if (!total) return;
+        const high = store.rows.filter(isTopPick).length;
+        const zones = zoneGroups(routableRows()).size;
+        $("status").textContent = [
+          fill(COPY.statsEntries, { count: total }),
+          fill(COPY.statsHigh, { count: high }),
+          fill(COPY.statsZones, { count: zones })
+        ].join(" · ");
+      }
+
+      function renderEmptyState() {
+        const show = store.rows.length === 0;
+        $("empty-state").hidden = !show;
+        if (show) {
+          $("empty-title").textContent = COPY.emptyTitle;
+          $("empty-body").textContent = COPY.emptyBody;
+          $("empty-pick").textContent = COPY.chooseFile;
+        }
+      }
+
+      function renderTypeFilters() {
+        const box = $("type-filters");
+        box.replaceChildren();
+        const counts = new Map();
+        for (const row of routableRows()) {
+          const t = row[F.type] || "";
+          if (!t) continue;
+          counts.set(t, (counts.get(t) || 0) + 1);
+        }
+        const types = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        const allBtn = el("button", {
+          type: "button", class: activeType === null ? "" : "secondary outline",
+          text: COPY.typeAll, on: { click: () => { activeType = null; renderAll(); } }
+        });
+        box.append(allBtn);
+        for (const [type, count] of types) {
+          box.append(el("button", {
+            type: "button", class: activeType === type ? "" : "secondary outline",
+            text: type + " (" + count + ")",
+            on: { click: () => { activeType = activeType === type ? null : type; renderAll(); } }
+          }));
+        }
+      }
+
+      function renderRatingFilters() {
+        const box = $("rating-filters");
+        box.replaceChildren();
+        box.append(
+          el("button", { type: "button", class: ratingMode === "all" ? "" : "secondary outline", text: COPY.filterAll, on: { click: () => { ratingMode = "all"; renderAll(); } } }),
+          el("button", { type: "button", class: ratingMode === "top" ? "" : "secondary outline", text: COPY.filterTop, on: { click: () => { ratingMode = "top"; renderAll(); } } })
+        );
+      }
+
+      function renderAbout() {
+        $("about-summary").textContent = "[" + COPY.aboutEyebrow + "] " + COPY.aboutHeading;
+        const body = $("about-body");
+        body.replaceChildren();
+        body.append(el("p", { text: COPY.aboutIntro }));
+        for (const section of COPY.aboutSections) {
+          body.append(
+            el("h4", { text: section.heading }),
+            el("ul", {}, section.items.map((item) => el("li", { html: mdInline(item) })))
+          );
+        }
+        body.append(el("p", { html: mdInline(COPY.aboutValidation) }));
+        body.append(el("p", { html: mdInline(COPY.aboutMinimal) }));
+      }
+
+      function renderAll() {
+        renderRatingFilters();
+        renderTypeFilters();
+        renderTrail();
+        renderFoldSections();
+        renderStats();
+        renderEmptyState();
+      }
+
+      /* ---------------- data loading ---------------- */
+
+      /* Adjacent files are unreachable from file:// (CORS), so never fetch
+         there: lead with the upload picker instead of logging errors. */
+      function canFetchSidecar() {
+        return window.location.protocol === "http:" || window.location.protocol === "https:";
+      }
+
+      async function loadSidecar() {
+        if (!canFetchSidecar()) return false;
+        let text = null;
+        try {
+          const res = await fetch(APP.sidecar);
+          if (res.ok) text = await res.text();
+        } catch (err) {
+          text = null;
+        }
+        if (text === null) return false;
+        if (hashText(text) === store.hash && store.rows.length) return true;
+        let parsed;
+        try {
+          parsed = parseEvents(JSON.parse(text));
+        } catch (err) {
+          console.warn("Sidecar JSON rejected:", err.message);
+          return false;
+        }
+        store.rows = parsed.rows;
+        store.hash = hashText(text);
+        store.source = APP.sidecar;
+        saveStore();
+        return true;
+      }
+
+      async function handleImportFile(file) {
+        let parsed;
+        try {
+          const text = await file.text();
+          parsed = parseEvents(JSON.parse(text));
+        } catch (err) {
+          window.alert(fill(COPY.importBadJson, { reason: err.message }));
+          return;
+        }
+        store.rows = parsed.rows;
+        store.hash = null;
+        store.source = file.name;
+        saveStore();
+        renderAll();
+        let msg = fill(COPY.importOk, { count: parsed.rows.length, source: file.name });
+        if (parsed.sanitized) msg += " " + fill(COPY.sanitizedNote, { count: parsed.sanitized });
+        $("status").textContent = msg;
+      }
+
+      function exportJSON() {
+        if (!store.rows.length) return;
+        const blob = new Blob([JSON.stringify(store.rows, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = el("a", { href: url, download: APP.copy.exportPrefix + "-" + new Date().toISOString().slice(0, 10) + ".json" });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      /* ---------------- boot ---------------- */
+
+      function buildChrome() {
+        $("kicker").textContent = APP.kicker;
+        $("title").textContent = APP.title;
+        $("intro").textContent = APP.intro;
+        $("foot").textContent = COPY.foot;
+
+        const search = $("search");
+        search.setAttribute("aria-label", COPY.searchLabel);
+        search.placeholder = COPY.searchPlaceholder;
+        search.addEventListener("input", () => { query = search.value; renderTrail(); });
+
+        $("import-btn").textContent = COPY.importButton;
+        $("export-btn").textContent = COPY.exportButton;
+        $("refresh-btn").textContent = COPY.refreshButton;
+        $("import-btn").addEventListener("click", () => $("file").click());
+        $("export-btn").addEventListener("click", exportJSON);
+        $("refresh-btn").addEventListener("click", async () => {
+          if (!canFetchSidecar()) { $("file").click(); return; }
+          if (await loadSidecar()) renderAll();
+          else $("status").textContent = COPY.sidecarMissing;
+        });
+        $("file").addEventListener("change", (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (file) handleImportFile(file);
+          e.target.value = "";
+        });
+        $("empty-pick").addEventListener("click", () => $("file").click());
+
+        renderAbout();
+      }
+
+      window.__LDF_TRAIL_TEST__ = {
+        parseEvents,
+        zoneCount: (rows) => zoneGroups(rows).size,
+        isTopPick
+      };
+
+      buildChrome();
+      loadCached();
+      renderAll();
+      loadSidecar().then((ok) => {
+        if (ok) renderAll();
+        else if (!store.rows.length) $("status").textContent = COPY.sidecarMissing;
+      });
+    </script>
+  </body>
+</html>
