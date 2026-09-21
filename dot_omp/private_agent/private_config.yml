@@ -1,10 +1,10 @@
 modelRoles:
-  default: cursor/cursor-grok-4.6-fast
+  default: cursor/gpt-5.6-sol:medium
 symbolPreset: unicode
 composer:
   shape: claude
 theme:
-  light: light-coral
+  light: light-eucalyptus
 setupVersion: 2
 statusLine:
   preset: custom
@@ -22,3 +22,19 @@ statusLine:
     - session_name
     - cost
 omitThinking: true
+memory:
+  backend: mnemopi
+dev:
+  autoqaConsent: granted
+proseOnlyThinking: true
+modelRoleStorage: global
+personality: default
+defaultThinkingLevel: low
+hideThinkingBlock: true
+plan:
+  defaultOnStartup: true
+  enabled: false
+edit:
+  mode: hashline
+tools:
+  xdev: true

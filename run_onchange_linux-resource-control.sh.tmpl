@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Install Linux cgroup and oomd drop-ins, then start zram swap.
+#
+# user-slice: {{ include "linux/resource-control/user-slice-memory.conf" | sha256sum }}
+# root-slice: {{ include "linux/resource-control/root-slice-oomd-swap.conf" | sha256sum }}
+# zram: {{ include "linux/resource-control/zram-generator.conf" | sha256sum }}
+
+set -euo pipefail
+
+{{- if ne .chezmoi.os "linux" }}
+exit 0
+{{- end }}
+
+install_file() {
+  local src="$1"
+  local dest="$2"
+  local mode="$3"
+  sudo install -D -m "${mode}" "${src}" "${dest}"
+}
+
+SRC="{{ .chezmoi.sourceDir }}/linux/resource-control"
+
+if [[ ! -d "${SRC}" ]]; then
+  echo "linux-resource-control: missing ${SRC}; skip" >&2
+  exit 0
+fi
+
+if ! command -v sudo >/dev/null 2>&1; then
+  echo "linux-resource-control: sudo is missing; skip system drop-ins" >&2
+  exit 0
+fi
+
+sudo apt-get install -y systemd-oomd systemd-zram-generator
+
+install_file "${SRC}/user-slice-memory.conf" \
+  /etc/systemd/system/user-.slice.d/50-memory.conf 644
+install_file "${SRC}/root-slice-oomd-swap.conf" \
+  /etc/systemd/system/-.slice.d/50-oomd-swap.conf 644
+install_file "${SRC}/zram-generator.conf" \
+  /etc/systemd/zram-generator.conf 644
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now systemd-oomd.service
+sudo systemctl restart systemd-oomd.service
+sudo systemctl start systemd-zram-setup@zram0.service
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl --user daemon-reload || true
+fi
+
+echo "linux-resource-control: installed user-slice memory cap, oomd swap watch, zram"

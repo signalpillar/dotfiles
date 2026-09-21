@@ -88,8 +88,6 @@
 	includeIssuesSection = false
 [github]
 	user = signalpillar
-
-[user]
 	email = 72226+signalpillar@users.noreply.github.com
 
 # [interactive]
@@ -109,3 +107,9 @@
     relative-paths = true    # Output all file paths relative to the current directory
     file-style = yellow
     hunk-header-style = line-number syntax
+[credential "https://github.com"]
+	helper = 
+	helper = !/home/volodymyrvitvitskyi/.local/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/home/volodymyrvitvitskyi/.local/bin/gh auth git-credential

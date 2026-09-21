@@ -15,6 +15,7 @@ The repository manages two environments:
 ### Linux VM (Ubuntu)
 
 - The script [run_onchange_setup_box.sh.tmpl](run_onchange_setup_box.sh.tmpl) installs system tools, desktop fonts, and development runtimes.
+- The script [run_onchange_linux-resource-control.sh.tmpl](run_onchange_linux-resource-control.sh.tmpl) installs cgroup memory caps, systemd-oomd swap watch, and zram.
 - Window managers include Sway and i3.
 - Docker container environments run through the [dockerise/justfile](dockerise/justfile).
 
@@ -93,6 +94,7 @@ Homebrew casks manage all other desktop applications and Nerd Fonts.
 
 - [Parallels Host-Reachable IP Guide](docs/parallels-host-reachable-ip.md)
 - [Tmux Choose-Tree Activity Guide](docs/tmux-choose-tree-activity.md)
+- [Linux Resource Control Guide](docs/linux-resource-control.md)
 
 ## History
 

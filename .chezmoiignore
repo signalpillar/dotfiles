@@ -9,7 +9,14 @@ dockerise
 {{- if eq .chezmoi.os "darwin" }}
 .screenlayout/vm.sh
 .config/i3
+.config/systemd/user/background.slice.d
+.config/systemd/user/session.slice.d
 {{- end }}
+
+# Payload files for run_onchange_linux-resource-control.sh.tmpl.
+# include() reads them from source. They must not land in $HOME/linux/.
+linux
+linux/**
 
 # Do not ship Cursor account/machine state (auth, team, MCP allowlists).
 # Patterns match target paths, not source paths. A dot_cursor/ prefix matches

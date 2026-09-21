@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Run a command in the user background.slice with a CPU quota.
+# Slice memory walls live in ~/.config/systemd/user/background.slice.d/.
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: run-limited COMMAND [ARGS...]" >&2
+  echo "example: run-limited npm run dev" >&2
+  exit 2
+fi
+
+if ! command -v systemd-run >/dev/null 2>&1; then
+  echo "run-limited: systemd-run is missing" >&2
+  exit 1
+fi
+
+if ! systemctl --user show-environment >/dev/null 2>&1; then
+  echo "run-limited: systemd --user is not available" >&2
+  exit 1
+fi
+
+ncpu="$(nproc)"
+quota="$((ncpu * 70))"
+if [[ "${quota}" -lt 100 ]]; then
+  quota=100
+fi
+
+cmd_base="${1##*/}"
+case "${cmd_base}" in
+  node|npm|npx|pnpm|yarn|yarnpkg|bun)
+    if [[ "${NODE_OPTIONS:-}" != *max-old-space-size* ]]; then
+      export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--max-old-space-size=4096"
+    fi
+    ;;
+esac
+
+exec systemd-run --user --scope --collect --same-dir --quiet \
+  --slice=background.slice \
+  --property="CPUQuota=${quota}%" \
+  -- "$@"
