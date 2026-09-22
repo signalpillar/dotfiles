@@ -681,6 +681,46 @@ class YamlTaskStore:
 
         self._mutate(mutation)
 
+    def compact_done_slices(self, *, since: str | None = None) -> dict[str, int]:
+        """Strip notes from done slices, keeping goal, PRs, and execution records.
+
+        Keeps per slice: key/kind/title/goal/status/steps/final_steps (key/title/
+        status/execution each), repos, depends_on, layer, repo_work, execution.
+        Clears: slice note plus every step note. `stats` and `report` read only
+        execution/status/repo_work/title, so both keep working after compaction.
+        Returns {"slices": <compacted count>, "notes": <cleared note count>}.
+        """
+        from pi_job_harness.report import build_report, parse_since
+
+        cutoff = parse_since(since) if since else None
+        if cutoff is not None:
+            rows = build_report(self.read(), cutoff)
+            eligible = {row["slice"] for row in rows}
+        else:
+            eligible = set()
+        result: dict[str, int] = {"slices": 0, "notes": 0}
+
+        def mutation(task: dict[str, Any]) -> None:
+            for entry in task.get("plan", {}).get("slices", []):
+                if str(entry.get("status") or "").lower() != "done":
+                    continue
+                if cutoff is not None and entry.get("key") not in eligible:
+                    continue
+                cleared = 0
+                if str(entry.get("note") or ""):
+                    entry["note"] = ""
+                    cleared += 1
+                for step in list(entry.get("steps") or []) + list(entry.get("final_steps") or []):
+                    if str(step.get("note") or ""):
+                        step["note"] = ""
+                        cleared += 1
+                if cleared:
+                    result["slices"] += 1
+                    result["notes"] += cleared
+
+        self._mutate(mutation, refresh_digest=True)
+        return result
+
     def set_slice_fields(
         self,
         *,

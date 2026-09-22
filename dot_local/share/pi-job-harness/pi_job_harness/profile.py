@@ -197,6 +197,7 @@ class CliHelpDocument(StrictDocument):
     """CLI help snippets owned by the profile. Python must not hardcode these strings."""
 
     add_decision: CliHelpAddDecisionDocument = Field(description="Help for add-decision.")
+    compact_done: CliHelpMutationDocument = Field(description="Help for compact-done.")
     set_step_note: CliHelpMutationDocument = Field(description="Help for set-step-note.")
     set_slice_note: CliHelpMutationDocument = Field(description="Help for set-slice-note.")
     set_source: CliHelpMutationDocument = Field(description="Help for set-source.")

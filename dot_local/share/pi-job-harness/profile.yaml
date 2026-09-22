@@ -349,6 +349,14 @@ cli_help:
       optional explicit spill path (relative to the task dir OK).
       YAML stores the path plus a one-line claim, not a Plan file: pointer.
       Prefer --slug so the layout names `_decision-<date>-<slug>.md`.
+  compact_done:
+    command: archive done slices to references/working, then strip their notes
+    note: >-
+      Writes the report markdown+json archive first, then clears slice and step
+      notes on done slices (keeps key/kind/title/goal/status/execution/repo_work).
+      stats and report read only execution/status/repo_work/title, so both keep
+      working. Optional --since YYYY-MM-DD limits scope; --no-archive skips the
+      archive (not recommended).
   set_step_note:
     command: append or replace a step note without changing status or execution
     note: >-

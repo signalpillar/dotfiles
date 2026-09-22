@@ -141,6 +141,8 @@ Prefer packet guidance. Typical shape:
 Writes: use mutation commands from `pi-job --help` only (never hand-edit the store).
 `add-decision` membership, spill naming, and SUPERSEDES live in profile `plan_and_grill_guardrail` and `cli_help.add_decision`.
 Read them with `pi-job add-decision --help` and `pi-job channels`.
+Housekeeping: `compact-done [--since YYYY-MM-DD]` archives done slices to `references/working/`, then strips their notes.
+`stats` and `report` read only execution/status/repo_work/title, so both keep working after compaction.
 Register the first layer with repeatable `layers add --bind SLICE=LAYER` flags.
 This command adds the band and binds all existing implement/spike/research slices atomically.
 Append dependencies with `set-slice --slice CONSUMER --depends-on PRODUCER`.

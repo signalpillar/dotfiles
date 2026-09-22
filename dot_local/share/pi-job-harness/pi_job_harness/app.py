@@ -1835,6 +1835,9 @@ def build_plan(
     store: TaskStore,
     task: dict[str, Any],
     layout: PiJobLayout,
+    *,
+    slice_key: str | None = None,
+    show_done: bool = False,
 ) -> str:
     claims = owned_cursors(task)
     positions = {claim.owner: claim_position(task, claim) for claim in claims}
@@ -1857,17 +1860,21 @@ def build_plan(
         "Plan slices:",
     ]
     for index, task_slice in enumerate(task_slices(task), start=1):
-        slice_key = task_slice.key
+        key = task_slice.key
+        if slice_key is not None and key != slice_key:
+            continue
+        if not show_done and slice_key is None and task_slice.status in STATUS_DONE:
+            continue
         kind = task_slice.kind or "<unset>"
         st = task_slice.status
-        owners_here = [owner for owner, pos in positions.items() if pos.slice == slice_key]
+        owners_here = [owner for owner, pos in positions.items() if pos.slice == key]
         marker = ""
         if owners_here:
             marker = f"  <-- claimed by {', '.join(owners_here)}"
-        elif any(s.key == slice_key for s in ready):
+        elif any(s.key == key for s in ready):
             marker = "  <-- ready"
         kind_entry = get_slice_kind(kind) if kind in valid_slice_kinds() else {}
-        lines.append(f"{index:2}. {slice_key} [kind:{kind}/{st}] {task_slice.title}{marker}")
+        lines.append(f"{index:2}. {key} [kind:{kind}/{st}] {task_slice.title}{marker}")
         if task_slice.layer:
             lines.append(f"    layer: {task_slice.layer}")
         if kind_entry.get("description"):
@@ -1875,9 +1882,11 @@ def build_plan(
         for step in task_slice.all_steps:
             step_key = step.key
             step_st = step.status
+            if not show_done and slice_key is None:
+                continue
             step_owners = [
                 owner for owner, pos in positions.items()
-                if pos.slice == slice_key and pos.step == step_key
+                if pos.slice == key and pos.step == step_key
             ]
             step_marker = f"  <-- current for {', '.join(step_owners)}" if step_owners else ""
             step_kinds = contract_step_kinds()
@@ -2447,7 +2456,9 @@ def cmd_plan(args: argparse.Namespace) -> None:
     store = open_task_store(task_file, args.layout)
     task = store.read()
     require_initialized(task_file, task)
-    print(build_plan(store, task, args.layout))
+    if args.slice and args.slice not in slice_status_map(task):
+        die(f"slice not found: {args.slice!r}")
+    print(build_plan(store, task, args.layout, slice_key=args.slice, show_done=args.show_done))
 
 
 def build_wayfinder_context(
@@ -5573,6 +5584,39 @@ def cmd_remove_slice(args: argparse.Namespace) -> None:
     print(f"removed slice: {key}")
 
 
+def cmd_compact_done(args: argparse.Namespace) -> None:
+    from datetime import UTC, datetime
+
+    from pi_job_harness.emit import emit_output
+    from pi_job_harness.report import (
+        build_report,
+        parse_since,
+        render_json,
+        render_markdown,
+    )
+
+    task_file = require_task(args.task, cmd="compact-done")
+    try:
+        since = parse_since(args.since) if args.since else None
+    except ValueError as exc:
+        die(str(exc))
+    store = open_task_store(args.task, args.layout)
+    before = task_file.stat().st_size
+    effective = since or parse_since("1970-01-01")
+    if not args.no_archive:
+        stamp = datetime.now(UTC).strftime("%Y-%m-%d")
+        archive_dir = task_file.parent / "references" / "working"
+        task = store.read()
+        rows = build_report(task, effective)
+        label = _task_label(Path(args.task))
+        emit_output(render_markdown(label, effective, rows), str(archive_dir / f"compact-done-{stamp}.md"))
+        emit_output(render_json(rows), str(archive_dir / f"compact-done-{stamp}.json"))
+        print(f"archived {len(rows)} done slices to references/working/compact-done-{stamp}.md+json")
+    result = store.compact_done_slices(since=args.since)
+    after = task_file.stat().st_size
+    print(f"compacted {result['slices']} slices, cleared {result['notes']} notes ({before} -> {after} bytes, since={effective.isoformat()})")
+
+
 def task_slices_map(task: dict[str, Any]) -> dict[str, TaskSlice]:
     return {ts.key: ts for ts in task_slices(task)}
 
@@ -5735,6 +5779,8 @@ def main(layout: PiJobLayout | None = None) -> None:
     set_source_help = str(cli_help["set_source"]["command"])
     set_source_note_help = str(cli_help["set_source"]["note"])
     finish_note_help = str(cli_help["finish"]["note"])
+    compact_done_help = str(cli_help["compact_done"]["command"])
+    compact_done_note_help = str(cli_help["compact_done"]["note"])
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--task",
@@ -5902,6 +5948,8 @@ def main(layout: PiJobLayout | None = None) -> None:
     finish.set_defaults(fn=cmd_finish)
 
     plan = sub.add_parser("plan", help="print slice/step plan from the task file and step/slice-kind contract")
+    plan.add_argument("--slice", help="print one slice with its steps (by key, including done)")
+    plan.add_argument("--show-done", action="store_true", help="include done/skipped slices and all steps (hidden by default)")
     plan.set_defaults(fn=cmd_plan)
 
     wayfinder_context = sub.add_parser(
@@ -6311,6 +6359,23 @@ def main(layout: PiJobLayout | None = None) -> None:
     remove_slice = sub.add_parser("remove-slice", help="remove a slice from the plan (refuses when other slices depend on it)")
     remove_slice.add_argument("--key", required=True, help="slice key to remove")
     remove_slice.set_defaults(fn=cmd_remove_slice)
+
+    compact_done = sub.add_parser(
+        "compact-done",
+        help=compact_done_help,
+        description=compact_done_help,
+        epilog=compact_done_note_help,
+    )
+    compact_done.add_argument(
+        "--since",
+        help="only compact done slices ended on or after YYYY-MM-DD (default: all done slices)",
+    )
+    compact_done.add_argument(
+        "--no-archive",
+        action="store_true",
+        help="skip writing the report archive (not recommended)",
+    )
+    compact_done.set_defaults(fn=cmd_compact_done)
 
     set_plan_note = sub.add_parser("set-plan-note", help="set task.plan.note")
     set_plan_note.add_argument(

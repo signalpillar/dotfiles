@@ -50,8 +50,8 @@ Given a YAML task file and `profile.yaml`, it can:
 - `add-slice` / `remove-slice` - add or remove ordered slices with steps from the profile template
 - `add-step` - append a step to a slice
 - `set-project` / `set-context` / `set-plan-note` / `add-decision` / `set-slice` / `block-slice` / `unblock-slice` / `set-step-note` / `set-slice-note` / `set-source` / `acknowledge-edit` - write task metadata and product/scope decisions without hand-editing the store
-- `status` / `plan` / `show` - report where the work is, the Ready frontier, and slice detail
-  (`status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
+- `status` / `plan [--slice KEY] [--show-done]` / `show` - report where the work is, the Ready frontier, and slice detail
+  (`plan` lists slices only, hiding done/skipped slices and all steps unless `--slice` or `--show-done`; `status` also reports `Structure: ok` or a non-fatal `Structure: invalid` line from slice template lint; warns on oversized notes / large files)
 - `msg --to manager|slice:KEY --note TEXT` - send a durable task-scoped message; `msg --read --to ADDRESS` prints and acknowledges it
 - `show` / `show --slice KEY` / `show --full` / `show --short` / `show --work-first` / `show --graph` - tree view (compact by default), optional models, collapsed consecutive done names, current step only, work-first reorder (open on top newest-touched first; done/skipped last newest-completed first), Mermaid depends_on graph for termaid stdin, or a slice-local detail view (goal, notes, steps, repo_work)
 - `markdown` / `markdown --chronological` / `markdown --summary` / `markdown --slice KEY` - read-only Markdown preview on stdout (works without orchestration init; never mutates the store)
@@ -513,6 +513,10 @@ These commands write task metadata and durable state without editing the YAML by
 - `pi-job --task <t> remove-slice --key K` - remove a slice from the plan. Refuses when:
   - another slice declares a `depends_on` reference to it
   - the orchestration cursor points at it (advance to another slice first)
+- `pi-job --task <t> compact-done [--since YYYY-MM-DD] [--no-archive]` - archive done slices, then strip their notes.
+  Writes the report markdown+json archive to `references/working/compact-done-<date>.md+json` first (skip with `--no-archive`, not recommended),
+  then clears slice and step notes on done slices ended on or after `--since` (default: all done slices).
+  Keeps key/kind/title/goal/status/execution/repo_work/depends_on, so `stats` and `report` keep working.
 
 ### Introspection
 

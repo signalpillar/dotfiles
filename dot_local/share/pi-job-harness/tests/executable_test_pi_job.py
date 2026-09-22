@@ -1250,6 +1250,69 @@ def test_plan_output_omits_record_results() -> None:
         assert_not_contains(plan, "RECORD RESULTS")
 
 
+def plan_scope_yaml_task() -> str:
+    return """title: Plan scope test
+status: in_progress
+orchestration:
+  cursors: []
+plan:
+  note: ""
+  slices:
+    - key: done-slice
+      kind: research
+      title: Done work
+      goal: Finished goal
+      status: done
+      note: ""
+      steps: []
+      final_steps: []
+    - key: open-slice
+      kind: research
+      title: Open work
+      goal: Live goal
+      status: planned
+      note: ""
+      steps:
+        - key: dusty-step
+          title: Dusty Step
+          status: done
+          note: ""
+        - key: synthesize
+          title: Synthesize
+          status: planned
+          note: ""
+      final_steps: []
+"""
+
+
+def test_plan_hide_done_skips_done_slices() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "plan-scope.yaml"
+        task.write_text(plan_scope_yaml_task(), encoding="utf-8")
+        scoped = run(str(PI_JOB), "--task", str(task), "plan").stdout
+        assert_not_contains(scoped, "done-slice")
+        assert_contains(scoped, "open-slice")
+        assert_not_contains(scoped, "Dusty Step")
+        assert_not_contains(scoped, "synthesize")
+        full = run(str(PI_JOB), "--task", str(task), "plan", "--show-done").stdout
+        assert_contains(full, "done-slice")
+        assert_contains(full, "open-slice")
+        assert_contains(full, "Dusty Step")
+
+
+def test_plan_slice_prints_one_slice() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "plan-scope.yaml"
+        task.write_text(plan_scope_yaml_task(), encoding="utf-8")
+        scoped = run(str(PI_JOB), "--task", str(task), "plan", "--slice", "open-slice").stdout
+        assert_contains(scoped, "open-slice")
+        assert_not_contains(scoped, "done-slice")
+        assert_contains(scoped, "Dusty Step")
+        assert_contains(scoped, "synthesize")
+        missing = run(str(PI_JOB), "--task", str(task), "plan", "--slice", "nope", check=False)
+        assert_contains(missing.stderr + missing.stdout, "slice not found")
+
+
 def share_with_team_instruction_yaml_task(*, slice_key: str = "ship-slice") -> str:
     """Initialized YAML task with cursor on share-with-team (orchestrator, long PR guidance)."""
 
@@ -10570,6 +10633,8 @@ def main() -> None:
     test_add_decision_and_finish_help_describe_channels()
     test_update_task_file_guidance_names_mutation_commands()
     test_plan_output_omits_record_results()
+    test_plan_hide_done_skips_done_slices()
+    test_plan_slice_prints_one_slice()
     test_pick_next_packet_is_structural_only()
     test_channels_cli_prints_catalog_and_step_blurbs()
     test_profile_rejects_missing_record_channels_on_step_kind()
