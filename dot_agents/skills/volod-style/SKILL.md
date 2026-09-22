@@ -157,6 +157,14 @@ When using this skill for implementation or review, explicitly scan new and chan
 - **Presence matrix**: independent sibling arms (two records, two catalogs, two getters) are table rows, not new `it()` blocks. Titles that differ only by "both exist" / "only X exists" / "only Y exists" are one `test.each` or one dual-arm test plus spy assertions. Isolation ("other catalog not called") is a spy on those cases, not another test.
 - **This unit's contract**: do not re-assert a collaborator's public throw, getter, or narrowing. That behavior has a symmetrical unit test on the collaborator. This unit asserts what it composed and which collaborator it called.
 
+### Layer ownership: smallest test for distinct risk
+
+- **Smallest test for distinct risk**: prove each behavior once at the lowest layer that owns it.
+- **Unit owns detailed matrix**: cover mappings, derived values, branches, fallbacks, dates, null/undefined, memoization, and service logic in unit tests.
+- **Integration owns wiring and boundaries**: prove resolver wiring, schema contracts, registration, orchestration, and one representative case per public boundary.
+- **No matrix replay**: do not repeat the full unit matrix at integration or e2e layers.
+- **New-risk gate**: before adding a test, ask what new risk it covers and whether a lower layer already covers it.
+
 ### Lean tests (why this bar)
 
 Popular review skills check spec and standards, not test shape ([mattpocock/code-review](https://skills.sh/mattpocock/skills/code-review), [warp review-pr](https://skills.sh/warpdotdev/common-skills/review-pr), Sentry PR review). Lean-test rules come from:
