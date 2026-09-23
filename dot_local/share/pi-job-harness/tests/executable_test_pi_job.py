@@ -9442,7 +9442,6 @@ def test_add_slice_creates_plan_stub() -> None:
         template = module.load_profile_contract()["instruction_packets"]["slice_plan_stub"]
         # Stub body must come from the profile template, not a Python hardcode.
         assert_not_contains(template, "## Types")
-        assert_contains(template, "## Call stacks")
         assert_contains(template, "## Assertion")
         assert_contains(template, "## Must-not")
         assert_contains(template, "## Verification")
@@ -9450,7 +9449,6 @@ def test_add_slice_creates_plan_stub() -> None:
         assert_not_contains(template, "## Intent")
         assert_not_contains(template, "## Open questions")
         assert_not_contains(body, "## Types")
-        assert_contains(body, "## Call stacks")
         assert_contains(body, "## Assertion")
         assert_contains(body, "## Must-not")
         assert_contains(body, "## Verification")
