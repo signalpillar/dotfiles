@@ -55,7 +55,10 @@ Create a ticket (or update the existing one) with:
 
 ```
 # Problem
-- <What is wrong or missing>
+- <One line, product language: who is affected and what breaks for them.
+  No function names, file paths, or type names in this line>
+- <Technical detail, tech language: root cause, the exact trace/error string,
+  the function(s)/file(s) involved, and why - as much detail as the PR's §1 lead>
 - <Concrete evidence: trace, failing scenario, spec gap, or constraint change>
 
 # Expected
@@ -66,6 +69,16 @@ Create a ticket (or update the existing one) with:
 - [ ] Scenario 1 to verify
 - [ ] Edge case to verify
 ```
+
+The Problem section's first bullet mirrors the PR's §1 opening move: state the
+user/product-visible symptom before any code name appears. The second bullet
+carries the same technical weight as the rest of §1. Name the throwing
+function, the exact error string, and the file(s) at fault, so an engineer can
+jump straight to the code without re-deriving the root cause from the product
+line.
+
+**Bad first bullet:** `resolveFlowConfigFromProgramme throws when versaFlows is undefined.`
+**Good first bullet:** `A PMOS patient who taps blood collection gets stuck: Versa never starts the flow, for every PMOS purchase.`
 
 ## Commit message
 
