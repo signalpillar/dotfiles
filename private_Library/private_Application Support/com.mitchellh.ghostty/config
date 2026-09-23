@@ -11,7 +11,8 @@
 # # The config file consists of simple key-value pairs,
 # # separated by equals signs.
 # font-family = Fira Code
-font-family = Go Mono
+font-family = IBM Plex Mono
+# font-family = Go Mono
 # font-family = Cascadia Code
 # font-family = Inconsolata
 # window-padding-x = 2
