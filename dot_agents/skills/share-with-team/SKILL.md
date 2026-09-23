@@ -58,7 +58,7 @@ Create a ticket (or update the existing one) with:
 - <One line, product language: who is affected and what breaks for them.
   No function names, file paths, or type names in this line>
 - <Technical detail, tech language: root cause, the exact trace/error string,
-  the function(s)/file(s) involved, and why - as much detail as the PR's §1 lead>
+  the function(s)/file(s) involved, and why>
 - <Concrete evidence: trace, failing scenario, spec gap, or constraint change>
 
 # Expected
@@ -70,12 +70,11 @@ Create a ticket (or update the existing one) with:
 - [ ] Edge case to verify
 ```
 
-The Problem section's first bullet mirrors the PR's §1 opening move: state the
-user/product-visible symptom before any code name appears. The second bullet
-carries the same technical weight as the rest of §1. Name the throwing
-function, the exact error string, and the file(s) at fault, so an engineer can
-jump straight to the code without re-deriving the root cause from the product
-line.
+The Problem section's first bullet matches the first §1 bullet.
+State the user-visible symptom before any code name.
+The second bullet carries the technical detail.
+Name the throwing function, the exact error string, and each file at fault.
+An engineer can jump to the code from that bullet.
 
 **Bad first bullet:** `resolveFlowConfigFromProgramme throws when versaFlows is undefined.`
 **Good first bullet:** `A PMOS patient who taps blood collection gets stuck: Versa never starts the flow, for every PMOS purchase.`
@@ -121,26 +120,43 @@ If a decision is mentioned only in passing (e.g. "still honours <DECISION-SLUG>"
 
 ### Template: hybrid
 
-Pyramid lead, then the call-stack. Omit §4 when this PR does not change the error or API surface.
+Pyramid lead, then the call-stack.
+Omit §4 when this PR does not change the error or API surface.
 
-§1 is three facts, in this order, in plain product language — readable to a reviewer who only saw the previous merged PR:
+§1 states three facts, in this order.
+Use simple technical language.
+A reviewer who saw only the previous merged PR can read it.
 
-1. Who still consumes what / what is missing for the member or client.
-2. What this PR builds or changes, named as a product/contract fact — not a function or type name.
-3. What this PR does not do (no query yet, next slice, etc.).
+1. Who still consumes what, or what is missing.
+2. What this PR changes, as a product or contract fact.
+3. What this PR does not do.
 
-Do not open §1 with new type names, function names, or in-group labels from earlier PRs. Those belong in §3 (call stack) or the files list.
+Write each fact as its own bullet.
+Keep each bullet to one clause and 20 words.
+Use **bold** and *italic* to mark the words a reader must see.
+Do not join the three facts into one paragraph.
+Do not chain causes with "but" or a long "and" list.
+Put the cause, the rename mechanics, and the test detail in §2, §3, or §5.
+Do not open a bullet on a function name, type name, or in-group label.
+Put those names in §3 or the files list.
 
-**Bad:** `resolveProgrammeDefinition now builds the existing shape from the purchase.`
-**Good:** `A member who bought only an add-on still has to look like an ordinary programme to the client and GraphQL. This PR builds that existing programme-definition shape from the purchase plus bundle intake. It does not wire any query yet.`
+**Bad:** [graphius#1778](https://github.com/emed-labs/graphius/pull/1778) wrote 89 words in one paragraph.
+It opens on `resolveHasHormoneContext` and chains the cause, the rename, and the non-change.
+
+**Good:** the same PR, three bullets.
+- Pre-prescribing hormone questions still use the same-order **PMOS Discovery** gate from #1705.
+- This PR corrects the **PROG-4** text, renames the flag to **hasHormoneContext**, and adds the GraphQL test.
+- It does *not* change that gate's runtime behaviour.
 
 ````
 ## <TICKET> · <parent-ticket if sub-task> — <one-line change>
 
 Ticket: <tracker-url>/browse/<TICKET>
 
-### 1. In one line
-<who still consumes what / what is missing>. <this PR's product/contract change>. <what this PR does not do>.
+### 1. Lead
+- <who still consumes what, or what is missing>
+- <this PR's product or contract change>
+- <what this PR does not do>
 
 ### 2. Decision
 **<slug>:** <chosen approach>. Not <rejected approach>, because <reason>.
@@ -174,7 +190,11 @@ Name A/B/C as real systems or services, not placeholders. Mark the changed node 
 **What makes a good PR description:**
 - **Always hybrid** - do not ask repository, full, or hybrid.
 - **Hybrid only** - do not read or append a repo PR template.
-- **Hybrid: lead then map** - §1 is the product gap (consumer, this PR, not-in-this-PR), not a code name; §3 shows where the PR sits in the call stack.
+- **Hybrid: lead then map.** §1 is three bullets (who, this change, not in this PR).
+  Keep each bullet to one clause and 20 words.
+  Use bold and italic so the facts scan.
+  Do not open a bullet on a function name.
+  §3 shows where the PR sits in the call stack.
 - **Write the flow as it works now** - not "I changed X to do Y" but "the user does A, the client calls B, the service checks C." Present tense, full path.
 - **Name decisions with slugs** - a slug lets reviewers trace to the decision source without searching.
 - **Surface quirks explicitly** - if you discovered a system bug or gap and worked around it, say so. Hiding it makes the workaround look like a design choice.
