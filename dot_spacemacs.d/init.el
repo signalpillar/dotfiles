@@ -970,6 +970,10 @@ If MAKE-CURRENT is non-nil (or called interactively), set it as current."
   (vv/syllabus-new-file t)
   (vv/syllabus-append-region beg end))
 
+(defun vv/insert-time-seconds ()
+  "Insert the current local time with seconds."
+  (interactive)
+  (insert (format-time-string "%H:%M:%S")))
 
 (defun dotspacemacs/user-config ()
   "Configuration for user code:
@@ -998,7 +1002,8 @@ before packages are loaded."
     "n s y" #'vv/syllabus-append-region
     "n s Y" #'vv/syllabus-new-file-and-append
     "n s n" #'vv/syllabus-new-file
-    "n s f" #'vv/syllabus-set-current-file)
+    "n s f" #'vv/syllabus-set-current-file
+    "iT" #'vv/insert-time-seconds)
 
   ;; ignore tests
   (spacemacs/set-leader-keys-for-major-mode
