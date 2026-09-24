@@ -243,7 +243,10 @@ This function should only modify configuration layer settings."
                                       ;; https://github.com/borkdude/cljbang.el
                                       (cljbang :location (recipe :fetcher github :repo "borkdude/cljbang.el"))
                                       ;; https://github.com/jaketothepast/codetutor
-                                      (codetutor :location (recipe :fetcher github :repo "jaketothepast/codetutor")))
+                                      (codetutor :location (recipe :fetcher github :repo "jaketothepast/codetutor"))
+                                      ;; https://github.com/agzam/remoto.el
+                                      ;; Read-only /github: filesystem. Needs ghub, already installed with Magit.
+                                      (remoto :location (recipe :fetcher github :repo "agzam/remoto.el")))
 
    ;; A list of packages that cannot be updated.
    dotspacemacs-frozen-packages '()
@@ -1093,6 +1096,12 @@ before packages are loaded."
       (fancy-compilation-mode)))
 
   ;; Cljbang: Clojure-like language compiled to elisp (https://github.com/borkdude/cljbang.el)
+  ;; Browse a GitHub repo as files: C-x C-f /github:owner/repo RET
+  (use-package remoto
+    :commands (global-remoto-mode remoto-browse)
+    :config
+    (global-remoto-mode 1))
+
   (use-package cljbang
     :commands (cljbang-load-file cljbang-require)
     :init
