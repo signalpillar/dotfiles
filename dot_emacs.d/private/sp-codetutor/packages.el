@@ -1,4 +1,4 @@
-;;; packages.el --- sp-codetutor layer packages file for Spacemacs.
+;;; packages.el --- sp-codetutor layer packages file for Spacemacs. -*- lexical-binding: t -*-
 ;;
 ;; Copyright (c) 2026 Volodymyr Vitvitskyi
 ;;
