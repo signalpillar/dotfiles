@@ -1,0 +1,33 @@
+#+TITLE: sp-codetutor layer
+#+TAGS: layer|tools
+
+* Description
+This layer wraps [[https://github.com/jaketothepast/codetutor][CodeTutor]].
+
+It is off by default.
+Do not add it to =dotspacemacs-configuration-layers= until you want to use it.
+
+** Features
+- Leader keys under ~SPC o t~.
+- =codetutor-backend= is =auto=.
+- =codetutor-review-on-save= is off.
+- Workaround for the pi.dev backend hang: empty =:stdin= so Emacs sends EOF.
+
+* Install
+Add =sp-codetutor= to =dotspacemacs-configuration-layers=.
+
+Reload with ~SPC f e R~.
+
+* Key bindings
+
+| Key Binding | Command |
+|-------------+---------|
+| ~SPC o t o~ | =codetutor-open= |
+| ~SPC o t n~ | =codetutor-what-next= |
+| ~SPC o t a~ | =codetutor-ask= |
+| ~SPC o t f~ | =codetutor-follow-up= |
+| ~SPC o t m~ | =codetutor-refresh-architecture-memory= |
+| ~SPC o t s~ | =codetutor-new-spec= |
+| ~SPC o t S~ | =codetutor-open-spec= |
+| ~SPC o t t~ | =codetutor-scratch= |
+| ~SPC o t i~ | =codetutor-inline-tips= |
