@@ -1021,9 +1021,20 @@ before packages are loaded."
 
   ;; macOS PTY buffers are 1024 bytes, so Magit Git subprocesses stall on a
   ;; PTY. Pipes skip that tax. Leave PTYs on Linux so passphrase prompts work.
+  ;; totbwf: advise start-process; Magit has its own knob. Skip Tramp remotes.
+  ;; https://www.reddit.com/r/emacs/comments/1qlnde7/comment/o1fq5lj/
   ;; https://irreal.org/blog/?p=13567
   (when (eq system-type 'darwin)
-    (setq magit-process-connection-type nil))
+    (setq magit-process-connection-type nil)
+    (defun vv/darwin-use-pipe (fn &rest args)
+      "Run FN with a pipe, not a PTY, when `default-directory' is local."
+      (if (file-remote-p default-directory)
+          (apply fn args)
+        (let ((process-connection-type nil))
+          (apply fn args))))
+    (advice-add 'start-process :around #'vv/darwin-use-pipe)
+    ;; compile uses start-file-process-shell-command, not start-process.
+    (advice-add 'compilation-start :around #'vv/darwin-use-pipe))
 
   (spacemacs/set-leader-keys
     "n s y" #'vv/syllabus-append-region
