@@ -1019,6 +1019,11 @@ before packages are loaded."
              (not (eq system-type 'darwin)))
     (setq interprogram-cut-function #'my/osc52-yank-to-host))
 
+  ;; macOS PTY buffers are 1024 bytes, so Magit Git subprocesses stall on a
+  ;; PTY. Pipes skip that tax. Leave PTYs on Linux so passphrase prompts work.
+  ;; https://irreal.org/blog/?p=13567
+  (when (eq system-type 'darwin)
+    (setq magit-process-connection-type nil))
 
   (spacemacs/set-leader-keys
     "n s y" #'vv/syllabus-append-region
