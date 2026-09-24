@@ -1,0 +1,59 @@
+#+TITLE: sp-term-speed layer
+#+TAGS: layer|tools
+
+* Description
+This layer speeds up Emacs terminal buffers.
+
+It loads a local package =term-speed=.
+That package follows James Cherti's settings for =vterm=, =eat=, =ghostel=, =term=, and =ansi-term=.
+
+Source: https://www.jamescherti.com/emacs-terminal-performance-vterm-eat-ansi-term-ghostel/
+
+This layer does not install =eat= or =ghostel=.
+Hooks still fire if you load those packages later.
+
+** Features
+- Lower vterm, eat, and ghostel output latency.
+- Cap scrollback size.
+- Drop font-lock, undo, bidi scan, and extra minor modes in terminal buffers.
+- Force =line-spacing= 0 so TUI box drawing has no pixel gap.
+- Compile vterm with =-O3 -march=native= and system libvterm by default.
+
+* Install
+Add =sp-term-speed= to =dotspacemacs-configuration-layers=.
+
+Reload with ~SPC f e R~.
+
+If vterm already compiled its C module, rebuild it so cmake flags take effect:
+
+1. Delete the compiled module under =~/.emacs.d/elpa/= (file name =vterm-module.so= or =vterm-module.dll=).
+2. Restart Emacs, or run ~M-x vterm-module-compile~.
+
+* Layer variables
+Set these on the layer form.
+
+| Variable | Default | Meaning |
+|----------+---------+---------|
+| =term-speed-hide-mode-line= | t | Hide the mode line except in ghostel |
+| =term-speed-use-system-libvterm= | t | Pass =-DUSE_SYSTEM_LIBVTERM=yes= |
+| =term-speed-vterm-max-scrollback= | 500 | vterm history in lines |
+| =term-speed-disable-scroll-bars= | nil | Hide scroll bars |
+
+Example:
+
+#+BEGIN_SRC emacs-lisp
+(sp-term-speed :variables
+               term-speed-hide-mode-line nil
+               term-speed-vterm-max-scrollback 1000)
+#+END_SRC
+
+* Trade-offs
+- Evil ~C-o~ / ~C-i~ jump list does not record positions in terminal buffers.
+- Right-to-left scripts render incorrectly in the shell.
+- Short vterm scrollback uses less memory and less GC time.
+
+* Key bindings
+None. The layer only changes buffer settings.
+
+* Contribution
+[[https://develop.spacemacs.org/doc/LAYERS.html][Configuration layers development]]

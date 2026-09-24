@@ -79,7 +79,9 @@ A window that shows point therefore shows the bottom of the stream.
 ### 1.3 Scrollback still exists
 
 vterm stores scrollback.
-`vterm-max-scrollback` sets how many lines stay available (default 1000 in this package).
+`vterm-max-scrollback` sets how many lines stay available.
+The `sp-term-speed` layer sets this to 500.
+The vterm package default is 1000.
 You can move through that history when the view is not forced to the live cursor.
 
 The problem is not missing history.

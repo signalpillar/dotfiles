@@ -187,6 +187,9 @@ This function should only modify configuration layer settings."
             shell-default-height 30
             shell-default-shell 'vterm
             shell-default-position 'bottom)
+     ;; James Cherti terminal performance settings for vterm/eat/term.
+     ;; See dot_spacemacs.d/docs/term-speed-layer.md
+     sp-term-speed
      ;; spell-checking
      syntax-checking
      ;; version-control
@@ -393,6 +396,7 @@ It should only modify the values of Spacemacs settings."
    ;; `:location' to download the theme package, refer the themes section in
    ;; DOCUMENTATION.org for the full theme specifications.
    dotspacemacs-themes '(
+                         leuven-dark
                          paper
                          tango
                          (doric-almond :package doric-themes)
