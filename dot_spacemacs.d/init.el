@@ -767,6 +767,23 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
   ;; "(wrong-type-argument arrayp nil)". Must be set before quelpa builds
   ;; any package, hence here rather than `user-config'.
   (setenv "COPYFILE_DISABLE" "1")
+
+  ;; Ubuntu 25.10 ships uutils coreutils, so `ls' is the Rust rewrite and
+  ;; prints no "GNU" in --version. Dired's --dired, --group-directories-first,
+  ;; and `dired-quick-sort' all need GNU ls. GNU builds keep prefixed names:
+  ;; `gnuls' from Ubuntu's gnu-coreutils, `gls' from Homebrew coreutils.
+  ;; Must run before layer config calls `dired-quick-sort-setup'.
+  (setq insert-directory-program
+        (or (seq-find
+             (lambda (candidate)
+               (when-let* ((path (executable-find candidate)))
+                 (with-temp-buffer
+                   (ignore-errors
+                     (call-process path nil t nil "--version")
+                     (string-match-p "GNU" (buffer-string))))))
+             '("gnuls" "gls" "ls"))
+            insert-directory-program))
+
   (setq-default
    line-spacing 7
 
