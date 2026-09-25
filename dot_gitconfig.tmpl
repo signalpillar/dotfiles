@@ -113,9 +113,17 @@
     relative-paths = true    # Output all file paths relative to the current directory
     file-style = yellow
     hunk-header-style = line-number syntax
+{{- if eq .chezmoi.os "darwin" }}
+[credential "https://github.com"]
+	helper = osxkeychain
+[credential "https://gist.github.com"]
+	helper = osxkeychain
+{{- else }}
+# Resolve gh through PATH. An absolute path breaks on another host.
 [credential "https://github.com"]
 	helper = 
-	helper = !/home/volodymyrvitvitskyi/.local/bin/gh auth git-credential
+	helper = !gh auth git-credential
 [credential "https://gist.github.com"]
 	helper = 
-	helper = !/home/volodymyrvitvitskyi/.local/bin/gh auth git-credential
+	helper = !gh auth git-credential
+{{- end }}
