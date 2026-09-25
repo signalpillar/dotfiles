@@ -22,6 +22,11 @@ bindkey '\e\e[D' backward-word
 
 # Path
 export PATH=$HOME/.local/bin:/usr/local/sbin:/usr/local/bin:$PATH
+if [ -x /opt/homebrew/bin/brew ]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+  eval "$(/usr/local/bin/brew shellenv)"
+fi
 export GPG_TTY=$(tty)
 
 # Sources
@@ -31,10 +36,11 @@ export GPG_TTY=$(tty)
 # Aliases (Migrated from nix and bashrc)
 alias k='kubectl'
 alias ddc='docker-compose'
-alias ll='eza -alF'
+# eza 0.23 treats bare -F as --classify WHEN, so it eats the path.
+alias ll='eza -al --classify=always'
 alias la='eza -A'
-alias l='eza -F'
-alias ls='eza -F'
+alias l='eza --classify=always'
+alias ls='eza --classify=always'
 alias rm='rm -i'
 alias mv='mv -i'
 alias cp='cp -i'

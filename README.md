@@ -9,6 +9,7 @@ The repository manages two environments:
 ### macOS Host
 
 - Homebrew manages command-line tools, applications, and Nerd Fonts through [Brewfile](Brewfile).
+- The script [run_onchange_brew.sh.tmpl](run_onchange_brew.sh.tmpl) runs `brew bundle install` when the Brewfile hash changes.
 - The script [run_onchange_osx.sh.tmpl](run_onchange_osx.sh.tmpl) configures macOS system defaults and creates the Emacs application symlink.
 - Ghostty serves as the primary terminal emulator with Starship prompt.
 
@@ -78,6 +79,18 @@ Do not add the `~/.omp` directory. Sessions, caches, and sqlite files stay local
 - **Neovim**: LazyVim starter configuration.
 - **Multiplexer**: Tmux with TPM plugins installed by [run_once_install-tmux-plugins.sh](run_once_install-tmux-plugins.sh).
 
+### Homebrew and mise
+
+Darwin apply uses [Brewfile](Brewfile) plus [run_onchange_brew.sh.tmpl](run_onchange_brew.sh.tmpl).
+Mise owns shared language versions and portable CLIs through [dot_config/mise/config.toml](dot_config/mise/config.toml).
+Both OS load that mise file.
+`mise activate` in [dot_zshrc](dot_zshrc) prepends shims after Homebrew `shellenv`, so overlapping tools follow mise.
+
+Known overlaps: `fd`, `jq`, `yazi`, `go`, `direnv`, `kubectl`, `1password-cli`, `antigravity-cli`.
+Pin tools that lack a short name in the installed mise registry with an explicit backend (`aqua:`, `github:`).
+Brew keeps a host fallback.
+Mise keeps the versioned shim.
+
 ## Manual Applications
 
 When you configure a new machine, install these macOS applications manually:
@@ -95,6 +108,7 @@ Homebrew casks manage all other desktop applications and Nerd Fonts.
 - [Parallels Host-Reachable IP Guide](docs/parallels-host-reachable-ip.md)
 - [Tmux Choose-Tree Activity Guide](docs/tmux-choose-tree-activity.md)
 - [Linux Resource Control Guide](docs/linux-resource-control.md)
+- [eza, ls aliases, and the mise registry](docs/eza-ls-mise-registry.md)
 
 ## History
 

@@ -32,7 +32,7 @@ candidate that reports `GNU`.
 The obvious suspect was the shell alias:
 
 ```text
-alias ls='eza -F'
+alias ls='eza --classify=always'
 ```
 
 That alias is not the cause.

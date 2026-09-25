@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Install macOS host packages from the managed Brewfile.
+# Brewfile hash: {{ include "Brewfile" | sha256sum }}
+
+set -euo pipefail
+
+{{- if ne .chezmoi.os "darwin" }}
+exit 0
+{{- end }}
+
+if ! command -v brew >/dev/null 2>&1; then
+  echo "brew: Homebrew is required; install from https://brew.sh" >&2
+  exit 1
+fi
+
+BREWFILE="${HOME}/Brewfile"
+if [[ ! -f "${BREWFILE}" ]]; then
+  echo "brew: ${BREWFILE} is not applied; skipping bundle" >&2
+  exit 0
+fi
+
+brew bundle install --no-upgrade --file="${BREWFILE}"
+echo "brew: bundle install from ${BREWFILE}"
