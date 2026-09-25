@@ -503,7 +503,9 @@ instruction_packets:
   todo_tracking: |-
     Align with `pi-job plan`; set this claim in_progress until gates pass or skip is recorded.
   future_work: |-
-    New work is a new slice.
+    A new slice changes the product, a test, or a shipped doc.
+    A decision is not a slice. Use add-decision.
+    Put slice evidence in the slice plan or finish --note.
   record_results_intro: |-
     Task record is machine-owned; use pi-job commands only (TASK_FILE / SLICE_KEY in header).
     Bundle files (references/, plans/, glossary) are agent-authored; write those paths.
@@ -1203,9 +1205,9 @@ step_kinds:
     guidance: >-
       Keep the task record current via pi-job mutation commands only (add-slice, add-step,
       add-decision, set-plan-note, finish; see pi-job --help). Do not edit the task store directly.
-      Create explicit new slices for future work, issues worth revisiting, technical debt, or
-      unresolved doubts discovered during execution; give each a bounded goal, appropriate kind,
-      and dependencies instead of burying it in notes.
+      Create a new slice only for a product, test, or shipped-doc change.
+      A decision is not a slice. Use add-decision, the slice plan, or finish --note.
+      Give that change a bounded goal, kind, and dependencies.
       Charter or workaround follow-ups (temporary coupon id, inline-not-ref, restructure hold)
       spawn a bounded implement or fog slice via add-slice with explicit depends_on - not an extra
       go-to-prod or closing checklist step. go-to-prod and closing slices stay bookkeeping.
@@ -1300,8 +1302,9 @@ step_kinds:
       - follow-up-slices-spawned-or-explicit-none
     guidance: |-
       Decide bounded follow-up work surfaced by the capture.
-      Spawn follow-up slices with pi-job add-slice (appropriate kind and dependencies) OR record explicit none with reason.
-      Do not bury actionable follow-ups only in free-form notes.
+      Spawn a follow-up slice only when it changes the product, a test, or a shipped doc.
+      A decision is not a follow-up slice. Record it with add-decision or in the capture.
+      Use pi-job add-slice with kind and dependencies, or record explicit none with reason.
   update-test-plan:
     key: update-test-plan
     title: Update the test plan
