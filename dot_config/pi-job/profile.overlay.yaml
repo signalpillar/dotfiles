@@ -1,0 +1,132 @@
+# Machine overlay. Merges last onto shipped profile.yaml.
+# Maps merge. Lists and scalars replace.
+# Do not copy this into the chezmoi-tracked profile.yaml.
+#
+# WHY (trial from 2026-09-21):
+# User advice: never write unit tests after code.
+# Prefer E2E tests as the sole check for complex features.
+# Each E2E test ends with a verifiable and repeatable artifact.
+# Isolation testing lists all failure modes before code.
+# Base profile ran e2e-evidence post-merge, too late to gate the PR.
+# Base implement slices had no current-state step before planning and code.
+#
+# WHAT this trial changes:
+# step_kinds.edit-code: replaces guidance, so this copy keeps the shipped How it works now gate, then the E2E-first tail.
+# step_kinds.e2e-evidence: replaces post-merge guidance with pre-share gating.
+# slice_kinds.implement.step_template: inserts map-current-state first, moves e2e-evidence directly before share-with-team.
+# code-review: apply every recommendation, including simplification advice.
+# Do not finish on "not must-fix" or "accept remaining risk".
+#
+# WHEN TO REMOVE:
+# Remove after the trial verdict on 1-2 real implement slices.
+# If the verdict is drop, delete the edit-code tail, restore e2e-evidence guidance, and restore the shipped step_template.
+# If the verdict is keep, move the change into shipped profile.yaml with docs-with-model-cuts (README + pi-job skill + root AGENTS.md), then delete it here.
+# Trial copy lives at profile.overlay.e2e-try.yaml for diffing.
+step_kinds:
+  code-review:
+    different_model_from_step: null
+    guidance: |-
+      Run one distinct final review of the actual diff with the volod-style skill
+      (skills/volod-style/SKILL.md). Applying volod-style while planning or coding
+      does NOT satisfy this step; this is a separate pass on the finished change.
+      Also load and follow the code-simplification skill
+      (skills/code-simplification/SKILL.md) on this same diff.
+      Do not skip this ask because volod-style already ran while coding.
+      - Dispatch the review to a separate agent. Do not review in this session.
+      - The reviewer agent may use the same model as edit-code.
+      - A higher-reasoning model is not required.
+      - Record the actual reviewer model on start/finish.
+      - Do not record the orchestrator default when a reviewer agent ran the review.
+      - Check volod-style concerns: service boundaries, explicit contracts and type
+        strictness, fail-closed safety, decision/edge-case comments, kebab-case
+        logging, and test quality (test.each, fixture reuse).
+      - Apply every review recommendation and every simplification in the worktree before finish.
+      - A severity label does not permit a skip.
+      - Record each item and its worktree change in finish --note.
+      - When no simplification applies, record that fact.
+      - Re-verify after those edits.
+      - When a recommendation conflicts with a locked plan decision, stop and ask.
+    validators:
+      - review-is-a-separate-pass-not-style-applied-while-coding
+      - review-ran-in-a-separate-agent
+      - every-recommendation-addressed-in-the-worktree
+      - code-simplification-advice-addressed
+  edit-code:
+    guidance: |-
+      Read How it works now before the first edit.
+      When that section names current behaviour, each dependent, repos searched, and repos not searched, start the edit.
+      When any of those four facts is missing, fill the same plan file and return to grill-plan.
+      Implement only the current micro-contract in this slice's plan file.
+      Do not implement the rest of the slice goal in this step.
+      If the assertion is missing, write that artifact first and stop.
+      Use a worktree when editing a repo other than the current one.
+      Before the first edit, load and follow the volod-style skill
+      (skills/volod-style/SKILL.md) in full.
+      Write to that bar. Following it while coding does not replace the later
+      distinct code-review pass.
+      Stop when the plan Verification command is green.
+      When the slice goal still has work, replace How it should work in the same plan file.
+      Revise assertion, must-not, and verification in that same file.
+      Keep How it works now current when the increment changes that picture.
+      Do not create a second plan file.
+      Never write unit tests after code.
+      Prefer E2E tests as the sole test mechanism for complex features.
+      End each E2E test with a verifiable and repeatable artifact.
+      If isolation testing is required, list all failure modes first.
+      Write code only after the failure list exists in the plan file.
+  e2e-evidence:
+    guidance: |-
+      Run E2E/acceptance before share-with-team.
+      Capture the repeatable artifact or record an explicit gap.
+      Prefer ticket comments and finish --note over add-decision.
+      Block share-with-team on red E2E unless the gap note names the blocker.
+slice_kinds:
+  implement:
+    step_template:
+      - map-current-state
+      - create-plan
+      - grill-plan
+      - edit-code
+      - verify
+      - code-review
+      - vulnerability-scan
+      - e2e-evidence
+      - share-with-team
+      - update-task-file
+      - pi-job-feedback
+      - wait-for-feedback
+      - ready-for-release
+# WHY (trial from 2026-09-21):
+# pmos-backend-big-picture collected 187 decision rows; 118 were baggage
+# (Plan-file pointers, grill turns, code detail, PR/e2e mechanics, chatter).
+# Base profile already banned most of this, but the capture-time help text
+# had no deny-list, so workers kept recording.
+# WHAT this trial changes:
+# cli_help.add_decision: adds a NEVER-record deny-list plus a destination test.
+# WHEN TO REMOVE:
+# Remove after 2-3 tasks record decisions without baggage.
+# If the verdict is keep, move the text into shipped profile.yaml with
+# docs-with-model-cuts (README + pi-job skill + root AGENTS.md), then delete it here.
+cli_help:
+  add_decision:
+    command: append a task-goal product/scope decision (not slice-local code; use finish --note or set-step-note)
+    note: >-
+      decision rationale as Markdown (preferred); rendered as a blockquote in `pi-job markdown`.
+      Shell-safe: pass --note with single quotes or a HEREDOC; bare backticks in double-quoted
+      shell args are command-substituted (example: --note 'Keep expiresAt as-is').
+      YAML stores a one-line claim plus `path`. The body always writes
+      `_decision-<date>-<slug>.md`. Pass --slug kebab-topic on a long note
+      (example: pmos-careplan-eager-construct). Short notes derive a slug from the claim.
+      Do not use a UTC timestamp as the slug.
+      Record ONLY task-goal product/scope facts a worker on another slice needs
+      without this slice plan or code. NEVER record: `Plan file:` pointers;
+      `SUPERSEDES: nothing`; grill turns or `grill survived`; function names,
+      file paths, error strings, lib pins, or resolver signatures; PR numbers,
+      deploy, e2e-harness, or vuln-scan mechanics; per-step evidence (belongs
+      in `finish --note`); slice-local choices (belong in the slice plan).
+      Destination test: another slice needs it blind -> add-decision; only this
+      slice needs it -> slice plan; step evidence -> finish --note;
+      nothing needs it -> record nothing.
+      To supersede an earlier decision, append a new row; never edit or delete prior rows.
+      Prefix the note with `SUPERSEDES: YYYY-MM-DD (source) - …` pointing at the superseded entry
+      (example: --note 'SUPERSEDES: 2026-08-04 (chat) - scope now excludes grill.backlog').

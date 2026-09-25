@@ -1043,7 +1043,7 @@ step_kinds:
     validators:
       - review-is-a-separate-pass-not-style-applied-while-coding
       - reviewer-model-differs-from-code-author-model
-      - findings-resolved-or-risk-accepted
+      - every-recommendation-addressed-in-the-worktree
     skip_rule: skip only for a trivial single-file edit (record a one-line reason)
     guidance: |-
       Run one distinct final review of the actual diff with the volod-style skill
@@ -1061,9 +1061,12 @@ step_kinds:
       - Check volod-style concerns: service boundaries, explicit contracts and type
         strictness, fail-closed safety, decision/edge-case comments, kebab-case
         logging, and test quality (test.each, fixture reuse).
-      - Record the verdict and findings in finish --note. Fix must-fix findings in
-        the worktree and re-verify, or explicitly accept remaining risk before
-        share-with-team.
+      - Apply every review recommendation and every simplification in the worktree before finish.
+      - A severity label does not permit a skip.
+      - Record each item and its worktree change in finish --note.
+      - When no simplification applies, record that fact.
+      - Re-verify after those edits.
+      - When a recommendation conflicts with a locked plan decision, stop and ask.
   e2e-evidence:
     key: e2e-evidence
     title: Provide e2e/acceptance evidence or record the gap
