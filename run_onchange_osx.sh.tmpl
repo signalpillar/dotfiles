@@ -28,6 +28,8 @@ defaults write com.apple.finder QuitMenuItem -bool true
 # Global Domain (-g)
 defaults write -g NSWindowResizeTime -float 0.001
 defaults write -g AppleKeyboardUIMode -int 3
+# Emacs / GUI key-repeat (Reddit r/emacs Linux vs macOS). Already the live values.
+# InitialKeyRepeat 15 (~225ms delay). KeyRepeat 1 (fastest). Needs PressAndHold off.
 defaults write -g InitialKeyRepeat -int 15
 defaults write -g KeyRepeat -int 1
 defaults write -g AppleShowScrollBars -string "WhenScrolling"

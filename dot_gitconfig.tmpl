@@ -51,6 +51,12 @@
 [core]
 	excludesfile = ~/.gitignore
 	editor = vim
+{{- if eq .chezmoi.os "darwin" }}
+	# Builtin FSEvents watcher. Magit git-status skips a full tree walk.
+	# Spotlight exclusion skipped on purpose. Revisit if mds I/O shows up.
+	fsmonitor = true
+	untrackedCache = true
+{{- end }}
   # Maybe I didn't cool 'delta' properly but it was slow
   # pager = delta --side-by-side --light
 [svn]
