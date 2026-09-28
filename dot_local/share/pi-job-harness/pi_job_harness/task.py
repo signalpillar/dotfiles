@@ -208,10 +208,12 @@ class OwnedCursorDocument(StrictDocument):
     """One owner's claim on a whole slice. No stored step: the active step is always
     derived as the claimed slice's first non-terminal step (see within_slice_cursor)."""
 
-    owner: str = Field(description="Claim owner identity: CLI --owner or PI_JOB_OWNER; agent-chosen.")
+    owner: str = Field(description="Claim owner identity: CLI --owner or PI_JOB_OWNER; agent-chosen session ID.")
     slice: str = Field(description="Key of the claimed slice; one owner claims at most one whole slice.")
     claimed_at: str = Field(description="UTC ISO 8601 timestamp recorded when the claim was created.")
     last_seen: str = Field(description="UTC ISO 8601 timestamp bumped by mutating commands run by this owner.")
+    harness: str = Field(default="", description="Harness name that owns the session, e.g. cursor. Empty on legacy claims.")
+    session_ref: str = Field(default="", description="Session locator: URI, absolute path, or harness-native ID. Empty when unrecorded.")
 
 
 class OrchestrationDocument(StrictDocument):
@@ -410,6 +412,8 @@ class OwnedCursor:
     slice: str
     claimed_at: str
     last_seen: str
+    harness: str = ""
+    session_ref: str = ""
 
 
 @dataclass(frozen=True)

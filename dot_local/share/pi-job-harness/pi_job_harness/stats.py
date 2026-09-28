@@ -362,6 +362,8 @@ def build_stats(doc: dict[str, Any], task_label: str, wait_keys: frozenset[str])
                 "slice": c.get("slice"),
                 "claimed_at": c.get("claimed_at"),
                 "last_seen": c.get("last_seen"),
+                "harness": c.get("harness") or "",
+                "session_ref": c.get("session_ref") or "",
             }
             for c in claims
         ],
@@ -538,12 +540,21 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append("")
         lines.append("Not historical ownership.")
         lines.append("")
-        lines.append("| Owner | Slice | last_seen |")
-        lines.append("| --- | --- | --- |")
-        for c in report["current_claims"]:
-            lines.append(
-                f"| `{c['owner']}` | `{c['slice']}` | `{c['last_seen']}` |"
-            )
+        show_link = any(c.get("harness") or c.get("session_ref") for c in report["current_claims"])
+        if show_link:
+            lines.append("| Owner | Harness | Slice | Session ref | last_seen |")
+            lines.append("| --- | --- | --- | --- | --- |")
+            for c in report["current_claims"]:
+                lines.append(
+                    f"| `{c['owner']}` | `{c.get('harness') or '-'}` | `{c['slice']}` | `{c.get('session_ref') or '-'}` | `{c['last_seen']}` |"
+                )
+        else:
+            lines.append("| Owner | Slice | last_seen |")
+            lines.append("| --- | --- | --- |")
+            for c in report["current_claims"]:
+                lines.append(
+                    f"| `{c['owner']}` | `{c['slice']}` | `{c['last_seen']}` |"
+                )
         lines.append("")
 
     lines.append("## Caveats")

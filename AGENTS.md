@@ -27,6 +27,7 @@ Do not switch to a casual register unless the user asks.
 - For durable multi-step work tracked in a task file, use the `pi-job` skill (`~/.agents/skills/pi-job`) and `pi-job --task <file> status`.
   Use `show --short` for the compact tree (current step only).
   Do not open or hand-edit the task store; use the CLI.
+  Claim slices with the harness session link (`claim --harness NAME --session-ref REF`; `owner` is the session ID).
   Bundle files under `references/` and `plans/` are agent-authored.
   While a pi-job task is active: role = orchestrator (CLI-only; pause on grill/clarify); this supersedes any default Product Owner (or other) workspace role.
   If `pi-job` is missing, follow the harness README self-install (`~/.local/share/pi-job-harness/README.md`).

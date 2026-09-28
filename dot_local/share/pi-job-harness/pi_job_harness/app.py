@@ -812,6 +812,8 @@ def owned_cursors(task: Mapping[str, Any]) -> list[OwnedCursor]:
             slice=str(c.get("slice") or ""),
             claimed_at=str(c.get("claimed_at") or ""),
             last_seen=str(c.get("last_seen") or ""),
+            harness=str(c.get("harness") or ""),
+            session_ref=str(c.get("session_ref") or ""),
         )
         for c in raw
     ]
@@ -849,7 +851,9 @@ def claim_position(task: Mapping[str, Any], claim: OwnedCursor) -> Cursor:
 def claim_label(task: Mapping[str, Any], claim: OwnedCursor) -> str:
     position = claim_position(task, claim)
     suffix = " (stale)" if claim_is_stale(claim) else ""
-    return f"{claim.owner} \u2192 {position.label()}{suffix}"
+    base = f"{claim.harness}/{claim.owner}" if claim.harness else claim.owner
+    ref = f" [{claim.session_ref}]" if claim.session_ref else ""
+    return f"{base} \u2192 {position.label()}{suffix}{ref}"
 
 
 def resolve_claim_for_command(
@@ -1540,12 +1544,29 @@ def resolve_owner_for_claim(args: argparse.Namespace) -> str:
     return owner
 
 
+def resolve_harness_for_claim(args: argparse.Namespace) -> str:
+    """Harness name for a claim: CLI --harness, else $PI_JOB_HARNESS, else empty.
+
+    Empty stays valid so legacy claims without a harness keep working; new
+    callers pass a harness to link the slice to the owning session runner."""
+    return ((getattr(args, "harness", None) or os.environ.get("PI_JOB_HARNESS") or "").strip())
+
+
+def resolve_session_ref_for_claim(args: argparse.Namespace) -> str:
+    """Session locator for a claim: CLI --session-ref, else $PI_JOB_SESSION_REF."""
+    return ((getattr(args, "session_ref", None) or os.environ.get("PI_JOB_SESSION_REF") or "").strip())
+
+
 def cmd_claim(args: argparse.Namespace) -> None:
     task_file = args.task
     store = open_task_store(task_file, args.layout)
     if not isinstance(store, YamlTaskStore):
         die("claim requires a YAML task file (owned cursors are a YAML-only feature)")
     owner = resolve_owner_for_claim(args)
+    harness = resolve_harness_for_claim(args)
+    session_ref = resolve_session_ref_for_claim(args)
+    if harness and ("/" in harness or any(ch.isspace() for ch in harness)):
+        die(f"invalid --harness {harness!r}; use a short name without slashes or spaces (e.g. cursor)")
     slice_key = args.slice
     if not slice_key:
         die("--slice KEY is required")
@@ -1581,7 +1602,7 @@ def cmd_claim(args: argparse.Namespace) -> None:
             )
 
         now = utc_now()
-        store.claim_slice(owner=owner, slice_key=slice_key, now=now)
+        store.claim_slice(owner=owner, slice_key=slice_key, now=now, harness=harness, session_ref=session_ref)
         task = store.read()
         claim = find_claim_by_owner(task, owner)
         assert claim is not None
@@ -2272,6 +2293,8 @@ def build_instruction(
         f"Contract: {PROFILE}",
         f"Current cursor: {cursor.label()}",
         f"Owner: {claim.owner}",
+        *([f"Harness: {claim.harness}"] if claim.harness else []),
+        *([f"Session-Ref: {claim.session_ref}"] if claim.session_ref else []),
         (
             "Role: orchestrator (CLI-only store; pause on grill/clarify/user-decision)."
             if owner == "orchestrator"
@@ -5867,7 +5890,9 @@ def main(layout: PiJobLayout | None = None) -> None:
         help="claim a Ready slice for an owner; required before start (one claim per owner, one owner per slice)",
     )
     claim.add_argument("--slice", required=True, metavar="KEY", help="Ready slice to claim")
-    claim.add_argument("--owner", help="claim owner identity; defaults to $PI_JOB_OWNER")
+    claim.add_argument("--owner", help="claim owner identity (session ID); defaults to $PI_JOB_OWNER")
+    claim.add_argument("--harness", help="harness name owning the session, e.g. cursor; defaults to $PI_JOB_HARNESS")
+    claim.add_argument("--session-ref", dest="session_ref", help="session locator: URI, absolute path, or harness-native ID; defaults to $PI_JOB_SESSION_REF")
     claim.set_defaults(fn=cmd_claim)
 
     release = sub.add_parser(

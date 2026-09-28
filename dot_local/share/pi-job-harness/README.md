@@ -61,7 +61,8 @@ Given a YAML task file and `profile.yaml`, it can:
   `loop --oneline` collapses the packet to one physical line for terminal injectors that replay a newline as a prompt submit (`tmux send-keys`).
 - `boot --slice KEY --owner ID` - print the ready-to-inject worker prompt: the `worker` packet with `TASK` / `SLICE` / `OWNER` resolved, plus slice title, plan path, claimed step, and recorded worktrees. Refuses an unknown or terminal slice. Use it instead of a hand-written boot file.
 - `instruction` - emit a deterministic packet for the claim's derived active step (pick-next when exhausted; blocked slice is not pick-next)
-- `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`)
+- `claim` / `release` - take or drop an owned claim on a Ready slice (`orchestration.cursors[]`).
+- `claim --harness NAME --session-ref REF` links the slice to the owning harness session for later review.
 - `start` / `finish` - record the executing model and UTC timestamps while transitioning slice/step status (`finish --note` appends by default; `--replace` overwrites; `finish --slice-only` auto-releases when the slice is terminal)
 - `advance` - **deprecated**; always fails with claim/instruction guidance (position is claim + derived step)
 - `profile` / `schema` / `kinds` - inspect the active execution profile, task document schema, and slice kinds
@@ -83,7 +84,7 @@ This supersedes any default workspace role such as Product Owner.
 ### Classic single-session loop
 
 1. `pi-job --task <slug> status` (and usually `plan` / `show`)
-2. `pi-job --task <slug> claim --slice KEY --owner ID` (Ready slice; one claim per owner)
+2. `pi-job --task <slug> claim --slice KEY --owner ID --harness NAME` (Ready slice; one claim per owner; owner is the session ID)
 3. `pi-job --task <slug> instruction` (derived active step, pick-next when exhausted, or blocked packet)
 4. `pi-job --task <slug> start --model <provider/model>`
 5. Do that step in the orchestrator session, or launch a subagent when the packet says so
@@ -129,7 +130,7 @@ The orchestrator owns model choice, tool use, and whether to keep consulting the
         |
         v
   YAML task file <----------------------------- claim/release/finish (atomic rewrite)
-  (concrete work: slices, steps, status, evidence, cursors[{owner,slice,…}])
+  (concrete work: slices, steps, status, evidence, cursors[{owner,slice,harness,session_ref,…}])
         |
         | strict Pydantic validation
         v
@@ -167,8 +168,8 @@ task.plan.slices[]                             slice_kinds: setup | implement | 
   repo_work, decisions, artifacts
 
 task.orchestration.cursors[]                   toolbelt: aids keyed by suits: [slice kinds]
-  owner, slice, claimed_at, last_seen
-  (active step = first non-terminal in slice)
+  owner, slice, claimed_at, last_seen, harness, session_ref
+  (active step = first non-terminal in slice; owner is the session ID)
 
 WALK ORDER
 ══════════
@@ -545,10 +546,19 @@ These commands do not require `--task`.
 ### claim / release
 
 - `claim --slice KEY --owner ID` takes a Ready slice (deps satisfied, not terminal) with no active non-stale claim.
+- `owner` holds the session ID.
+- `claim --harness NAME --session-ref REF` records the harness session link on the claim.
+- `harness` names the session runner (for example `cursor`).
+- `session_ref` holds a URI, an absolute path, or a harness-native ID.
+- Empty `harness` / `session_ref` means a legacy claim without a session link.
+- `status` and `show` render `harness/owner` plus the ref.
+- `stats` exposes owner, harness, and session ref per current claim.
 - One claim per owner; stale foreign claims may be displaced (default TTL 24h via `orchestration_defaults.claim_stale_after_hours`).
 - `release --owner ID` drops any claim (not self-only); mid-slice release leaves slice status unchanged.
 - `finish --slice-only` to a terminal slice status auto-releases the claim on that slice.
 - Owner may also come from `$PI_JOB_OWNER`; omit when there is exactly one active claim.
+- Harness defaults from `$PI_JOB_HARNESS`.
+- Session ref defaults from `$PI_JOB_SESSION_REF`.
 - A named owner selects its claim when other owners hold sibling claims.
 - Duplicate active rows for one named owner fail closed.
 
@@ -902,7 +912,8 @@ Profile models document artifact rules and gates, toolbelt aids, step kinds, sli
 What `pi-job` cares about most:
 
 - `orchestration` - must exist after `create`; holds cursors, policy, artifacts, and maintain
-- `orchestration.cursors[]` - owned claims `{owner, slice, claimed_at, last_seen}` (hard cut; no single `cursor`)
+- `orchestration.cursors[]` - owned claims `{owner, slice, claimed_at, last_seen, harness, session_ref}` (hard cut; no single `cursor`).
+- `owner` is the session ID and `harness` names the session runner.
 - `plan.slices[].kind` - selects slice-kind policies and explains step templates
 - `plan.slices[].status` - authority for overall task status in status/list/markdown
 - `plan.slices[].steps` plus `final_steps` - sequential work; active step is derived as first non-terminal

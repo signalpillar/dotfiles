@@ -513,6 +513,8 @@ def run(
         args = (sys.executable, *args)
     env = os.environ.copy()
     env.pop("PI_JOB_OWNER", None)  # tests-unset-pi-job-owner: never forward slice-window owner
+    env.pop("PI_JOB_HARNESS", None)  # same: never forward the harness session link
+    env.pop("PI_JOB_SESSION_REF", None)  # same: never forward the harness session link
     env.pop("PI_JOB_PROFILE_OVERLAY", None)
     env.update(extra_env or {})
     if "XDG_CONFIG_HOME" not in env:

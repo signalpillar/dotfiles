@@ -76,7 +76,8 @@ pi-job --task ./legacy.task.yaml project --to SLUG
 If the store is missing, follow the create hint from the CLI.
 Deep reference / install: `~/.local/share/pi-job-harness/README.md`.
 
-Claims live in `orchestration.cursors[]` (`{owner, slice, claimed_at, last_seen}`).
+Claims live in `orchestration.cursors[]` (`{owner, slice, claimed_at, last_seen, harness, session_ref}`).
+`owner` is the session ID and `harness` names the session runner.
 Active step is derived: first non-terminal step of the claimed slice.
 Named owners resolve their claim even when other owners hold sibling claims.
 Duplicate active rows for one named owner fail closed.
@@ -85,8 +86,9 @@ Trust `status`/`show` for claims + Ready frontier.
 Array order of slices is not execution order.
 
 ```bash
-pi-job --task SLUG claim --slice KEY --owner ID
+pi-job --task SLUG claim --slice KEY --owner ID --harness NAME --session-ref REF
 # optional: export PI_JOB_OWNER=ID  (omit --owner when unambiguous / sole claim)
+# optional: export PI_JOB_HARNESS=NAME PI_JOB_SESSION_REF=REF
 ```
 
 After create or any `instruction` packet: enter the orchestrator loop immediately.
@@ -109,7 +111,7 @@ Classic single-session pick-next loop stays unchanged when no fleet is in use.
 ## Orchestrator loop
 
 1. `status` / `plan` / `show --short` - where you are; align session todos with `plan`
-2. `claim --slice KEY --owner ID` for a Ready slice (one claim per owner)
+2. `claim --slice KEY --owner ID --harness NAME` for a Ready slice (one claim per owner; owner is the session ID)
 3. `instruction` - step packet for the claim's derived active step, pick-next when exhausted, or blocked packet
 4. `start --model <provider/model>` - before work
 5. Do the step (subagent when the packet says so)

@@ -339,7 +339,7 @@ class YamlTaskStore:
 
         self._mutate(mutation)
 
-    def claim_slice(self, *, owner: str, slice_key: str, now: str) -> None:
+    def claim_slice(self, *, owner: str, slice_key: str, now: str, harness: str = "", session_ref: str = "") -> None:
         """Upsert an owned cursor: drops any prior claim by this owner or on this
         slice (stale-displacement is decided by the caller before this is invoked;
         this is the unconditional write half of `claim`)."""
@@ -352,7 +352,12 @@ class YamlTaskStore:
             cursors[:] = [
                 c for c in cursors if c.get("owner") != owner and c.get("slice") != slice_key
             ]
-            cursors.append({"owner": owner, "slice": slice_key, "claimed_at": now, "last_seen": now})
+            row: dict[str, Any] = {"owner": owner, "slice": slice_key, "claimed_at": now, "last_seen": now}
+            if harness:
+                row["harness"] = harness
+            if session_ref:
+                row["session_ref"] = session_ref
+            cursors.append(row)
 
         self._mutate(mutation)
 
