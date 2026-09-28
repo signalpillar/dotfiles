@@ -1,2 +1,0 @@
-[console_scripts]
-pi-job-serve = pi_job_viewer.cli:main
