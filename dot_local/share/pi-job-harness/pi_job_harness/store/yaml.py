@@ -16,6 +16,7 @@ from pi_job_harness.store.yaml_io import (
     atomic_write_text,
     canonical_task_mapping,
     is_content_dirty,
+    is_note_normalization_upgrade,
     load_yaml_mapping,
     render_yaml_task,
     set_content_digest,
@@ -290,8 +291,9 @@ class YamlTaskStore:
             with self._suppress_digest_warn():
                 task = self.read()
             dirty = is_content_dirty(task)
+            upgrade_only = dirty and is_note_normalization_upgrade(task)
             mutation(task)
-            if refresh_digest or not dirty:
+            if refresh_digest or not dirty or upgrade_only:
                 set_content_digest(task)
             self._write_validated(task)
 
@@ -445,14 +447,14 @@ class YamlTaskStore:
             "title": title,
             "goal": goal,
             "status": status,
-            "note": note,
+            **({"note": note} if note else {}),
             **extra_fields,
             "steps": [
-                {"key": step_key, "title": step_title, "status": "planned", "note": ""}
+                {"key": step_key, "title": step_title, "status": "planned"}
                 for step_key, step_title in steps
             ],
             "final_steps": [
-                {"key": step_key, "title": step_title, "status": "planned", "note": ""}
+                {"key": step_key, "title": step_title, "status": "planned"}
                 for step_key, step_title in final_steps
             ],
         }
@@ -483,7 +485,7 @@ class YamlTaskStore:
         after: str | None,
         status: str = "planned",
     ) -> None:
-        new_step = {"key": key, "title": title, "status": status, "note": note}
+        new_step = {"key": key, "title": title, "status": status, **({"note": note} if note else {})}
 
         def mutation(task: dict[str, Any]) -> None:
             group = "final_steps" if terminal else "steps"

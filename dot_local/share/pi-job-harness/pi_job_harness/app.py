@@ -179,9 +179,8 @@ def example_task_mapping(*, title: str = "Example bounded change") -> dict[str, 
                 "title": "Do the change",
                 "goal": "Ship the bounded edit with verification.",
                 "status": "in_progress",
-                "note": "",
                 "steps": [
-                    {"key": key, "title": step_title, "status": "planned", "note": ""}
+                    {"key": key, "title": step_title, "status": "planned"}
                     for key, step_title in steps_from_kind_template("implement")
                 ],
                 "final_steps": [],
@@ -4370,9 +4369,8 @@ def _scaffold_task_mapping(
                     "title": kind_title,
                     "goal": goal,
                     "status": "planned",
-                    "note": "",
                     "steps": [
-                        {"key": key, "title": step_title, "status": "planned", "note": ""}
+                        {"key": key, "title": step_title, "status": "planned"}
                         for key, step_title in steps_from_kind_template(kind)
                     ],
                     "final_steps": [],
@@ -4451,11 +4449,10 @@ def _create_from_intent(args: argparse.Namespace) -> None:
             "title": kind_title,
             "goal": initial_goal,
             "status": "planned",
-            "note": "",
             "repos": [],
             "depends_on": [],
             "steps": [
-                {"key": key, "title": step_title, "status": "planned", "note": ""}
+                {"key": key, "title": step_title, "status": "planned"}
                 for key, step_title in steps_from_kind_template(kind)
             ],
             "final_steps": [],
@@ -4468,11 +4465,10 @@ def _create_from_intent(args: argparse.Namespace) -> None:
             "title": sl.title,
             "goal": sl.goal,
             "status": "planned",
-            "note": "",
             "repos": list(sl.repos),
             "depends_on": list(sl.depends_on),
             "steps": [
-                {"key": key, "title": step_title, "status": "planned", "note": ""}
+                {"key": key, "title": step_title, "status": "planned"}
                 for key, step_title in steps_from_kind_template(sl.kind)
             ],
             "final_steps": [],
@@ -4577,9 +4573,8 @@ def _init_existing_task(args: argparse.Namespace, task_file: Path) -> None:
                 "title": get_slice_kind(kind).get("title", kind),
                 "goal": seed_goal,
                 "status": "planned",
-                "note": "",
                 "steps": [
-                    {"key": key, "title": step_title, "status": "planned", "note": ""}
+                    {"key": key, "title": step_title, "status": "planned"}
                     for key, step_title in steps_from_kind_template(kind)
                 ],
                 "final_steps": [],
@@ -4713,8 +4708,8 @@ def cmd_add_slice(args: argparse.Namespace) -> None:
     if args.dry_run:
         preview = {
             "key": args.key, "kind": args.kind, "title": args.title, "goal": args.goal,
-            "status": "planned", "note": "", **extra_fields,
-            "steps": [{"key": key, "title": title, "status": "planned", "note": ""} for key, title in steps],
+            "status": "planned", **extra_fields,
+            "steps": [{"key": key, "title": title, "status": "planned"} for key, title in steps],
             "final_steps": [],
         }
         if layer_value is not None:
@@ -4784,7 +4779,10 @@ def cmd_add_step(args: argparse.Namespace) -> None:
         die(f"--after step not found in {args.slice!r}.{group}: {args.after!r}; known: {', '.join(group_keys) or '(none)'}")
 
     if args.dry_run:
-        print(yaml.safe_dump({"key": args.key, "title": args.title, "status": "planned", "note": args.note or ""}, sort_keys=False), end="")
+        preview_step: dict[str, str] = {"key": args.key, "title": args.title, "status": "planned"}
+        if args.note:
+            preview_step["note"] = args.note
+        print(yaml.safe_dump(preview_step, sort_keys=False), end="")
         return
 
     store.add_step(slice_key=args.slice, key=args.key, title=args.title, note=args.note or "", terminal=args.final, after=args.after)

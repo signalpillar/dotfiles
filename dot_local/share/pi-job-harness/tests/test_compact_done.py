@@ -66,8 +66,8 @@ def test_compact_clears_done_notes_only(tmp_path: Path) -> None:
     assert result == {"slices": 2, "notes": 4}
     task = store.read()
     by_key = {s["key"]: s for s in task["plan"]["slices"]}
-    assert by_key["done-old"]["note"] == ""
-    assert by_key["done-old"]["steps"][0]["note"] == ""
+    assert by_key["done-old"].get("note", "") == ""
+    assert by_key["done-old"]["steps"][0].get("note", "") == ""
     assert by_key["planned"]["note"] == "live note"
     assert by_key["done-old"]["goal"] == "goal for done-old"
     assert by_key["done-old"]["repo_work"]["demo"]["prs"][0]["status"] == "merged"
@@ -81,7 +81,7 @@ def test_compact_since_filters_by_ended_date(tmp_path: Path) -> None:
     task = store.read()
     by_key = {s["key"]: s for s in task["plan"]["slices"]}
     assert by_key["done-old"]["note"] == "long slice note"
-    assert by_key["done-new"]["note"] == ""
+    assert by_key["done-new"].get("note", "") == ""
 
 
 def test_compact_preserves_stats_and_report(tmp_path: Path) -> None:

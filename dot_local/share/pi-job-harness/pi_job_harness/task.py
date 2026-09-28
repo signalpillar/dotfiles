@@ -50,10 +50,11 @@ class StepDocument(StrictDocument):
     title: str = Field(description="Short human-readable step name.")
     status: TaskStatus = Field(description="Current lifecycle state of the step.")
     note: str = Field(
+        default="",
         description=(
             "Evidence, decision, blocker, or skip reason recorded for the step. "
             "Prefer Markdown; `pi-job markdown` renders notes formatted."
-        )
+        ),
     )
     execution: ExecutionDocument | None = Field(default=None, description="Executor provenance, when recorded.")
 
@@ -131,7 +132,7 @@ class SliceDocument(StrictDocument):
     title: str = Field(description="Short human-readable slice name.")
     goal: str = Field(description="Bounded outcome that makes the slice complete.")
     status: TaskStatus = Field(description="Current lifecycle state of the slice.")
-    note: str = Field(description="Slice-level evidence, decision, blocker, or skip reason.")
+    note: str = Field(default="", description="Slice-level evidence, decision, blocker, or skip reason.")
     execution: ExecutionDocument | None = Field(default=None, description="Slice-level orchestrator provenance.")
     repos: list[str] = Field(default_factory=list, description="Repositories whose state this slice changes.")
     depends_on: list[str] = Field(default_factory=list, description="Slice keys that must finish before this slice is actionable.")

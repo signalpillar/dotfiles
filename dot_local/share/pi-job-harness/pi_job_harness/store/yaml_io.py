@@ -96,6 +96,15 @@ def canonical_task_mapping(value: Mapping[str, Any], *, source: str) -> dict[str
     # Omit empty layers so upgrades do not dirty content digests of tasks without layers.
     if not data.get("layers"):
         data.pop("layers", None)
+    # Omit empty slice/step notes so new slices and steps stay compact.
+    # Readers treat a missing note as "".
+    for task_slice in (data.get("plan") or {}).get("slices") or []:
+        if isinstance(task_slice, dict) and not task_slice.get("note"):
+            task_slice.pop("note", None)
+        for group in ("steps", "final_steps"):
+            for step in task_slice.get(group) or []:
+                if isinstance(step, dict) and not step.get("note"):
+                    step.pop("note", None)
     orchestration = data.get("orchestration")
     if isinstance(orchestration, dict) and not orchestration.get("maintain"):
         orchestration.pop("maintain", None)
@@ -123,6 +132,58 @@ def compute_content_digest(task: Mapping[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _with_empty_notes_restored(task: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a copy with missing slice/step notes restored as "".
+
+    Tasks written before empty-note omission stored every note explicitly.
+    Restoring them reproduces the pre-omission canonical form for digest checks.
+    """
+
+    data = json.loads(json.dumps(task))
+    for task_slice in (data.get("plan") or {}).get("slices") or []:
+        if not isinstance(task_slice, dict):
+            continue
+        task_slice.setdefault("note", "")
+        for group in ("steps", "final_steps"):
+            for step in task_slice.get(group) or []:
+                if isinstance(step, dict):
+                    step.setdefault("note", "")
+    return data
+
+
+def legacy_content_digest(task: Mapping[str, Any]) -> str:
+    """SHA-256 hex under the pre-omission canonical form (empty notes kept)."""
+
+    restored = validate_task_mapping(
+        _with_empty_notes_restored(_task_mapping_for_content_digest(task)),
+        source="content-digest",
+    ).model_dump(mode="json", exclude_none=True)
+    if not restored.get("layers"):
+        restored.pop("layers", None)
+    orchestration = restored.get("orchestration")
+    if isinstance(orchestration, dict) and not orchestration.get("maintain"):
+        orchestration.pop("maintain", None)
+    payload = json.dumps(restored, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def is_note_normalization_upgrade(task: Mapping[str, Any]) -> bool:
+    """True when digest dirtiness comes only from empty-note omission.
+
+    Such tasks validated clean before omission shipped: the stored digest
+    matches the legacy form but not the compact form. Callers refresh the
+    digest silently instead of reporting an out-of-band edit.
+    """
+
+    orchestration = task.get("orchestration")
+    if not isinstance(orchestration, dict):
+        return False
+    stored = orchestration.get("content_digest")
+    if not stored or stored == compute_content_digest(task):
+        return False
+    return stored == legacy_content_digest(task)
+
+
 def is_content_dirty(task: Mapping[str, Any]) -> bool:
     """True when a stored digest exists and no longer matches semantic content."""
 
@@ -142,6 +203,8 @@ def warn_if_content_dirty(task: Mapping[str, Any], path: Path | str) -> None:
     """
 
     if not is_content_dirty(task):
+        return
+    if is_note_normalization_upgrade(task):
         return
     packets = _instruction_packets()
     text = packets["out_of_band_edit_warning"].format(task_file=str(path)).rstrip()
