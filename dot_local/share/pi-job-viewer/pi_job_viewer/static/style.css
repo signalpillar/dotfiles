@@ -1,0 +1,151 @@
+/* Adwaita-style skin for pi-job viewer. Light by default, dark via prefers-color-scheme. */
+:root {
+  --bg: #fafafa;
+  --card: #ffffff;
+  --fg: #2e3436;
+  --dim: #77767b;
+  --accent: #3584e4;
+  --header: #ebebeb;
+  --border: #d5d5d5;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #242424;
+    --card: #2e2e2e;
+    --fg: #eeeeec;
+    --dim: #9a9996;
+    --accent: #62a0ea;
+    --header: #303030;
+    --border: #454545;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, "Cantarell", sans-serif;
+}
+.header-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  background: var(--header);
+  border-bottom: 1px solid var(--border);
+}
+.app-icon { color: var(--accent); font-size: 1.2rem; }
+.app-title { font-weight: 700; }
+.crumbs { color: var(--dim); }
+.layout { display: flex; min-height: calc(100vh - 3rem); }
+.sidebar {
+  width: 12rem;
+  padding: 1rem;
+  border-right: 1px solid var(--border);
+}
+.sidebar a {
+  display: block;
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  color: var(--fg);
+  text-decoration: none;
+}
+.sidebar a:hover { background: var(--border); }
+.content { flex: 1; padding: 1.2rem 1.6rem; max-width: 60rem; }
+.bundle-list { list-style: none; padding: 0; }
+.bundle-list li {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.7rem 1rem;
+  margin-bottom: 0.6rem;
+}
+table.grid { border-collapse: collapse; width: 100%; }
+table.grid td, table.grid th {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.7rem;
+  text-align: left;
+}
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.7rem;
+  font-size: 0.85rem;
+  color: #fff;
+}
+.pill-planned { background: #77767b; }
+.pill-progress { background: var(--accent); }
+.pill-blocked { background: #e01b24; }
+.pill-done { background: #26a269; }
+.pill-skipped { background: #ae7b2c; }
+.dim { color: var(--dim); }
+.empty { color: var(--dim); font-style: italic; }
+.prose pre {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem;
+  overflow-x: auto;
+}
+pre.mermaid {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem;
+}
+.graph-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  overflow: auto;
+  max-height: 32rem;
+}
+.graph-wrap.expanded {
+  position: fixed;
+  inset: 1rem;
+  z-index: 50;
+  max-height: none;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.4);
+}
+.graph-tools {
+  position: sticky;
+  top: 0;
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  background: var(--header);
+  border-bottom: 1px solid var(--border);
+  z-index: 2;
+}
+.graph-tools button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--fg);
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+}
+.graph-stage { padding: 0.5rem; }
+.graph-stage pre.mermaid { border: none; padding: 0; }
+table.sortable th[data-sort] { cursor: pointer; }
+table.sortable th[data-sort]:hover { color: var(--accent); }
+table.grid td.nowrap { white-space: nowrap; width: 1%; }
+table.grid td.src { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; }
+code.key {
+  font-family: ui-monospace, monospace;
+  background: var(--header);
+  border-radius: 6px;
+  padding: 0.1rem 0.4rem;
+}
+button.copy {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--dim);
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  cursor: pointer;
+}
+button.copy:hover { color: var(--accent); border-color: var(--accent); }

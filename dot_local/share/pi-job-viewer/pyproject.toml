@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pi-job-viewer"
+version = "0.0.0"
+description = "Read-only end-user viewer for pi-job task bundles."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "markdown-it-py>=3.0",
+  # The viewer imports pi_job_harness from the applied tree, so its
+  # runtime deps ride along here (the viewer tool venv is isolated).
+  "pydantic>=2.11,<3",
+  "PyYAML>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.27",
+  "pytest>=8.0",
+]
+
+[project.scripts]
+pi-job-serve = "pi_job_viewer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pi_job_viewer*"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
