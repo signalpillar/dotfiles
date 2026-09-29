@@ -1037,6 +1037,8 @@ step_kinds:
       Read the slice plan and the test-case-table aid.
       Ask the user for the target env: dev or staging.
       List acceptance use cases in product language.
+      Run each case against a deployed env, never the repo unit suite.
+      The repo suite owns pre-merge verification, not acceptance.
       Name affected users and error symptoms per case.
       Write results under plan file ## Acceptance.
       Keep the step note short: env plus plan file pointer.
@@ -1125,6 +1127,8 @@ step_kinds:
       After the PR merges, run the ## Acceptance use cases.
       Ask the user for the final env: dev or staging.
       Run each case on that env and record pass or fail.
+      Repo unit or integration suites do not count as e2e evidence.
+      Name them as pre-merge verification, not e2e.
       Post evidence as a Jira ticket comment.
       Mirror ticket key, env, result, and comment URL in finish --note.
       Update plan file ## Acceptance with results or gap.
