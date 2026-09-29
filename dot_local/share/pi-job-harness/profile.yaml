@@ -265,7 +265,7 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       (not a how-to essay, delivery journal, or full-slice design).
       One file per slice. Never create a second plan file for the same slice.
       Revise the same path in place for the next increment.
-      Required sections: how it works now, how it should work, assertion, must-not, verification.
+      Required sections: how it works now, how it should work, assertion, must-not, verification, acceptance.
       How it works now: current behaviour, who depends on this bit, repos searched, repos not searched.
       When the plan already states those four facts, keep that text.
       When any fact is missing, write it under How it works now before edit-code.
@@ -291,7 +291,7 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       Naming: `<task-stem>.plans/<slice-key>.md`. create-plan note is ONLY
       `Plan file: <task-stem>.plans/<slice-key>.md` (relative to the task file's directory).
   (2) grill-plan - grill-me skill (skills/grill-me/SKILL.md).
-      Challenge How it works now, How it should work, the assertion, must-not, and the verification command.
+      Challenge How it works now, How it should work, the assertion, must-not, the verification command, and the Acceptance section.
       How it works now names current behaviour and each dependent.
       It names repos searched and repos not searched, with a date.
       Grill-plan stays open while any of those four facts is still a placeholder.
@@ -312,7 +312,7 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       `--goal …` (refuses done/skipped slices; spawn a follow-up slice instead).
   Advance blocks past incomplete create-plan/grill-plan. Distinct from setup `grill`.
   Exception: trivial single-file edit may skip both (status: skipped, one-line reason) -
-  same class as coding_execution.exceptions; only way to omit How it works now, How it should work, or the assertion.
+  same class as coding_execution.exceptions; only way to omit How it works now, How it should work, the assertion, or Acceptance.
   Soft enforcement: guidance + phrase locks + seeded stub; no hard plan-file heading linter.
   The worker stops before edit-code when How it works now lacks any of the four facts.
   If a seed stub already exists, revise it rather than starting blank.
@@ -647,6 +647,12 @@ instruction_packets:
 
     ## Verification
     - (exact command that proves this increment)
+
+    ## Acceptance
+    - Env candidates: dev | staging (user picks one)
+    - Use cases: (product language, one per line)
+    - Affected users + error symptoms: (who hits what)
+    - Post-merge result: (env, pass/fail, ticket comment URL)
   findings_file_header: |-
     # Findings
 
@@ -999,6 +1005,25 @@ step_kinds:
       - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
       - current-behaviour-and-dependents-in-plan
     guidance: *plan_and_grill_guidance
+  plan-acceptance:
+    key: plan-acceptance
+    title: Plan acceptance and post-merge checks
+    owner: orchestrator
+    record_channels: [step_note, plan_file]
+    requires_user_decision: true
+    validators:
+      - acceptance-recorded-or-skip-reason
+      - user-decision-recorded
+    skip_rule: skip only for a trivial single-file edit (record a one-line reason)
+    guidance: |-
+      Define post-merge checks before edit-code.
+      Read the slice plan and the test-case-table aid.
+      Ask the user for the target env: dev or staging.
+      List acceptance use cases in product language.
+      Name affected users and error symptoms per case.
+      Write results under plan file ## Acceptance.
+      Keep the step note short: env plus plan file pointer.
+      Revise the same plan file when scope changes.
   edit-code:
     key: edit-code
     title: Edit code
@@ -1073,15 +1098,20 @@ step_kinds:
     key: e2e-evidence
     title: Provide e2e/acceptance evidence or record the gap
     owner: orchestrator
-    record_channels: [step_note]
+    record_channels: [step_note, plan_file]
+    requires_user_decision: true
     validators:
       - evidence-or-gap-recorded
+      - user-decision-recorded
     skip_rule: skip when e2e/acceptance evidence is not needed for this slice (record why)
     guidance: |-
-      After the PR has merged (or equivalent landing), capture e2e/acceptance evidence
-      on the deployed or otherwise exercised path, or record an explicit gap/skip reason.
+      After the PR merges, run the ## Acceptance use cases.
+      Ask the user for the final env: dev or staging.
+      Run each case on that env and record pass or fail.
+      Post evidence as a Jira ticket comment.
+      Mirror ticket key, env, result, and comment URL in finish --note.
+      Update plan file ## Acceptance with results or gap.
       Prefer ticket comments and finish --note over add-decision.
-      This step is skippable when unit/integration coverage is enough or live e2e is blocked.
   ready-for-release:
     key: ready-for-release
     title: Mark the ticket Ready for Release
@@ -1380,6 +1410,7 @@ slice_kinds:
     step_template:
       - create-plan
       - grill-plan
+      - plan-acceptance
       - edit-code
       - verify
       - code-review

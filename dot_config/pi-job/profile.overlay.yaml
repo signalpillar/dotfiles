@@ -13,9 +13,12 @@
 # WHAT this trial changes:
 # step_kinds.edit-code: replaces guidance, so this copy keeps the shipped How it works now gate, then the E2E-first tail.
 # step_kinds.e2e-evidence: replaces post-merge guidance with pre-share gating.
-# slice_kinds.implement.step_template: inserts map-current-state first, moves e2e-evidence directly before share-with-team.
+# slice_kinds.implement.step_template: inserts map-current-state first, keeps plan-acceptance after grill-plan, moves e2e-evidence directly before share-with-team.
 # code-review: apply every recommendation, including simplification advice.
 # Do not finish on "not must-fix" or "accept remaining risk".
+# NOTE (2026-09-29): shipped profile adds plan-acceptance (## Acceptance) plus post-merge dev/staging ticket-comment capture.
+# This overlay keeps pre-share E2E gating during the trial and carries plan-acceptance in its template copy.
+# Post-merge dev/staging capture activates fully when this trial retires.
 #
 # WHEN TO REMOVE:
 # Remove after the trial verdict on 1-2 real implement slices.
@@ -77,6 +80,7 @@ step_kinds:
   e2e-evidence:
     guidance: |-
       Run E2E/acceptance before share-with-team.
+      Read plan file ## Acceptance when plan-acceptance wrote it.
       Capture the repeatable artifact or record an explicit gap.
       Prefer ticket comments and finish --note over add-decision.
       Block share-with-team on red E2E unless the gap note names the blocker.
@@ -86,6 +90,7 @@ slice_kinds:
       - map-current-state
       - create-plan
       - grill-plan
+      - plan-acceptance
       - edit-code
       - verify
       - code-review

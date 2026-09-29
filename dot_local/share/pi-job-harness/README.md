@@ -188,7 +188,7 @@ Typical slice layout for an end-to-end implementation task:
 
 ```text
 1. task-setup          [kind: setup]     explore → clarify → grill → wayfinder → select-toolbelt → plan-slices
-2. wire-api            [kind: implement] create-plan → grill-plan → edit-code → verify → vulnerability-scan → … → pi-job-feedback → wait-for-feedback → e2e-evidence → ready-for-release
+2. wire-api            [kind: implement] create-plan → grill-plan → plan-acceptance → edit-code → verify → vulnerability-scan → … → pi-job-feedback → wait-for-feedback → e2e-evidence → ready-for-release
 3. fix-follow-up       [kind: implement] …
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
 ```
@@ -602,7 +602,10 @@ execution:
 ### Independent vulnerability scan
 
 Every new implement slice includes `vulnerability-scan` after verify and before sharing.
+Every new implement slice includes `plan-acceptance` after `grill-plan` and before `edit-code`.
 Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
+`plan-acceptance` writes the plan file `## Acceptance` section: env candidates, use cases, affected users plus error symptoms.
+`e2e-evidence` asks the user for the final env (`dev` or `staging`), runs the `## Acceptance` cases there, posts evidence as a Jira ticket comment, and mirrors the result in `finish --note`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
 2. If accepted, the orchestrator may `start` with the edit-code author model to record the decision point, then `finish --model <scanner>` when the scan completes.
