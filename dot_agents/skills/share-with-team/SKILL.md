@@ -76,8 +76,8 @@ The second bullet carries the technical detail.
 Name the throwing function, the exact error string, and each file at fault.
 An engineer can jump to the code from that bullet.
 
-**Bad first bullet:** `resolveFlowConfigFromProgramme throws when versaFlows is undefined.`
-**Good first bullet:** `A PMOS patient who taps blood collection gets stuck: Versa never starts the flow, for every PMOS purchase.`
+**Bad first bullet:** `loadRouteConfig throws when the route table is undefined.`
+**Good first bullet:** `A customer who taps the next step gets stuck: the flow never starts, for every purchase.`
 
 ## Commit message
 
@@ -111,7 +111,7 @@ The PR body is hybrid only.
 **Link the decisions.** When the PR description references a decision constant by short code (e.g. `<DECISION-SLUG>`), include a link to where the constant is defined. The link saves the reviewer a grep; it does not substitute for naming the trade-off in prose. Example:
 
 ```
-- **<DECISION-SLUG>** ([decision](https://github.com/<owner>/<repo>/blob/<branch>/src/decisions.ts#L736)) - hard-reject overlapping starts; the alternative (silent accept) corrupts derivation.
+- **<DECISION-SLUG>** ([decision](https://github.com/<owner>/<repo>/blob/<branch>/src/decisions.ts#L736)) - reject the duplicate write; silent accept stores two records.
 ```
 
 **Use absolute URLs, not relative paths.** GitHub does not auto-resolve relative paths like `src/foo.ts#L42` in PR descriptions - they resolve against the PR page URL and break (you'll see `compare/src/foo.ts?expand=1`). Use the full `https://github.com/<owner>/<repo>/blob/<branch>/<path>#L<line>` form. The branch name keeps the link tracking the PR head as it gets pushed; a commit SHA gives a stable permalink. Find the line number with `grep -n "<DECISION_CONST>" path/to/decisions.ts`.
@@ -123,40 +123,66 @@ If a decision is mentioned only in passing (e.g. "still honours <DECISION-SLUG>"
 Pyramid lead, then the call-stack.
 Omit §4 when this PR does not change the error or API surface.
 
-§1 states three facts, in this order.
+§1 is a short lead under **In one line**.
+A reviewer reads it in one pass.
 Use simple technical language.
 A reviewer who saw only the previous merged PR can read it.
 
-1. Who still consumes what, or what is missing.
-2. What this PR changes, as a product or contract fact.
-3. What this PR does not do.
+The lead has these parts, in this order.
+Use one sentence per part.
+Add a sentence when the PR has another product result.
+A new mechanism and a new write path are both product results.
+Keep both in the lead.
 
-Write each fact as its own bullet.
-Keep each bullet to one clause and 20 words.
+1. What the system did before this PR, or what behaviour stays.
+   For a linter or a refactor, name the unenforced convention.
+   Do not invent a member when the change is a tool or a refactor.
+2. The change in the author's words.
+   When the work adds a linter rule, the sentence says **linter rule**.
+   Do not translate that into a user journey.
+3. The boundary that remains.
+   When runtime results stay the same, write *no* behavior change, a **pure refactor**.
+   Put excluded tickets and sibling pull requests in §5, not in the lead.
+
+Put each sentence on its own line.
+One sentence states one fact a reviewer must remember.
 Use **bold** and *italic* to mark the words a reader must see.
-Do not join the three facts into one paragraph.
-Do not chain causes with "but" or a long "and" list.
-Put the cause, the rename mechanics, and the test detail in §2, §3, or §5.
-Do not open a bullet on a function name, type name, or in-group label.
-Put those names in §3 or the files list.
+Do not collapse the lead into one paragraph.
+Do not cut a product result to keep the lead to three sentences.
+Do not replace the lead with one-clause bullets that drop a product fact.
+Do not open the first sentence on a function name, type name, or in-group label.
+Put file names, the cause, rename mechanics, and test detail in §2, §3, or §5.
 
-**Bad:** [graphius#1778](https://github.com/emed-labs/graphius/pull/1778) wrote 89 words in one paragraph.
-It opens on `resolveHasHormoneContext` and chains the cause, the rename, and the non-change.
+**Bad:** one paragraph that chains the old behaviour, every result, the cause, and the tests.
+It opens on a function name.
 
-**Good:** the same PR, three bullets.
-- Pre-prescribing hormone questions still use the same-order **PMOS Discovery** gate from #1705.
-- This PR corrects the **PROG-4** text, renames the flag to **hasHormoneContext**, and adds the GraphQL test.
-- It does *not* change that gate's runtime behaviour.
+**Also bad:** a lead so short that it names one flag and drops the new mechanism.
+
+**Good:** a small product change, one sentence per fact.
+Checkout still uses the existing **payment** gate from the last release.
+This PR corrects the **price label** and renames the flag to **priceConfirmed**.
+It does *not* change that gate's runtime behaviour.
+
+**Good:** a larger change, one sentence per product result.
+A report included only a **fixed set** of columns.
+This PR adds a **registry** so any report can register **columns**.
+It also fills the **address** columns from forms other than the profile page.
+Columns that no report owns still stay **blank**.
+
+**Good:** a linter or refactor, one sentence per fact.
+Helpers outside the **handler** can still open the **database**.
+This PR adds a **linter rule** that rejects that use.
+*No* behavior change, a **pure refactor**.
 
 ````
 ## <TICKET> · <parent-ticket if sub-task> — <one-line change>
 
 Ticket: <tracker-url>/browse/<TICKET>
 
-### 1. Lead
-- <who still consumes what, or what is missing>
-- <this PR's product or contract change>
-- <what this PR does not do>
+### 1. In one line
+<what the system did before, or what behaviour stays>.
+<each product result, one sentence each, in the author's words>.
+<the boundary that remains, or *no* behavior change>.
 
 ### 2. Decision
 **<slug>:** <chosen approach>. Not <rejected approach>, because <reason>.
@@ -190,10 +216,12 @@ Name A/B/C as real systems or services, not placeholders. Mark the changed node 
 **What makes a good PR description:**
 - **Always hybrid** - do not ask repository, full, or hybrid.
 - **Hybrid only** - do not read or append a repo PR template.
-- **Hybrid: lead then map.** §1 is three bullets (who, this change, not in this PR).
-  Keep each bullet to one clause and 20 words.
+- **Hybrid: lead then map.** §1 is a short lead under **In one line**: prior behaviour, each product result, then the boundary or *no* behavior change.
+  One sentence per fact, each on its own line.
+  A second product result gets its own sentence. Do not drop it to stay short.
   Use bold and italic so the facts scan.
-  Do not open a bullet on a function name.
+  Do not open the first sentence on a function name.
+  Put file names, causes, and tests in §2, §3, or §5.
   §3 shows where the PR sits in the call stack.
 - **Write the flow as it works now** - not "I changed X to do Y" but "the user does A, the client calls B, the service checks C." Present tense, full path.
 - **Name decisions with slugs** - a slug lets reviewers trace to the decision source without searching.
