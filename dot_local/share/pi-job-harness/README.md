@@ -247,10 +247,10 @@ Do not restate those bodies here.
 
 Short examples:
 
-**Good `add-decision`**
+**Good `add-decision` (names its reader slice)**
 
-- UK ConfirmMedication assets resolve via ProgrammeDefinition.defaultPartnerId; no static Graphius maps.
-- Ship with temporary US CDN assets; UK-native assets blocked on uk-treatment-assets-commission before prod.
+- UK ConfirmMedication assets resolve via ProgrammeDefinition.defaultPartnerId; no static Graphius maps. Reader: graphius-pathways-reader slice.
+- Ship with temporary US CDN assets; UK-native assets blocked on uk-treatment-assets-commission before prod. Reader: deploy slice.
 - Spill a long rationale with `--slug pmos-careplan-eager-construct` so the file is `_decision-YYYY-MM-DD-pmos-careplan-eager-construct.md`.
 
 **Bad `add-decision` (use the slice plan, wiki, code, `finish --note`, or `add-pr`)**

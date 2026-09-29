@@ -288,8 +288,8 @@ plan_and_grill_guardrail: &plan_and_grill_guidance |-
       `_decision-<date>-<slug>.md`, not a UTC stamp.
       Step evidence belongs in `finish --note`, not `add-decision`.
       Token smell: shrink the slice or contract; do not dump more of the task store.
-      Naming: `<task-stem>.plans/<slice-key>.md`. create-plan note is ONLY
-      `Plan file: <task-stem>.plans/<slice-key>.md` (relative to the task file's directory).
+      Naming: `<task-stem>.plans/<slice-key>.md`. The plan path follows the layout
+      convention, so create-plan writes no step note.
   (2) grill-plan - grill-me skill (skills/grill-me/SKILL.md).
       Challenge How it works now, How it should work, the assertion, must-not, the verification command, and the Acceptance section.
       How it works now names current behaviour and each dependent.
@@ -344,6 +344,15 @@ cli_help:
       `_decision-<date>-<slug>.md`. Pass --slug kebab-topic on a long note
       (example: pmos-careplan-eager-construct). Short notes derive a slug from the claim.
       Do not use a UTC timestamp as the slug.
+      Record ONLY task-goal product/scope facts a worker on another slice needs
+      without this slice plan or code, and name that reader slice in the note.
+      NEVER record: `Plan file:` pointers; grill turns or `grill survived`;
+      function names, file paths, error strings, lib pins, or resolver signatures;
+      PR numbers, deploy, e2e-harness, or vuln-scan mechanics; per-step evidence
+      (belongs in `finish --note`); slice-local choices (belong in the slice plan).
+      Destination test: another slice needs it blind -> add-decision; only this
+      slice needs it -> slice plan; step evidence -> finish --note;
+      nothing needs it -> record nothing.
       To supersede an earlier decision, append a new row; never edit or delete prior rows.
       Prefix the note with `SUPERSEDES: YYYY-MM-DD (source) - …` pointing at the superseded entry
       (example: --note 'SUPERSEDES: 2026-08-04 (chat) - scope now excludes grill.backlog').
@@ -605,7 +614,7 @@ instruction_packets:
   seed_slice_plans: |-
     Create these plan files immediately from known task context, decisions, goals, and deps.
     Do not wait until each slice's create-plan cursor.
-    Later create-plan revises the same path; note stays: Plan file: <task-stem>.plans/<key>.md
+    Later create-plan revises the same path; no step note, the layout convention names it.
     Work against task <TASK>.
   plan_slices_seeded_banner: |-
     Non-setup slices already seeded - confirm layers + toolbelt only; do not run primary add-slice for the initial plan.
@@ -798,10 +807,18 @@ record_channels:
 
     decision (add-decision) - task-goal product, scope, or policy that a worker
       on a different slice needs without this slice plan or code.
+      Name the reader slice in the note.
       Prefer one sentence + rationale. Not a journal.
       Do not record grill turns, "grill survived", function names, file paths,
       error strings, lib pins, PR sequencing, or e2e harness shape.
       Those belong in the slice plan, wiki, code, or finish --note.
+      NEVER record: `Plan file:` pointers; grill turns or `grill survived`;
+      function names, file paths, error strings, lib pins, or resolver signatures;
+      PR numbers, deploy, e2e-harness, or vuln-scan mechanics; per-step evidence;
+      slice-local choices.
+      Destination test: another slice needs it blind -> add-decision; only this
+      slice needs it -> slice plan; step evidence -> finish --note;
+      nothing needs it -> record nothing.
       When the body spills, pass --slug kebab-topic. The file is
       `_decision-<date>-<slug>.md`. Do not use a UTC timestamp as the slug.
 
@@ -812,8 +829,8 @@ record_channels:
     slice_note (finish --slice-only, set-slice-note) — cross-step narrative for the slice (blocker story, handoff).
       Use set-slice-note for neutral narrative without finishing the slice. Not add-decision.
 
-    plan_file (*.plans/<slice-key>.md) - current micro-contract (how it works now, how it should work, assertion, must-not, verification).
-      One file per slice; revise in place. Not a journal.
+    plan_file (*.plans/<slice-key>.md) - current micro-contract (how it works now, how it should work, assertion, must-not, verification, acceptance).
+      One file per slice; revise in place. Not a journal. Current state lives here.
 
     plan_note (set-plan-note) — destination / high-level map. Not a progress log.
 
@@ -990,7 +1007,7 @@ step_kinds:
     key: create-plan
     title: Create plan
     owner: subagent
-    record_channels: [step_note, plan_file]
+    record_channels: [plan_file]
     validators:
       - plan-recorded
       - create-plan-and-grill-plan-done-or-skip-reason-before-other-steps
@@ -1229,14 +1246,17 @@ step_kinds:
     key: update-task-file
     title: Update this task file
     owner: orchestrator
-    record_channels: [decision, step_note, slice_note, plan_note]
+    record_channels: [step_note]
     validators:
       - task-file-current
     guidance: >-
       Keep the task record current via pi-job mutation commands only (add-slice, add-step,
       add-decision, set-plan-note, finish; see pi-job --help). Do not edit the task store directly.
+      Write the smallest note that states what changed, or finish with no note when
+      the mutations already speak.
       Create a new slice only for a product, test, or shipped-doc change.
-      A decision is not a slice. Use add-decision, the slice plan, or finish --note.
+      A decision is not a slice. A cross-slice fact uses add-decision with its reader slice named.
+      Slice-local facts stay in the slice plan.
       Give that change a bounded goal, kind, and dependencies.
       Charter or workaround follow-ups (temporary coupon id, inline-not-ref, restructure hold)
       spawn a bounded implement or fog slice via add-slice with explicit depends_on - not an extra
