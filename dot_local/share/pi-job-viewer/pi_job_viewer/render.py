@@ -151,18 +151,25 @@ document.body.addEventListener("click", function (e) {{
 
 
 def bundle_list_fragment(bundles: list[BundleSummary]) -> str:
-    """htmx fragment plus full-page body: every bundle row links to its task page."""
+    """htmx fragment plus full-page body: sortable table of every bundle."""
     if not bundles:
         return '<p class="empty">No bundles found.</p>'
     rows = "".join(
-        "<li>"
-        f'<a href="/b/{esc(b.slug)}/" hx-get="/partial/bundles/{esc(b.slug)}" hx-target="#main" hx-push-url="true">{esc(b.title)}</a> '
-        f"{pill(b.status)} "
-        f'<span class="dim">{esc(b.slug)} - {esc(b.updated)}</span>'
-        "</li>"
+        "<tr>"
+        f"<td><a href=\"/b/{esc(b.slug)}/\" hx-get=\"/partial/bundles/{esc(b.slug)}\" "
+        f"hx-target=\"#main\" hx-push-url=\"true\">{esc(b.title)}</a></td>"
+        f"<td class=\"dim nowrap\">{esc(b.slug)}</td>"
+        f"<td>{pill(b.status)}</td>"
+        f"<td class=\"dim nowrap\">{esc(b.updated)}</td>"
+        "</tr>"
         for b in bundles
     )
-    return f"<ul class='bundle-list'>{rows}</ul>"
+    return (
+        "<table class='grid sortable'><thead><tr>"
+        "<th data-sort='text'>Bundle</th><th data-sort='text'>Slug</th>"
+        "<th data-sort='status'>Status</th><th data-sort='text'>Updated</th>"
+        "</tr></thead><tbody>" + rows + "</tbody></table>"
+    )
 
 
 def _status_pill(sl: dict) -> str:
@@ -208,9 +215,12 @@ def task_fragment(handle: BundleHandle, decisions_html: str, graph: str) -> str:
     return (
         f"<h1>{esc(handle.task.get('title') or handle.slug)}</h1>"
         f"<p>Status: {pill(handle.status)} "
-        f"<span class='dim'>{esc(handle.slug)}</span></p>"
+        f"<span class='dim'>{esc(handle.slug)}</span> "
+        f"<a href=\"/b/{esc(handle.slug)}/stats\" "
+        f"hx-get=\"/partial/bundles/{esc(handle.slug)}/stats\" hx-target=\"#main\" hx-push-url=\"true\">Stats</a></p>"
         f"<h2>Slices</h2>{table}"
-        f"<h2>Decisions</h2>{decisions_html}"
+        f"{decisions_html}"
+        f"{references_section(handle)}"
         "<h2>Graph</h2>"
         "<div class='graph-wrap'><div class='graph-tools'>"
         "<button data-graph='zin' title='Zoom in'>+</button>"
@@ -252,8 +262,11 @@ def repo_work_html(sl: dict) -> str:
     return "<h2>Repo work</h2>" + "".join(blocks)
 
 
-def slice_fragment(slug: str, sl: dict, plan_html: str) -> str:
-    """Slice detail body: goal, steps table with notes, and the rendered slice plan file."""
+def slice_fragment(slug: str, sl: dict, plan_html: str, root=None) -> str:
+    """Slice detail body: goal, steps table with notes, related refs, plan file.
+
+    Root is the bundle root; without it the related-references section stays empty.
+    """
     steps = "".join(
         f"<tr><td class=\"dim nowrap\">{esc(st.get('key'))}</td>"
         f"<td>{esc(st.get('title') or '')}</td><td>{pill(str(st.get('status') or ''))}</td>"
@@ -272,12 +285,13 @@ def slice_fragment(slug: str, sl: dict, plan_html: str) -> str:
         f"<p>{esc(sl.get('goal') or '')}</p>"
         f"<h2>Steps</h2>{steps_table}"
         f"{repo_work_html(sl)}"
+        f"{related_references(root, slug, sl.get('key'))}"
         f"<h2>Plan</h2><div class='prose'>{plan_html}</div>"
     )
 
 
 def decisions_table(records) -> str:
-    """Sortable decisions table: date, source, Markdown-rendered body."""
+    """Sortable decisions table in a collapsed container, expanded on demand."""
     if not records:
         return "<p><em>_none_</em></p>"
     rows = "".join(
@@ -288,11 +302,71 @@ def decisions_table(records) -> str:
         "</tr>"
         for record in records
     )
-    return (
+    table = (
         "<table class='grid sortable'><thead><tr>"
         "<th data-sort='text'>Date</th><th data-sort='text'>Source</th><th>Decision</th>"
         "</tr></thead><tbody>" + rows + "</tbody></table>"
     )
+    return f"<details class=\"collapsible\"><summary>Decisions ({len(records)})</summary>{table}</details>"
+
+
+def file_link(slug: str, rel: str) -> str:
+    """Link to a bundle file route: replaces the main view like all navigation."""
+    return (
+        f"<a href=\"/b/{esc(slug)}/{esc(rel)}\" "
+        f"hx-get=\"/partial/bundles/{esc(slug)}/{esc(rel)}\" hx-target=\"#main\" hx-push-url=\"true\">"
+        f"{esc(rel)}</a>"
+    )
+
+
+def references_section(handle) -> str:
+    """Task files: rendered index map, the full `files` listing, unlinked gap list.
+
+    In-bundle files link into the viewer and open rendered when Markdown.
+    Out-of-bundle artifact paths show absolute with a copy button instead.
+    The Unlinked subsection names reference files with no explicit frontmatter
+    `slices:` link, so agents see what still needs linking.
+    """
+    from pi_job_viewer.store import bundle_file, unlinked_references
+
+    index_html = ""
+    try:
+        index_html = f"<div class='prose'>{render_markdown(bundle_file(handle, 'references', 'index.md').read_text(encoding='utf-8', errors='replace'))}</div>"
+    except OSError:
+        index_html = ""
+    items = "".join(
+        f"<li>{file_link(handle.slug, display)}</li>"
+        if browsable
+        else (
+            f"<li><code class=\"key\">{esc(display)}</code>"
+            f"<button class=\"copy\" data-copy=\"{esc(display)}\" title=\"Copy path\">⧉</button> "
+            "<span class=\"dim\">outside bundle</span></li>"
+        )
+        for display, browsable in handle.files
+    )
+    unlinked = "".join(
+        f"<li>{file_link(handle.slug, rel)}</li>"
+        for rel in unlinked_references(handle.root)
+    )
+    gap = f"<h3>Unlinked references</h3><ul>{unlinked}</ul>" if unlinked else ""
+    return (
+        f"<h2>References</h2>{index_html}<ul>{items}</ul>{gap}"
+        if items or index_html
+        else ""
+    )
+
+
+def related_references(root, slug: str, key: str) -> str:
+    """Slice references: bundle files mentioning this slice key, else empty."""
+    from pi_job_viewer.store import slice_references
+
+    if root is None or not key:
+        return ""
+    matched = slice_references(root, str(key))
+    if not matched:
+        return ""
+    items = "".join(f"<li>{file_link(slug, rel)}</li>" for rel in matched)
+    return f"<h2>Related references</h2><ul>{items}</ul>"
 
 
 def file_fragment(title: str, body_html: str) -> str:

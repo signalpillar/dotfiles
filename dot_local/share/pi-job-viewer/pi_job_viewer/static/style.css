@@ -38,9 +38,10 @@ body {
 .app-icon { color: var(--accent); font-size: 1.2rem; }
 .app-title { font-weight: 700; }
 .crumbs { color: var(--dim); }
-.layout { display: flex; min-height: calc(100vh - 3rem); }
+.layout { display: flex; min-height: calc(100vh - 3rem); align-items: stretch; }
 .sidebar {
   width: 12rem;
+  flex: 0 0 auto;
   padding: 1rem;
   border-right: 1px solid var(--border);
 }
@@ -53,14 +54,6 @@ body {
 }
 .sidebar a:hover { background: var(--border); }
 .content { flex: 1; padding: 1.2rem 1.6rem; max-width: 60rem; }
-.bundle-list { list-style: none; padding: 0; }
-.bundle-list li {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.7rem 1rem;
-  margin-bottom: 0.6rem;
-}
 table.grid { border-collapse: collapse; width: 100%; }
 table.grid td, table.grid th {
   border: 1px solid var(--border);
@@ -149,3 +142,10 @@ button.copy {
   cursor: pointer;
 }
 button.copy:hover { color: var(--accent); border-color: var(--accent); }
+details.collapsible { margin-top: 1.5rem; }
+details.collapsible > summary {
+  cursor: pointer;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+details.collapsible > summary:hover { color: var(--accent); }

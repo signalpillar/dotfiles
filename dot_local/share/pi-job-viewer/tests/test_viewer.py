@@ -329,3 +329,122 @@ def test_slice_without_repo_work_omits_section():
 
     html = slice_fragment("b", {"key": "k", "steps": [], "final_steps": []}, "")
     assert "Repo work" not in html
+
+
+def test_task_page_lists_references(client):
+    """Task page shows the references index plus bundle file links."""
+    res = client.get("/b/alpha/")
+    assert res.status_code == 200
+    assert "<h2>References</h2>" in res.text
+    assert "references/index.md" in res.text
+
+
+def test_slice_page_lists_related_references(client, home):
+    """Slice page links reference files mentioning the slice key."""
+    (home / "alpha" / "references" / "do-the-change-notes.md").write_text(
+        "Notes for do-the-change.\n", encoding="utf-8"
+    )
+    res = client.get("/b/alpha/slice/do-the-change")
+    assert res.status_code == 200
+    assert "<h2>Related references</h2>" in res.text
+    assert "do-the-change-notes.md" in res.text
+
+
+def test_partial_file_returns_fragment_for_htmx(client, home):
+    """File partial swaps get the bare fragment with styled shell on direct visit."""
+    frag = client.get("/partial/bundles/alpha/plans/do-the-change.md", headers={"hx-request": "true"})
+    assert frag.status_code == 200
+    assert "stylesheet" not in frag.text
+    assert "Ship it." in frag.text
+    direct = client.get("/partial/bundles/alpha/plans/do-the-change.md")
+    assert direct.status_code == 200
+    assert "stylesheet" in direct.text
+
+
+def test_external_artifact_paths_show_absolute_with_copy(tmp_path):
+    """Out-of-bundle artifact paths render absolute with a copy button, no link."""
+    from pi_job_viewer.render import references_section
+    from pi_job_viewer.store import BundleHandle
+
+    handle = BundleHandle(
+        slug="t",
+        root=tmp_path,
+        task={"decisions": []},
+        status="planned",
+        files=(("references/a.md", True), ("/tmp/out.md", False)),
+    )
+    html = references_section(handle)
+    assert "outside bundle" in html
+    assert 'data-copy="/tmp/out.md"' in html
+
+
+def test_file_links_open_as_full_page(client):
+    """Reference file links replace the main view with a pushed URL."""
+    res = client.get("/b/alpha/")
+    assert 'hx-target="#main"' in res.text
+    assert "?stack=1" not in res.text
+
+
+def test_file_partial_returns_full_page_fragment(client, home):
+    """File swaps replace the main view and still render the body."""
+    res = client.get(
+        "/partial/bundles/alpha/plans/do-the-change.md", headers={"hx-request": "true"}
+    )
+    assert res.status_code == 200
+    assert 'class="column"' not in res.text
+    assert "data-close" not in res.text
+    assert 'hx-swap-oob="true"' in res.text
+    assert "Ship it." in res.text
+
+
+def test_decisions_hide_in_collapsed_container(client, home):
+    """Decisions collapse behind a summary with a count, expanded on demand."""
+    env = dict(os.environ, PI_JOB_TASKS=str(home))
+    _run_viewer_cli(env, "--task", "alpha", "add-decision", "--date", "2026-09-28", "--note", "Hidden gem", "--source", "chat:test")
+    res = client.get("/b/alpha/")
+    assert res.status_code == 200
+    assert "<details" in res.text
+    assert "Decisions (" in res.text
+    assert "Hidden gem" in res.text
+
+
+def test_frontmatter_links_beat_heuristic_and_unlinked_shows_gap(client, home):
+    """Explicit slices frontmatter leads Related; unlinked files surface on task."""
+    refs = home / "alpha" / "references"
+    (refs / "linked.md").write_text("---\nslices: [do-the-change]\n---\nClaimed.\n", encoding="utf-8")
+    (refs / "do-the-change-scratch.md").write_text("Scratch for do-the-change.\n", encoding="utf-8")
+    (refs / "loose.md").write_text("Nothing linked here.\n", encoding="utf-8")
+    sl = client.get("/b/alpha/slice/do-the-change")
+    assert sl.status_code == 200
+    assert sl.text.index("linked.md") < sl.text.index("do-the-change-scratch.md")
+    task = client.get("/b/alpha/")
+    assert task.status_code == 200
+    assert "Unlinked references" in task.text
+    assert "loose.md" in task.text
+
+
+def test_no_stack_markup_or_styles_remain(client):
+    """Skin and shell carry no side-column stack markup or styles."""
+    res = client.get("/static/style.css")
+    assert res.status_code == 200
+    assert ".stack" not in res.text
+    assert ".column" not in res.text
+    page = client.get("/")
+    assert 'id="stack"' not in page.text
+
+
+def test_stats_page_renders_harness_stats_markdown(client):
+    """Stats page shows the same Timeline and Status sections as pi-job stats."""
+    res = client.get("/b/alpha/stats")
+    assert res.status_code == 200
+    assert "Timeline" in res.text
+    assert "Status" in res.text
+    assert ">stats<" in res.text
+
+
+def test_partial_stats_returns_fragment_for_htmx(client):
+    """Stats swaps get the bare fragment with styled shell on direct visit."""
+    frag = client.get("/partial/bundles/alpha/stats", headers={"hx-request": "true"})
+    assert frag.status_code == 200
+    assert "stylesheet" not in frag.text
+    assert "Timeline" in frag.text

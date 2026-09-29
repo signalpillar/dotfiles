@@ -39,3 +39,19 @@ uv run --with pytest --with httpx python -m pytest
 GET routes only.
 No mutations, no locks, no digest writes.
 Harness code, skill files, and `AGENTS.md` stay untouched.
+
+## Linking files to slices
+
+Agents claim a reference file for slices with a YAML frontmatter block:
+
+```markdown
+---
+slices: [my-slice-key, another-slice]
+---
+
+Rest of the file.
+```
+
+The viewer then lists the file under Related references on each named
+slice page, explicit links first. Files with no `slices:` frontmatter show
+under Unlinked references on the task page until someone links them.

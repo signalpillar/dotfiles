@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+import yaml
+
 log = logging.getLogger(__name__)
 
 
@@ -62,6 +64,9 @@ class BundleHandle:
     task: dict  # parsed task mapping (already validated by the harness store)
     status: str  # derived overall status, same source as BundleSummary.status
     slices: tuple[SliceSummary, ...] = field(default_factory=tuple)
+    files: tuple[tuple[str, bool], ...] = field(default_factory=tuple)
+    # full `files` listing: (display path, browsable) pairs; display is
+    # bundle-relative when inside the root, absolute otherwise
 
 
 class BundleNotFound(FileNotFoundError):
@@ -299,7 +304,37 @@ def open_bundle(slug: str, home: Path | None = None) -> BundleHandle:
         )
         for s in ((task.get("plan") or {}).get("slices") or [])
     )
-    return BundleHandle(slug=slug, root=root, task=task, status=str(derived_task_status(task)), slices=slices)
+    files = bundle_files(task_store, task, root)
+    return BundleHandle(
+        slug=slug, root=root, task=task, status=str(derived_task_status(task)), slices=slices, files=files
+    )
+
+
+def bundle_files(task_store, task: dict, root: Path) -> tuple[tuple[str, bool], ...]:
+    """Full `files` listing for a bundle: (display path, browsable) pairs.
+
+    Reuses TaskFileListing (references plus plans plus registered artifacts
+    plus maintain URIs). In-bundle paths show bundle-relative and open in the
+    viewer; out-of-bundle paths show absolute with a copy button instead of
+    a link, since the viewer only serves inside the root.
+    """
+    _harness()  # ensures the harness import path before the direct import below
+    from pi_job_harness.app import TaskFileListing
+
+    try:
+        listing = TaskFileListing.from_store(task_store, task)
+    except (OSError, ValueError, KeyError):
+        # Listing is navigation only; a broken artifact entry must not break the page.
+        log.warning("viewer-files-fallback", extra={"slug": root.name})
+        return ()
+    root_resolved = root.resolve()
+    pairs = []
+    for path in listing.paths:
+        try:
+            pairs.append((path.relative_to(root_resolved).as_posix(), True))
+        except ValueError:
+            pairs.append((str(path), False))
+    return tuple(pairs)
 
 
 def slice_detail(handle: BundleHandle, key: str) -> dict:
@@ -346,6 +381,99 @@ def decision_records(handle: BundleHandle) -> list:
 
     records = DecisionIndex.load(handle.task.get("decisions") or [], handle.root).current()
     return sorted(records, key=lambda r: r.date, reverse=True)
+
+
+def file_frontmatter_slices(path: Path, *, max_bytes: int = 200 * 1024) -> list[str]:
+    """Explicit slice links from a file's YAML frontmatter `slices:` list.
+
+    Convention (documented in the viewer README): a leading `---` block with
+    `slices: [key]` claims the file for those slices. Malformed or missing
+    frontmatter yields no links, never an error.
+    """
+    try:
+        if path.stat().st_size > max_bytes:
+            return []
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    if not text.startswith("---"):
+        return []
+    end = text.find("\n---", 3)
+    if end < 0:
+        return []
+    try:
+        data = yaml.safe_load(text[3:end]) or {}
+    except yaml.YAMLError:
+        return []
+    if not isinstance(data, dict):
+        return []
+    raw = data.get("slices") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    return [str(item) for item in raw if isinstance(item, (str, int)) and str(item)]
+
+
+def slice_references(root: Path, key: str, *, max_bytes: int = 200 * 1024) -> list[str]:
+    """Reference files relevant to a slice: explicit frontmatter links first.
+
+    Explicit `slices:` frontmatter matches lead; the name-or-content mention
+    heuristic fills the rest. Skips oversized files instead of loading them whole.
+    """
+    key = str(key)
+    explicit: list[str] = []
+    heuristic: list[str] = []
+    references = root / "references"
+    if not references.is_dir() or not key:
+        return []
+    for path in sorted(references.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = f"references/{path.relative_to(references).as_posix()}"
+        if key in file_frontmatter_slices(path, max_bytes=max_bytes):
+            explicit.append(rel)
+            continue
+        if key in path.name:
+            heuristic.append(rel)
+            continue
+        try:
+            if path.stat().st_size > max_bytes:
+                continue
+            if key in path.read_text(encoding="utf-8", errors="replace"):
+                heuristic.append(rel)
+        except OSError:
+            continue
+    return explicit + [rel for rel in heuristic if rel not in explicit]
+
+
+def unlinked_references(root: Path, *, max_bytes: int = 200 * 1024) -> list[str]:
+    """Reference files claiming no slice via frontmatter `slices:`.
+
+    Powers the Unlinked section that drives agents to link their files.
+    Heuristic-only matches still count as unlinked: only explicit links clear it.
+    """
+    unlinked: list[str] = []
+    references = root / "references"
+    if not references.is_dir():
+        return unlinked
+    for path in sorted(references.rglob("*")):
+        if not path.is_file():
+            continue
+        if not file_frontmatter_slices(path, max_bytes=max_bytes):
+            unlinked.append(f"references/{path.relative_to(references).as_posix()}")
+    return unlinked
+
+
+def bundle_stats(handle: BundleHandle) -> str:
+    """Stats markdown for a bundle: the same body `pi-job stats` prints.
+
+    Reuses the harness stats builder and Markdown renderer verbatim.
+    """
+    _harness()  # ensures the harness import path before the direct import below
+    from pi_job_harness.stats import DEFAULT_WAIT_KEYS, build_stats
+    from pi_job_harness.stats import render_markdown as render_stats_markdown
+
+    payload = build_stats(handle.task, handle.slug, frozenset(DEFAULT_WAIT_KEYS))
+    return render_stats_markdown(payload)
 
 
 def dependency_graph(handle: BundleHandle) -> str:

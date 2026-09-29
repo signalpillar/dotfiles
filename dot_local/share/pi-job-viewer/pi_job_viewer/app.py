@@ -134,7 +134,7 @@ def create_app(home: Path | None = None, *, only_slug: str | None = None) -> Fas
             plan_html = render.render_markdown(plan_text)
         except store.BundleNotFound:
             plan_html = "<p><em>No plan file.</em></p>"
-        return render.slice_fragment(slug, sl, plan_html)
+        return render.slice_fragment(slug, sl, plan_html, handle.root)
 
     @app.get("/b/{slug}/slice/{key}")
     def slice_page(slug: str, key: str, request: Request) -> HTMLResponse:
@@ -159,9 +159,43 @@ def create_app(home: Path | None = None, *, only_slug: str | None = None) -> Fas
             return render.file_fragment(f"{slug} / {kind}/{name}", render.render_markdown(text))
         return render.file_fragment(f"{slug} / {kind}/{name}", f"<pre>{render.esc(text)}</pre>")
 
+    def _stats_page(slug: str) -> str:
+        try:
+            handle = store.open_bundle(slug, home)
+        except store.BundleNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if only_slug is not None and slug != only_slug:
+            raise HTTPException(status_code=404, detail=f"unknown bundle: {slug!r}")
+        return render.file_fragment(
+            f"{slug} / stats", render.render_markdown(store.bundle_stats(handle))
+        )
+
+    def _stats_crumbs(slug: str) -> str:
+        """Trail tasks / <slug> / stats with links up the tree."""
+        return render.crumb_trail(
+            ("tasks", "/", "/partial/bundles"),
+            (slug, f"/b/{slug}/", f"/partial/bundles/{slug}"),
+            ("stats", None, None),
+        )
+
+    @app.get("/b/{slug}/stats")
+    def stats_page(slug: str, request: Request) -> HTMLResponse:
+        """Full page: stats report for one bundle."""
+        return _respond(request, f"{slug} / stats", _stats_page(slug), _stats_crumbs(slug))
+
+    @app.get("/partial/bundles/{slug}/stats")
+    def partial_stats(slug: str, request: Request) -> HTMLResponse:
+        """Stats report: fragment for swaps, shell for direct visits."""
+        return _respond(request, f"{slug} / stats", _stats_page(slug), _stats_crumbs(slug))
+
     @app.get("/b/{slug}/{kind}/{name:path}")
     def file_page(slug: str, kind: str, name: str, request: Request) -> HTMLResponse:
         """Full page: one plans/ or references/ file, Markdown rendered when possible."""
+        return _respond(request, f"{slug} / {name}", _file_page(slug, kind, name), _file_crumbs(slug, kind, name))
+
+    @app.get("/partial/bundles/{slug}/{kind}/{name:path}")
+    def partial_file(slug: str, kind: str, name: str, request: Request) -> HTMLResponse:
+        """Bundle file: fragment for swaps, shell for direct visits."""
         return _respond(request, f"{slug} / {name}", _file_page(slug, kind, name), _file_crumbs(slug, kind, name))
 
     return app
