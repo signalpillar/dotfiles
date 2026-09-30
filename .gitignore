@@ -8,3 +8,4 @@
 # FogLAMP scan lock (editToken is secret)
 .foglamp/
 .aider*
+/dot_local/share/pi-job-viewer/pi_job_viewer.egg-info/

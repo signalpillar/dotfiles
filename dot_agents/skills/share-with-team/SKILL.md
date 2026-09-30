@@ -121,7 +121,9 @@ If a decision is mentioned only in passing (e.g. "still honours <DECISION-SLUG>"
 ### Template: hybrid
 
 Pyramid lead, then the call-stack.
-Omit §4 when this PR does not change the error or API surface.
+Keep a markdown table in §4 when the PR maps states, fields, or error slugs.
+Do not drop that table because the GraphQL schema did not change.
+Omit §4 only when there is no such map.
 
 §1 is a short lead under **In one line**.
 A reviewer reads it in one pass.
@@ -201,10 +203,17 @@ C  (unchanged / next slice)
 
 This PR owns **B**. It does not own **C**.
 
-### 4. Contract (omit if the error/API surface did not move)
+### 4. Contract (omit only when there is no state, field, or error map)
+| CarePlan state | Programme status |
+|---|---|
+| `active` | `ActiveProgrammeStatus` |
+
 | slug | when |
 |---|---|
 | `...` | ... |
+
+Use one table, or both, when each one states a different map.
+A field list under the table is fine when the cells need a short note.
 
 ### 5. Tests / limit
 - Tests: <kind + contract>
@@ -226,7 +235,7 @@ Name A/B/C as real systems or services, not placeholders. Mark the changed node 
 - **Write the flow as it works now** - not "I changed X to do Y" but "the user does A, the client calls B, the service checks C." Present tense, full path.
 - **Name decisions with slugs** - a slug lets reviewers trace to the decision source without searching.
 - **Surface quirks explicitly** - if you discovered a system bug or gap and worked around it, say so. Hiding it makes the workaround look like a design choice.
-- **Errors table** - reviewers and QA can copy-paste slugs to write test cases or check monitoring. Omit it on hybrid when the surface did not move.
+- **Tables stay in the hybrid body.** A state map or an error-slug map is a markdown table in §4. Do not drop it to keep the lead short. A schema that did not change can still need the table. Omit §4 only when there is no map.
 - **Known limitations are not failures** - be explicit about what is deferred and why; it signals intentional scoping.
 
 ## When to use me

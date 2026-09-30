@@ -101,6 +101,7 @@ Use `pi-job loop --type NAME` for another exact, profile-defined loop packet.
 Use `pi-job loop --type tutor` for read-only session tutoring against the active working directory.
 
 Fleet mode (manager + tmux workers): `pi-job loop` is the manager metronome.
+Manager judgement (inbox dispositions, worker triage, watch pass, landing, tick report) lives in the `pi-job-manager` skill.
 Spawn a slice window with `pi-job --task SLUG boot --slice KEY --owner ID`, which resolves the worker packet and appends store context.
 Packet bodies live in profile `loop_packets`.
 Read them with those commands.
