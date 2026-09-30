@@ -1,3 +1,14 @@
+---
+type: Investigation
+title: "Why vterm jumps to the bottom while a command prints"
+description: "Why the vterm window follows the process cursor and snaps back to the bottom during live output."
+tags: [emacs, vterm, scrolling]
+status: stable
+sources:
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+---
+
 # Why vterm jumps to the bottom while a command still prints
 
 A short guide from a real question about this Spacemacs setup.

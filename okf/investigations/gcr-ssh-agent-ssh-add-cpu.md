@@ -1,3 +1,11 @@
+---
+type: Investigation
+title: "ssh-add burns CPU under GNOME gcr-ssh-agent"
+description: "Post-mortem of stuck ssh-add processes at high CPU started by GNOME gcr-ssh-agent."
+tags: [ssh, gnome, linux, cpu]
+status: stable
+---
+
 # Why `ssh-add` burns CPU under GNOME `gcr-ssh-agent`
 
 A short post-mortem of stuck `/usr/bin/ssh-add` processes that sit at high CPU.

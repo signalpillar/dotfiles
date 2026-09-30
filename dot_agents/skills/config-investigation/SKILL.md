@@ -39,10 +39,8 @@ questions:
     prompt: "If yes, where should the guide live?"
     allow_multiple: false
     options:
-      - id: next_to_config
-        label: "Next to the config it explains (e.g. ~/.spacemacs.d/docs/) (Recommended)"
-      - id: chezmoi_docs
-        label: "In chezmoi source under a docs/ folder"
+      - id: chezmoi_okf
+        label: "In the chezmoi OKF bundle: okf/investigations/ (Recommended)"
       - id: repo_docs
         label: "In the current repo docs/ or syllabus/"
       - id: tmp
@@ -237,7 +235,7 @@ Replace live values with placeholders:
 After you write the draft, grep it for tokens from the live session: hostname, `src` IPs, `uid`, `fe80`/`fd` prefixes, window names.
 If a line teaches nothing without that token, delete the line.
 
-Example of the public form: `docs/parallels-host-reachable-ip.md`.
+Example of the public form: `okf/playbooks/parallels-host-reachable-ip.md`.
 
 ## Anti-patterns
 
@@ -254,5 +252,5 @@ Example of the public form: `docs/parallels-host-reachable-ip.md`.
 ## Additional resources
 
 - Tmux harness, chezmoi checks, Org switches: [reference.md](reference.md)
-- Example guide from this workflow: `~/.spacemacs.d/docs/org-emphasis-tty-explained.md`
-- Public-aware example: `docs/parallels-host-reachable-ip.md`
+- Example guide from this workflow: `okf/investigations/org-emphasis-tty-explained.md`
+- Public-aware example: `okf/playbooks/parallels-host-reachable-ip.md`

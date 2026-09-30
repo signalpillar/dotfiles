@@ -1,3 +1,18 @@
+---
+type: Architecture
+title: "Why chezmoi tracks early-init.el"
+description: "Why chezmoi tracks only the Spacemacs core file ~/.emacs.d/early-init.el and no other core file."
+tags: [emacs, spacemacs, early-init]
+status: stable
+sources:
+  - id: dot-emacs-d-early-init-el
+    resource: /dot_emacs.d/early-init.el
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+  - id: run-onchange-setup-box-sh-tmpl
+    resource: /run_onchange_setup_box.sh.tmpl
+---
+
 # Why chezmoi tracks `~/.emacs.d/early-init.el`
 
 Chezmoi tracks this one Spacemacs core file on purpose.

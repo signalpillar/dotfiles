@@ -1,3 +1,18 @@
+---
+type: Architecture
+title: "Emacs fonts"
+description: "How chezmoi installs fonts and how GUI Emacs assigns fixed-pitch and variable-pitch fonts."
+tags: [emacs, fonts, spacemacs]
+status: stable
+sources:
+  - id: brewfile
+    resource: /Brewfile
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+  - id: run-onchange-setup-box-sh-tmpl
+    resource: /run_onchange_setup_box.sh.tmpl
+---
+
 # Emacs fonts
 
 Chezmoi installs the fonts and deploys the Spacemacs configuration.

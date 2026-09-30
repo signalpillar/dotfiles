@@ -1,3 +1,20 @@
+---
+type: Architecture
+title: "The sp-term-speed layer"
+description: "How the sp-term-speed Spacemacs layer cuts redisplay and minor-mode cost in terminal buffers."
+tags: [emacs, terminal, performance, vterm]
+status: stable
+sources:
+  - id: dot-emacs-d-private-sp-term-speed-readme-org
+    resource: /dot_emacs.d/private/sp-term-speed/README.org
+  - id: dot-emacs-d-private-sp-term-speed-local-term-speed-term-speed-el
+    resource: /dot_emacs.d/private/sp-term-speed/local/term-speed/term-speed.el
+  - id: dot-emacs-d-private-sp-term-speed-packages-el
+    resource: /dot_emacs.d/private/sp-term-speed/packages.el
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+---
+
 # Fast Emacs terminals: the `sp-term-speed` layer
 
 This note records how this Spacemacs setup adopts James Cherti's terminal
@@ -70,7 +87,7 @@ and run `M-x vterm-module-compile`.
 
 For live output that jumps the window, use `vterm-copy-mode`.
 That is a separate issue.
-See `dot_spacemacs.d/docs/vterm-scroll-while-running.md`.
+See [Why vterm jumps to the bottom](../investigations/vterm-scroll-while-running.md).
 
 ---
 

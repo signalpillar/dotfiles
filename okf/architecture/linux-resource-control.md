@@ -1,3 +1,28 @@
+---
+type: Architecture
+title: "Linux resource control"
+description: "How cgroup memory caps, systemd-oomd swap watch and zram keep a Linux desktop responsive under heavy Node jobs."
+tags: [linux, systemd, oomd, zram, cgroups]
+status: stable
+sources:
+  - id: run-onchange-linux-resource-control-sh-tmpl
+    resource: /run_onchange_linux-resource-control.sh.tmpl
+  - id: linux-resource-control-user-slice-memory-conf
+    resource: /linux/resource-control/user-slice-memory.conf
+  - id: linux-resource-control-root-slice-oomd-swap-conf
+    resource: /linux/resource-control/root-slice-oomd-swap.conf
+  - id: linux-resource-control-zram-generator-conf
+    resource: /linux/resource-control/zram-generator.conf
+  - id: dot-config-systemd-user-background-slice-d-50-limits-conf
+    resource: /dot_config/systemd/user/background.slice.d/50-limits.conf
+  - id: dot-config-systemd-user-session-slice-d-50-protect-conf
+    resource: /dot_config/systemd/user/session.slice.d/50-protect.conf
+  - id: dot-local-bin-executable-run-limited
+    resource: /dot_local/bin/executable_run-limited
+  - id: chezmoiignore
+    resource: /.chezmoiignore
+---
+
 # Keep a Linux desktop responsive under heavy Node jobs
 
 A short post-mortem of a freeze where a Node process filled RAM and swap.
@@ -301,7 +326,7 @@ It does **not** get the 45% background wall or the CPU quota.
 
 `linux/` is in `.chezmoiignore`.
 `include()` still reads those payloads from source.
-[run_onchange_linux-resource-control.sh.tmpl](run_onchange_linux-resource-control.sh.tmpl) copies them with `sudo` on Linux.
+[run_onchange_linux-resource-control.sh.tmpl](../../run_onchange_linux-resource-control.sh.tmpl) copies them with `sudo` on Linux.
 
 User files apply with `chezmoi apply`.
 Then run `systemctl --user daemon-reload`.

@@ -1,3 +1,14 @@
+---
+type: Investigation
+title: "Org emphasis in terminal Emacs"
+description: "Deep dive on why Org bold and italic markers looked like plain text in emacs -nw, with the test harness that proved the cause."
+tags: [emacs, org-mode, tty, font-lock]
+status: stable
+sources:
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+---
+
 # Org emphasis in terminal Emacs: how it works and why yours was broken
 
 A beginner-friendly deep dive, written after a real debug session on this exact config.

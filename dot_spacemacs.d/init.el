@@ -188,7 +188,7 @@ This function should only modify configuration layer settings."
             shell-default-shell 'vterm
             shell-default-position 'bottom)
      ;; James Cherti terminal performance settings for vterm/eat/term.
-     ;; See dot_spacemacs.d/docs/term-speed-layer.md
+     ;; See okf/architecture/term-speed-layer.md
      sp-term-speed
      ;; spell-checking
      syntax-checking

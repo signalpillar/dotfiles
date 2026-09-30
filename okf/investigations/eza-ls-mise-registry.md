@@ -1,3 +1,22 @@
+---
+type: Investigation
+title: "ls printed mise WARN lines and eza: command not found"
+description: "Post-mortem of two failures that share one shell hook: mise registry warnings and a missing eza binary."
+tags: [zsh, mise, eza, homebrew, darwin]
+status: stable
+sources:
+  - id: brewfile
+    resource: /Brewfile
+  - id: dot-config-mise-config-toml
+    resource: /dot_config/mise/config.toml
+  - id: run-onchange-brew-sh-tmpl
+    resource: /run_onchange_brew.sh.tmpl
+  - id: dot-zshrc
+    resource: /dot_zshrc
+  - id: dot-bashrc
+    resource: /dot_bashrc
+---
+
 # Why `ls` printed mise WARN lines and then `eza: command not found`
 
 A short post-mortem from a Darwin zsh prompt that mixed two failures.
@@ -14,11 +33,11 @@ It cites managed files in this repo.
 
 Zsh does not run `/bin/ls` for the `ls` token.
 It expands an alias to `eza`.
-Homebrew owns `eza` through [Brewfile](../Brewfile).
+Homebrew owns `eza` through [Brewfile](../../Brewfile).
 If `brew bundle` has not installed that formula, the alias fails.
 
 `mise activate` still runs first on every command.
-It resolves every tool in [dot_config/mise/config.toml](../dot_config/mise/config.toml).
+It resolves every tool in [dot_config/mise/config.toml](../../dot_config/mise/config.toml).
 A short name that is missing from the installed mise registry prints `WARN` on stderr.
 That warning is not the reason `eza` is missing.
 
@@ -78,13 +97,13 @@ Expect `brew info eza` to say `Not installed` when the keg is missing.
 
 ### 1.4 Why brew did not install `eza`
 
-[Brewfile](../Brewfile) already names the formula:
+[Brewfile](../../Brewfile) already names the formula:
 
 ```30:30:Brewfile
 brew "eza"
 ```
 
-Darwin apply installs that file with [run_onchange_brew.sh.tmpl](../run_onchange_brew.sh.tmpl).
+Darwin apply installs that file with [run_onchange_brew.sh.tmpl](../../run_onchange_brew.sh.tmpl).
 The script runs `brew bundle install` when the Brewfile hash changes:
 
 ```22:23:run_onchange_brew.sh.tmpl
@@ -106,7 +125,7 @@ Or apply chezmoi so the onchange script runs `brew bundle install`.
 
 ### 1.5 Why mise printed WARN before the alias failed
 
-[dot_zshrc](../dot_zshrc) activates mise when the binary exists:
+[dot_zshrc](../../dot_zshrc) activates mise when the binary exists:
 
 ```66:68:dot_zshrc
 if command -v mise &> /dev/null; then
@@ -194,7 +213,7 @@ alias l='eza --classify=always'
 alias ls='eza --classify=always'
 ```
 
-[dot_bashrc](../dot_bashrc) uses the same aliases.
+[dot_bashrc](../../dot_bashrc) uses the same aliases.
 Reload the shell after apply:
 
 ```bash

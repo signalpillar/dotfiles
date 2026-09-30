@@ -29,7 +29,7 @@ The repository manages two environments:
 - [dot_local/share/](dot_local/share/): Standalone harnesses and toolchains.
 - [dot_spacemacs.d/](dot_spacemacs.d/): Spacemacs configuration files.
 - [bin/](bin/): Utility scripts for tmux, clipboard, and macOS apps.
-- [docs/](docs/): Internal technical notes and post-mortems.
+- [okf/](okf/index.md): Knowledge bundle with architecture notes, playbooks, and post-mortems.
 - [Brewfile](Brewfile): Declarative package specification for macOS.
 
 ## Built-in Toolchains and Agent Tools
@@ -103,12 +103,17 @@ When you configure a new machine, install these macOS applications manually:
 
 Homebrew casks manage all other desktop applications and Nerd Fonts.
 
-## Documentation Guides
+## Documentation
 
-- [Parallels Host-Reachable IP Guide](docs/parallels-host-reachable-ip.md)
-- [Tmux Choose-Tree Activity Guide](docs/tmux-choose-tree-activity.md)
-- [Linux Resource Control Guide](docs/linux-resource-control.md)
-- [eza, ls aliases, and the mise registry](docs/eza-ls-mise-registry.md)
+The `okf/` directory holds all documentation as an [Open Knowledge Format v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle.
+Start at [okf/index.md](okf/index.md).
+Run `okf-validate` from the repo root to check frontmatter, `sources` paths, links, and index reachability.
+Chezmoi does not deploy `okf/` (see [.chezmoiignore](.chezmoiignore)).
+
+- [Parallels Host-Reachable IP Guide](okf/playbooks/parallels-host-reachable-ip.md)
+- [Tmux Choose-Tree Activity Guide](okf/investigations/tmux-choose-tree-activity.md)
+- [Linux Resource Control Guide](okf/architecture/linux-resource-control.md)
+- [eza, ls aliases, and the mise registry](okf/investigations/eza-ls-mise-registry.md)
 
 ## History
 

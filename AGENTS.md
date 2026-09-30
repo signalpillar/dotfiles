@@ -63,3 +63,19 @@ Do not switch to a casual register unless the user asks.
   After the edit, run the same command on the same task.
   Present both captures in the completion reply.
   Do not present the change as done without this pair.
+
+## Chezmoi source tree knowledge
+
+Apply this section only when you work inside `~/.local/share/chezmoi`.
+The source tree documents itself as an [Open Knowledge Format v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle in `okf/`.
+Use progressive disclosure.
+Do not load the whole bundle.
+
+1. Read `okf/index.md`.
+2. Open the section index you need: `architecture/`, `playbooks/` or `investigations/`.
+3. Read only the concepts you need.
+
+Source wins over the bundle.
+When you change a file in the `sources` list of a concept, check that concept.
+Update the concept if needed, and add a dated entry to `okf/log.md`.
+Put new notes in `okf/` with frontmatter (`type`, `title`, `description`), link them from a section `index.md`, then run `okf-validate`.

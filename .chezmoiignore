@@ -18,6 +18,10 @@ dockerise
 linux
 linux/**
 
+# OKF knowledge bundle. It documents this repo and must not land in $HOME/okf/.
+okf
+okf/**
+
 # Do not ship Cursor account/machine state (auth, team, MCP allowlists).
 # Patterns match target paths, not source paths. A dot_cursor/ prefix matches
 # nothing and leaves the file unprotected.

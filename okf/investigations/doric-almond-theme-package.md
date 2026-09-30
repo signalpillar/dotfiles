@@ -1,3 +1,14 @@
+---
+type: Investigation
+title: "Why Spacemacs asked for doric-almond-theme"
+description: "Post-mortem of a failed package install for doric-almond-theme on the Spacemacs setup."
+tags: [emacs, spacemacs, themes, packages]
+status: stable
+sources:
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+---
+
 # Why Spacemacs asked for `doric-almond-theme`
 
 A short post-mortem from a failed package install on this Spacemacs setup.

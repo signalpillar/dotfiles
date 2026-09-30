@@ -1,0 +1,104 @@
+#!/usr/bin/env bb
+;; Validate an OKF v0.2 knowledge bundle so it cannot silently drift from the repo.
+;;
+;; Checks:
+;;   - every concept has frontmatter with `type`, `title`, `description`
+;;   - every `sources[].resource` path that starts with "/" exists under the repo root
+;;   - every markdown link resolves ("/x.md" is bundle-relative, "./x" and "../x" are file-relative)
+;;   - every concept is reachable from an `index.md`
+;;
+;; Usage: okf-validate [bundle-dir]   (default: okf, relative to the current directory)
+;; The repo root is the current directory. Exit code 1 on any error.
+;; Port of emed-labs/platform-services scripts/validate-okf.js.
+;; Dependencies: none. Uses only babashka built-ins (babashka.fs, clojure.string).
+
+(require '[babashka.fs :as fs]
+         '[clojure.string :as str])
+
+(def repo-root (fs/absolutize "."))
+(def bundle-root (fs/normalize (fs/absolutize (or (first *command-line-args*) "okf"))))
+
+;; Files that are bundle structure, not concepts.
+(def structural #{"index.md" "log.md"})
+(def required-fields ["type" "title" "description"])
+
+(defn list-markdown [dir]
+  (->> (fs/glob dir "**.md")
+       (map (comp fs/normalize fs/absolutize))
+       (sort-by str)))
+
+(defn split-frontmatter [text]
+  (if-not (str/starts-with? text "---\n")
+    {:frontmatter nil :body text}
+    (let [end (str/index-of text "\n---" 4)]
+      (if-not end
+        {:frontmatter nil :body text}
+        {:frontmatter (subs text 4 end) :body (subs text (+ end 4))}))))
+
+(defn strip-code
+  "Links inside fenced or inline code are examples, not navigation."
+  [body]
+  (-> body
+      (str/replace #"(?s)```.*?```" "")
+      (str/replace #"`[^`\n]*`" "")))
+
+(defn link-targets [body]
+  (map second (re-seq #"\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)" (strip-code body))))
+
+(defn resolve-link [from-file target]
+  (when-not (or (re-find #"(?i)^[a-z][a-z0-9+.-]*:" target)
+                (str/starts-with? target "#"))
+    (let [path (first (str/split target #"#" 2))]
+      (when-not (str/blank? path)
+        (fs/normalize
+         (if (str/starts-with? path "/")
+           (fs/path bundle-root (subs path 1))
+           (fs/path (fs/parent from-file) path)))))))
+
+(defn rel [file] (str (fs/relativize repo-root file)))
+
+(defn check-file
+  "Returns {:errors [...] :linked [...]} for one markdown file."
+  [file]
+  (let [name (str (fs/file-name file))
+        concept? (not (structural name))
+        {:keys [frontmatter body]} (split-frontmatter (slurp (fs/file file)))
+        fm-errors (when concept?
+                    (if-not frontmatter
+                      [(str (rel file) ": missing YAML frontmatter")]
+                      (for [field required-fields
+                            :when (not (re-find (re-pattern (str "(?m)^" field ":\\s*\\S")) frontmatter))]
+                        (str (rel file) ": frontmatter missing `" field "`"))))
+        src-errors (for [[_ resource] (re-seq #"(?m)^\s*resource:\s*(\S+)\s*$" (or frontmatter ""))
+                         :when (str/starts-with? resource "/") ; URLs are not checked offline
+                         :when (not (fs/exists? (fs/path repo-root (subs resource 1))))]
+                     (str (rel file) ": sources resource not found: " resource))
+        links (for [target (link-targets body)
+                    :let [resolved (resolve-link file target)]
+                    :when resolved]
+                {:target target :resolved resolved :exists (fs/exists? resolved)})
+        link-errors (for [{:keys [target exists]} links :when (not exists)]
+                      (str (rel file) ": broken link " target))]
+    {:errors (concat fm-errors src-errors link-errors)
+     :linked (when (= name "index.md")
+               (map :resolved (filter :exists links)))}))
+
+(when-not (fs/directory? bundle-root)
+  (binding [*out* *err*]
+    (println (str "okf-validate: bundle directory not found: " bundle-root)))
+  (System/exit 2))
+
+(let [files (list-markdown bundle-root)
+      results (map check-file files)
+      linked (set (mapcat :linked results))
+      unreachable (for [file files
+                        :when (not (structural (str (fs/file-name file))))
+                        :when (not (linked file))]
+                    (str (rel file) ": not linked from any index.md (unreachable concept)"))
+      errors (concat (mapcat :errors results) unreachable)]
+  (if (seq errors)
+    (do (binding [*out* *err*]
+          (println (str "okf validation failed (" (count errors) " error(s)):"))
+          (doseq [e errors] (println (str "  • " e))))
+        (System/exit 1))
+    (println (str "okf validation passed (" (count files) " files)"))))

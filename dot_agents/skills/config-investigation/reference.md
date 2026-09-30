@@ -155,7 +155,7 @@ Use placeholders for live host values.
 Verify Info nodes and packages exist before you link them.
 ```
 
-Match depth to `~/.spacemacs.d/docs/org-emphasis-tty-explained.md` when the investigation was similarly deep.
+Match depth to `okf/investigations/org-emphasis-tty-explained.md` when the investigation was similarly deep.
 
 ### Public-aware rewrite
 
@@ -168,4 +168,4 @@ A home path becomes a repo-relative path or `~`.
 
 Before you close, grep the draft for tokens from the live capture.
 See **Public-aware guides** in [SKILL.md](SKILL.md).
-Example: `docs/parallels-host-reachable-ip.md`.
+Example: `okf/playbooks/parallels-host-reachable-ip.md`.

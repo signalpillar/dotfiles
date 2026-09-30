@@ -1,3 +1,14 @@
+---
+type: Investigation
+title: "Tmux activity highlight: status bar versus C-b w"
+description: "Why the status bar colors windows with new output and the C-b w window list does not."
+tags: [tmux, monitor-activity]
+status: stable
+sources:
+  - id: dot-tmux-conf-tmpl
+    resource: /dot_tmux.conf.tmpl
+---
+
 # Tmux activity highlight: status bar vs C-b w
 
 A short post-mortem from a real question about this chezmoi tmux config.

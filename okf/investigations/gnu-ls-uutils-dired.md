@@ -1,3 +1,14 @@
+---
+type: Investigation
+title: "dired-quick-sort said insert-directory-program is not GNU ls"
+description: "Post-mortem of a startup warning caused by uutils ls in place of GNU ls."
+tags: [emacs, dired, uutils, ls]
+status: stable
+sources:
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+---
+
 # Why dired-quick-sort said `insert-directory-program` is not GNU ls
 
 A short post-mortem from a startup warning on this Spacemacs setup.

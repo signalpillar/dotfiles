@@ -1,3 +1,11 @@
+---
+type: Playbook
+title: "Find the Parallels Linux IP the Mac host can call"
+description: "Method to find the address the Mac host uses to reach a Linux guest under Parallels Desktop."
+tags: [parallels, networking, macos, linux]
+status: stable
+---
+
 # Find the Parallels Linux IP the Mac host can call
 
 A short guide for a Linux guest under Parallels Desktop on a Mac.

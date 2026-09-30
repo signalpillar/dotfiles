@@ -1,3 +1,16 @@
+---
+type: Investigation
+title: "TypeScript LSP: why go to definition failed"
+description: "Post-mortem of a broken TypeScript jump caused by an lsp-use-plists compile-time mismatch."
+tags: [emacs, lsp-mode, typescript, plists]
+status: stable
+sources:
+  - id: dot-emacs-d-early-init-el
+    resource: /dot_emacs.d/early-init.el
+  - id: dot-spacemacs-d-init-el
+    resource: /dot_spacemacs.d/init.el
+---
+
 # TypeScript LSP: why go to definition failed
 
 This is a post-mortem of a broken TypeScript jump in Spacemacs.
