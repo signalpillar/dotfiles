@@ -1090,11 +1090,15 @@ step_kinds:
       - review-is-a-separate-pass-not-style-applied-while-coding
       - reviewer-model-differs-from-code-author-model
       - every-recommendation-addressed-in-the-worktree
+      - test-audit-gate-passed-when-tests-changed
     skip_rule: skip only for a trivial single-file edit (record a one-line reason)
     guidance: |-
       Run one distinct final review of the actual diff with the volod-style skill
       (skills/volod-style/SKILL.md). Applying volod-style while planning or coding
       does NOT satisfy this step; this is a separate pass on the finished change.
+      When the diff adds or changes tests, also load and follow the test-audit skill
+      (skills/test-audit/SKILL.md) on the same diff. It is borrowed from
+      https://github.com/openclaw/openclaw/blob/main/.agents/skills/test-audit/SKILL.md.
       - Read the model recorded on edit-code.
       - When a higher-reasoning model exists than that author model, dispatch
         the review to a subagent on it.
@@ -1107,6 +1111,9 @@ step_kinds:
       - Check volod-style concerns: service boundaries, explicit contracts and type
         strictness, fail-closed safety, decision/edge-case comments, kebab-case
         logging, and test quality (test.each, fixture reuse).
+      - When tests changed, run the test-audit authoring gate on each new or changed test.
+        Check each one against the junk patterns.
+        Remove every test that fails the gate, or name the contract that keeps it.
       - Apply every review recommendation and every simplification in the worktree before finish.
       - A severity label does not permit a skip.
       - Record each item and its worktree change in finish --note.

@@ -166,8 +166,11 @@ Do not start the next slice until the current slice's sub-list is fully checked 
 
 1. Load `volod-style` for architecture, observability, and test-quality checks; self-review for
    correctness, error modeling, and edge cases.
-2. Fix findings in the same worktree; re-run relevant verification.
-3. Mark review done — `share-with-team` will be told to skip its own `volod-style` prompt.
+2. When the diff adds or changes tests, also load `test-audit` (borrowed from
+   [openclaw/openclaw](https://github.com/openclaw/openclaw/blob/main/.agents/skills/test-audit/SKILL.md))
+   and run its authoring gate on each test.
+3. Fix findings in the same worktree; re-run relevant verification.
+4. Mark review done — `share-with-team` will be told to skip its own `volod-style` prompt.
 
 ### Phase 7 — Share with team
 

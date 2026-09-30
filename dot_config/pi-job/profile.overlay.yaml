@@ -35,6 +35,9 @@ step_kinds:
       Also load and follow the code-simplification skill
       (skills/code-simplification/SKILL.md) on this same diff.
       Do not skip this ask because volod-style already ran while coding.
+      When the diff adds or changes tests, also load and follow the test-audit skill
+      (skills/test-audit/SKILL.md) on the same diff. It is borrowed from
+      https://github.com/openclaw/openclaw/blob/main/.agents/skills/test-audit/SKILL.md.
       - Dispatch the review to a separate agent. Do not review in this session.
       - The reviewer agent may use the same model as edit-code.
       - A higher-reasoning model is not required.
@@ -43,6 +46,9 @@ step_kinds:
       - Check volod-style concerns: service boundaries, explicit contracts and type
         strictness, fail-closed safety, decision/edge-case comments, kebab-case
         logging, and test quality (test.each, fixture reuse).
+      - When tests changed, run the test-audit authoring gate on each new or changed test.
+        Check each one against the junk patterns.
+        Remove every test that fails the gate, or name the contract that keeps it.
       - Apply every review recommendation and every simplification in the worktree before finish.
       - A severity label does not permit a skip.
       - Record each item and its worktree change in finish --note.
@@ -54,6 +60,7 @@ step_kinds:
       - review-ran-in-a-separate-agent
       - every-recommendation-addressed-in-the-worktree
       - code-simplification-advice-addressed
+      - test-audit-gate-passed-when-tests-changed
   edit-code:
     guidance: |-
       Read How it works now before the first edit.
