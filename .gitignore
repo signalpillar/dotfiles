@@ -9,3 +9,7 @@
 .foglamp/
 .aider*
 /dot_local/share/pi-job-viewer/pi_job_viewer.egg-info/
+
+# Clojure tooling caches (clj-kondo, clojure-lsp) created when editing Babashka scripts
+/.clj-kondo/
+/.lsp/
