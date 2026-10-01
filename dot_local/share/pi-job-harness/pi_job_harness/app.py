@@ -1746,25 +1746,23 @@ def cmd_finish(args: argparse.Namespace) -> None:
         if not model:
             die("finish requires an existing started execution or --model <fully-qualified-model-id>")
         model = require_fully_qualified_model(str(model))
-        allow_model_change = False
+        reset_started = False
+        model_change_note: str | None = None
         if existing and existing.model and args.model and existing.model != model:
-            author_model = (
-                policy_author_model(task_slice, item)
-                if step_key is not None and isinstance(item, TaskStep)
-                else None
-            )
+            # The orchestrator often runs `start` and then dispatches the step to a separate
+            # agent (reviewer, scanner), so a done step may finish under the executor model.
+            # Tradeoff taken for simplicity: execution keeps one model, so stats attribute the
+            # whole started..ended interval (dispatch time included) to the finish model, and
+            # the start model survives only in the auto note, which stats do not read.
+            if step_key is None or target_status != "done":
+                die(f"execution started by {existing.model!r}; refusing to finish it as {model!r}")
+            model_change_note = f"Started by {existing.model}; finished by {model}."
+            author_model = policy_author_model(task_slice, item) if isinstance(item, TaskStep) else None
             # Decision-point start uses the author model; scanner finish resets started so
             # provenance reflects scan execution, not the wait before dispatch.
-            allow_model_change = (
-                target_status == "done"
-                and author_model is not None
-                and existing.model == author_model
-                and model != author_model
-            )
-            if not allow_model_change:
-                die(f"execution started by {existing.model!r}; refusing to finish it as {model!r}")
+            reset_started = author_model is not None and existing.model == author_model
         now = utc_now()
-        started = now if allow_model_change else (existing.started if existing else now)
+        started = now if reset_started else (existing.started if existing else now)
         if parse_utc_timestamp(started) is None:
             die(f"execution.started is not a valid UTC ISO 8601 timestamp: {label}")
         note = item.note
@@ -1782,6 +1780,8 @@ def cmd_finish(args: argparse.Namespace) -> None:
             )
         elif args.note is not None:
             note = merge_note(item.note, args.note, replace=args.replace)
+        if model_change_note is not None:
+            note = merge_note(note, model_change_note)
         if step_key is not None:
             assert step_item is not None
             issue = step_policy_issue(task_slice, step_item, model=str(model), status=target_status, note=note)

@@ -12,17 +12,16 @@
 #
 # WHAT this trial changes:
 # step_kinds.edit-code: replaces guidance, so this copy keeps the shipped How it works now gate, then the E2E-first tail.
-# step_kinds.e2e-evidence: replaces post-merge guidance with pre-share gating.
-# slice_kinds.implement.step_template: inserts map-current-state first, keeps plan-acceptance after grill-plan, moves e2e-evidence directly before share-with-team.
+# slice_kinds.implement.step_template: inserts map-current-state first; the rest matches the shipped template.
 # code-review: apply every recommendation, including simplification advice.
 # Do not finish on "not must-fix" or "accept remaining risk".
-# NOTE (2026-09-29): shipped profile adds plan-acceptance (## Acceptance) plus post-merge dev/staging ticket-comment capture.
-# This overlay keeps pre-share E2E gating during the trial and carries plan-acceptance in its template copy.
-# Post-merge dev/staging capture activates fully when this trial retires.
+# vulnerability-scan (2026-10-01): separate agent on any model; no higher-model rule.
+# NOTE (2026-10-01): the FCD-189 e2e report format graduated into shipped profile.yaml.
+# The user ended the pre-share e2e trial: e2e-evidence runs after wait-for-feedback, directly before ready-for-release.
 #
 # WHEN TO REMOVE:
 # Remove after the trial verdict on 1-2 real implement slices.
-# If the verdict is drop, delete the edit-code tail, restore e2e-evidence guidance, and restore the shipped step_template.
+# If the verdict is drop, delete the edit-code tail and the step_template override.
 # If the verdict is keep, move the change into shipped profile.yaml with docs-with-model-cuts (README + pi-job skill + root AGENTS.md), then delete it here.
 # Trial copy lives at profile.overlay.e2e-try.yaml for diffing.
 step_kinds:
@@ -61,6 +60,28 @@ step_kinds:
       - every-recommendation-addressed-in-the-worktree
       - code-simplification-advice-addressed
       - test-audit-gate-passed-when-tests-changed
+  # WHY (2026-10-01): user chose to drop the higher-model rule for the scan, as for code-review.
+  # null different_model_from_step removes the CLI same-model block and the higher-model packet lines.
+  # requires_user_decision stays, so the scan still asks the user first.
+  # WHEN TO REMOVE: when the user wants a stronger or different scanner model again.
+  vulnerability-scan:
+    different_model_from_step: null
+    validators:
+      - user-decision-recorded
+      - scan-ran-in-a-separate-agent
+      - vulnerabilities-resolved-or-risk-accepted
+    guidance: |-
+      Ask the user whether this implement slice requires a vulnerability scan.
+      If declined, record an explicit user-declined skip.
+      If accepted, dispatch a vulnerability-focused reviewer as a separate pass:
+      - Dispatch the scan to a separate agent. Do not scan in this session.
+      - The scanner agent may use the same model as edit-code.
+      - A higher-reasoning model is not required.
+      - Record the scanner agent's model with finish --model.
+      - Review the changed/generated code for vulnerabilities, insecure defaults,
+        authz gaps, injection, secrets, and unsafe trust boundaries.
+      - Record findings in finish --note; resolve them or explicitly accept remaining
+        risk before sharing.
   edit-code:
     guidance: |-
       Read How it works now before the first edit.
@@ -84,13 +105,6 @@ step_kinds:
       End each E2E test with a verifiable and repeatable artifact.
       If isolation testing is required, list all failure modes first.
       Write code only after the failure list exists in the plan file.
-  e2e-evidence:
-    guidance: |-
-      Run E2E/acceptance before share-with-team.
-      Read plan file ## Acceptance when plan-acceptance wrote it.
-      Capture the repeatable artifact or record an explicit gap.
-      Prefer ticket comments and finish --note over add-decision.
-      Block share-with-team on red E2E unless the gap note names the blocker.
 slice_kinds:
   implement:
     step_template:
@@ -102,12 +116,14 @@ slice_kinds:
       - verify
       - code-review
       - vulnerability-scan
-      - e2e-evidence
       - share-with-team
       - update-task-file
       - pi-job-feedback
       - wait-for-feedback
+      - e2e-evidence
       - ready-for-release
 # NOTE (2026-09-29): the add-decision deny-list trial graduated into shipped
 # profile.yaml (cli_help.add_decision + record catalog), so no cli_help
-# override remains here. The e2e-first trial above stays until its verdict.
+# override remains here. The edit-code E2E-first trial above stays until its verdict.
+# NOTE (2026-10-01): the manager loop packet graduated into shipped profile.yaml
+# (loop_packets.manager points at the pi-job-manager skill), so no loop_packets override remains here.

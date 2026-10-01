@@ -416,14 +416,17 @@ cli_help:
 loop_packets:
   manager: |-
     Manager metronome for TASK: stay in manager mode for the tmux fleet; do not execute slice steps here.
+    Load and follow the pi-job-manager skill (~/.agents/skills/pi-job-manager/SKILL.md) in full.
+    It owns the judgement: inbox dispositions, worker triage classes, dead-pane recovery checks, the watch pass, landing, relayed scope, and the tick report.
+    If the skill and this packet disagree on content, the skill wins.
     Keep one live window per active owner/slice.
     Session name: TASK-orchestrators (create if missing).
-    Window name: OWNER-SLICE-short.
+    Window name: OWNER-SLICE-short. Address every window by name (SESSION:WINDOW-NAME), never by index.
 
     Preflight once before the first spawn: run pi-job --task TASK status and pi-job --task TASK msg --read --to manager.
     On invalid choice or unrecognized arguments, PATH pi-job is stale: run uv tool install --force --editable ~/.local/share/pi-job-harness, then retry; do not substitute python -m pi_job_harness.cli, because every spawned worker calls plain pi-job.
 
-    Tick: status/show, then always run pi-job --task TASK msg --read --to manager, dispose every message, then apply window lifecycle, sleep.
+    Tick: status/show, then always run pi-job --task TASK msg --read --to manager, dispose every message, run the watch pass, triage workers, apply window lifecycle, write the tick report, sleep.
     Prefer 3-5m while workers run, 10-15m when waiting on deps/PRs.
     On empty Ready keep ~5h then stop, or stop immediately on user request; do not stop on the first empty tick.
 
@@ -443,43 +446,6 @@ loop_packets:
     Do not pick-next or execute slice steps as manager.
 
     Inbox: on every tick run pi-job --task TASK msg --read --to manager even when status shows Inbox: <none>.
-    Process those messages before pane triage and before the tick report.
-    Give every drained message one disposition: answered, investigating, blocked, routed, or informational.
-    Report those dispositions in the tick report.
-    Same-tick: acknowledge blockers and gate failures to the worker with msg --to slice:KEY.
-    Hold that worker: do not change expectations or product contract until the cause is known.
-
-    Worker messages: questions, reports, gate failures, and progress notes all count.
-    Judge each against work in progress.
-    Search status, show, markdown --with-decisions, slice plans, findings, live claims, and cited artifacts.
-    Verification inspects the source artifact, raw rows, and the expected contract.
-    Repeating the worker summary is not verification.
-    When that evidence answers, reply with msg --to slice:KEY --note '<answer>'.
-    Classify unexplained mismatches as technical, environmental, known gap, or product ambiguity.
-    Ask the user only for genuine product ambiguity; then relay the answer to the slice.
-    Do not convert unexplained failures into a user decision.
-    Do not treat a worker message as Waiting on user.
-    When a worker asks whether to record a decision, apply the cross-slice task-goal test.
-    Reply with one destination: add-decision, slice plan, or wiki.
-    Do not treat "decisions recorded" as evidence or progress.
-    After a blocker or gate failure clears: msg the slice to resume, wake the pane with tmux send-keys, and confirm movement on the next tick.
-
-    Worker triage: run this on every tick, before window lifecycle.
-    pane_current_command is not liveness; a crashed agent still shows the agent process.
-    For each live claim, read the pane tail with tmux capture-pane -p -t SESSION:WINDOW -S -40, then classify the worker into one of four classes.
-    Stalled: the tail shows a connection failure, a rate limit, a login prompt, an empty pane, or a shell prompt with no agent.
-    Recover the same owner and slice, then report the recovery.
-    Waiting on user: the tail shows an open question, a grill or clarify prompt, or requires_user_decision.
-    Quote that question to the user in the tick report and name the window; never answer it for the user, and never send keys to that pane.
-    Waiting on external: the slice is parked on a step whose blocker is a PR, a review, a ticket, or a dependency.
-    Live-check the blocker (gh pr view URL --json state,mergedAt,reviewDecision for a PR); when it clears, msg that slice to resume, then wake the pane with tmux send-keys and confirm on the next tick that the step moved, because a message alone does not wake an idle agent; while the blocker holds, leave the window parked.
-    Working: the tail shows recent tool output on the current step.
-    Leave it alone.
-    Waiting on user outranks stalled: when a pane shows both an open question and a stall signature, the stall is on the manager nudge, not on the worker.
-    Report the question and do not recover that pane.
-
-    Report one line per worker each tick with owner, slice, step, class, and next action.
-    Never report a worker as healthy from the process name alone.
   worker: |-
     ROLE: slice worker orchestrator. SCOPE: OWNER, SLICE, TASK only. Forbidden: claim other slices; pick-next; manage tmux session/windows; ask which repo.
     Loop: read pi-job --task TASK msg --read --to slice:SLICE, then run pi-job --task TASK instruction --owner OWNER; start when the packet requires; execute the current step; finish with evidence; repeat until this slice is terminal.
@@ -1132,14 +1098,57 @@ step_kinds:
     skip_rule: skip when e2e/acceptance evidence is not needed for this slice (record why)
     guidance: |-
       After the PR merges, run the ## Acceptance use cases.
+      Read plan file ## Acceptance when plan-acceptance wrote it.
       Ask the user for the final env: dev or staging.
       Run each case on that env and record pass or fail.
+      Capture the repeatable artifact or record an explicit gap.
       Repo unit or integration suites do not count as e2e evidence.
       Name them as pre-merge verification, not e2e.
-      Post evidence as a Jira ticket comment.
-      Mirror ticket key, env, result, and comment URL in finish --note.
+      Write the report to references/working/<slice-key>-e2e-run<N>.md.
+      Keep fixture builders and runner scripts next to the report.
+      Use the report format below; it follows the FCD-189 QA evidence comments.
+      Number each run. For a re-run, write a new report; do not edit an earlier run.
+      A re-run report states what changed, re-verifies the affected cases, and names the cases it does not affect.
+      Ask the user before you post the report as a Jira ticket comment.
+      Mirror ticket key, env, verdict, and comment URL in finish --note.
       Update plan file ## Acceptance with results or gap.
       Prefer ticket comments and finish --note over add-decision.
+      On red E2E, do not move the ticket to Ready for Release unless the gap note names the blocker.
+
+      Report format:
+
+      ## QA evidence for <repo>#<PR>, run <N> (<date>)
+
+      **Verdict: <ready for release | NOT ready for release> <conditions>.** One or two sentences why.
+      Full evidence, fixture builder and runners: `<path>`.
+
+      **Setup.** Merge commit or deployed build `<sha>`, how it runs, the env it talks to (real reads/writes).
+      Name what is stubbed and what is real.
+      List config values and IDs the cases depend on.
+      Name fixture records so a reader can find them in the env.
+      Name any real (organic) record the fixtures copy or replay.
+
+      ### Blocker - <one-line title>      (one section per blocker or finding; omit when none)
+      Cause with links, repro (case ID, request, exact status and error), impact on real users,
+      options (a)/(b)/(c), and who decides.
+
+      ### <Surface> - `<METHOD> <path>` (<where it ran>)
+      | # | Scenario | Result | Pass |
+      | --- | --- | --- | --- |
+      | <P1> | <inputs that matter> | <HTTP status; key values in bold; side effects, e.g. resource version unchanged> | ✅ / ✅ as designed / ✅ guard / ✅ fail-safe / ❌ **Blocker** |
+      Use one table per surface and a stable ID prefix per surface.
+      Cover the happy paths, each boundary value, each retry, each error guard, and each fallback.
+      When a case needs extra columns (for example the same case on two config versions), add them.
+      After the table, record the persisted shape and any mixed-version or rollout compatibility check.
+
+      ### Unit tests and merge
+      Suites, counts passed/failed/pending, why each pending test exists, and merges from main since the last run.
+
+      ### Dependencies / notes
+      Linked PRs and their state, stale ticket text, and QA housekeeping (env side effects, fixture cleanup).
+
+      ### Notes for release verification
+      The checks to run after release (log lines, records to inspect), env-specific risks, and what this run could not simulate.
   ready-for-release:
     key: ready-for-release
     title: Mark the ticket Ready for Release

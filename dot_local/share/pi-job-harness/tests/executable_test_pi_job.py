@@ -6445,6 +6445,36 @@ def test_finish_skip_reuses_started_model_without_flag() -> None:
         assert step["execution"]["model"] == "anthropic/claude-writer"
 
 
+def test_finish_done_records_dispatched_executor_model_with_note() -> None:
+    """Orchestrator starts, a separate agent does the work: finish --model records the
+    executor, keeps started, and notes the start model (stats read only execution.model)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        task = Path(tmp) / "dispatched-executor.yaml"
+        write_task_yaml(task, lifecycle_mapping(key="verify", title="Verify"))
+        run(str(PI_JOB), "--task", str(task), "start", "--model", "anthropic/claude-orchestrator")
+        module = load_pi_job_module()
+        after_start = find_step(
+            module.YamlTaskStore(module.YamlTaskLayout(task)).read(),
+            "implementation", "verify",
+        )
+        out = run(
+            str(PI_JOB), "--task", str(task), "finish",
+            "--model", "google/gemini-reviewer",
+            "--note", "Reviewer agent ran the pass.",
+        ).stdout
+        assert_contains(out, "finished: implementation/verify [done]")
+        step = find_step(
+            module.YamlTaskStore(module.YamlTaskLayout(task)).read(),
+            "implementation", "verify",
+        )
+        assert step["execution"]["model"] == "google/gemini-reviewer"
+        assert step["execution"]["started"] == after_start["execution"]["started"]
+        assert step["note"] == (
+            "Reviewer agent ran the pass.\n\n"
+            "Started by anthropic/claude-orchestrator; finished by google/gemini-reviewer."
+        )
+
+
 def test_finish_skip_refuses_mismatched_explicit_model() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         task = Path(tmp) / "skip-model-mismatch.yaml"
@@ -10851,6 +10881,7 @@ def main() -> None:
     test_vulnerability_scan_finish_same_model_refuses()
     test_vulnerability_scan_finish_distinct_model_succeeds()
     test_finish_skip_reuses_started_model_without_flag()
+    test_finish_done_records_dispatched_executor_model_with_note()
     test_finish_skip_refuses_mismatched_explicit_model()
     test_vulnerability_scan_instruction_prefers_higher_reasoning_model()
     test_code_review_instruction_dispatches_higher_model_when_available()

@@ -96,7 +96,8 @@ This supersedes any default workspace role such as Product Owner.
 Named loop packets live in `profile.yaml`; the harness contains no scheduler or tmux spawn code.
 
 - **Manager:** run `pi-job loop` and arm `/loop` from that text. Watch Ready slices, keep a tmux session of worker windows, spawn/recover windows, inject worker boot. Do not execute slice steps in the manager session.
-  Window lifecycle, inbox drain, and worker triage live in `loop_packets.manager`.
+  Cadence, preflight, and window lifecycle live in `loop_packets.manager`.
+  The packet points at the `pi-job-manager` skill, which owns inbox dispositions, worker triage, the watch pass, landing, and the tick report.
   Read them with `pi-job loop`. Do not restate them here.
 - **Slice worker:** each window starts from `pi-job --task <slug> boot --slice KEY --owner ID`, which resolves the packet placeholders and appends store context. Bound to one owner and one slice.
   Exhaustion, messaging, and recording rules live in `loop_packets.worker`.
@@ -597,6 +598,10 @@ execution:
 - Bare `finish` targets the resolved claim's derived active step; claim-default finish never one-shots a never-started step.
 - Explicit `--slice KEY --step KEY --model <id> --note '<evidence>'` may one-shot finish a never-started step in one write (non-empty note; same blocked/terminal guards as `start`).
 - Policy-governed scan steps may `start` with the edit-code author model, then `finish --model <scanner>`; finish resets `execution.started` to scan time so provenance does not cover the decision wait.
+- When a separate agent did the step, `finish --model <executor>` on a done step replaces the start model.
+  Finish appends `Started by <start model>; finished by <executor>.` to the step note and keeps `execution.started`.
+  Stats read only `execution.model`, so they attribute the whole interval, dispatch time included, to the executor.
+  We took that tradeoff for simplicity. `finish --skip` and slice finishes still refuse a model change.
 - `start` refuses `blocked` slices and blocked lifecycle targets; run `unblock-slice --slice K` first for slice-level blocks.
 - Existing tasks without execution metadata remain readable; `validate` reports warnings instead of inventing historical data.
 - Slice kinds may declare `required_steps` separately from `step_template`: persisted slices must satisfy the stable structural minimum, while later template additions produce migration warnings instead of invalidating old tasks.
@@ -606,8 +611,12 @@ execution:
 Every new implement slice includes `vulnerability-scan` after verify and before sharing.
 Every new implement slice includes `plan-acceptance` after `grill-plan` and before `edit-code`.
 Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
+A red E2E run blocks `ready-for-release` unless the gap note names the blocker.
 `plan-acceptance` writes the plan file `## Acceptance` section: env candidates, use cases, affected users plus error symptoms.
-`e2e-evidence` asks the user for the final env (`dev` or `staging`), runs the `## Acceptance` cases there, posts evidence as a Jira ticket comment, and mirrors the result in `finish --note`.
+`e2e-evidence` asks the user for the final env (`dev` or `staging`) and runs the `## Acceptance` cases there after the PR merges.
+It writes a numbered QA evidence report to `references/working/<slice-key>-e2e-run<N>.md`, in the format of the FCD-189 QA evidence comments.
+The report has a verdict, setup, blockers, per-surface scenario tables, unit tests, dependencies, and release verification notes.
+After the user agrees, it posts the report as a Jira ticket comment and mirrors the verdict in `finish --note`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
 2. If accepted, the orchestrator may `start` with the edit-code author model to record the decision point, then `finish --model <scanner>` when the scan completes.

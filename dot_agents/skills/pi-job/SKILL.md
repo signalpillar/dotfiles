@@ -123,6 +123,7 @@ Classic single-session pick-next loop stays unchanged when no fleet is in use.
 Packet `Owner:` identifies the session claim.
 Packet `Role:` comes from the profile step owner.
 `start --model` records attribution only.
+When a separate agent did the step, run `finish --model <executor>`; the note keeps the start model.
 Start the slice with `start --slice-only --model <orchestrator>` when needed.
 `advance` is deprecated; do not use it.
 
