@@ -3965,7 +3965,7 @@ def test_validate_warns_on_long_note() -> None:
         result = run(str(PI_JOB), "--task", str(task), "validate")
         assert_contains(result.stdout, "warning:")
         assert_contains(result.stdout, "oversized note")
-        assert_contains(result.stdout, "do-the-change/create-plan")
+        assert_contains(result.stdout, "do-the-change/map-current-state")
 
 
 def test_status_warns_on_long_note() -> None:
@@ -3975,7 +3975,7 @@ def test_status_warns_on_long_note() -> None:
         result = run(str(PI_JOB), "--task", str(task), "status")
         assert_contains(result.stdout, "warning:")
         assert_contains(result.stdout, "oversized note")
-        assert_contains(result.stdout, "do-the-change/create-plan")
+        assert_contains(result.stdout, "do-the-change/map-current-state")
 
 
 def test_validate_warns_on_large_task_file() -> None:
@@ -5462,7 +5462,7 @@ def test_yaml_lock_serializes_concurrent_finish_and_release() -> None:
             barrier.wait()
             return run(
                 str(PI_JOB), "--task", str(task_path), "finish",
-                "--slice", "do-the-change", "--step", "create-plan", "--note", "completed",
+                "--slice", "do-the-change", "--step", "map-current-state", "--note", "completed",
                 check=False,
             )
 

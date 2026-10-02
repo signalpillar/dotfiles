@@ -189,7 +189,7 @@ Typical slice layout for an end-to-end implementation task:
 
 ```text
 1. task-setup          [kind: setup]     explore → clarify → grill → wayfinder → select-toolbelt → plan-slices
-2. wire-api            [kind: implement] create-plan → grill-plan → plan-acceptance → edit-code → verify → vulnerability-scan → … → pi-job-feedback → wait-for-feedback → e2e-evidence → ready-for-release
+2. wire-api            [kind: implement] map-current-state → create-plan → grill-plan → plan-acceptance → edit-code → verify → vulnerability-scan → … → pi-job-feedback → wait-for-feedback → e2e-evidence-publish → ready-for-release → wait-for-deploy → e2e-evidence-deploy
 3. fix-follow-up       [kind: implement] …
 4. task-closing        [kind: closing]   update-test-plan → update-docs → capture-metrics → update-task-file
 ```
@@ -610,13 +610,25 @@ execution:
 
 Every new implement slice includes `vulnerability-scan` after verify and before sharing.
 Every new implement slice includes `plan-acceptance` after `grill-plan` and before `edit-code`.
-Acceptance `e2e-evidence` is skippable and runs after `wait-for-feedback`, immediately before `ready-for-release`.
-A red E2E run blocks `ready-for-release` unless the gap note names the blocker.
+Capture-by-test runs e2e evidence at 3 checkpoints around an implement slice: before code
+(`map-current-state`, when cases already exist or are cheap to write), right after publish
+(`e2e-evidence-publish`), and after the real deploy (`e2e-evidence-deploy`, gated by
+`wait-for-deploy`). `e2e-evidence-publish`, `wait-for-deploy`, and `e2e-evidence-deploy` are
+skippable (`requires_user_decision` + a skip rule); `map-current-state`'s e2e run is a lighter,
+in-step choice covered by its own general skip rule, not a separate gate. The former single
+`e2e-evidence` step is kept, unreferenced, only so pre-existing task files that already
+recorded that key keep resolving guidance - new implement slices never use it.
+`e2e-evidence-publish` runs after `wait-for-feedback`, immediately before `ready-for-release`.
+A red E2E run there blocks `ready-for-release` unless the gap note names the blocker.
+`wait-for-deploy` then observes the rollout, and `e2e-evidence-deploy` runs the same-or-more
+cases against the real target env; a red run there is a live incident, not a release gate - the
+release already shipped.
 `plan-acceptance` writes the plan file `## Acceptance` section: env candidates, use cases, affected users plus error symptoms.
-`e2e-evidence` asks the user for the final env (`dev` or `staging`) and runs the `## Acceptance` cases there after the PR merges.
-It writes a numbered QA evidence report to `references/working/<slice-key>-e2e-run<N>.md`, in the format of the FCD-189 QA evidence comments.
+`e2e-evidence-publish` asks the user for an env (dev, local, or CI) and runs the `## Acceptance` cases there right after the PR merges; `e2e-evidence-deploy` re-runs them against the actual target env (`dev` or `staging`) once `wait-for-deploy` confirms rollout.
+When toolbelt `test-user-registry` is registered (`references/test-users.yaml`), all 3 checkpoints reuse its personas instead of inventing accounts per case.
+`e2e-evidence-publish` and `e2e-evidence-deploy` each write a numbered QA evidence report to `references/working/<slice-key>-e2e-run<N>.md`, in the format of the FCD-189 QA evidence comments (`e2e-evidence-deploy` reuses the same template, not a duplicate); `map-current-state`'s e2e run records pass/fail in the step note instead, no separate report.
 The report has a verdict, setup, blockers, per-surface scenario tables, unit tests, dependencies, and release verification notes.
-After the user agrees, it posts the report as a Jira ticket comment and mirrors the verdict in `finish --note`.
+After the user agrees, `e2e-evidence-publish` posts the report as a Jira ticket comment and mirrors the verdict in `finish --note`.
 
 1. The orchestrator asks the user whether the scan is required for that slice.
 2. If accepted, the orchestrator may `start` with the edit-code author model to record the decision point, then `finish --model <scanner>` when the scan completes.
@@ -662,6 +674,7 @@ See `projects/pi-agent-job-harness/workflow.md` in the weight-loss repo for the 
   Plan and instruction packets print this list on every step.
   Aid `bigpicture` is the cross-layer call stacktrace (distinct from `sequence-diagram`).
   Aid `domain-vocabulary` is the task glossary at `references/glossary.yaml` (machine-readable; grow from research and grill).
+  Aid `test-user-registry` is the reusable e2e persona/account list at `references/test-users.yaml`, shared across map-current-state, e2e-evidence-publish, and e2e-evidence-deploy; never store an inline secret, link `credentials_ref` to a vault instead.
   Durable concept notes live in `references/wiki/` with YAML `type`, `title`, and `status`.
   Type is one of `position`, `gateway`, `concept`, `evidence`.
   Step notes live in `references/working/` and stay off the index.

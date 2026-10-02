@@ -158,6 +158,51 @@ toolbelt:
       - Copy entire PRD paragraphs; define the word, then point at evidence.
       - Invent definitions when a grill or catalog already settled the meaning - record that settlement.
       - Hand-edit free prose outside the schema fields.
+  test-user-registry:
+    key: test-user-registry
+    title: Test user registry
+    purpose: >-
+      Reusable personas/accounts for e2e test cases across the capture-by-test
+      checkpoints (map-current-state, e2e-evidence-publish, e2e-evidence-deploy);
+      lives at references/test-users.yaml (machine-readable YAML). Never store
+      inline secrets - credentials_ref points at a vault or secret manager.
+      Register with `pi-job toolbelt add test-user-registry --path
+      references/test-users.yaml --status planned`.
+    suits:
+      - setup
+      - implement
+    example: |-
+      Build a **test user registry** for this task.
+
+      ## Output
+      `references/test-users.yaml` (or the path registered on the toolbelt aid).
+      YAML only.
+
+      ## Schema
+      ```yaml
+      version: 1
+      users:
+        - id: patient-basic             # kebab-case stable key
+          role: patient                 # product-language role
+          env: [dev, staging]           # envs this account exists in
+          credentials_ref: vault://...  # never an inline secret
+          notes: no active conditions, default plan
+          reused_by: [tc-001, tc-007]   # test-case-table ids or slice keys
+          last_verified: 2026-09-20     # date this account last worked
+      ```
+
+      ## Method
+      1. Seed from existing test-case-table rows that already name a persona.
+      2. Add a user only when a capture-by-test checkpoint actually exercises it.
+      3. Update reused_by and last_verified every time a checkpoint runs a
+         case against that user - a stale last_verified flags a silently
+         broken account before the next e2e run trips over it.
+
+      ## Do not
+      - Store a real secret, token, or password in this file; link to the
+        vault/secret manager instead.
+      - Create a new user id when an existing one already covers the role
+        and env; add it to reused_by instead.
   decision-review-deck:
     key: decision-review-deck
     title: Decision review deck
@@ -893,6 +938,9 @@ step_kinds:
       Mark each completed aid done with an AS-IS note; leave planning-only aids planned.
       Record evidence gaps instead of inventing behaviour.
       Before finishing, give the user a short reading order and the facts that will ground clarify-scope and grill.
+      In an implement slice, when e2e test cases already exist, or writing a thin one is cheap, run them against current behaviour now and record pass/fail here - a live run beats a narrative guess.
+      When toolbelt test-user-registry is registered, reuse its personas instead of inventing accounts; update reused_by and last_verified for every user id exercised.
+      When no cases exist yet and writing them before code is not worth it, record that explicit gap in the note instead; this choice does not change whether the rest of this step can be skipped.
   clarify-scope:
     key: clarify-scope
     title: Clarify scope
@@ -1086,6 +1134,12 @@ step_kinds:
       - When no simplification applies, record that fact.
       - Re-verify after those edits.
       - When a recommendation conflicts with a locked plan decision, stop and ask.
+  # LEGACY (2026-10-02): kept verbatim and unreferenced by any slice_kind
+  # step_template so existing task files that already recorded this step key
+  # (for example a stale cursor on weight-check-in-domain/extract-weight-check-in)
+  # keep resolving guidance and validators. New implement slices use
+  # e2e-evidence-publish / wait-for-deploy / e2e-evidence-deploy instead.
+  # Do not delete this entry; do not add it back to any step_template.
   e2e-evidence:
     key: e2e-evidence
     title: Provide e2e/acceptance evidence or record the gap
@@ -1149,6 +1203,77 @@ step_kinds:
 
       ### Notes for release verification
       The checks to run after release (log lines, records to inspect), env-specific risks, and what this run could not simulate.
+  e2e-evidence-publish:
+    key: e2e-evidence-publish
+    title: Provide e2e/acceptance evidence after publish, or record the gap
+    owner: orchestrator
+    record_channels: [step_note, plan_file]
+    requires_user_decision: true
+    validators:
+      - evidence-or-gap-recorded
+      - user-decision-recorded
+    skip_rule: skip when e2e/acceptance evidence is not needed for this slice (record why)
+    guidance: |-
+      Right after the PR merges (wait-for-feedback), before this slice moves
+      to Ready for Release - checkpoint 2 of capture-by-test. Answers "does
+      the PR work", not "does the release work"; e2e-evidence-deploy (after
+      wait-for-deploy) answers that one.
+      Run the ## Acceptance use cases. Read plan file ## Acceptance when
+      plan-acceptance wrote it.
+      Ask the user for the env to run against: dev, local, or CI - whatever
+      reflects the merged code before rollout to the real target env.
+      Run each case on that env and record pass or fail.
+      Capture the repeatable artifact or record an explicit gap.
+      When toolbelt test-user-registry is registered, reuse its personas
+      instead of inventing accounts per case; update reused_by and
+      last_verified for every user id exercised.
+      Repo unit or integration suites do not count as e2e evidence.
+      Name them as pre-merge verification, not e2e.
+      Write the report to references/working/<slice-key>-e2e-run<N>.md.
+      Keep fixture builders and runner scripts next to the report.
+      Use the report format below; it follows the FCD-189 QA evidence comments.
+      Number each run. For a re-run, write a new report; do not edit an earlier run.
+      A re-run report states what changed, re-verifies the affected cases, and names the cases it does not affect.
+      Ask the user before you post the report as a Jira ticket comment.
+      Mirror ticket key, env, verdict, and comment URL in finish --note.
+      Update plan file ## Acceptance with results or gap.
+      Prefer ticket comments and finish --note over add-decision.
+      On red E2E, do not move the ticket to Ready for Release unless the gap note names the blocker.
+
+      Report format:
+
+      ## QA evidence for <repo>#<PR>, run <N> (<date>)
+
+      **Verdict: <ready for release | NOT ready for release> <conditions>.** One or two sentences why.
+      Full evidence, fixture builder and runners: `<path>`.
+
+      **Setup.** Merge commit or deployed build `<sha>`, how it runs, the env it talks to (real reads/writes).
+      Name what is stubbed and what is real.
+      List config values and IDs the cases depend on.
+      Name fixture records so a reader can find them in the env.
+      Name any real (organic) record the fixtures copy or replay.
+
+      ### Blocker - <one-line title>      (one section per blocker or finding; omit when none)
+      Cause with links, repro (case ID, request, exact status and error), impact on real users,
+      options (a)/(b)/(c), and who decides.
+
+      ### <Surface> - `<METHOD> <path>` (<where it ran>)
+      | # | Scenario | Result | Pass |
+      | --- | --- | --- | --- |
+      | <P1> | <inputs that matter> | <HTTP status; key values in bold; side effects, e.g. resource version unchanged> | ✅ / ✅ as designed / ✅ guard / ✅ fail-safe / ❌ **Blocker** |
+      Use one table per surface and a stable ID prefix per surface.
+      Cover the happy paths, each boundary value, each retry, each error guard, and each fallback.
+      When a case needs extra columns (for example the same case on two config versions), add them.
+      After the table, record the persisted shape and any mixed-version or rollout compatibility check.
+
+      ### Unit tests and merge
+      Suites, counts passed/failed/pending, why each pending test exists, and merges from main since the last run.
+
+      ### Dependencies / notes
+      Linked PRs and their state, stale ticket text, and QA housekeeping (env side effects, fixture cleanup).
+
+      ### Notes for release verification
+      The checks to run after release (log lines, records to inspect), env-specific risks, and what this run could not simulate.
   ready-for-release:
     key: ready-for-release
     title: Mark the ticket Ready for Release
@@ -1158,11 +1283,55 @@ step_kinds:
       - ticket-ready-for-release-or-not-applicable
     skip_rule: skip when this slice has no Jira ticket, or the ticket is already Ready for Release / Done
     guidance: |-
-      After wait-for-feedback (merge) and e2e-evidence (or an explicit e2e skip), transition
+      After wait-for-feedback (merge) and e2e-evidence-publish (or an explicit e2e skip), transition
       the slice's Jira ticket to Ready for Release.
       Leave a short testing/landing note on the ticket when useful.
       Record the transition (or not-applicable/skip reason) in finish --note.
       Do not mark the slice done until this gate is finished or skipped with reason.
+  wait-for-deploy:
+    key: wait-for-deploy
+    title: Wait for deploy to the target environment
+    owner: orchestrator
+    record_channels: [step_note]
+    requires_user_decision: true
+    validators:
+      - landed-or-abandoned-with-reason
+    skip_rule: skip when this slice has no separate deploy step from publish (record why)
+    guidance: |-
+      Checkpoint 3 of capture-by-test starts here: observe until the merged
+      change actually rolls out to the target environment named in plan file
+      ## Acceptance, or ask the user which env is the real target for this
+      slice.
+      No engagement beyond observing: no comments, reviews, or code changes.
+      On abandon or indefinite delay, skip with reason; note it on the ticket.
+  e2e-evidence-deploy:
+    key: e2e-evidence-deploy
+    title: Provide e2e/acceptance evidence after deploy, or record the gap
+    owner: orchestrator
+    record_channels: [step_note, plan_file]
+    requires_user_decision: true
+    validators:
+      - evidence-or-gap-recorded
+      - user-decision-recorded
+    skip_rule: skip when e2e/acceptance evidence is not needed for this slice (record why)
+    guidance: |-
+      After wait-for-deploy confirms the rollout - the final live-health
+      check now that the release has actually shipped.
+      Read plan file ## Acceptance when plan-acceptance wrote it; run the
+      same cases e2e-evidence-publish ran (same or more), against the actual
+      target env this time (dev or staging - whichever wait-for-deploy
+      confirmed).
+      Record pass or fail; capture the repeatable artifact or record an
+      explicit gap.
+      Use the same report format, path convention, and Jira-comment
+      discipline as e2e-evidence-publish - do not duplicate the template here.
+      When toolbelt test-user-registry is registered, reuse its personas
+      instead of inventing accounts per case; update reused_by and
+      last_verified for every user id exercised.
+      On red here, the release has already shipped: this is a live incident,
+      not a release gate. Record the blocker in the report, notify the team
+      per share-with-team, and do not finish this step done until the
+      blocker is resolved or explicitly accepted as a tracked follow-up.
   vulnerability-scan:
     key: vulnerability-scan
     title: Run an independent vulnerability scan
@@ -1448,6 +1617,7 @@ slice_kinds:
           - trivial-single-file-edit
           - user-explicitly-requests-orchestrator
     step_template:
+      - map-current-state
       - create-plan
       - grill-plan
       - plan-acceptance
@@ -1459,8 +1629,10 @@ slice_kinds:
       - update-task-file
       - pi-job-feedback
       - wait-for-feedback
-      - e2e-evidence
+      - e2e-evidence-publish
       - ready-for-release
+      - wait-for-deploy
+      - e2e-evidence-deploy
     required_steps:
       - create-plan
       - grill-plan
