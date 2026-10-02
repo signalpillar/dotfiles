@@ -19,5 +19,10 @@ if [[ ! -f "${BREWFILE}" ]]; then
   exit 0
 fi
 
+# Homebrew >= 7 refuses to load third-party tap items until they are trusted.
+# Trust only the items the Brewfile declares, not whole taps.
+brew trust --formula d12frosted/emacs-plus/emacs-plus@32
+brew trust --cask abue-ammar/tinycast/tinycast nikitabobko/tap/aerospace
+
 brew bundle install --no-upgrade --file="${BREWFILE}"
 echo "brew: bundle install from ${BREWFILE}"

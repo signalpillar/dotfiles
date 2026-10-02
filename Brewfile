@@ -4,6 +4,7 @@
 tap "buo/cask-upgrade"
 tap "d12frosted/emacs-plus"
 tap "abue-ammar/tinycast"
+tap "nikitabobko/tap"
 
 # Core Tools
 brew "mplayer"
@@ -82,6 +83,7 @@ cask "claude-code"
 cask "antigravity-cli"
 cask "opensuperwhisper"
 cask "tinycast" # https://github.com/abue-ammar/tinycast
+cask "nikitabobko/tap/aerospace" # tiling window manager, https://github.com/nikitabobko/AeroSpace
 
 # Fonts
 cask "font-jetbrains-mono-nerd-font"
