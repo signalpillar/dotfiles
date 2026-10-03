@@ -1,5 +1,6 @@
 # Architecture
 
+* [audio-transcribe](audio-transcribe.md) - Local and cloud transcription: yapsnap English offline, OpenAI whisper-1 for the rest.
 * [Emacs fonts](emacs-fonts.md) - Fixed-pitch and variable-pitch font roles in GUI Emacs.
 * [Why chezmoi tracks early-init.el](early-init-chezmoi.md) - The one Spacemacs core file that chezmoi tracks, and why.
 * [The sp-term-speed layer](term-speed-layer.md) - Terminal performance settings for Emacs.

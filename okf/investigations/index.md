@@ -1,5 +1,9 @@
 # Investigations
 
+## audio-transcribe
+
+* [Six diarization failures and their fixes](audio-transcribe-diarization-failures.md)
+
 ## Shell, tmux and system
 
 * [ls printed mise WARN lines and eza: command not found](eza-ls-mise-registry.md)

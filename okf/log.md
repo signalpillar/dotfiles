@@ -1,5 +1,10 @@
 # Bundle Update Log
 
+## 2026-10-03
+
+* **Add**: Registered `proj/audio-transcribe` as `architecture/audio-transcribe` with sources for all modules.
+* **Add**: Logged the diarization debug chain as `investigations/audio-transcribe-diarization-failures` (six failures: native lib, torch pins, hub flag, weights-only globals, mkv input, gated models).
+
 ## 2026-09-30
 
 * **Creation**: Established OKF v0.2 bundle at `okf/` with overview, architecture, playbooks and investigations sections.

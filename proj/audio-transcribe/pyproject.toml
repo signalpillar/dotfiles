@@ -1,0 +1,37 @@
+[project]
+name = "audio-transcribe"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google-genai>=2.28.0",
+    "openai>=3.24.0",
+    "pydantic-settings>=2.15.0",
+    "sherpa-onnx-core==1.13.8",
+    "yapsnap>=0.2.0",
+]
+
+[project.scripts]
+audio-transcribe = "audio_transcribe:main"
+setup = "audio_transcribe.setup:main"
+
+[project.optional-dependencies]
+# Pinned as a set: pyannote 3.4 keeps numpy<2 (yapsnap needs it), torch 2.8 keeps
+# torchaudio.AudioMetaData (pyannote 3.4 needs it), hub 2.x works through the
+# use_auth_token shim in diarize.py.
+diarize = [
+    "huggingface-hub>=2",
+    "pyannote-audio>=3.4.0,<4",
+    "torch==2.8.*",
+    "torchaudio==2.8.*",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
