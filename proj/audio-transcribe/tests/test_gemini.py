@@ -40,7 +40,7 @@ def test_transcribe_labeled_reads_parts(monkeypatch, tmp_path):
         {"speaker_label": "spk_1", "text": "one", "words": [{"word": "one", "start_offset": "1.0s"}]},
         {"speaker_label": "spk_2", "text": "two", "words": [{"word": "two", "start_offset": "5.0s"}]},
     ]
-    monkeypatch.setattr(gem, "_uploadable", lambda p, w: p)
+    monkeypatch.setattr(gem, "_parts", lambda p, w: [(p, 0.0)])
     monkeypatch.setattr(gem, "_upload", lambda c, p: SimpleNamespace(uri="u", name="n"))
     monkeypatch.setattr(gem, "_delete", lambda c, n: None)
     monkeypatch.setattr(gem, "_transcribe_remote", lambda *a, **k: _response(entries))
@@ -50,7 +50,7 @@ def test_transcribe_labeled_reads_parts(monkeypatch, tmp_path):
 
 
 def test_empty_entries_fall_back_to_text(monkeypatch, tmp_path):
-    monkeypatch.setattr(gem, "_uploadable", lambda p, w: p)
+    monkeypatch.setattr(gem, "_parts", lambda p, w: [(p, 0.0)])
     monkeypatch.setattr(gem, "_upload", lambda c, p: SimpleNamespace(uri="u", name="n"))
     monkeypatch.setattr(gem, "_delete", lambda c, n: None)
     monkeypatch.setattr(gem, "_transcribe_remote", lambda *a, **k: _response(text="plain"))
@@ -64,7 +64,7 @@ def test_summary_reports_parts_and_labels(monkeypatch, tmp_path, capsys):
         {"speaker_label": "spk_1", "text": "one", "words": [{"word": "one", "start_offset": "1.0s"}]},
         {"speaker_label": "", "text": "two", "words": [{"word": "two", "start_offset": "5.0s"}]},
     ]
-    monkeypatch.setattr(gem, "_uploadable", lambda p, w: p)
+    monkeypatch.setattr(gem, "_parts", lambda p, w: [(p, 0.0)])
     monkeypatch.setattr(gem, "_upload", lambda c, p: SimpleNamespace(uri="u", name="n"))
     monkeypatch.setattr(gem, "_delete", lambda c, n: None)
     monkeypatch.setattr(gem, "_transcribe_remote", lambda *a, **k: _response(entries))
@@ -74,6 +74,42 @@ def test_summary_reports_parts_and_labels(monkeypatch, tmp_path, capsys):
     err = capsys.readouterr().err
     assert "2 transcription parts" in err
     assert "spk_1" in err
+
+
+def test_chunked_parts_stitch_with_offsets(monkeypatch, tmp_path):
+    first = [{"speaker_label": "spk:0", "text": "one", "words": [{"word": "one", "start_offset": "1.0s"}]}]
+    second = [{"speaker_label": "spk:1", "text": "two", "words": [{"word": "two", "start_offset": "2.0s"}]}]
+    src = tmp_path / "a.mp3"
+    src.write_bytes(b"x")
+    monkeypatch.setattr(gem, "_parts", lambda p, w: [(src, 0.0), (src, 2700.0)])
+    monkeypatch.setattr(gem, "_upload", lambda c, p: SimpleNamespace(uri="u", name="n"))
+    monkeypatch.setattr(gem, "_delete", lambda c, n: None)
+    calls = {"n": 0}
+
+    def remote(*a, **k):
+        calls["n"] += 1
+        return _response(first if calls["n"] == 1 else second)
+
+    monkeypatch.setattr(gem, "_transcribe_remote", remote)
+    assert gem.transcribe_labeled(src, "key", diarize=True) == [(0, 1.0, "one"), (1, 2702.0, "two")]
+
+
+def test_parts_transcode_lone_mkv(tmp_path):
+    import shutil
+    import wave
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg missing")
+    wav_path = tmp_path / "clip.wav"
+    with wave.open(str(wav_path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(b"\x00\x00" * 16000)
+    mkv = tmp_path / "clip.mkv"
+    shutil.copy(wav_path, mkv)
+    part, offset = gem._parts(mkv, tmp_path)[0]
+    assert part.suffix == ".wav" and offset == 0.0
 
 
 def test_missing_key_fails_fast(tmp_path):

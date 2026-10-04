@@ -71,10 +71,13 @@ flowchart TD
 flowchart TD
     media2[Media file] --> hash2[SHA-256 of audio bytes]
     hash2 --> gkey[Gemini cache lookup]
-    gkey -->|miss| mkv{MKV container}
-    mkv -->|yes| mp3[ffmpeg to mp3]
-    mkv -->|no| upload[Files API upload]
-    mp3 --> upload
+    gkey -->|miss| budget{Over 45 minutes}
+    budget -->|yes| chunks[Split to 45-minute mp3 parts]
+    budget -->|no| mkv{MKV container}
+    chunks --> upload[Files API upload per part]
+    mkv -->|yes| wav2[ffmpeg to wav]
+    mkv -->|no| upload
+    wav2 --> upload
     upload --> gen[Generate with diarization config]
     gen --> parts[Parts with speaker labels plus word times]
     parts --> del[Delete remote file]

@@ -10,7 +10,12 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
+from . import audio as audio_mod
 from .config import GEMINI_MODEL
+
+# Model budget: 98304 input tokens at ~32 tokens per audio second.
+# 45-minute chunks stay under it with margin.
+CHUNK_SECONDS = 2700
 
 # yapsnap uses "iw" for Hebrew; BCP-47 expects "he".
 LANG_ALIASES = {"iw": "he"}
@@ -99,22 +104,12 @@ def _delete(client, name: str) -> None:
         pass
 
 
-def _uploadable(path: Path, workdir: Path) -> Path:
-    """Transcode containers the Files API may refuse (mkv) to mp3."""
-    import shutil
-    import subprocess
-
-    if path.suffix.lower() != ".mkv":
-        return path
-    if shutil.which("ffmpeg") is None:
-        raise RuntimeError("required tool 'ffmpeg' not found in PATH")
-    out = workdir / "upload.mp3"
-    subprocess.run(
-        ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path),
-         "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", str(out)],
-        check=True,
-    )
-    return out
+def _parts(path: Path, workdir: Path) -> list[tuple[Path, float]]:
+    """Split into API-sized mp3 parts, transcoding lone mkv files to wav."""
+    parts = audio_mod.chunk_mp3(path, workdir, CHUNK_SECONDS)
+    if len(parts) == 1 and parts[0][0].suffix.lower() == ".mkv":
+        return [(audio_mod.to_wav(path, workdir, "upload.wav"), 0.0)]
+    return parts
 
 
 def dump_response(response, dest: Path) -> None:
@@ -132,33 +127,50 @@ def transcribe_labeled(
     timestamps: bool = False, diarize: bool = False, model: str = GEMINI_MODEL,
     debug_path: Path | None = None,
 ) -> list[tuple[int | None, float, str]]:
-    """Transcribe and return (speaker_index, start, text) in file time."""
+    """Transcribe and return (speaker_index, start, text) in file time.
+
+    Files past the token budget split into chunked requests; segment times
+    shift back by each chunk offset. Speaker labels restart per chunk, so
+    multi-chunk diarization needs a manual identity pass.
+    """
     import sys
     import tempfile
+    import warnings
+
+    warnings.filterwarnings("ignore", message=".*automatic function calling.*")
 
     client = _client(api_key)
     with tempfile.TemporaryDirectory(prefix="gemini-transcribe-") as tmp:
-        src = _uploadable(path, Path(tmp))
-        mime_type = mimetypes.guess_type(str(src))[0] or "audio/mpeg"
-        uploaded = _upload(client, src)
-        try:
-            response = _transcribe_remote(client, model, uploaded.uri, mime_type, lang, timestamps, diarize)
-        finally:
-            _delete(client, uploaded.name)
-    if debug_path is not None:
-        dump_response(response, debug_path)
-        print(f"debug: raw response at {debug_path}", file=sys.stderr)
-    entries = list(_iter_transcriptions(response))
-    labels = set()
-    for entry in entries:
-        get = (lambda k: entry.get(k)) if isinstance(entry, dict) else (lambda k: getattr(entry, k, None))
-        labels.add((get("speaker_label") or "").strip() or "<none>")
-    print(f"gemini: {len(entries)} transcription parts, speaker labels: {sorted(labels)}", file=sys.stderr)
-    labeled = [_parse_transcription(e) for e in entries]
-    if not labeled:
-        text = (getattr(response, "text", None) or "").strip()
-        return [(None, 0.0, text)] if text else []
-    return [(spk, t, s) for spk, t, s in labeled if s]
+        parts = _parts(path, Path(tmp))
+        if len(parts) > 1 and diarize:
+            print("note: speaker labels restart each chunk; check identities across chunks",
+                  file=sys.stderr)
+        labeled: list[tuple[int | None, float, str]] = []
+        for index, (part, offset) in enumerate(parts):
+            print(f"gemini: part {index + 1}/{len(parts)} (+{offset:.0f}s)", file=sys.stderr)
+            mime_type = mimetypes.guess_type(str(part))[0] or "audio/mpeg"
+            uploaded = _upload(client, part)
+            try:
+                response = _transcribe_remote(client, model, uploaded.uri, mime_type, lang, timestamps, diarize)
+            finally:
+                _delete(client, uploaded.name)
+            if debug_path is not None and index == 0:
+                dump_response(response, debug_path)
+                print(f"debug: raw response at {debug_path}", file=sys.stderr)
+            entries = list(_iter_transcriptions(response))
+            labels = set()
+            for entry in entries:
+                get = (lambda k: entry.get(k)) if isinstance(entry, dict) else (lambda k: getattr(entry, k, None))
+                labels.add((get("speaker_label") or "").strip() or "<none>")
+            print(f"gemini: {len(entries)} transcription parts, speaker labels: {sorted(labels)}", file=sys.stderr)
+            for spk, t, s in (_parse_transcription(e) for e in entries):
+                if s:
+                    labeled.append((spk, t + offset, s))
+            if not entries:
+                text = (getattr(response, "text", None) or "").strip()
+                if text:
+                    labeled.append((None, offset, text))
+    return labeled
 
 
 def transcribe_segments(

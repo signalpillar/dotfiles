@@ -7,11 +7,10 @@ secrets and model names as arguments; reads no env itself.
 
 from __future__ import annotations
 
-import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
+from . import audio as audio_mod
 from .config import OPENAI_MODEL
 
 MAX_BYTES = 24 * 1024 * 1024
@@ -19,11 +18,6 @@ CHUNK_SECONDS = 600
 
 # yapsnap uses "iw" for Hebrew; the API expects "he".
 LANG_ALIASES = {"iw": "he"}
-
-
-def _require_tool(name: str) -> None:
-    if shutil.which(name) is None:
-        raise RuntimeError(f"required tool '{name}' not found in PATH")
 
 
 def _client(api_key: str | None):
@@ -41,39 +35,12 @@ def normalize_lang(lang: str | None) -> str | None:
 
 
 def _duration(path: Path) -> float | None:
-    _require_tool("ffprobe")
-    try:
-        proc = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
-            capture_output=True, check=True, text=True,
-        )
-        return float(proc.stdout.strip())
-    except (subprocess.CalledProcessError, ValueError):
-        return None
+    return audio_mod.duration(path)
 
 
 def _chunk(path: Path, workdir: Path) -> list[tuple[Path, float]]:
     """Split audio into <=CHUNK_SECONDS mp3 parts. Returns (file, offset) pairs."""
-    _require_tool("ffmpeg")
-    duration = _duration(path)
-    if duration is None or duration <= CHUNK_SECONDS:
-        return [(path, 0.0)]
-    parts: list[tuple[Path, float]] = []
-    start = 0.0
-    index = 0
-    while start < duration:
-        out = workdir / f"chunk_{index:03d}.mp3"
-        subprocess.run(
-            ["ffmpeg", "-nostdin", "-loglevel", "error", "-ss", f"{start:.1f}",
-             "-t", str(CHUNK_SECONDS), "-i", str(path),
-             "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k", str(out)],
-            check=True,
-        )
-        parts.append((out, start))
-        start += CHUNK_SECONDS
-        index += 1
-    return parts
+    return audio_mod.chunk_mp3(path, workdir, CHUNK_SECONDS)
 
 
 def _segments_one(client, model: str, path: Path, lang: str | None, offset: float = 0.0) -> list[tuple[float, str]]:

@@ -93,18 +93,9 @@ def _to_wav(path: Path, workdir: Path) -> Path:
     torchaudio opens only a few containers (mkv fails). The timeline is
     unchanged, so turns map back onto the original file one to one.
     """
-    import shutil
-    import subprocess
+    from . import audio as audio_mod
 
-    if shutil.which("ffmpeg") is None:
-        raise RuntimeError("required tool 'ffmpeg' not found in PATH")
-    out = workdir / "diarize.wav"
-    subprocess.run(
-        ["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path),
-         "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(out)],
-        check=True,
-    )
-    return out
+    return audio_mod.to_wav(path, workdir, "diarize.wav")
 
 
 def get_turns(path: Path, token: str | None, num_speakers: int | None = None,
