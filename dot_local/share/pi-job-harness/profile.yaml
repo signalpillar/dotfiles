@@ -1169,22 +1169,26 @@ step_kinds:
       Prefer ticket comments and finish --note over add-decision.
       On red E2E, do not move the ticket to Ready for Release unless the gap note names the blocker.
 
-      Report format:
+      Report format - every prose section is short bullets, one fact per
+      bullet, no restating the table, no hedging, no throat-clearing:
 
       ## QA evidence for <repo>#<PR>, run <N> (<date>)
 
-      **Verdict: <ready for release | NOT ready for release> <conditions>.** One or two sentences why.
+      **Verdict: <ready for release | NOT ready for release> <conditions>.** One sentence why.
       Full evidence, fixture builder and runners: `<path>`.
 
-      **Setup.** Merge commit or deployed build `<sha>`, how it runs, the env it talks to (real reads/writes).
-      Name what is stubbed and what is real.
-      List config values and IDs the cases depend on.
-      Name fixture records so a reader can find them in the env.
-      Name any real (organic) record the fixtures copy or replay.
+      **Setup.**
+      - Merge commit or deployed build `<sha>`; how it runs; the env it talks to (real reads/writes).
+      - What is stubbed, what is real.
+      - Config values and IDs the cases depend on.
+      - Fixture records, named so a reader can find them in the env.
+      - Any real (organic) record the fixtures copy or replay.
 
       ### Blocker - <one-line title>      (one section per blocker or finding; omit when none)
-      Cause with links, repro (case ID, request, exact status and error), impact on real users,
-      options (a)/(b)/(c), and who decides.
+      - Cause, with links.
+      - Repro: case ID, request, exact status and error.
+      - Impact on real users.
+      - Options (a)/(b)/(c) and who decides.
 
       ### <Surface> - `<METHOD> <path>` (<where it ran>)
       | # | Scenario | Result | Pass |
@@ -1193,16 +1197,20 @@ step_kinds:
       Use one table per surface and a stable ID prefix per surface.
       Cover the happy paths, each boundary value, each retry, each error guard, and each fallback.
       When a case needs extra columns (for example the same case on two config versions), add them.
-      After the table, record the persisted shape and any mixed-version or rollout compatibility check.
+      After the table, one line on the persisted shape and any mixed-version or rollout compatibility check.
 
       ### Unit tests and merge
-      Suites, counts passed/failed/pending, why each pending test exists, and merges from main since the last run.
+      One line: suites, counts passed/failed/pending, why each pending test exists, merges from main since the last run.
 
       ### Dependencies / notes
-      Linked PRs and their state, stale ticket text, and QA housekeeping (env side effects, fixture cleanup).
+      - Linked PRs and their state.
+      - Stale ticket text, if any.
+      - QA housekeeping: env side effects, fixture cleanup.
 
       ### Notes for release verification
-      The checks to run after release (log lines, records to inspect), env-specific risks, and what this run could not simulate.
+      - Checks to run after release (log lines, records to inspect).
+      - Env-specific risks.
+      - What this run could not simulate.
   e2e-evidence-publish:
     key: e2e-evidence-publish
     title: Provide e2e/acceptance evidence after publish, or record the gap
@@ -1240,22 +1248,26 @@ step_kinds:
       Prefer ticket comments and finish --note over add-decision.
       On red E2E, do not move the ticket to Ready for Release unless the gap note names the blocker.
 
-      Report format:
+      Report format - every prose section is short bullets, one fact per
+      bullet, no restating the table, no hedging, no throat-clearing:
 
       ## QA evidence for <repo>#<PR>, run <N> (<date>)
 
-      **Verdict: <ready for release | NOT ready for release> <conditions>.** One or two sentences why.
+      **Verdict: <ready for release | NOT ready for release> <conditions>.** One sentence why.
       Full evidence, fixture builder and runners: `<path>`.
 
-      **Setup.** Merge commit or deployed build `<sha>`, how it runs, the env it talks to (real reads/writes).
-      Name what is stubbed and what is real.
-      List config values and IDs the cases depend on.
-      Name fixture records so a reader can find them in the env.
-      Name any real (organic) record the fixtures copy or replay.
+      **Setup.**
+      - Merge commit or deployed build `<sha>`; how it runs; the env it talks to (real reads/writes).
+      - What is stubbed, what is real.
+      - Config values and IDs the cases depend on.
+      - Fixture records, named so a reader can find them in the env.
+      - Any real (organic) record the fixtures copy or replay.
 
       ### Blocker - <one-line title>      (one section per blocker or finding; omit when none)
-      Cause with links, repro (case ID, request, exact status and error), impact on real users,
-      options (a)/(b)/(c), and who decides.
+      - Cause, with links.
+      - Repro: case ID, request, exact status and error.
+      - Impact on real users.
+      - Options (a)/(b)/(c) and who decides.
 
       ### <Surface> - `<METHOD> <path>` (<where it ran>)
       | # | Scenario | Result | Pass |
@@ -1264,16 +1276,20 @@ step_kinds:
       Use one table per surface and a stable ID prefix per surface.
       Cover the happy paths, each boundary value, each retry, each error guard, and each fallback.
       When a case needs extra columns (for example the same case on two config versions), add them.
-      After the table, record the persisted shape and any mixed-version or rollout compatibility check.
+      After the table, one line on the persisted shape and any mixed-version or rollout compatibility check.
 
       ### Unit tests and merge
-      Suites, counts passed/failed/pending, why each pending test exists, and merges from main since the last run.
+      One line: suites, counts passed/failed/pending, why each pending test exists, merges from main since the last run.
 
       ### Dependencies / notes
-      Linked PRs and their state, stale ticket text, and QA housekeeping (env side effects, fixture cleanup).
+      - Linked PRs and their state.
+      - Stale ticket text, if any.
+      - QA housekeeping: env side effects, fixture cleanup.
 
       ### Notes for release verification
-      The checks to run after release (log lines, records to inspect), env-specific risks, and what this run could not simulate.
+      - Checks to run after release (log lines, records to inspect).
+      - Env-specific risks.
+      - What this run could not simulate.
   ready-for-release:
     key: ready-for-release
     title: Mark the ticket Ready for Release
