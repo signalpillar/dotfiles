@@ -12,9 +12,11 @@
 
 ## Emacs and Spacemacs
 
+* [Spacemacs SPC / showed no results: rg waited on a pipe](counsel-rg-pipe-stdin.md)
 * [Why Spacemacs asked for doric-almond-theme](doric-almond-theme-package.md)
 * [dired-quick-sort said insert-directory-program is not GNU ls](gnu-ls-uutils-dired.md)
 * [TypeScript LSP: why go to definition failed](lsp-use-plists-mismatch.md)
+* [tsgo never finished initialize: inlineCompletion was null](tsgo-inline-completion-null.md)
 * [Markdown tables in terminal Emacs: hangs and scroll hitch](markdown-table-tty-perf.md)
 * [Org emphasis in terminal Emacs](org-emphasis-tty-explained.md)
 * [Why vterm jumps to the bottom while a command prints](vterm-scroll-while-running.md)

@@ -1,2 +1,6 @@
+# Milliseconds. Defaults are 30 and 500. Large repos exceed those.
+scan_timeout = 500
+command_timeout = 2000
+
 [gcloud]
 disabled = true

@@ -1034,7 +1034,30 @@ before packages are loaded."
           (apply fn args))))
     (advice-add 'start-process :around #'vv/darwin-use-pipe)
     ;; compile uses start-file-process-shell-command, not start-process.
-    (advice-add 'compilation-start :around #'vv/darwin-use-pipe))
+    (advice-add 'compilation-start :around #'vv/darwin-use-pipe)
+    ;; With a pipe on stdin and no path argument, rg searches stdin and
+    ;; waits forever. counsel-rg passes no path, so SPC / shows nothing.
+    ;; An explicit "." makes rg search the directory, as counsel already
+    ;; does on Windows. See okf/investigations/counsel-rg-pipe-stdin.md.
+    (with-eval-after-load 'counsel
+      (unless (member "." counsel-rg-base-command)
+        (setq counsel-rg-base-command
+              (append counsel-rg-base-command '("."))))))
+
+  ;; lsp-mode sends (inlineCompletion . ()), which JSON-encodes as null.
+  ;; tsgo rejects null for that field and never finishes initialize.
+  ;; An object matches the LSP spec. See emacs-lsp/lsp-mode#5081 and
+  ;; okf/investigations/tsgo-inline-completion-null.md.
+  (defun vv/lsp-inline-completion-object (caps)
+    "Replace a null inlineCompletion capability with an object."
+    (when-let ((td (assoc 'textDocument caps)))
+      (when (null (alist-get 'inlineCompletion (cdr td)))
+        (setf (alist-get 'inlineCompletion (cdr td))
+              '((dynamicRegistration . :json-false)))))
+    caps)
+  (with-eval-after-load 'lsp-mode
+    (advice-add 'lsp--client-capabilities :filter-return
+                #'vv/lsp-inline-completion-object))
 
   (spacemacs/set-leader-keys
     "n s y" #'vv/syllabus-append-region
