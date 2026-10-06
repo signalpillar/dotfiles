@@ -1,5 +1,14 @@
 # Bundle Update Log
 
+## 2026-10-06
+
+* **Update**: `architecture/global-agent-skills`. `skills-global install` no longer feeds the manifest to the skills CLI on stdin. It skips a skill chezmoi already manages.
+* **Update**: `skills-global` is a Babashka script. The install and update commands stay the same.
+
+## 2026-10-05
+
+* **Add**: `architecture/global-agent-skills`. Third-party skills are listed in `dot_config/agent-skills/global.txt`. `npx skills add -g` installs them. `skills-global update` refreshes them.
+
 ## 2026-10-03
 
 * **Add**: Registered `proj/audio-transcribe` as `architecture/audio-transcribe` with sources for all modules.

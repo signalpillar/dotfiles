@@ -56,7 +56,11 @@ This tool runs parse-only validation against Mermaid diagrams using the official
 
 Global agent instructions reside in [AGENTS.md](AGENTS.md).
 Claude Code configuration symlinks to this file through [dot_claude/symlink_CLAUDE.md.tmpl](dot_claude/symlink_CLAUDE.md.tmpl).
-Custom agent skills reside in [dot_agents/skills/](dot_agents/skills/).
+Owned skills reside in [dot_agents/skills/](dot_agents/skills/).
+Chezmoi installs that tree to `~/.agents/skills/`.
+Third-party skills are listed in [dot_config/agent-skills/global.txt](dot_config/agent-skills/global.txt).
+[run_onchange_install-agent-skills.sh.tmpl](run_onchange_install-agent-skills.sh.tmpl) installs that list with `npx skills add -g`.
+Run `skills-global update` to refresh the installed copies.
 
 ### Cursor CLI Status Line
 

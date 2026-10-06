@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Install the global skill list.
+#
+# manifest: {{ include "dot_config/agent-skills/global.txt" | sha256sum }}
+
+set -euo pipefail
+
+MANIFEST="{{ .chezmoi.homeDir }}/.config/agent-skills/global.txt"
+"{{ .chezmoi.homeDir }}/.local/bin/skills-global" install "${MANIFEST}"
+echo "skills-global: installed. Run 'skills-global update' to refresh installed skills."

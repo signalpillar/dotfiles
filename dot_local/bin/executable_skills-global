@@ -1,0 +1,117 @@
+#!/usr/bin/env bb
+;; Install or update global third-party agent skills.
+;; The skills CLI owns the copies. This script only calls it.
+;;
+;; The skills CLI reads stdin. Give it the terminal when one exists,
+;; so it does not consume the manifest.
+
+(require '[babashka.process :as p]
+         '[clojure.java.io :as io]
+         '[clojure.string :as str])
+
+(def skill-path
+  (str/join ":"
+            [(str (System/getenv "HOME") "/.local/share/mise/shims")
+             (str (System/getenv "HOME") "/.local/bin")
+             "/opt/homebrew/bin"
+             "/usr/local/bin"
+             (or (System/getenv "PATH") "")]))
+
+(defn die!
+  ([msg] (die! 1 msg))
+  ([code msg]
+   (binding [*out* *err*]
+     (println msg))
+   (System/exit code)))
+
+(defn usage! []
+  (die! 2 "usage: skills-global install <manifest> | skills-global update [skill...]"))
+
+(defn on-path? [cmd]
+  (some (fn [dir]
+          (let [f (io/file dir cmd)]
+            (and (.isFile f) (.canExecute f))))
+        (str/split skill-path #":")))
+
+(defn tty-file []
+  (try
+    (with-open [_ (io/input-stream (io/file "/dev/tty"))]
+      (io/file "/dev/tty"))
+    (catch Exception _
+      nil)))
+
+(defn run-skills! [in & args]
+  (let [{:keys [exit]}
+        (apply p/shell
+               {:out :inherit
+                :err :inherit
+                :in in
+                :extra-env {"PATH" skill-path}
+                :continue true}
+               (into ["npx" "--yes" "skills"] args))]
+    (when-not (zero? exit)
+      (System/exit exit))))
+
+(defn managed-paths []
+  (let [{:keys [exit out]}
+        (p/shell {:out :string
+                  :err :string
+                  :extra-env {"PATH" skill-path}
+                  :continue true}
+                 "chezmoi" "managed")]
+    (if (zero? exit)
+      (set (str/split-lines out))
+      #{})))
+
+(defn parse-line [line]
+  (let [stripped (-> line (str/split #"#" 2) first str/trim)]
+    (when-not (str/blank? stripped)
+      (let [parts (str/split stripped #"\s+")]
+        (if (= 2 (count parts))
+          parts
+          (die! (str "skills-global: expected 'source skill' in: " stripped)))))))
+
+(defn group-by-source [entries]
+  (reduce (fn [{:keys [order groups]} [source skill]]
+            (if (contains? groups source)
+              {:order order
+               :groups (update groups source conj skill)}
+              {:order (conj order source)
+               :groups (assoc groups source [skill])}))
+          {:order [] :groups {}}
+          entries))
+
+(defn install! [manifest]
+  (when-not (.isFile (io/file manifest))
+    (die! (str "skills-global: missing " manifest)))
+  (let [managed (managed-paths)
+        entries (keep (fn [[source skill]]
+                        (if (contains? managed (str ".agents/skills/" skill))
+                          (do
+                            (binding [*out* *err*]
+                              (println (str "skills-global: skip " skill
+                                            "; chezmoi manages ~/.agents/skills/" skill)))
+                            nil)
+                          [source skill]))
+                      (keep parse-line (str/split-lines (slurp manifest))))
+        {:keys [order groups]} (group-by-source entries)
+        in (or (tty-file) (io/file "/dev/null"))]
+    (doseq [source order]
+      (run-skills! in
+                   (concat ["add" source]
+                           (mapcat (fn [skill] ["--skill" skill]) (get groups source))
+                           ["-g" "-y"])))))
+
+(defn update! [skills]
+  (run-skills! :inherit (concat ["update" "-g" "-y"] skills)))
+
+(when-not (on-path? "npx")
+  (die! "skills-global: npx is missing"))
+
+(let [[cmd & args] *command-line-args*]
+  (case cmd
+    "install" (if (= 1 (count args))
+                (install! (first args))
+                (usage!))
+    "update" (update! args)
+    (usage!)))

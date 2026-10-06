@@ -1,0 +1,14 @@
+# Global third-party skills. One "source skill" pair per line.
+# chezmoi apply installs each line with: npx skills add <source> --skill <name> -g -y
+# Refresh installed copies with: skills-global update
+addyosmani/agent-skills code-simplification
+addyosmani/agent-skills code-review-and-quality
+mattpocock/skills grill-with-docs
+mattpocock/skills improve-codebase-architecture
+mattpocock/skills wayfinder
+mattpocock/skills retro
+mattpocock/skills domain-modeling
+mattpocock/skills code-review
+mattpocock/skills grill-me
+mattpocock/skills teach
+
