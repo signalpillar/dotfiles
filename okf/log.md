@@ -1,5 +1,9 @@
 # Bundle Update Log
 
+## 2026-10-09
+
+* **Update**: `overview`. Removed Starship from the terminal stack. The zsh prompt is now the zsh default.
+
 ## 2026-10-06
 
 * **Update**: `architecture/global-agent-skills`. `skills-global install` no longer feeds the manifest to the skills CLI on stdin. It skips a skill chezmoi already manages.

@@ -11,7 +11,7 @@ The repository manages two environments:
 - Homebrew manages command-line tools, applications, and Nerd Fonts through [Brewfile](Brewfile).
 - The script [run_onchange_brew.sh.tmpl](run_onchange_brew.sh.tmpl) runs `brew bundle install` when the Brewfile hash changes.
 - The script [run_onchange_osx.sh.tmpl](run_onchange_osx.sh.tmpl) configures macOS system defaults and creates the Emacs application symlink.
-- Ghostty serves as the primary terminal emulator with Starship prompt.
+- Ghostty serves as the primary terminal emulator.
 
 ### Linux VM (Ubuntu)
 
@@ -77,7 +77,7 @@ Do not add the `~/.omp` directory. Sessions, caches, and sqlite files stay local
 
 ## Shell, Editors, and Tools
 
-- **Shell**: Zsh with Starship prompt, Zoxide, FZF, and Direnv.
+- **Shell**: Zsh with the default prompt, Zoxide, FZF, and Direnv.
 - **Runtimes**: Mise manages language runtimes such as Node, Bun, Go, and Babashka.
 - **Emacs**: Doom Emacs in [dot_config/doom](dot_config/doom) and Spacemacs in [dot_spacemacs.d](dot_spacemacs.d).
 - **Neovim**: LazyVim starter configuration.

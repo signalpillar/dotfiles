@@ -31,7 +31,7 @@ The chezmoi source directory is `~/.local/share/chezmoi`.
 
 | Environment | Setup | Notes |
 |-------------|-------|-------|
-| macOS host | `Brewfile`, `run_onchange_brew.sh.tmpl`, `run_onchange_osx.sh.tmpl` | Homebrew installs tools, apps and Nerd Fonts. Ghostty and Starship are the terminal stack. |
+| macOS host | `Brewfile`, `run_onchange_brew.sh.tmpl`, `run_onchange_osx.sh.tmpl` | Homebrew installs tools, apps and Nerd Fonts. Ghostty is the terminal emulator. |
 | Linux VM (Ubuntu) | `run_onchange_setup_box.sh.tmpl`, `run_onchange_linux-resource-control.sh.tmpl` | Sway and i3 window managers. Docker environments run through `dockerise/justfile`. |
 
 Mise manages shared runtimes and portable CLIs on both systems.
