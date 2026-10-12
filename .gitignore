@@ -13,3 +13,4 @@
 # Clojure tooling caches (clj-kondo, clojure-lsp) created when editing Babashka scripts
 /.clj-kondo/
 /.lsp/
+/proj/audio-transcribe/transcripts/

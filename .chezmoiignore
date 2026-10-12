@@ -56,3 +56,6 @@ okf/**
 **/__pycache__/**
 **/*.egg-info
 **/*.egg-info/**
+
+# Projects
+proj/
