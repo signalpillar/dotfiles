@@ -1135,9 +1135,12 @@ before packages are loaded."
              :variable-pitch-family ,(my/font-family :variable)
              :variable-pitch-weight normal
              :variable-pitch-height 1.08
-             :bold-family ,(my/font-family :variable)
+             ;; No :bold-family or :italic-family here. With a family set,
+             ;; every face that inherits `bold' or `italic' renders in the
+             ;; proportional font, also in code, shell and minibuffer text.
+             ;; Without a family, bold and italic follow the underlying face:
+             ;; fixed pitch in code, variable pitch in prose buffers.
              :bold-weight bold
-             :italic-family ,(my/font-family :variable)
              :italic-slant italic
              :line-spacing 0.2)))
     (fontaine-set-preset (or (fontaine-restore-latest-preset) 'regular))

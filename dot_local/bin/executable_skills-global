@@ -97,13 +97,13 @@
         {:keys [order groups]} (group-by-source entries)
         in (or (tty-file) (io/file "/dev/null"))]
     (doseq [source order]
-      (run-skills! in
-                   (concat ["add" source]
-                           (mapcat (fn [skill] ["--skill" skill]) (get groups source))
-                           ["-g" "-y"])))))
+      (apply run-skills! in
+             (concat ["add" source]
+                     (mapcat (fn [skill] ["--skill" skill]) (get groups source))
+                     ["-g" "-y"])))))
 
 (defn update! [skills]
-  (run-skills! :inherit (concat ["update" "-g" "-y"] skills)))
+  (apply run-skills! :inherit (concat ["update" "-g" "-y"] skills)))
 
 (when-not (on-path? "npx")
   (die! "skills-global: npx is missing"))

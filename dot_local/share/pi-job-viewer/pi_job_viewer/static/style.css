@@ -72,6 +72,9 @@ table.grid td, table.grid th {
 .pill-blocked { background: #e01b24; }
 .pill-done { background: #26a269; }
 .pill-skipped { background: #ae7b2c; }
+.pill-pr-open { background: #26a269; }
+.pill-pr-merged { background: #9141ac; }
+.pill-pr-closed { background: #e01b24; }
 .dim { color: var(--dim); }
 .empty { color: var(--dim); font-style: italic; }
 .prose pre {
@@ -142,6 +145,8 @@ button.copy {
   cursor: pointer;
 }
 button.copy:hover { color: var(--accent); border-color: var(--accent); }
+a.pr-badge { text-decoration: none; margin-right: 0.3rem; white-space: nowrap; }
+a.pr-badge:hover .pill { outline: 2px solid var(--accent); }
 details.collapsible { margin-top: 1.5rem; }
 details.collapsible > summary {
   cursor: pointer;

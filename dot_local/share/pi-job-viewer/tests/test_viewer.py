@@ -235,6 +235,73 @@ def test_slice_key_copies_and_running_steps_show_progress(tmp_path):
     assert 'title="stored: planned"' in html
 
 
+def test_task_table_shows_pr_badges_for_slice(tmp_path):
+    """Task overview table links each slice's recorded PRs as status badges."""
+    from pi_job_viewer.render import task_fragment
+    from pi_job_viewer.store import BundleHandle, SliceSummary
+
+    task = {
+        "title": "T",
+        "decisions": [],
+        "plan": {
+            "slices": [
+                {
+                    "key": "k",
+                    "title": "K",
+                    "kind": "implement",
+                    "status": "in_progress",
+                    "goal": "",
+                    "depends_on": [],
+                    "steps": [],
+                    "final_steps": [],
+                    "repo_work": {
+                        "graphius": {
+                            "prs": [{"url": "https://example.test/pr/1", "status": "open"}],
+                        }
+                    },
+                }
+            ]
+        },
+    }
+    handle = BundleHandle(
+        slug="t",
+        root=tmp_path,
+        task=task,
+        status="in_progress",
+        slices=(SliceSummary(key="k", title="K", kind="implement", status="in_progress", goal=""),),
+    )
+    html = task_fragment(handle, "", "flowchart LR")
+    assert "<th data-sort='text'>PRs</th>" in html
+    assert 'href="https://example.test/pr/1"' in html
+    assert "pill-progress" in html  # slice status pill
+    assert "pill-pr-open" in html  # PR status pill, distinct from slice status colors
+
+
+def test_task_table_shows_dash_when_slice_has_no_prs(tmp_path):
+    """Task overview table marks slices with no recorded PRs instead of a blank cell."""
+    from pi_job_viewer.render import task_fragment
+    from pi_job_viewer.store import BundleHandle, SliceSummary
+
+    task = {
+        "title": "T",
+        "decisions": [],
+        "plan": {
+            "slices": [
+                {"key": "k", "title": "K", "kind": "implement", "status": "planned", "goal": "", "depends_on": []}
+            ]
+        },
+    }
+    handle = BundleHandle(
+        slug="t",
+        root=tmp_path,
+        task=task,
+        status="planned",
+        slices=(SliceSummary(key="k", title="K", kind="implement", status="planned", goal=""),),
+    )
+    html = task_fragment(handle, "", "flowchart LR")
+    assert '<span class="dim">-</span>' in html
+
+
 def test_slice_steps_show_notes_column():
     """Slice detail renders each step note as Markdown in its own column."""
     from pi_job_viewer.render import slice_fragment
@@ -321,6 +388,7 @@ def test_slice_shows_worktree_and_pr_links_copyable():
     assert 'data-copy="/tmp/wt/k/graphius"' in html
     assert 'href="https://example.test/pr/1"' in html
     assert 'data-copy="https://example.test/pr/1"' in html
+    assert "pill-pr-open" in html
 
 
 def test_slice_without_repo_work_omits_section():

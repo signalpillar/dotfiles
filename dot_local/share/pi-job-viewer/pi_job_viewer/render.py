@@ -43,6 +43,23 @@ def pill(status: str) -> str:
     return f'<span class="pill {cls}">{esc(status)}</span>'
 
 
+PR_STATUS_CLASS = {
+    "open": "pill-pr-open",
+    "merged": "pill-pr-merged",
+    "closed": "pill-pr-closed",
+}
+
+
+def pr_pill(status: str) -> str:
+    """PR status badge: distinct colors from slice/bundle status pills.
+
+    A PR's own color scale (open/merged/closed) shares no classes with
+    STATUS_CLASS, so a PR badge never blends into an adjacent status pill.
+    """
+    cls = PR_STATUS_CLASS.get(status, "pill-pr-open")
+    return f'<span class="pill {cls}">{esc(status)}</span>'
+
+
 def crumb_trail(*items: tuple) -> str:
     """Breadcrumb trail: (label, href, hx_get) per item, current item last with Nones.
 
@@ -188,6 +205,23 @@ def _status_pill(sl: dict) -> str:
     return pill_html
 
 
+def _prs_cell(sl: dict) -> str:
+    """Compact linked status badges for every PR recorded on a slice.
+
+    Repo name prefixes a badge only when the slice touches more than one
+    repository, so the common single-repo case stays compact.
+    """
+    repo_work = sl.get("repo_work") or {}
+    multi = len(repo_work) > 1
+    badges = [
+        f"<a class=\"pr-badge\" href=\"{esc(pr.get('url'))}\">"
+        f"{esc(repo) + ': ' if multi else ''}{pr_pill(str(pr.get('status') or ''))}</a>"
+        for repo in sorted(repo_work)
+        for pr in (repo_work.get(repo) or {}).get("prs") or []
+    ]
+    return "".join(badges) if badges else "<span class=\"dim\">-</span>"
+
+
 def task_fragment(handle: BundleHandle, decisions_html: str, graph: str) -> str:
     """Task overview body: status-ranked slices table, decisions, graph."""
     from pi_job_viewer.store import ordered_slices, slice_activity
@@ -203,13 +237,14 @@ def task_fragment(handle: BundleHandle, decisions_html: str, graph: str) -> str:
         f"<td class=\"dim\">{esc(s.get('kind') or '')}</td>"
         f"<td>{_status_pill(s)}</td>"
         f"<td class=\"dim\">{esc(slice_activity(s))}</td>"
+        f"<td>{_prs_cell(s)}</td>"
         "</tr>"
         for s in ordered
     )
     table = (
         "<table class='grid sortable'><thead><tr>"
         "<th data-sort='text'>Slice</th><th data-sort='text'>Key</th><th data-sort='text'>Kind</th>"
-        "<th data-sort='status'>Status</th><th data-sort='text'>Activity</th>"
+        "<th data-sort='status'>Status</th><th data-sort='text'>Activity</th><th data-sort='text'>PRs</th>"
         "</tr></thead><tbody>" + rows + "</tbody></table>"
     )
     return (
@@ -253,7 +288,7 @@ def repo_work_html(sl: dict) -> str:
             tree_html = "<span class=\"dim\">not set</span>"
         prs = "".join(
             f"<li><a href=\"{esc(pr.get('url'))}\">{esc(pr.get('url'))}</a> "
-            f"{pill(str(pr.get('status') or ''))} "
+            f"{pr_pill(str(pr.get('status') or ''))} "
             f"<button class=\"copy\" data-copy=\"{esc(pr.get('url'))}\" title=\"Copy PR URL\">⧉</button></li>"
             for pr in (entry.get("prs") or [])
         )
