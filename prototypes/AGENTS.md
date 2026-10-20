@@ -253,6 +253,23 @@ Read them before writing the first line, not after debugging.
   add the combined Income Tax plus National Insurance marginal rate to the tax visualiser, and it
   reproduced the well-known 62% figure in the £100k-£125,140 band without a single special case.
 
+### DataScript and Cytoscape (2026-10: `fact-graph`)
+
+- Inline `<script defer>` is ignored: the inline code runs before the deferred CDN scripts and sees no library globals.
+  Use an inline `<script type="module">`; modules join the same ordered queue as `defer` scripts and still work from `file://`.
+- The DataScript JS API (`datascript@1.8.1`, global `datascript`) takes attribute names as plain strings without the leading colon (`"node/slug"`).
+  Schema values and tx functions keep the colon: `{":db/unique": ":db.unique/identity"}`, `[":db.fn/retractEntity", ["edge/id", id]]`.
+- A `:db.unique/identity` slug gives node merging for free: two facts that name `ews` upsert into one entity.
+  This also holds inside one transaction: two tempids with the same new slug resolve to one entity, so a self-loop needs no special case.
+- Do not load `datascript.js` into a Node `vm` context to test it: cross-realm objects fail with `No protocol method IKVReduce.-kv-reduce`.
+  `require()` it directly instead.
+- `cytoscape-fcose` needs `layout-base` then `cose-base` loaded before it, as plain script tags.
+  Keep node positions per graph and pass the known ones as `fixedNodeConstraint`, so adding a fact does not reshuffle the graph.
+- `Node.append(null)` inserts the text "null".
+  Filter optional children before `append()` (an `appendAll` helper), not only in the element factory.
+- A fixed bottom sheet can cover primary controls lower on the page, such as a composer's submit button.
+  Close the sheet when the user focuses the composer on compact screens, and pad the page by the sheet height while it is open.
+
 ### Manifest-driven code
 
 - The manifest is the schema, so sanitise anything read from `localStorage` or an imported file against it.

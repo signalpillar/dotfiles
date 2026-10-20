@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Fact Graph</title>
+
+    <!-- Pico: class-light CSS only, no JavaScript, no build step. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css">
+    <!-- Shared browser foundation. -->
+    <link rel="stylesheet" href="prototype-base.css">
+    <!-- DataScript: immutable in-browser Datalog db. Cytoscape + fcose: graph canvas and layout. -->
+    <script src="https://cdn.jsdelivr.net/npm/datascript@1.8.1/datascript.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js" defer></script>
+
+    <style>
+      /* Layout only. Pico owns type and component styling; the palette comes from the manifest. */
+      body { background: var(--pico-background-color); }
+      .shell { display: grid; gap: var(--pico-spacing); grid-template-columns: minmax(0, 1fr); width: min(84rem, 100%); margin-inline: auto; padding: var(--pico-spacing); }
+      .shell > * { min-inline-size: 0; }
+      .masthead { display: grid; gap: 0.25rem; }
+      .masthead h1 { margin: 0; font-size: 1.5rem; }
+      .masthead p { margin: 0; }
+      .kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pico-muted-color); }
+      .muted { color: var(--pico-muted-color); }
+      .small { font-size: 0.85rem; }
+      .stage, .side { display: grid; gap: 0.75rem; align-content: start; min-inline-size: 0; }
+      .side > * { margin-block-end: 0; }
+
+      .tabs { display: flex; gap: 0.35rem; overflow-x: auto; padding-block-end: 0.25rem; scrollbar-width: thin; }
+      .tabs button { flex: none; inline-size: auto; margin: 0; padding: 0.45rem 0.8rem; min-block-size: 2.75rem; font-size: 0.9rem; }
+      .tabs button[aria-selected="false"] { background: transparent; color: var(--pico-primary); }
+      .new-graph { display: flex; gap: 0.5rem; align-items: center; }
+      .new-graph input { margin: 0; }
+      .new-graph button { margin: 0; inline-size: auto; flex: none; }
+
+      .canvas { position: relative; block-size: min(60vh, 42rem); min-block-size: 18rem; border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); background: var(--fg-canvas); overflow: hidden; }
+      .canvas-empty { position: absolute; inset: 0; display: grid; place-content: center; gap: 0.5rem; padding: 1rem; text-align: center; pointer-events: none; }
+      .canvas-empty button { pointer-events: auto; inline-size: auto; justify-self: center; }
+      .canvas-list { block-size: 100%; overflow: auto; margin: 0; padding: 0.75rem; list-style: none; }
+      .canvas-list li { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; padding-block: 0.3rem; border-block-end: 1px solid var(--pico-muted-border-color); }
+      .canvas-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; }
+      .canvas-tools button { margin: 0; inline-size: auto; padding: 0.35rem 0.75rem; min-block-size: 2.5rem; font-size: 0.85rem; }
+      .legend { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.8rem; color: var(--pico-muted-color); }
+      .swatch { display: inline-block; inline-size: 0.75rem; block-size: 0.75rem; border-radius: 50%; margin-inline-end: 0.3rem; vertical-align: -0.05rem; }
+      .sw-focus { background: var(--fg-focus); }
+      .sw-down { background: var(--fg-down); }
+      .sw-up { background: var(--fg-up); }
+
+      .timeline { display: grid; gap: 0.15rem; }
+      .timeline label { display: flex; justify-content: space-between; gap: 0.5rem; margin: 0; font-size: 0.85rem; }
+      .timeline input { margin: 0; }
+
+      .composer textarea { margin-block-end: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; min-block-size: 5.5rem; }
+      .composer-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-block-end: 0.75rem; }
+      .composer-actions button { margin: 0; inline-size: auto; min-block-size: 2.75rem; }
+      .preview { list-style: none; margin: 0 0 0.5rem; padding: 0; display: grid; gap: 0.35rem; font-size: 0.85rem; }
+      .preview li { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; padding: 0.35rem 0.5rem; border-radius: var(--pico-border-radius); background: var(--pico-muted-background-color, rgba(0, 0, 0, 0.03)); list-style: none; }
+      .preview li.err { background: var(--fg-error-soft); }
+      .preview li.skip { opacity: 0.6; }
+      .chip { display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--fg-chip); color: var(--fg-chip-ink); white-space: nowrap; }
+      .chip.new { background: var(--fg-new-soft); color: var(--fg-new); }
+      .chip.warn { background: var(--fg-warn-soft); color: var(--fg-warn); }
+      .chip.err { background: var(--fg-error-soft); color: var(--fg-error); }
+      .chip.graph { background: var(--fg-graph-soft); color: var(--fg-graph); }
+      .arrow { color: var(--pico-muted-color); }
+      code.slug { font-size: 0.75rem; padding: 0.05rem 0.3rem; }
+      .syntax pre { margin: 0.25rem 0 0.5rem; font-size: 0.8rem; white-space: pre-wrap; }
+      .syntax ul { margin: 0; padding-inline-start: 1.1rem; font-size: 0.85rem; }
+
+      .detail { display: grid; gap: 0.5rem; padding: var(--pico-spacing); border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); background: var(--pico-card-background-color); }
+      .detail h2 { margin: 0; font-size: 1.15rem; }
+      .detail h3 { margin: 0.25rem 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pico-muted-color); }
+      .detail-head { display: flex; justify-content: space-between; gap: 0.5rem; align-items: start; }
+      .detail-head button { margin: 0; inline-size: auto; min-block-size: 2.75rem; min-inline-size: 2.75rem; padding: 0.3rem 0.6rem; }
+      .detail ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; }
+      .detail li { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; list-style: none; font-size: 0.9rem; }
+      .detail li button, .also-in button { margin: 0; inline-size: auto; padding: 0.3rem 0.6rem; min-block-size: 2.5rem; font-size: 0.85rem; }
+      .also-in { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .reach { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.9rem; }
+      .link-btn { all: unset; cursor: pointer; color: var(--pico-primary); text-decoration: underline; }
+      .link-btn:focus-visible { outline: 2px solid var(--pico-primary); }
+
+      .log ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; max-block-size: 20rem; overflow: auto; }
+      .log li { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; font-size: 0.82rem; padding-block: 0.3rem; border-block-end: 1px solid var(--pico-muted-border-color); list-style: none; }
+      .log li .text { flex: 1 1 12rem; min-inline-size: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .log li.retracted .text { text-decoration: line-through; color: var(--pico-muted-color); }
+      .log li button { margin: 0; inline-size: auto; padding: 0.2rem 0.55rem; min-block-size: 2.5rem; font-size: 0.8rem; }
+      .log-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block: 0.5rem; }
+      .log-actions button { margin: 0; inline-size: auto; flex: 1 1 auto; min-block-size: 2.75rem; }
+      .status-line { margin: 0; font-size: 0.85rem; color: var(--pico-muted-color); min-block-size: 1.2em; }
+
+      /* Compact: node / edge detail is a bottom sheet in the thumb zone. */
+      @media (max-width: 63.99rem) {
+        body:has(.detail:not([hidden])) .shell { padding-block-end: 55vh; }
+        .detail { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 20; max-block-size: 55vh; overflow: auto; border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0; box-shadow: 0 -0.5rem 1.5rem rgba(23, 32, 51, 0.18); padding-block-end: calc(var(--pico-spacing) + env(safe-area-inset-bottom)); }
+      }
+      /* Wide: graph left, composer / detail / log in a sticky side column. */
+      @media (min-width: 64rem) {
+        .shell { grid-template-columns: minmax(0, 1fr) 25rem; align-items: start; }
+        .masthead { grid-column: 1 / -1; }
+        .side { position: sticky; inset-block-start: var(--pico-spacing); max-block-size: calc(100vh - 2 * var(--pico-spacing)); overflow: auto; }
+        .canvas { block-size: calc(100vh - 13rem); }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="shell" id="app">
+      <header class="masthead">
+        <p class="kicker" id="kicker"></p>
+        <h1 id="title"></h1>
+        <p class="muted small" id="intro"></p>
+        <p class="small" id="stats" aria-live="polite"></p>
+      </header>
+
+      <section class="stage" aria-labelledby="title">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <form class="new-graph" id="graph-form" hidden>
+          <input type="text" id="graph-name" autocomplete="off" required>
+          <button type="submit" id="graph-create"></button>
+          <button type="button" class="secondary" id="graph-cancel"></button>
+        </form>
+        <div class="canvas" id="canvas">
+          <div class="canvas-empty" id="canvas-empty" hidden>
+            <p class="muted" id="canvas-empty-text"></p>
+            <button type="button" class="secondary" id="load-sample"></button>
+          </div>
+        </div>
+        <div class="canvas-tools">
+          <div class="legend" id="legend"></div>
+          <button type="button" class="secondary outline" id="relayout"></button>
+        </div>
+        <div class="timeline">
+          <label for="time"><span id="time-title"></span><span id="time-label"></span></label>
+          <input type="range" id="time" min="0" max="0" step="1" value="0">
+        </div>
+      </section>
+
+      <aside class="side">
+        <form class="composer" id="composer">
+          <label for="entry" id="entry-label"></label>
+          <textarea id="entry" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+          <ul class="preview" id="preview" aria-live="polite"></ul>
+          <div class="composer-actions">
+            <button type="submit" id="add" disabled></button>
+            <span class="muted small" id="add-hint"></span>
+          </div>
+          <details class="syntax">
+            <summary id="syntax-title"></summary>
+            <pre id="syntax-example"></pre>
+            <ul id="syntax-rules"></ul>
+          </details>
+        </form>
+
+        <section class="detail" id="detail" hidden aria-live="polite"></section>
+
+        <details class="log" id="log">
+          <summary id="log-title"></summary>
+          <div class="log-actions">
+            <button type="button" class="secondary" id="export"></button>
+            <button type="button" class="secondary" id="import"></button>
+            <button type="button" class="secondary outline" id="clear"></button>
+            <input type="file" id="import-file" accept=".json,application/json" hidden>
+          </div>
+          <ol id="log-list"></ol>
+        </details>
+
+        <p class="status-line" id="status" role="status"></p>
+      </aside>
+    </main>
+
+    <script type="application/json" id="fact-graph-manifest">
+      {
+        "title": "Fact Graph",
+        "kicker": "Prototype",
+        "intro": "Type facts as 'A -> relation -> B'. Nodes with the same slug merge across facts and graphs. Tap a node to see what it depends on and what depends on it.",
+        "locale": "en-GB",
+        "dateFormat": { "dateStyle": "medium", "timeStyle": "short" },
+        "storage": {
+          "log": "fact-graph.log.v1",
+          "positions": "fact-graph.positions.v1",
+          "view": "fact-graph.view.v1"
+        },
+        "exportFile": { "format": "fact-graph-log", "version": 1, "fileName": "fact-graph-{date}.json" },
+        "defaultGraph": { "slug": "news", "title": "news" },
+        "syntax": {
+          "arrow": "\\s*(?:->|→)\\s*",
+          "graphPrefix": "^#(\\S+)\\s+",
+          "worldDate": "\\s+@(\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}(?::\\d{2})?)?)\\s*$",
+          "titleSeparator": "\\|+",
+          "abbreviation": "^(.+?)\\s*\\(([^()]+)\\)\\s*$",
+          "slugStrip": "[^\\p{L}\\p{N}._-]+"
+        },
+        "timing": { "clearConfirmMs": 3000, "statusMs": 4000 },
+        "layout": {
+          "name": "fcose",
+          "fallbackName": "cose",
+          "animationDuration": 350,
+          "nodeRepulsion": 9000,
+          "idealEdgeLength": 110,
+          "fitPadding": 40,
+          "nudge": 60,
+          "compactQuery": "(max-width: 63.99rem)"
+        },
+        "graphStyle": {
+          "nodeSize": 22,
+          "focusSize": 30,
+          "fontSize": 12,
+          "edgeFontSize": 10,
+          "labelMaxWidth": 130,
+          "edgeWidth": 1.5,
+          "highlightWidth": 3,
+          "fadedOpacity": 0.15
+        },
+        "colors": {
+          "canvas": "#ffffff",
+          "node": "#4263eb",
+          "nodeText": "#172033",
+          "edge": "#a3abbd",
+          "edgeText": "#5d6678",
+          "textHalo": "#ffffff",
+          "focus": "#e8590c",
+          "down": "#2f9e44",
+          "up": "#7048e8",
+          "chip": "#eef1f6",
+          "chip-ink": "#3b4458",
+          "new": "#1971c2",
+          "new-soft": "#e7f1fb",
+          "warn": "#a35f00",
+          "warn-soft": "#fff3db",
+          "error": "#c92a2a",
+          "error-soft": "#fdecec",
+          "graph": "#5f3dc4",
+          "graph-soft": "#f1ecfd"
+        },
+        "seed": [
+          { "kind": "graph", "slug": "news", "title": "news", "at": "2026-10-01T08:00:00Z" },
+          { "kind": "graph", "slug": "professional", "title": "professional", "at": "2026-10-01T08:00:00Z" },
+          { "kind": "fact", "graph": "news", "at": "2026-10-01T09:00:00Z", "text": "Ukraine -> depends on -> early warning system (EWS)" },
+          { "kind": "fact", "graph": "news", "at": "2026-10-02T09:00:00Z", "text": "EWS | Early warning system -> belongs to -> USA.gov @2026-10-01" },
+          { "kind": "fact", "graph": "news", "at": "2026-10-03T09:00:00Z", "text": "Ukraine -> receives -> air defence aid" },
+          { "kind": "fact", "graph": "news", "at": "2026-10-03T09:05:00Z", "text": "air defence aid -> funded by -> USA.gov" },
+          { "kind": "fact", "graph": "professional", "at": "2026-10-04T09:00:00Z", "text": "EWS -> uses -> satellite sensors" },
+          { "kind": "fact", "graph": "professional", "at": "2026-10-04T09:05:00Z", "text": "satellite sensors -> operated by -> USA.gov" }
+        ],
+        "copy": {
+          "statsTemplate": "{graph}: {nodes} nodes · {edges} edges · {entries} log entries",
+          "tabTemplate": "{title} · {edges}",
+          "newGraphButton": "+ Graph",
+          "newGraphPlaceholder": "Graph name, e.g. research",
+          "newGraphCreate": "Create",
+          "newGraphCancel": "Cancel",
+          "newGraphExists": "Graph '{graph}' already exists.",
+          "graphCreated": "Created graph '{graph}'.",
+          "emptyGraph": "No facts in '{graph}' yet. Type one below, for example 'Ukraine -> depends on -> EWS'.",
+          "emptyStore": "The fact log is empty.",
+          "loadSample": "Load sample facts",
+          "sampleLoaded": "Loaded {count} sample entries.",
+          "legendFocus": "selected",
+          "legendDown": "downstream (it reaches)",
+          "legendUp": "upstream (reaches it)",
+          "relayout": "Re-layout",
+          "timeTitle": "Replay",
+          "timeLive": "live · all {count} entries",
+          "timeStart": "before the first entry",
+          "timeAsOf": "entry {n} of {count} · {at}",
+          "timeNotLive": "Replay is at an earlier time. Adding a fact jumps back to live.",
+          "entryLabel": "Add facts (one per line)",
+          "entryPlaceholder": "Ukraine -> depends on -> early warning system (EWS)\nEWS | Early warning system -> belongs to -> USA.gov",
+          "addButton": "Add",
+          "addButtonCount": "Add {count}",
+          "addHint": "Ctrl+Enter adds",
+          "added": "Added {count} fact(s) to '{graph}'.",
+          "addedSkipped": "{skipped} line(s) skipped.",
+          "syntaxTitle": "Syntax",
+          "syntaxExample": "#news Ukraine -> depends on -> early warning system (EWS)\nEWS | Early warning system -> belongs to -> USA.gov @2026-10-01\nEWS -> uses -> satellite sensors",
+          "syntaxRules": [
+            "'A -> relation -> B' adds one edge. '→' also works.",
+            "'slug | Title' sets the slug and the display title. Extra '|' characters are ignored.",
+            "'Title (ABBR)' uses ABBR as the slug, so 'early warning system (EWS)' merges with 'EWS'.",
+            "Plain text becomes a lowercase hyphenated slug: 'USA.gov' gives 'usa.gov'.",
+            "'#graph' at the start sends the line to that graph. An unknown name creates the graph.",
+            "'@2026-10-01' at the end records when the fact is true in the world.",
+            "Relations are matched lowercase, so 'Belongs to' and 'belongs to' are one relation."
+          ],
+          "chipNewNode": "new node",
+          "chipKnownNode": "merges",
+          "chipNewLabel": "new relation",
+          "chipNewGraph": "new graph",
+          "chipDuplicate": "already in graph",
+          "chipDate": "@{date}",
+          "lineError": "Line {line}: {message}",
+          "errArrows": "expected 'A -> relation -> B', found {count} arrow(s)",
+          "errEmptyNode": "a node is empty",
+          "errEmptySlug": "'{text}' gives an empty slug",
+          "errEmptyLabel": "the relation is empty",
+          "errDate": "'{date}' is not a valid date",
+          "errGraph": "the graph name gives an empty slug",
+          "detailClose": "Close",
+          "detailSlug": "slug",
+          "detailDown": "{count} downstream",
+          "detailUp": "{count} upstream",
+          "detailOutgoing": "Outgoing in '{graph}'",
+          "detailIncoming": "Incoming in '{graph}'",
+          "detailAlsoIn": "Also in",
+          "detailAlsoInNone": "Only in this graph.",
+          "detailAlsoInItem": "{graph} · {edges} edge(s)",
+          "detailEdge": "Fact",
+          "detailEdgeGraph": "Graph: {graph}",
+          "detailEdgeAt": "Entered: {at}",
+          "detailEdgeDate": "True as of: {date}",
+          "detailEdgeText": "Typed as: {text}",
+          "retract": "Retract",
+          "retracted": "Retracted the fact.",
+          "logTitle": "Fact log ({count})",
+          "logRetractedTag": "retracted",
+          "logRetraction": "retracts: {text}",
+          "logGraph": "creates graph '{graph}'",
+          "export": "Export",
+          "import": "Import",
+          "clear": "Clear all",
+          "clearConfirm": "Tap again to clear",
+          "cleared": "Cleared the fact log.",
+          "imported": "Imported {added} new entries ({skipped} already present).",
+          "importRejected": "Import rejected: {reason}",
+          "importNotLog": "the file is not a fact-graph log",
+          "importMissingIdentity": "entry {index} has no id, kind or time",
+          "importParse": "the file is not valid JSON",
+          "exported": "Exported {count} entries.",
+          "dsMissing": "DataScript did not load, so the page cannot build the graph. The fact log and Export still work.",
+          "cyMissing": "The graph library did not load. The graph shows as a list.",
+          "storageFailed": "The browser blocked local storage. Facts last until reload; use Export."
+        }
+      }
+    </script>
+
+    <script type="module">
+      const M = JSON.parse(document.getElementById("fact-graph-manifest").textContent);
+      const C = M.copy;
+      const $ = (id) => document.getElementById(id);
+      const fill = (tpl, vars = {}) => tpl.replace(/\{(\w+)\}/g, (all, key) => (key in vars ? String(vars[key]) : all));
+      const ds = window.datascript && typeof window.datascript.q === "function" ? window.datascript : null;
+      const hasCy = typeof window.cytoscape === "function";
+      const hasFcose = hasCy && typeof window.cytoscapeFcose === "function";
+      if (hasFcose) window.cytoscape.use(window.cytoscapeFcose);
+
+      for (const [key, value] of Object.entries(M.colors)) document.documentElement.style.setProperty(`--fg-${key}`, value);
+
+      const RX = {
+        arrow: new RegExp(M.syntax.arrow),
+        graphPrefix: new RegExp(M.syntax.graphPrefix),
+        worldDate: new RegExp(M.syntax.worldDate),
+        titleSep: new RegExp(M.syntax.titleSeparator),
+        abbrev: new RegExp(M.syntax.abbreviation),
+        slugStrip: new RegExp(M.syntax.slugStrip, "gu")
+      };
+      const dateFmt = new Intl.DateTimeFormat(M.locale, M.dateFormat);
+      const fmtAt = (iso) => dateFmt.format(new Date(iso));
+
+      // ---- Storage --------------------------------------------------------------------------
+
+      let storageOk = true;
+      function readJson(key) {
+        try {
+          const raw = localStorage.getItem(key);
+          return raw === null ? undefined : JSON.parse(raw);
+        } catch {
+          return undefined;
+        }
+      }
+      function writeJson(key, value) {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch {
+          if (storageOk) flash(C.storageFailed);
+          storageOk = false;
+        }
+      }
+      const newId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+
+      // ---- Parsing ---------------------------------------------------------------------------
+
+      const slugify = (text) => text.trim().toLowerCase().replace(RX.slugStrip, "-").replace(/^-+|-+$/g, "");
+      const normLabel = (text) => text.trim().toLowerCase().replace(/\s+/g, " ");
+
+      function parseTerm(raw) {
+        const text = raw.trim();
+        if (!text) return { error: C.errEmptyNode };
+        let term;
+        if (RX.titleSep.test(text)) {
+          const parts = text.split(RX.titleSep).map((part) => part.trim()).filter(Boolean);
+          if (!parts.length) return { error: C.errEmptyNode };
+          term = { slug: slugify(parts[0]), title: parts.slice(1).join(" ") || null, name: parts[0] };
+        } else {
+          const abbrev = text.match(RX.abbrev);
+          term = abbrev
+            ? { slug: slugify(abbrev[2]), title: abbrev[1].trim(), name: abbrev[2].trim() }
+            : { slug: slugify(text), title: null, name: text };
+        }
+        if (!term.slug) return { error: fill(C.errEmptySlug, { text }) };
+        return term;
+      }
+
+      // Returns null for a blank line, { error } for a bad line, or a fact draft.
+      function parseLine(raw, graph) {
+        let text = raw.trim();
+        if (!text) return null;
+        let graphSlug = graph.slug;
+        let graphTitle = graph.title;
+        const prefix = text.match(RX.graphPrefix);
+        if (prefix) {
+          graphSlug = slugify(prefix[1]);
+          graphTitle = prefix[1];
+          text = text.slice(prefix[0].length);
+          if (!graphSlug) return { error: C.errGraph };
+        }
+        let date = null;
+        const when = text.match(RX.worldDate);
+        if (when) {
+          date = when[1];
+          text = text.slice(0, when.index);
+          if (Number.isNaN(Date.parse(date))) return { error: fill(C.errDate, { date }) };
+        }
+        const parts = text.split(RX.arrow);
+        if (parts.length !== 3) return { error: fill(C.errArrows, { count: parts.length - 1 }) };
+        const from = parseTerm(parts[0]);
+        const to = parseTerm(parts[2]);
+        const label = normLabel(parts[1]);
+        const error = from.error || to.error || (label ? null : C.errEmptyLabel);
+        if (error) return { error };
+        return { graph: graphSlug, graphTitle, from, label, to, date, text: raw.trim() };
+      }
+
+      // ---- Log sanitising --------------------------------------------------------------------
+
+      const KINDS = new Set(["fact", "retract", "graph"]);
+      const hasIdentity = (e) => e && typeof e.id === "string" && e.id && KINDS.has(e.kind) && typeof e.at === "string" && !Number.isNaN(Date.parse(e.at));
+      const cleanTerm = (t) => (t && typeof t.slug === "string" && t.slug
+        ? { slug: t.slug, title: typeof t.title === "string" && t.title ? t.title : null, name: typeof t.name === "string" && t.name ? t.name : t.slug }
+        : null);
+
+      function sanitizeEntry(e) {
+        if (!hasIdentity(e)) return null;
+        const base = { id: e.id, kind: e.kind, at: e.at };
+        if (e.kind === "retract") return typeof e.target === "string" ? { ...base, target: e.target } : null;
+        if (e.kind === "graph") {
+          return typeof e.slug === "string" && e.slug ? { ...base, slug: e.slug, title: typeof e.title === "string" && e.title ? e.title : e.slug } : null;
+        }
+        const from = cleanTerm(e.from);
+        const to = cleanTerm(e.to);
+        if (!from || !to || typeof e.graph !== "string" || !e.graph || typeof e.label !== "string" || !e.label) return null;
+        return {
+          ...base,
+          graph: e.graph,
+          graphTitle: typeof e.graphTitle === "string" && e.graphTitle ? e.graphTitle : e.graph,
+          from,
+          to,
+          label: normLabel(e.label),
+          date: typeof e.date === "string" && !Number.isNaN(Date.parse(e.date)) ? e.date : null,
+          text: typeof e.text === "string" ? e.text : ""
+        };
+      }
+      const byTime = (a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+
+      function seedEntries() {
+        return M.seed.map((item, index) => {
+          const id = `seed-${index + 1}`;
+          if (item.kind === "graph") return { id, kind: "graph", at: item.at, slug: item.slug, title: item.title };
+          const draft = parseLine(item.text, { slug: item.graph, title: item.graph });
+          if (!draft || draft.error) throw new Error(`Seed line ${index + 1}: ${draft && draft.error}`);
+          return { id, kind: "fact", at: item.at, ...draft };
+        });
+      }
+
+      // ---- DataScript ------------------------------------------------------------------------
+
+      const SCHEMA = {
+        "node/slug": { ":db/unique": ":db.unique/identity" },
+        "graph/slug": { ":db/unique": ":db.unique/identity" },
+        "edge/id": { ":db/unique": ":db.unique/identity" },
+        "edge/from": { ":db/valueType": ":db.type/ref" },
+        "edge/to": { ":db/valueType": ":db.type/ref" },
+        "edge/graph": { ":db/valueType": ":db.type/ref" }
+      };
+      const Q = {
+        graphs: '[:find ?s ?t :where [?g "graph/slug" ?s] [(get-else $ ?g "graph/title" ?s) ?t]]',
+        edges: '[:find ?id ?fs ?l ?ts :in $ ?gs :where [?g "graph/slug" ?gs] [?e "edge/graph" ?g] [?e "edge/id" ?id] [?e "edge/label" ?l] [?e "edge/from" ?f] [?e "edge/to" ?t] [?f "node/slug" ?fs] [?t "node/slug" ?ts]]',
+        edgeCounts: '[:find ?gs (count ?e) :where [?e "edge/graph" ?g] [?g "graph/slug" ?gs]]',
+        alsoIn: '[:find ?gs (count ?e) :in $ ?ns :where [?n "node/slug" ?ns] (or [?e "edge/from" ?n] [?e "edge/to" ?n]) [?e "edge/graph" ?g] [?g "graph/slug" ?gs]]',
+        labels: '[:find ?l :where [_ "edge/label" ?l]]',
+        triple: '[:find ?e . :in $ ?gs ?fs ?l ?ts :where [?g "graph/slug" ?gs] [?f "node/slug" ?fs] [?t "node/slug" ?ts] [?e "edge/from" ?f] [?e "edge/to" ?t] [?e "edge/label" ?l] [?e "edge/graph" ?g]]'
+      };
+      const NODE_PULL = '["node/slug" "node/title" "node/name"]';
+      const EDGE_PULL = '["edge/id" "edge/label" "edge/at" "edge/date" "edge/text" {"edge/from" ["node/slug"]} {"edge/to" ["node/slug"]} {"edge/graph" ["graph/slug" "graph/title"]}]';
+
+      const exists = (db, ref) => ds.entity(db, ref) !== null;
+
+      function nodeTx(db, tempid, term) {
+        const tx = { ":db/id": tempid, "node/slug": term.slug };
+        if (term.title) tx["node/title"] = term.title; // explicit title: the latest entry wins
+        if (!exists(db, ["node/slug", term.slug])) tx["node/name"] = term.name; // first seen text is the fallback
+        return tx;
+      }
+      function graphTx(db, tempid, slug, title) {
+        const tx = { ":db/id": tempid, "graph/slug": slug };
+        if (!exists(db, ["graph/slug", slug])) tx["graph/title"] = title;
+        return tx;
+      }
+
+      function applyEntry(db, e) {
+        if (e.kind === "graph") return ds.db_with(db, [graphTx(db, -1, e.slug, e.title)]);
+        if (e.kind === "retract") {
+          return exists(db, ["edge/id", e.target]) ? ds.db_with(db, [[":db.fn/retractEntity", ["edge/id", e.target]]]) : db;
+        }
+        const edge = { "edge/id": e.id, "edge/from": -1, "edge/to": -2, "edge/label": e.label, "edge/graph": -3, "edge/at": e.at, "edge/text": e.text || "" };
+        if (e.date) edge["edge/date"] = e.date;
+        return ds.db_with(db, [nodeTx(db, -1, e.from), nodeTx(db, -2, e.to), graphTx(db, -3, e.graph, e.graphTitle || e.graph), edge]);
+      }
+      const buildDb = (entries) => entries.reduce(applyEntry, ds.empty_db(SCHEMA));
+
+      // ---- State -----------------------------------------------------------------------------
+
+      const state = {
+        log: [],
+        liveDb: null,
+        db: null,
+        time: 0, // number of log entries applied; log.length means live
+        graph: null,
+        selected: null, // { kind: "node", slug } or { kind: "edge", id }
+        positions: {},
+        drafts: []
+      };
+
+      function loadLog() {
+        const stored = readJson(M.storage.log);
+        if (stored === undefined) return seedEntries();
+        return Array.isArray(stored) ? stored.map(sanitizeEntry).filter(Boolean) : [];
+      }
+      function saveLog() {
+        writeJson(M.storage.log, state.log);
+      }
+
+      const compact = window.matchMedia(M.layout.compactQuery);
+      const isLive = () => state.time >= state.log.length;
+
+      function rebuild({ keepTime = false } = {}) {
+        state.log.sort(byTime);
+        if (!keepTime) state.time = state.log.length;
+        state.time = Math.min(state.time, state.log.length);
+        if (!ds) return;
+        state.liveDb = buildDb(state.log);
+        state.db = isLive() ? state.liveDb : buildDb(state.log.slice(0, state.time));
+      }
+
+      function graphList() {
+        const map = new Map();
+        if (ds && state.db) for (const [slug, title] of ds.q(Q.graphs, state.db)) map.set(slug, title);
+        if (ds && state.liveDb) for (const [slug, title] of ds.q(Q.graphs, state.liveDb)) if (!map.has(slug)) map.set(slug, title);
+        if (!map.size) map.set(M.defaultGraph.slug, M.defaultGraph.title);
+        return [...map].map(([slug, title]) => ({ slug, title })).sort((a, b) => a.title.localeCompare(b.title));
+      }
+      function graphTitle(slug) {
+        const found = graphList().find((g) => g.slug === slug);
+        return found ? found.title : slug;
+      }
+
+      function nodeInfo(db, slug) {
+        const pulled = ds.pull(db, NODE_PULL, ["node/slug", slug]) || {};
+        return { slug, title: pulled["node/title"] || null, name: pulled["node/name"] || slug, display: pulled["node/title"] || pulled["node/name"] || slug };
+      }
+
+      function currentView() {
+        if (!ds || !state.db) return { nodes: [], edges: [] };
+        const rows = ds.q(Q.edges, state.db, state.graph.slug);
+        const edges = rows.map(([id, from, label, to]) => ({ id, from, label, to })).sort((a, b) => a.id.localeCompare(b.id));
+        const slugs = [...new Set(edges.flatMap((e) => [e.from, e.to]))].sort();
+        return { nodes: slugs.map((slug) => nodeInfo(state.db, slug)), edges };
+      }
+
+      // ---- Status ----------------------------------------------------------------------------
+
+      let statusTimer = null;
+      function flash(message) {
+        $("status").textContent = message;
+        clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => { $("status").textContent = persistentStatus(); }, M.timing.statusMs);
+      }
+      function persistentStatus() {
+        if (!ds) return C.dsMissing;
+        if (!hasCy) return C.cyMissing;
+        if (!isLive()) return C.timeNotLive;
+        return "";
+      }
+
+      // ---- Graph canvas ----------------------------------------------------------------------
+
+      let cy = null;
+      let fallbackList = null;
+      const S = M.graphStyle;
+      const K = M.colors;
+
+      function initCanvas() {
+        if (!hasCy) {
+          fallbackList = document.createElement("ul");
+          fallbackList.className = "canvas-list";
+          $("canvas").append(fallbackList);
+          return;
+        }
+        cy = window.cytoscape({
+          container: $("canvas"),
+          minZoom: 0.2,
+          maxZoom: 3,
+          wheelSensitivity: 0.3,
+          style: [
+            { selector: "node", style: {
+              "background-color": K.node, "width": S.nodeSize, "height": S.nodeSize,
+              "label": "data(label)", "color": K.nodeText, "font-size": S.fontSize,
+              "text-valign": "bottom", "text-margin-y": 4, "text-wrap": "wrap", "text-max-width": S.labelMaxWidth,
+              "text-outline-color": K.textHalo, "text-outline-width": 2
+            } },
+            { selector: "edge", style: {
+              "width": S.edgeWidth, "line-color": K.edge, "target-arrow-color": K.edge, "target-arrow-shape": "triangle",
+              "curve-style": "bezier", "label": "data(label)", "font-size": S.edgeFontSize, "color": K.edgeText,
+              "text-rotation": "autorotate", "text-outline-color": K.textHalo, "text-outline-width": 2
+            } },
+            { selector: ".faded", style: { "opacity": S.fadedOpacity } },
+            { selector: "node.up", style: { "background-color": K.up } },
+            { selector: "edge.up", style: { "line-color": K.up, "target-arrow-color": K.up, "width": S.highlightWidth } },
+            { selector: "node.down", style: { "background-color": K.down } },
+            { selector: "edge.down", style: { "line-color": K.down, "target-arrow-color": K.down, "width": S.highlightWidth } },
+            { selector: ".focus", style: { "background-color": K.focus, "line-color": K.focus, "target-arrow-color": K.focus, "width": S.focusSize, "height": S.focusSize, "font-weight": "bold" } },
+            { selector: "edge.focus", style: { "width": S.highlightWidth } }
+          ]
+        });
+        cy.on("tap", "node", (event) => select({ kind: "node", slug: event.target.id() }));
+        cy.on("tap", "edge", (event) => select({ kind: "edge", id: event.target.data("factId") }));
+        cy.on("tap", (event) => { if (event.target === cy) select(null); });
+        cy.on("dragfree", "node", () => savePositions());
+      }
+
+      function savePositions() {
+        if (!cy) return;
+        const map = {};
+        cy.nodes().forEach((n) => { map[n.id()] = { x: Math.round(n.position("x")), y: Math.round(n.position("y")) }; });
+        state.positions[state.graph.slug] = { ...(state.positions[state.graph.slug] || {}), ...map };
+        writeJson(M.storage.positions, state.positions);
+      }
+
+      function runLayout({ randomize, fixed }) {
+        const L = M.layout;
+        const opts = hasFcose
+          ? { name: L.name, randomize, animate: !randomize, animationDuration: L.animationDuration, nodeRepulsion: L.nodeRepulsion, idealEdgeLength: L.idealEdgeLength, fit: false, padding: L.fitPadding }
+          : { name: L.fallbackName, randomize, animate: false, fit: false, padding: L.fitPadding };
+        if (hasFcose && fixed.length && !randomize) opts.fixedNodeConstraint = fixed.map((n) => ({ nodeId: n.id(), position: { ...n.position() } }));
+        if (!hasFcose) fixed.forEach((n) => n.lock());
+        const layout = cy.layout(opts);
+        layout.one("layoutstop", () => {
+          fixed.forEach((n) => n.unlock());
+          cy.fit(undefined, L.fitPadding);
+          savePositions();
+        });
+        layout.run();
+      }
+
+      function renderGraph({ fit = false, relayout = false } = {}) {
+        const view = currentView();
+        $("canvas-empty").hidden = view.edges.length > 0;
+        $("canvas-empty-text").textContent = state.log.length ? fill(C.emptyGraph, { graph: state.graph.title }) : C.emptyStore;
+        $("load-sample").hidden = state.log.length > 0;
+        if (!cy) return renderFallback(view);
+
+        const known = state.positions[state.graph.slug] || {};
+        const before = new Set(cy.nodes().map((n) => n.id()));
+        cy.batch(() => {
+          cy.elements().remove();
+          cy.add([
+            ...view.nodes.map((n) => ({ group: "nodes", data: { id: n.slug, label: n.display } })),
+            ...view.edges.map((e) => ({ group: "edges", data: { id: `e:${e.id}`, factId: e.id, source: e.from, target: e.to, label: e.label } }))
+          ]);
+        });
+        if (relayout) {
+          state.positions[state.graph.slug] = {};
+          applyHighlight();
+          if (cy.nodes().length) runLayout({ randomize: true, fixed: [] });
+          return;
+        }
+        const placed = [];
+        const fresh = [];
+        cy.nodes().forEach((n) => {
+          if (known[n.id()]) { n.position(known[n.id()]); placed.push(n); } else fresh.push(n);
+        });
+        // Start a new node next to a placed neighbour, so the incremental layout settles quickly.
+        const nudge = M.layout.nudge;
+        fresh.forEach((n, index) => {
+          const anchor = n.neighborhood("node").filter((m) => known[m.id()]).first();
+          const base = anchor.nonempty() ? anchor.position() : { x: 0, y: 0 };
+          n.position({ x: base.x + nudge * Math.cos(index), y: base.y + nudge * Math.sin(index) });
+        });
+        applyHighlight();
+        if (fresh.length) runLayout({ randomize: placed.length === 0, fixed: placed });
+        else if (fit || [...before].some((id) => cy.$id(id).empty()) || before.size === 0) cy.fit(undefined, M.layout.fitPadding);
+      }
+
+      function renderFallback(view) {
+        fallbackList.replaceChildren(...view.edges.map((e) => {
+          const li = document.createElement("li");
+          const nodeBtn = (slug) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "link-btn";
+            b.textContent = nodeInfo(state.db, slug).display;
+            b.addEventListener("click", () => select({ kind: "node", slug }));
+            return b;
+          };
+          const label = document.createElement("button");
+          label.type = "button";
+          label.className = "link-btn arrow";
+          label.textContent = `-> ${e.label} ->`;
+          label.addEventListener("click", () => select({ kind: "edge", id: e.id }));
+          li.append(nodeBtn(e.from), label, nodeBtn(e.to));
+          return li;
+        }));
+      }
+
+      function applyHighlight() {
+        if (!cy) return;
+        cy.elements().removeClass("faded focus down up");
+        const sel = state.selected;
+        if (!sel) return;
+        const target = sel.kind === "node" ? cy.$id(sel.slug) : cy.$id(`e:${sel.id}`);
+        if (target.empty()) return;
+        cy.elements().addClass("faded");
+        if (sel.kind === "edge") {
+          target.union(target.connectedNodes()).removeClass("faded").addClass("focus");
+          return;
+        }
+        target.successors().removeClass("faded").addClass("down");
+        target.predecessors().removeClass("faded").addClass("up");
+        target.removeClass("faded down up").addClass("focus");
+      }
+
+      // ---- Detail ----------------------------------------------------------------------------
+
+      // Node.append() turns null into the text "null", so optional children go through this.
+      const appendAll = (node, ...children) => {
+        node.append(...children.filter((c) => c !== null && c !== undefined));
+        return node;
+      };
+      const el = (tag, props = {}, ...children) => appendAll(Object.assign(document.createElement(tag), props), ...children);
+      const chip = (text, kind = "") => el("span", { className: `chip ${kind}`.trim(), textContent: text });
+
+      function select(sel) {
+        state.selected = sel;
+        applyHighlight();
+        renderDetail();
+      }
+
+      function reachCounts(slug) {
+        if (cy) {
+          const n = cy.$id(slug);
+          return { down: n.successors("node").length, up: n.predecessors("node").length };
+        }
+        const { edges } = currentView();
+        const walk = (start, next) => {
+          const seen = new Set();
+          const queue = [start];
+          while (queue.length) {
+            const cur = queue.shift();
+            for (const e of edges) {
+              const [a, b] = next(e);
+              if (a === cur && !seen.has(b) && b !== start) { seen.add(b); queue.push(b); }
+            }
+          }
+          return seen.size;
+        };
+        return { down: walk(slug, (e) => [e.from, e.to]), up: walk(slug, (e) => [e.to, e.from]) };
+      }
+
+      function renderDetail() {
+        const box = $("detail");
+        const sel = state.selected;
+        if (!sel || !ds || !state.db) { box.hidden = true; box.replaceChildren(); return; }
+        const closeBtn = el("button", { type: "button", className: "secondary outline", textContent: C.detailClose });
+        closeBtn.addEventListener("click", () => select(null));
+        if (sel.kind === "node") renderNodeDetail(box, sel.slug, closeBtn);
+        else renderEdgeDetail(box, sel.id, closeBtn);
+      }
+
+      function renderNodeDetail(box, slug, closeBtn) {
+        if (!exists(state.db, ["node/slug", slug])) { box.hidden = true; return; }
+        const info = nodeInfo(state.db, slug);
+        const view = currentView();
+        const reach = reachCounts(slug);
+        const edgeRow = (e, other, dir) => {
+          const row = el("li");
+          const nodeLink = el("button", { type: "button", className: "link-btn", textContent: nodeInfo(state.db, other).display });
+          nodeLink.addEventListener("click", () => select({ kind: "node", slug: other }));
+          const factLink = el("button", { type: "button", className: "link-btn arrow", textContent: dir === "out" ? `-> ${e.label} ->` : `<- ${e.label} <-` });
+          factLink.addEventListener("click", () => select({ kind: "edge", id: e.id }));
+          row.append(factLink, nodeLink);
+          return row;
+        };
+        const outgoing = view.edges.filter((e) => e.from === slug).map((e) => edgeRow(e, e.to, "out"));
+        const incoming = view.edges.filter((e) => e.to === slug).map((e) => edgeRow(e, e.from, "in"));
+        const others = ds.q(Q.alsoIn, state.db, slug).filter(([g]) => g !== state.graph.slug).sort();
+        const alsoIn = el("div", { className: "also-in" });
+        if (!others.length) alsoIn.append(el("span", { className: "muted small", textContent: C.detailAlsoInNone }));
+        for (const [g, count] of others) {
+          const b = el("button", { type: "button", className: "secondary", textContent: fill(C.detailAlsoInItem, { graph: graphTitle(g), edges: count }) });
+          b.dataset.graph = g;
+          b.addEventListener("click", () => switchGraph(g, { keepSelection: true }));
+          alsoIn.append(b);
+        }
+        box.replaceChildren(
+          el("div", { className: "detail-head" },
+            el("div", {}, el("h2", { textContent: info.display }), el("span", { className: "muted small" }, `${C.detailSlug} `, el("code", { className: "slug", textContent: slug }))),
+            closeBtn),
+          el("div", { className: "reach" },
+            el("span", {}, el("span", { className: "swatch sw-down" }), fill(C.detailDown, { count: reach.down })),
+            el("span", {}, el("span", { className: "swatch sw-up" }), fill(C.detailUp, { count: reach.up }))),
+          outgoing.length ? el("h3", { textContent: fill(C.detailOutgoing, { graph: state.graph.title }) }) : null,
+          outgoing.length ? el("ul", {}, ...outgoing) : null,
+          incoming.length ? el("h3", { textContent: fill(C.detailIncoming, { graph: state.graph.title }) }) : null,
+          incoming.length ? el("ul", {}, ...incoming) : null,
+          el("h3", { textContent: C.detailAlsoIn }),
+          alsoIn
+        );
+        box.dataset.kind = "node";
+        box.hidden = false;
+      }
+
+      function renderEdgeDetail(box, id, closeBtn) {
+        if (!exists(state.db, ["edge/id", id])) { box.hidden = true; return; }
+        const e = ds.pull(state.db, EDGE_PULL, ["edge/id", id]);
+        const from = nodeInfo(state.db, e["edge/from"]["node/slug"]);
+        const to = nodeInfo(state.db, e["edge/to"]["node/slug"]);
+        const nodeLink = (n) => {
+          const b = el("button", { type: "button", className: "link-btn", textContent: n.display });
+          b.addEventListener("click", () => select({ kind: "node", slug: n.slug }));
+          return b;
+        };
+        const retract = el("button", { type: "button", className: "secondary outline", textContent: C.retract });
+        retract.addEventListener("click", () => retractFact(id));
+        retract.disabled = !isLive();
+        box.replaceChildren(
+          el("div", { className: "detail-head" }, el("h2", { textContent: C.detailEdge }), closeBtn),
+          el("p", { className: "reach" }, nodeLink(from), el("span", { className: "arrow", textContent: `-> ${e["edge/label"]} ->` }), nodeLink(to)),
+          el("ul", {},
+            el("li", { className: "muted small", textContent: fill(C.detailEdgeGraph, { graph: e["edge/graph"]["graph/title"] || e["edge/graph"]["graph/slug"] }) }),
+            el("li", { className: "muted small", textContent: fill(C.detailEdgeAt, { at: fmtAt(e["edge/at"]) }) }),
+            e["edge/date"] ? el("li", { className: "muted small", textContent: fill(C.detailEdgeDate, { date: e["edge/date"] }) }) : null,
+            e["edge/text"] ? el("li", { className: "muted small", textContent: fill(C.detailEdgeText, { text: e["edge/text"] }) }) : null),
+          el("div", {}, retract)
+        );
+        box.dataset.kind = "edge";
+        box.hidden = false;
+      }
+
+      // ---- Tabs, stats, timeline, log --------------------------------------------------------
+
+      function renderTabs() {
+        const counts = new Map(ds && state.db ? ds.q(Q.edgeCounts, state.db) : []);
+        const tabs = graphList().map((g) => {
+          const b = el("button", { type: "button", textContent: fill(C.tabTemplate, { title: g.title, edges: counts.get(g.slug) || 0 }) });
+          b.setAttribute("role", "tab");
+          b.setAttribute("aria-selected", String(g.slug === state.graph.slug));
+          b.dataset.graph = g.slug;
+          b.addEventListener("click", () => switchGraph(g.slug));
+          return b;
+        });
+        const add = el("button", { type: "button", className: "secondary outline", textContent: C.newGraphButton, id: "graph-new" });
+        add.addEventListener("click", () => { $("graph-form").hidden = false; $("graph-name").focus(); });
+        $("tabs").replaceChildren(...tabs, add);
+      }
+
+      function renderStats() {
+        const view = currentView();
+        $("stats").textContent = fill(C.statsTemplate, { graph: state.graph.title, nodes: view.nodes.length, edges: view.edges.length, entries: state.log.length });
+      }
+
+      function renderTimeline() {
+        const slider = $("time");
+        slider.max = String(state.log.length);
+        slider.value = String(state.time);
+        slider.disabled = state.log.length === 0 || !ds;
+        const n = state.time;
+        $("time-label").textContent = n >= state.log.length
+          ? fill(C.timeLive, { count: state.log.length })
+          : n === 0 ? C.timeStart : fill(C.timeAsOf, { n, count: state.log.length, at: fmtAt(state.log[n - 1].at) });
+      }
+
+      function describeEntry(e, byId) {
+        if (e.kind === "graph") return fill(C.logGraph, { graph: e.title });
+        if (e.kind === "retract") {
+          const target = byId.get(e.target);
+          return fill(C.logRetraction, { text: target ? target.text || `${target.from.slug} -> ${target.label} -> ${target.to.slug}` : e.target });
+        }
+        return e.text || `${e.from.slug} -> ${e.label} -> ${e.to.slug}`;
+      }
+
+      function renderLog() {
+        $("log-title").textContent = fill(C.logTitle, { count: state.log.length });
+        const byId = new Map(state.log.map((e) => [e.id, e]));
+        const retracted = new Set(state.log.filter((e) => e.kind === "retract").map((e) => e.target));
+        const items = [...state.log].reverse().map((e) => {
+          const li = el("li", { className: retracted.has(e.id) ? "retracted" : "" });
+          li.dataset.id = e.id;
+          appendAll(li,
+            e.kind === "fact" ? chip(graphTitle(e.graph), "graph") : null,
+            el("span", { className: "text", textContent: describeEntry(e, byId) }),
+            el("span", { className: "muted", textContent: fmtAt(e.at) })
+          );
+          if (e.kind === "fact" && retracted.has(e.id)) li.append(chip(C.logRetractedTag, "warn"));
+          if (e.kind === "fact" && !retracted.has(e.id)) {
+            const b = el("button", { type: "button", className: "secondary outline", textContent: C.retract });
+            b.addEventListener("click", () => retractFact(e.id));
+            li.append(b);
+          }
+          return li;
+        });
+        $("log-list").replaceChildren(...items);
+      }
+
+      // ---- Composer --------------------------------------------------------------------------
+
+      function computeDrafts() {
+        const lines = $("entry").value.split("\n");
+        const db = state.liveDb;
+        const labels = new Set(ds && db ? ds.q(Q.labels, db).map(([l]) => l) : []);
+        const graphs = new Set(graphList().map((g) => g.slug));
+        const seen = new Set();
+        const drafts = [];
+        lines.forEach((line, index) => {
+          const draft = parseLine(line, state.graph);
+          if (!draft) return;
+          draft.line = index + 1;
+          if (draft.error || !ds) { drafts.push(draft); return; }
+          const key = [draft.graph, draft.from.slug, draft.label, draft.to.slug].join("\u0000");
+          draft.duplicate = seen.has(key) || ds.q(Q.triple, db, draft.graph, draft.from.slug, draft.label, draft.to.slug) !== null;
+          seen.add(key);
+          draft.newFrom = !exists(db, ["node/slug", draft.from.slug]);
+          draft.newTo = !exists(db, ["node/slug", draft.to.slug]);
+          draft.newLabel = !labels.has(draft.label);
+          draft.newGraph = !graphs.has(draft.graph);
+          drafts.push(draft);
+        });
+        return drafts;
+      }
+
+      function renderPreview() {
+        state.drafts = computeDrafts();
+        const term = (t, isNew) => [
+          el("strong", { textContent: t.title || t.name }),
+          el("code", { className: "slug", textContent: t.slug }),
+          chip(isNew ? C.chipNewNode : C.chipKnownNode, isNew ? "new" : "")
+        ];
+        $("preview").replaceChildren(...state.drafts.map((d) => {
+          if (d.error) return el("li", { className: "err" }, chip(fill(C.lineError, { line: d.line, message: d.error }), "err"));
+          const li = el("li", { className: d.duplicate ? "skip" : "" });
+          appendAll(li,
+            chip(d.graphTitle, "graph"),
+            d.newGraph ? chip(C.chipNewGraph, "new") : null,
+            ...term(d.from, d.newFrom),
+            el("span", { className: "arrow", textContent: `-> ${d.label} ->` }),
+            d.newLabel ? chip(C.chipNewLabel, "warn") : null,
+            ...term(d.to, d.newTo),
+            d.date ? chip(fill(C.chipDate, { date: d.date })) : null,
+            d.duplicate ? chip(C.chipDuplicate, "warn") : null
+          );
+          return li;
+        }));
+        const ready = state.drafts.filter((d) => !d.error && !d.duplicate).length;
+        $("add").disabled = !ds || ready === 0;
+        $("add").textContent = ready ? fill(C.addButtonCount, { count: ready }) : C.addButton;
+      }
+
+      function addFacts() {
+        if (!ds) return;
+        const drafts = computeDrafts();
+        const ready = drafts.filter((d) => !d.error && !d.duplicate);
+        if (!ready.length) return;
+        const now = Date.now();
+        ready.forEach((d, index) => {
+          state.log.push({
+            id: newId(), kind: "fact", at: new Date(now + index).toISOString(),
+            graph: d.graph, graphTitle: d.graphTitle, from: d.from, to: d.to, label: d.label, date: d.date, text: d.text
+          });
+        });
+        saveLog();
+        // Keep the lines that were not added, so errors can be fixed in place.
+        const keep = new Set(drafts.filter((d) => d.error).map((d) => d.line));
+        $("entry").value = $("entry").value.split("\n").filter((_, i) => keep.has(i + 1)).join("\n");
+        const lastGraph = ready[ready.length - 1].graph;
+        rebuild();
+        const skipped = drafts.length - ready.length;
+        flash(fill(C.added, { count: ready.length, graph: graphTitle(lastGraph) }) + (skipped ? ` ${fill(C.addedSkipped, { skipped })}` : ""));
+        if (lastGraph !== state.graph.slug) switchGraph(lastGraph);
+        else renderAll();
+      }
+
+      function retractFact(id) {
+        if (!isLive()) return;
+        state.log.push({ id: newId(), kind: "retract", at: new Date().toISOString(), target: id });
+        saveLog();
+        rebuild();
+        if (state.selected && state.selected.kind === "edge" && state.selected.id === id) state.selected = null;
+        flash(C.retracted);
+        renderAll();
+      }
+
+      // ---- Navigation ------------------------------------------------------------------------
+
+      function switchGraph(slug, { keepSelection = false } = {}) {
+        state.graph = { slug, title: graphTitle(slug) };
+        writeJson(M.storage.view, { graph: slug });
+        if (!keepSelection) state.selected = null;
+        renderAll({ fit: true });
+        if (keepSelection && cy && state.selected && state.selected.kind === "node") {
+          const node = cy.$id(state.selected.slug);
+          if (node.nonempty()) cy.center(node);
+        }
+      }
+
+      function renderAll(opts = {}) {
+        if (!graphList().some((g) => g.slug === state.graph.slug) && state.log.length) state.graph = graphList()[0];
+        state.graph = { slug: state.graph.slug, title: graphTitle(state.graph.slug) };
+        renderTabs();
+        renderStats();
+        renderTimeline();
+        renderGraph(opts);
+        renderDetail();
+        renderLog();
+        renderPreview();
+        if (!$("status").textContent || !statusTimer) $("status").textContent = persistentStatus();
+      }
+
+      // ---- Import / export / clear -----------------------------------------------------------
+
+      function exportLog() {
+        const payload = { format: M.exportFile.format, version: M.exportFile.version, exportedAt: new Date().toISOString(), entries: state.log };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = el("a", { href: url, download: fill(M.exportFile.fileName, { date: new Date().toISOString().slice(0, 10) }) });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        flash(fill(C.exported, { count: state.log.length }));
+      }
+
+      function importText(text) {
+        let data;
+        try { data = JSON.parse(text); } catch { return flash(fill(C.importRejected, { reason: C.importParse })); }
+        if (!data || data.format !== M.exportFile.format || !Array.isArray(data.entries)) return flash(fill(C.importRejected, { reason: C.importNotLog }));
+        const missing = data.entries.findIndex((e) => !hasIdentity(e));
+        if (missing !== -1) return flash(fill(C.importRejected, { reason: fill(C.importMissingIdentity, { index: missing + 1 }) }));
+        const ids = new Set(state.log.map((e) => e.id));
+        const fresh = data.entries.map(sanitizeEntry).filter((e) => e && !ids.has(e.id));
+        state.log.push(...fresh);
+        saveLog();
+        rebuild();
+        renderAll({ fit: true });
+        flash(fill(C.imported, { added: fresh.length, skipped: data.entries.length - fresh.length }));
+      }
+
+      let clearArmed = null;
+      function clearLog() {
+        if (!clearArmed) {
+          $("clear").textContent = C.clearConfirm;
+          clearArmed = setTimeout(() => { clearArmed = null; $("clear").textContent = C.clear; }, M.timing.clearConfirmMs);
+          return;
+        }
+        clearTimeout(clearArmed);
+        clearArmed = null;
+        $("clear").textContent = C.clear;
+        state.log = [];
+        state.positions = {};
+        state.selected = null;
+        saveLog();
+        writeJson(M.storage.positions, state.positions);
+        rebuild();
+        renderAll();
+        flash(C.cleared);
+      }
+
+      // ---- Boot ------------------------------------------------------------------------------
+
+      function bindStatic() {
+        $("kicker").textContent = M.kicker;
+        $("title").textContent = M.title;
+        document.title = M.title;
+        $("intro").textContent = M.intro;
+        $("entry-label").textContent = C.entryLabel;
+        $("entry").placeholder = C.entryPlaceholder;
+        $("add").textContent = C.addButton;
+        $("add-hint").textContent = C.addHint;
+        $("syntax-title").textContent = C.syntaxTitle;
+        $("syntax-example").textContent = C.syntaxExample;
+        $("syntax-rules").replaceChildren(...C.syntaxRules.map((rule) => el("li", { textContent: rule })));
+        $("graph-name").placeholder = C.newGraphPlaceholder;
+        $("graph-create").textContent = C.newGraphCreate;
+        $("graph-cancel").textContent = C.newGraphCancel;
+        $("load-sample").textContent = C.loadSample;
+        $("relayout").textContent = C.relayout;
+        $("relayout").hidden = !cy;
+        $("time-title").textContent = C.timeTitle;
+        $("export").textContent = C.export;
+        $("import").textContent = C.import;
+        $("clear").textContent = C.clear;
+        $("legend").replaceChildren(
+          el("span", {}, el("span", { className: "swatch sw-focus" }), C.legendFocus),
+          el("span", {}, el("span", { className: "swatch sw-down" }), C.legendDown),
+          el("span", {}, el("span", { className: "swatch sw-up" }), C.legendUp)
+        );
+
+        $("entry").addEventListener("input", renderPreview);
+        $("entry").addEventListener("focus", () => { if (compact.matches && state.selected) select(null); });
+        $("entry").addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); addFacts(); }
+        });
+        $("composer").addEventListener("submit", (event) => { event.preventDefault(); addFacts(); });
+        $("time").addEventListener("input", () => {
+          state.time = Number($("time").value);
+          rebuild({ keepTime: true });
+          renderAll();
+        });
+        $("relayout").addEventListener("click", () => renderGraph({ relayout: true }));
+        $("load-sample").addEventListener("click", () => {
+          const ids = new Set(state.log.map((e) => e.id));
+          const seed = seedEntries().filter((e) => !ids.has(e.id));
+          state.log.push(...seed);
+          saveLog();
+          rebuild();
+          state.graph = { slug: M.defaultGraph.slug, title: M.defaultGraph.title };
+          renderAll({ fit: true });
+          flash(fill(C.sampleLoaded, { count: seed.length }));
+        });
+        $("graph-form").addEventListener("submit", (event) => {
+          event.preventDefault();
+          const name = $("graph-name").value.trim();
+          const slug = slugify(name);
+          if (!slug) return flash(C.errGraph);
+          if (graphList().some((g) => g.slug === slug) && (state.log.length || slug !== M.defaultGraph.slug)) return flash(fill(C.newGraphExists, { graph: name }));
+          state.log.push({ id: newId(), kind: "graph", at: new Date().toISOString(), slug, title: name });
+          saveLog();
+          rebuild();
+          $("graph-name").value = "";
+          $("graph-form").hidden = true;
+          switchGraph(slug);
+          flash(fill(C.graphCreated, { graph: name }));
+        });
+        $("graph-cancel").addEventListener("click", () => { $("graph-form").hidden = true; });
+        $("export").addEventListener("click", exportLog);
+        $("import").addEventListener("click", () => $("import-file").click());
+        $("import-file").addEventListener("change", async () => {
+          const file = $("import-file").files[0];
+          $("import-file").value = "";
+          if (file) importText(await file.text());
+        });
+        $("clear").addEventListener("click", clearLog);
+      }
+
+      function boot() {
+        state.log = loadLog();
+        if (readJson(M.storage.log) === undefined) saveLog();
+        const positions = readJson(M.storage.positions);
+        state.positions = positions && typeof positions === "object" && !Array.isArray(positions) ? positions : {};
+        rebuild();
+        const view = readJson(M.storage.view);
+        const graphs = graphList();
+        const wanted = view && typeof view.graph === "string" && graphs.find((g) => g.slug === view.graph);
+        state.graph = wanted || graphs.find((g) => g.slug === M.defaultGraph.slug) || graphs[0];
+        initCanvas();
+        bindStatic();
+        renderAll({ fit: true });
+        window.factGraph = { state, get cy() { return cy; }, datascript: ds, parseLine, select, switchGraph };
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

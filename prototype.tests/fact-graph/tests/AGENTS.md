@@ -1,0 +1,17 @@
+# Fact Graph Test Instructions
+
+Run commands from the repository root.
+
+- Validate the manifest with `node prototype.tests/fact-graph/tests/validate-manifest.mjs prototypes/fact-graph.html`.
+  It checks that every `C.*` copy key, colour, graph style, element id and storage key the code reads exists.
+- Fetch browser fixtures once with `prototype.tests/fact-graph/tests/fetch-fixtures.sh`.
+  The script pins each CDN file by SHA-256.
+- Install the isolated test dependency with `npm install --prefix prototype.tests/fact-graph`.
+- Run browser tests with `npm test --prefix prototype.tests/fact-graph`.
+- Set `CHROME_PATH` if Chromium is not at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+- Node taps use real mouse clicks at the Cytoscape rendered position.
+  Call `settle()` first, because fcose animates and an early click misses the node.
+- Expected copy comes from the manifest.
+  Do not hard-code user-facing strings in the spec.
+- The phone tests cover a real regression: the bottom sheet covered the Add button.
+  Do not remove the check that focusing the entry closes the sheet.
