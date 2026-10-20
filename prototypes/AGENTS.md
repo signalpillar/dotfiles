@@ -265,6 +265,16 @@ Read them before writing the first line, not after debugging.
   `require()` it directly instead.
 - `cytoscape-fcose` needs `layout-base` then `cose-base` loaded before it, as plain script tags.
   Keep node positions per graph and pass the known ones as `fixedNodeConstraint`, so adding a fact does not reshuffle the graph.
+- A recursive DataScript rule loops forever on a cyclic graph when its recursive body calls another rule (`(link ?a ?m) (reaches ?m ?b)`).
+  It stops when the recursive body uses plain patterns (`[?e "edge/from" ?a] [?e "edge/to" ?m] (reaches ?m ?b)`).
+  A non-recursive wrapper rule around the safe form, such as a slug lookup, also stops.
+- `ds.q` is synchronous, so a query that never ends freezes the tab.
+  Run user-typed queries in a Web Worker built from a Blob, `importScripts()` the library there, send the db as `ds.serializable(db)`, and `terminate()` the worker at a time limit.
+  This also works from `file://`.
+- DataScript has `clojure.string/includes?` and `str` but no `clojure.string/lower-case`.
+  For case-insensitive search, store a lowercase search attribute when you transact.
+- `page.route()` does not cover `importScripts()` inside a dedicated worker.
+  Use `page.context().route()` to serve CDN fixtures to workers in tests.
 - `Node.append(null)` inserts the text "null".
   Filter optional children before `append()` (an `appendAll` helper), not only in the element factory.
 - A fixed bottom sheet can cover primary controls lower on the page, such as a composer's submit button.

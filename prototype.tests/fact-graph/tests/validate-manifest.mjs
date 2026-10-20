@@ -37,6 +37,13 @@ manifest.seed.forEach((entry, index) => {
 });
 if (!graphs.has(manifest.defaultGraph.slug)) errors.push(`Default graph ${manifest.defaultGraph.slug} is not seeded`);
 for (const [, key] of html.matchAll(/M\.storage\.(\w+)/g)) if (!manifest.storage[key]) errors.push(`Missing storage key: ${key}`);
+for (const [, key] of code.matchAll(/\bQM\.(\w+)/g)) if (manifest.query[key] === undefined) errors.push(`Missing query setting: ${key}`);
+manifest.query.examples.forEach((group) => group.items.forEach((item) => {
+  const text = item.query.join("\n");
+  if (!item.title || !text.trim()) errors.push(`Empty example in ${group.group}`);
+  const depth = [...text].reduce((d, ch) => (d < 0 ? d : d + (ch === "[" || ch === "(" ? 1 : ch === "]" || ch === ")" ? -1 : 0)), 0);
+  if (depth !== 0) errors.push(`Unbalanced brackets in example: ${item.title}`);
+}));
 if (html.includes("\u2014")) errors.push("Em dash found; use a plain dash");
 
 if (errors.length) {

@@ -32,8 +32,15 @@ test.beforeAll(async () => {
     if (!fs.existsSync(path.join(fixtures, name))) throw new Error(`Missing ${name}. Run tests/fetch-fixtures.sh first.`);
   }
   server = http.createServer((request, response) => {
+    const pathname = new URL(request.url, "http://localhost").pathname;
+    if (pathname === "/fact-graph-timeout.html") {
+      // Same page with a 1 ms query limit, to exercise the stop path.
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(html.replace(`"timeoutMs": ${manifest.query.timeoutMs}`, '"timeoutMs": 1'));
+      return;
+    }
     const files = { "/fact-graph.html": [htmlPath, "text/html"], "/prototype-base.css": [baseCssPath, "text/css"] };
-    const entry = files[new URL(request.url, "http://localhost").pathname];
+    const entry = files[pathname];
     if (!entry) { response.writeHead(404); response.end(); return; }
     response.writeHead(200, { "content-type": entry[1] });
     response.end(fs.readFileSync(entry[0]));
@@ -47,26 +54,29 @@ test.afterAll(async () => {
 });
 
 // blocked: a set of dependency groups ("pico", "datascript", "cytoscape") to abort.
-async function open(page, { blocked = [], width = 1360 } = {}) {
+// aborted: dependency groups whose load the page may cancel on purpose (a stopped query worker).
+async function open(page, { blocked = [], aborted = [], width = 1360, file = "fact-graph.html" } = {}) {
+  const tolerated = [...blocked, ...aborted];
   const failures = [];
   page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
     if (message.type() !== "error") return;
-    if (blocked.length && /Failed to load resource/.test(message.text())) return;
+    if (tolerated.length && /Failed to load resource/.test(message.text())) return;
     failures.push(`console: ${message.text()}`);
   });
   page.on("requestfailed", (request) => {
     const dep = cdn[request.url()];
-    if (dep && blocked.includes(dep[2])) return;
+    if (dep && tolerated.includes(dep[2])) return;
     failures.push(`requestfailed: ${request.url()}`);
   });
-  await page.route("https://cdn.jsdelivr.net/**", (route) => {
+  // Context-level routing also covers importScripts() inside the query worker.
+  await page.context().route("https://cdn.jsdelivr.net/**", (route) => {
     const dep = cdn[route.request().url()];
     if (!dep || blocked.includes(dep[2])) return route.abort();
     return route.fulfill({ contentType: dep[1], path: path.join(fixtures, dep[0]) });
   });
   await page.setViewportSize({ width, height: 900 });
-  await page.goto(baseUrl);
+  await page.goto(baseUrl.replace("fact-graph.html", file));
   await expect(page.locator("#stats")).not.toBeEmpty();
   return failures;
 }
@@ -245,5 +255,83 @@ test("DataScript and Pico blocked: the page explains itself and keeps the log", 
   await page.locator("#log summary").click();
   await expect(page.locator("#log-list li")).toHaveCount(manifest.seed.length);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+  expect(failures).toEqual([]);
+});
+
+const examples = manifest.query.examples.flatMap((group) => group.items);
+
+async function runQuery(page, text) {
+  if (!(await page.locator("#query").evaluate((d) => d.open))) await page.locator("#query > summary").click();
+  await page.locator("#query-input").fill(text);
+  await page.locator("#query-run").click();
+  await expect(page.locator("#query-status")).not.toHaveText(C.queryRunning);
+  return page.locator("#query-status").textContent();
+}
+
+test("plain text search lists nodes, rings them and jumps to another graph", async ({ page }) => {
+  const failures = await open(page);
+  const status = await runQuery(page, "GOV");
+  expect(status).toContain(fill(C.queryTextMode, { term: "GOV" }));
+  const cells = page.locator("#query-results .node-cell");
+  await expect(cells).toHaveCount(1);
+  await expect(cells.first()).toHaveText("USA.gov");
+  expect(await classesOf(page, "usa.gov")).toContain("match");
+  expect(await classesOf(page, "ews")).not.toContain("match");
+
+  // 'sensors' lives only in 'professional'; tapping it switches graph and selects it.
+  await runQuery(page, "sensors");
+  await page.locator("#query-results .node-cell", { hasText: "satellite sensors" }).click();
+  await expect(page.getByRole("tab", { name: /^professional/ })).toHaveAttribute("aria-selected", "true");
+  expect(await classesOf(page, "satellite-sensors")).toContain("focus");
+  expect(failures).toEqual([]);
+});
+
+test("every example query runs without an error", async ({ page }) => {
+  const failures = await open(page);
+  await tapNode(page, "ews"); // the ?node examples need a selected node
+  await page.locator("#query > summary").click();
+  for (const example of examples) {
+    await page.locator("#query-examples button", { hasText: example.title }).click();
+    await expect(page.locator("#query-input")).toHaveValue(example.query.join("\n"));
+    await expect(page.locator("#query-status")).not.toHaveText(C.queryRunning);
+    const status = await page.locator("#query-status").textContent();
+    expect(status, example.title).toMatch(/row\(s\)/);
+    expect(await page.locator("#query-results tbody tr").count(), example.title).toBeGreaterThan(0);
+  }
+  expect(failures).toEqual([]);
+});
+
+test("reaches terminates on a cycle and results follow new facts", async ({ page }) => {
+  const failures = await open(page);
+  await page.locator("#entry").fill("USA.gov -> supports -> Ukraine");
+  await page.locator("#add").click();
+  await tapNode(page, "ukraine");
+  await runQuery(page, '[:find ?slug :in $ % ?node :where (reaches-slug ?node ?slug)]');
+  const slugs = await page.locator("#query-results .node-cell").evaluateAll((els) => els.map((e) => e.dataset.slug).sort());
+  expect(slugs).toEqual(["air-defence-aid", "ews", "satellite-sensors", "ukraine", "usa.gov"]);
+
+  await runQuery(page, "norad");
+  await expect(page.locator("#query-results")).toHaveText(C.queryEmpty);
+  await page.locator("#entry").fill("EWS -> monitored by -> NORAD");
+  await page.locator("#add").click();
+  await expect(page.locator("#query-results .node-cell")).toHaveText(["NORAD"]);
+  expect(failures).toEqual([]);
+});
+
+test("query errors explain themselves", async ({ page }) => {
+  const failures = await open(page);
+  expect(await runQuery(page, '[:find ?s :in $ ?node :where [?n "node/slug" ?s]]')).toBe(C.queryNeedsNode);
+  expect(await runQuery(page, '[:find ?s :in $ ?who :where [?n "node/slug" ?s]]')).toBe(fill(C.queryUnknownInput, { name: "?who" }));
+  expect(await runQuery(page, '[:find ?s :where [?n "node/slug" ?s]')).toContain(fill(C.queryError, { message: "" }).trim());
+  await expect(page.locator("#query-results")).toBeEmpty();
+  await page.locator("#query-clear").click();
+  await expect(page.locator("#query-input")).toHaveValue("");
+  expect(failures).toEqual([]);
+});
+
+test("a query over the time limit is stopped", async ({ page }) => {
+  // At 1 ms the worker is stopped while it still loads DataScript, so that request is cancelled.
+  const failures = await open(page, { file: "fact-graph-timeout.html", aborted: ["datascript"] });
+  expect(await runQuery(page, "[:find ?a ?b :where [?a _ _] [?b _ _]]")).toBe(fill(C.queryTimeout, { seconds: 0.001 }));
   expect(failures).toEqual([]);
 });

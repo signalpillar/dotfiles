@@ -49,6 +49,7 @@
       .sw-focus { background: var(--fg-focus); }
       .sw-down { background: var(--fg-down); }
       .sw-up { background: var(--fg-up); }
+      .sw-match { background: transparent; box-shadow: inset 0 0 0 3px var(--fg-match); }
 
       .timeline { display: grid; gap: 0.15rem; }
       .timeline label { display: flex; justify-content: space-between; gap: 0.5rem; margin: 0; font-size: 0.85rem; }
@@ -91,6 +92,21 @@
       .log li button { margin: 0; inline-size: auto; padding: 0.2rem 0.55rem; min-block-size: 2.5rem; font-size: 0.8rem; }
       .log-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block: 0.5rem; }
       .log-actions button { margin: 0; inline-size: auto; flex: 1 1 auto; min-block-size: 2.75rem; }
+      .query textarea { margin-block-end: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; min-block-size: 4.5rem; }
+      .query-results { overflow-x: auto; }
+      .query-results table { margin: 0 0 0.75rem; font-size: 0.82rem; }
+      .query-results th { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; }
+      .query-results td, .query-results th { padding: 0.3rem 0.5rem; }
+      .query-heading { margin: 0.75rem 0 0.25rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--pico-muted-color); }
+      .query-group { margin-block-end: 0.75rem; }
+      .query-group h4 { margin: 0.5rem 0 0.25rem; font-size: 0.9rem; }
+      .query-group ul, .query-help ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+      .query-group li, .query-help li { list-style: none; margin: 0; font-size: 0.85rem; }
+      .query-group li button { margin: 0 0 0.15rem; inline-size: auto; padding: 0.3rem 0.6rem; min-block-size: 2.5rem; font-size: 0.85rem; text-align: start; }
+      .query pre { margin: 0; padding: 0.4rem 0.5rem; font-size: 0.75rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .query-help h4 { margin: 0.75rem 0 0.25rem; font-size: 0.85rem; }
+      .query-help code { font-size: 0.78rem; }
+      .node-cell { margin: 0; inline-size: auto; padding: 0.2rem 0.5rem; min-block-size: 2.5rem; font-size: 0.82rem; text-align: start; }
       .status-line { margin: 0; font-size: 0.85rem; color: var(--pico-muted-color); min-block-size: 1.2em; }
 
       /* Compact: node / edge detail is a bottom sheet in the thumb zone. */
@@ -156,6 +172,27 @@
           </details>
         </form>
 
+        <details class="query" id="query">
+          <summary id="query-title"></summary>
+          <form id="query-form">
+            <label for="query-input" id="query-label"></label>
+            <textarea id="query-input" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+            <div class="composer-actions">
+              <button type="submit" id="query-run"></button>
+              <button type="button" class="secondary outline" id="query-clear"></button>
+              <span class="muted small" id="query-hint"></span>
+            </div>
+          </form>
+          <p class="status-line" id="query-status" role="status"></p>
+          <div class="query-results" id="query-results"></div>
+          <details class="query-help" id="query-help">
+            <summary id="query-help-title"></summary>
+            <div id="query-help-body"></div>
+          </details>
+          <h3 class="query-heading" id="query-examples-title"></h3>
+          <div id="query-examples"></div>
+        </details>
+
         <section class="detail" id="detail" hidden aria-live="polite"></section>
 
         <details class="log" id="log">
@@ -214,7 +251,8 @@
           "labelMaxWidth": 130,
           "edgeWidth": 1.5,
           "highlightWidth": 3,
-          "fadedOpacity": 0.15
+          "fadedOpacity": 0.15,
+          "matchBorder": 5
         },
         "colors": {
           "canvas": "#ffffff",
@@ -224,6 +262,7 @@
           "edgeText": "#5d6678",
           "textHalo": "#ffffff",
           "focus": "#e8590c",
+          "match": "#f59f00",
           "down": "#2f9e44",
           "up": "#7048e8",
           "chip": "#eef1f6",
@@ -236,6 +275,100 @@
           "error-soft": "#fdecec",
           "graph": "#5f3dc4",
           "graph-soft": "#f1ecfd"
+        },
+        "query": {
+          "timeoutMs": 3000,
+          "maxRows": 200,
+          "textQuery": "[:find ?slug :in $ ?term :where [?n \"node/search\" ?text] [(clojure.string/includes? ?text ?term)] [?n \"node/slug\" ?slug]]",
+          "rules": [
+            "[[(fact ?from ?label ?to) [?e \"edge/label\" ?label] [?e \"edge/from\" ?f] [?e \"edge/to\" ?t] [?f \"node/slug\" ?from] [?t \"node/slug\" ?to]]",
+            " [(fact-in ?graph ?from ?label ?to) [?g \"graph/slug\" ?graph] [?e \"edge/graph\" ?g] [?e \"edge/label\" ?label] [?e \"edge/from\" ?f] [?e \"edge/to\" ?t] [?f \"node/slug\" ?from] [?t \"node/slug\" ?to]]",
+            " [(node-in ?graph ?slug) (fact-in ?graph ?slug ?label ?other)]",
+            " [(node-in ?graph ?slug) (fact-in ?graph ?other ?label ?slug)]",
+            " [(reaches ?a ?b) [?e \"edge/from\" ?a] [?e \"edge/to\" ?b]]",
+            " [(reaches ?a ?b) [?e \"edge/from\" ?a] [?e \"edge/to\" ?m] (reaches ?m ?b)]",
+            " [(reaches-slug ?from ?to) [?a \"node/slug\" ?from] (reaches ?a ?b) [?b \"node/slug\" ?to]]]"
+          ],
+          "shape": [
+            "[:find  ?from ?label ?to",
+            " :in    $ % ?graph",
+            " :where (fact-in ?graph ?from ?label ?to)]"
+          ],
+          "shapeParts": [
+            ":find lists what to return: variables (?name) or aggregates such as (count ?e).",
+            ":in lists the inputs. Leave it out and the page passes $ and % for you.",
+            ":where lists clauses. A row comes back for every way all clauses match at once.",
+            "A clause [?e \"attribute\" ?value] matches one stored fact. Use _ for a position you do not care about.",
+            "The same variable in two clauses joins them, like a foreign key."
+          ],
+          "inputs": [
+            { "name": "$", "text": "the database at the replay time" },
+            { "name": "%", "text": "the built-in rules below" },
+            { "name": "?graph", "text": "slug of the open graph" },
+            { "name": "?node", "text": "slug of the selected node (tap one first)" }
+          ],
+          "attributes": [
+            { "name": "node/slug", "text": "unique id of a node, for example \"ews\"" },
+            { "name": "node/title", "text": "explicit title from 'slug | Title' or 'Title (ABBR)'" },
+            { "name": "node/name", "text": "the text first typed for the node" },
+            { "name": "node/search", "text": "slug, title and name in lowercase, for text search" },
+            { "name": "edge/from, edge/to", "text": "the two node entities of a fact" },
+            { "name": "edge/label", "text": "the relation, lowercase, for example \"depends on\"" },
+            { "name": "edge/graph", "text": "the graph entity of a fact" },
+            { "name": "edge/at, edge/date, edge/text", "text": "entry time, optional @date, and the typed line" },
+            { "name": "graph/slug, graph/title", "text": "graph id and display name" }
+          ],
+          "ruleDocs": [
+            { "name": "(fact ?from ?label ?to)", "text": "a fact in any graph, with node slugs" },
+            { "name": "(fact-in ?graph ?from ?label ?to)", "text": "a fact in one graph" },
+            { "name": "(node-in ?graph ?slug)", "text": "a node that has an edge in the graph" },
+            { "name": "(reaches-slug ?from ?to)", "text": "?to is downstream of ?from, any number of steps, across all graphs" },
+            { "name": "(reaches ?a ?b)", "text": "the same on entity ids" }
+          ],
+          "tips": [
+            "Plain text (no '[') is a case-insensitive search in node slug, title and name.",
+            "Strings are case-sensitive in Datalog. Relations are stored in lowercase.",
+            "Predicates: [(clojure.string/includes? ?s \"gov\")], [(> ?n 1)], (not [?e \"edge/date\" _]).",
+            "Aggregates: (count ?e), (count-distinct ?g), (min ?x), (max ?x).",
+            "Tap a node in the results to select it. All result nodes get an amber ring on the graph.",
+            "A query stops after 3 s. In a recursive rule, use plain patterns in the recursive body: a call to another rule there loops forever on a cycle."
+          ],
+          "examples": [
+            {
+              "group": "Text search",
+              "items": [
+                { "title": "Nodes that mention 'ews'", "query": ["ews"] },
+                { "title": "Nodes that mention 'gov'", "query": ["gov"] }
+              ]
+            },
+            {
+              "group": "First steps",
+              "items": [
+                { "title": "All nodes", "query": ["[:find ?slug", " :where [_ \"node/slug\" ?slug]]"] },
+                { "title": "Nodes with their titles", "query": ["[:find ?slug ?title", " :where [?n \"node/slug\" ?slug]", "        [?n \"node/title\" ?title]]"] },
+                { "title": "Text search, written as Datalog", "query": ["[:find ?slug", " :where [?n \"node/search\" ?text]", "        [(clojure.string/includes? ?text \"gov\")]", "        [?n \"node/slug\" ?slug]]"] },
+                { "title": "Every relation and how often it is used", "query": ["[:find ?label (count ?e)", " :where [?e \"edge/label\" ?label]]"] }
+              ]
+            },
+            {
+              "group": "Facts and graphs",
+              "items": [
+                { "title": "All facts in the open graph", "query": ["[:find ?from ?label ?to", " :in $ % ?graph", " :where (fact-in ?graph ?from ?label ?to)]"] },
+                { "title": "Who depends on what (one relation)", "query": ["[:find ?from ?to", " :where (fact ?from \"depends on\" ?to)]"] },
+                { "title": "How many graphs each node is in", "query": ["[:find ?slug (count-distinct ?graph)", " :where (node-in ?graph ?slug)]"] },
+                { "title": "Facts with a world date", "query": ["[:find ?from ?label ?to ?date", " :where [?e \"edge/date\" ?date]", "        [?e \"edge/label\" ?label]", "        [?e \"edge/from\" ?f] [?f \"node/slug\" ?from]", "        [?e \"edge/to\" ?t] [?t \"node/slug\" ?to]]"] },
+                { "title": "Nodes with no outgoing facts (end points)", "query": ["[:find ?slug", " :where [?n \"node/slug\" ?slug]", "        (not [_ \"edge/from\" ?n])]"] }
+              ]
+            },
+            {
+              "group": "Selected node",
+              "items": [
+                { "title": "What the selected node points to", "query": ["[:find ?label ?to", " :in $ % ?node", " :where (fact ?node ?label ?to)]"] },
+                { "title": "Everything the selected node reaches", "query": ["[:find ?slug", " :in $ % ?node", " :where (reaches-slug ?node ?slug)]"] },
+                { "title": "Everything that reaches the selected node", "query": ["[:find ?slug", " :in $ % ?node", " :where (reaches-slug ?slug ?node)]"] }
+              ]
+            }
+          ]
         },
         "seed": [
           { "kind": "graph", "slug": "news", "title": "news", "at": "2026-10-01T08:00:00Z" },
@@ -263,6 +396,32 @@
           "legendFocus": "selected",
           "legendDown": "downstream (it reaches)",
           "legendUp": "upstream (reaches it)",
+          "legendMatch": "query match",
+          "queryTitle": "Search and query nodes",
+          "queryLabel": "Plain text searches node names. Start with '[' for a Datalog query.",
+          "queryPlaceholder": "ews\n\nor\n\n[:find ?slug :where [_ \"node/slug\" ?slug]]",
+          "queryRun": "Run",
+          "queryClear": "Clear",
+          "queryHint": "Ctrl+Enter runs",
+          "queryRunning": "Running...",
+          "queryResult": "{rows} row(s) in {ms} ms. {matches} result node(s) ringed in '{graph}'.",
+          "queryTruncated": "Showing the first {shown} rows.",
+          "queryTextMode": "Text search for '{term}' in slug, title and name.",
+          "queryAsOf": "Runs against the replay time, not live.",
+          "queryEmpty": "No rows.",
+          "queryError": "Query error: {message}",
+          "queryTimeout": "Stopped after {seconds} s. See the last tip in Query structure.",
+          "queryNeedsNode": "This query uses ?node. Tap a node on the graph first.",
+          "queryUnknownInput": "Unknown input '{name}'. Use $, %, ?graph or ?node.",
+          "queryColumn": "col {n}",
+          "queryExamplesTitle": "Examples (tap to run)",
+          "queryHelpTitle": "Query structure",
+          "queryHelpShape": "Shape",
+          "queryHelpInputs": "Inputs (:in)",
+          "queryHelpAttributes": "Attributes",
+          "queryHelpRules": "Built-in rules (need % in :in, or no :in at all)",
+          "queryHelpTips": "Tips",
+          "queryInline": "Web Workers are unavailable, so queries run on the page. A query that never ends freezes the page.",
           "relayout": "Re-layout",
           "timeTitle": "Replay",
           "timeLive": "live · all {count} entries",
@@ -501,8 +660,13 @@
 
       function nodeTx(db, tempid, term) {
         const tx = { ":db/id": tempid, "node/slug": term.slug };
+        const known = exists(db, ["node/slug", term.slug]) ? ds.pull(db, NODE_PULL, ["node/slug", term.slug]) : null;
         if (term.title) tx["node/title"] = term.title; // explicit title: the latest entry wins
-        if (!exists(db, ["node/slug", term.slug])) tx["node/name"] = term.name; // first seen text is the fallback
+        if (!known) tx["node/name"] = term.name; // first seen text is the fallback
+        // DataScript has no lower-case function, so text search matches this precomputed field.
+        const title = term.title || (known && known["node/title"]) || "";
+        const name = (known && known["node/name"]) || term.name;
+        tx["node/search"] = [term.slug, title, name].join(" ").toLowerCase();
         return tx;
       }
       function graphTx(db, tempid, slug, title) {
@@ -532,7 +696,9 @@
         graph: null,
         selected: null, // { kind: "node", slug } or { kind: "edge", id }
         positions: {},
-        drafts: []
+        drafts: [],
+        dbVersion: 0,
+        matches: new Set() // node slugs from the last query result
       };
 
       function loadLog() {
@@ -554,6 +720,7 @@
         if (!ds) return;
         state.liveDb = buildDb(state.log);
         state.db = isLive() ? state.liveDb : buildDb(state.log.slice(0, state.time));
+        state.dbVersion += 1;
       }
 
       function graphList() {
@@ -633,7 +800,8 @@
             { selector: "node.down", style: { "background-color": K.down } },
             { selector: "edge.down", style: { "line-color": K.down, "target-arrow-color": K.down, "width": S.highlightWidth } },
             { selector: ".focus", style: { "background-color": K.focus, "line-color": K.focus, "target-arrow-color": K.focus, "width": S.focusSize, "height": S.focusSize, "font-weight": "bold" } },
-            { selector: "edge.focus", style: { "width": S.highlightWidth } }
+            { selector: "edge.focus", style: { "width": S.highlightWidth } },
+            { selector: "node.match", style: { "border-width": S.matchBorder, "border-color": K.match, "border-opacity": 1 } }
           ]
         });
         cy.on("tap", "node", (event) => select({ kind: "node", slug: event.target.id() }));
@@ -728,7 +896,8 @@
 
       function applyHighlight() {
         if (!cy) return;
-        cy.elements().removeClass("faded focus down up");
+        cy.elements().removeClass("faded focus down up match");
+        cy.nodes().filter((n) => state.matches.has(n.id())).addClass("match");
         const sel = state.selected;
         if (!sel) return;
         const target = sel.kind === "node" ? cy.$id(sel.slug) : cy.$id(`e:${sel.id}`);
@@ -1035,7 +1204,255 @@
         renderDetail();
         renderLog();
         renderPreview();
+        if (query.req && !query.req.error) runQuery({ rerun: true });
         if (!$("status").textContent || !statusTimer) $("status").textContent = persistentStatus();
+      }
+
+      // ---- Query -----------------------------------------------------------------------------
+
+      const QM = M.query;
+      const RULES = QM.rules.join("\n");
+      const DS_URL = (document.querySelector('script[src*="datascript"]') || {}).src;
+      const query = { req: null, run: 0, seq: 0, worker: null, workerDbVersion: -1, pending: null, inline: false };
+
+      const clauseOf = (q, name) => {
+        const m = q.match(new RegExp(`:${name}\\s+([\\s\\S]*?)\\s*(?=:find|:in|:with|:where|\\]\\s*$)`));
+        return m ? m[1].trim() : null;
+      };
+
+      // Reads the query text once. ?node is frozen at Run time; $ and ?graph resolve on every re-run.
+      function prepareQuery(raw) {
+        const text = raw.trim();
+        if (!text) return null;
+        if (!text.startsWith("[")) {
+          const term = text.toLowerCase();
+          return { mode: "text", term: text, query: QM.textQuery, names: ["$", "?term"], values: { "?term": term }, columns: ["?slug"], shape: "rel" };
+        }
+        let q = text;
+        let names = ["$"];
+        const inClause = clauseOf(q, "in");
+        if (inClause !== null) names = inClause.split(/\s+/);
+        else if (/:where/.test(q)) {
+          q = q.replace(/:where/, ":in $ % :where"); // so the built-in rules work without an :in clause
+          names = ["$", "%"];
+        }
+        const values = {};
+        for (const name of names) {
+          if (name === "?node") {
+            if (!state.selected || state.selected.kind !== "node") return { error: C.queryNeedsNode };
+            values[name] = state.selected.slug;
+          } else if (!["$", "%", "?graph"].includes(name)) {
+            return { error: fill(C.queryUnknownInput, { name }) };
+          }
+        }
+        const find = clauseOf(q, "find") || "";
+        const columns = [...find.matchAll(/\((?:[^()]|\([^()]*\))*\)|\?[^\s()[\]]+/g)].map((m) => m[0]);
+        const shape = /^\[[\s\S]*\.\.\.\s*\]$/.test(find) ? "coll" : find.startsWith("[") ? "tuple" : /\s\.$/.test(find) ? "scalar" : "rel";
+        return { mode: "datalog", query: q, names, values, columns, shape };
+      }
+
+      function resolveInputs(req) {
+        return req.names.map((name) => {
+          if (name === "$") return { db: true };
+          if (name === "%") return RULES;
+          if (name === "?graph") return state.graph.slug;
+          return req.values[name];
+        });
+      }
+
+      function dropWorker() {
+        if (query.worker) query.worker.terminate();
+        query.worker = null;
+        if (query.pending) {
+          clearTimeout(query.pending.timer);
+          query.pending.resolve({ ok: false, stale: true });
+          query.pending = null;
+        }
+      }
+
+      // Queries run in a Web Worker, so a query that never ends can be stopped.
+      function getWorker() {
+        if (query.worker || query.inline) return query.worker;
+        const source = `let ds = null, db = null;
+          onmessage = (event) => {
+            const m = event.data;
+            try {
+              if (!ds) { importScripts(m.lib); ds = self.datascript; }
+              if (m.db) db = ds.from_serializable(m.db);
+              const args = m.inputs.map((x) => (x && x.db ? db : x));
+              const start = performance.now();
+              const result = ds.q(m.query, ...args);
+              postMessage({ id: m.id, ok: true, result: JSON.parse(JSON.stringify(result === undefined ? null : result)), ms: performance.now() - start });
+            } catch (error) {
+              postMessage({ id: m.id, ok: false, error: String((error && error.message) || error) });
+            }
+          };`;
+        try {
+          query.worker = new Worker(URL.createObjectURL(new Blob([source], { type: "text/javascript" })));
+          query.workerDbVersion = -1;
+        } catch {
+          query.inline = true;
+        }
+        return query.worker;
+      }
+
+      function execute(req) {
+        if (query.pending) dropWorker();
+        const inputs = resolveInputs(req);
+        const worker = getWorker();
+        if (!worker) {
+          try {
+            const start = performance.now();
+            const result = ds.q(req.query, ...inputs.map((x) => (x && x.db ? state.db : x)));
+            return Promise.resolve({ ok: true, result, ms: performance.now() - start });
+          } catch (error) {
+            return Promise.resolve({ ok: false, error: String((error && error.message) || error) });
+          }
+        }
+        return new Promise((resolve) => {
+          const id = ++query.seq;
+          const message = { id, lib: DS_URL, query: req.query, inputs };
+          if (query.workerDbVersion !== state.dbVersion) {
+            message.db = JSON.parse(JSON.stringify(ds.serializable(state.db)));
+            query.workerDbVersion = state.dbVersion;
+          }
+          const timer = setTimeout(() => {
+            query.pending = null;
+            worker.terminate();
+            if (query.worker === worker) query.worker = null;
+            resolve({ ok: false, timeout: true });
+          }, QM.timeoutMs);
+          query.pending = { timer, resolve };
+          worker.onmessage = (event) => {
+            if (event.data.id !== id) return;
+            clearTimeout(timer);
+            query.pending = null;
+            resolve(event.data);
+          };
+          worker.onerror = (event) => {
+            event.preventDefault();
+            dropWorker();
+            resolve({ ok: false, error: event.message || "worker error" });
+          };
+          worker.postMessage(message);
+        });
+      }
+
+      function toRows(result, shape) {
+        if (shape === "scalar") return result === null || result === undefined ? [] : [[result]];
+        if (shape === "tuple") return Array.isArray(result) && result.length ? [result] : [];
+        if (!Array.isArray(result)) return [];
+        return shape === "coll" ? result.map((v) => [v]) : result.map((r) => (Array.isArray(r) ? r : [r]));
+      }
+
+      // A value is a node when it is a known slug, a node entity id, or a pulled map with a slug.
+      function slugOf(value) {
+        if (typeof value === "string") return exists(state.db, ["node/slug", value]) ? value : null;
+        if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+          const pulled = ds.pull(state.db, NODE_PULL, value);
+          return pulled && pulled["node/slug"] ? pulled["node/slug"] : null;
+        }
+        if (value && typeof value === "object" && typeof value["node/slug"] === "string") return value["node/slug"];
+        return null;
+      }
+
+      function focusNode(slug) {
+        state.selected = { kind: "node", slug };
+        if (!currentView().nodes.some((n) => n.slug === slug)) {
+          const other = ds.q(Q.alsoIn, state.db, slug).map(([g]) => g).sort()[0];
+          if (other) { switchGraph(other, { keepSelection: true }); return; }
+        }
+        select(state.selected);
+        if (cy && cy.$id(slug).nonempty()) cy.animate({ center: { eles: cy.$id(slug) } }, { duration: M.layout.animationDuration });
+      }
+
+      function renderResults(req, res) {
+        const rows = toRows(res.result, req.shape);
+        rows.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+        const matches = new Set();
+        const cell = (value) => {
+          const slug = slugOf(value);
+          if (slug) {
+            const b = el("button", { type: "button", className: "secondary outline node-cell", textContent: nodeInfo(state.db, slug).display });
+            b.dataset.slug = slug;
+            b.addEventListener("click", () => focusNode(slug));
+            return el("td", {}, b);
+          }
+          return el("td", { textContent: value !== null && typeof value === "object" ? JSON.stringify(value) : String(value) });
+        };
+        rows.forEach((row) => row.forEach((value) => { const slug = slugOf(value); if (slug) matches.add(slug); }));
+        const shown = rows.slice(0, QM.maxRows);
+        const width = rows.reduce((n, r) => Math.max(n, r.length), req.columns.length);
+        const head = Array.from({ length: width }, (_, i) => req.columns[i] || fill(C.queryColumn, { n: i + 1 }));
+        $("query-results").replaceChildren(rows.length
+          ? el("table", {},
+            el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { scope: "col", textContent: h })))),
+            el("tbody", {}, ...shown.map((r) => el("tr", {}, ...r.map(cell)))))
+          : el("p", { className: "muted small", textContent: C.queryEmpty }));
+        state.matches = matches;
+        applyHighlight();
+        const ringed = cy ? cy.nodes().filter((n) => matches.has(n.id())).length : currentView().nodes.filter((n) => matches.has(n.slug)).length;
+        $("query-status").textContent = [
+          req.mode === "text" ? fill(C.queryTextMode, { term: req.term }) : null,
+          fill(C.queryResult, { rows: rows.length, ms: Math.round(res.ms || 0), matches: ringed, graph: state.graph.title }),
+          rows.length > shown.length ? fill(C.queryTruncated, { shown: shown.length }) : null,
+          isLive() ? null : C.queryAsOf,
+          query.inline ? C.queryInline : null
+        ].filter(Boolean).join(" ");
+      }
+
+      function showQueryProblem(message) {
+        state.matches = new Set();
+        applyHighlight();
+        $("query-results").replaceChildren();
+        $("query-status").textContent = message;
+      }
+
+      async function runQuery({ rerun = false } = {}) {
+        if (!rerun) query.req = prepareQuery($("query-input").value);
+        const req = query.req;
+        if (!req) return clearQuery();
+        if (req.error) return showQueryProblem(req.error);
+        if (!ds || !state.db) return;
+        const token = ++query.run;
+        $("query-status").textContent = C.queryRunning;
+        const res = await execute(req);
+        if (token !== query.run || res.stale) return;
+        if (!res.ok) return showQueryProblem(res.timeout ? fill(C.queryTimeout, { seconds: QM.timeoutMs / 1000 }) : fill(C.queryError, { message: res.error }));
+        renderResults(req, res);
+      }
+
+      function clearQuery() {
+        query.req = null;
+        query.run += 1;
+        $("query-input").value = "";
+        showQueryProblem("");
+      }
+
+      function renderQueryHelp() {
+        const pairs = (items) => el("ul", {}, ...items.map((item) => el("li", {}, el("code", { textContent: item.name }), ` ${item.text}`)));
+        $("query-help-body").replaceChildren(
+          el("h4", { textContent: C.queryHelpShape }),
+          el("pre", {}, el("code", { textContent: QM.shape.join("\n") })),
+          el("ul", {}, ...QM.shapeParts.map((t) => el("li", { textContent: t }))),
+          el("h4", { textContent: C.queryHelpInputs }), pairs(QM.inputs),
+          el("h4", { textContent: C.queryHelpAttributes }), pairs(QM.attributes),
+          el("h4", { textContent: C.queryHelpRules }), pairs(QM.ruleDocs),
+          el("h4", { textContent: C.queryHelpTips }),
+          el("ul", {}, ...QM.tips.map((t) => el("li", { textContent: t })))
+        );
+        $("query-examples").replaceChildren(...QM.examples.map((group) => el("div", { className: "query-group" },
+          el("h4", { textContent: group.group }),
+          el("ul", {}, ...group.items.map((item) => {
+            const text = item.query.join("\n");
+            const b = el("button", { type: "button", className: "secondary", textContent: item.title });
+            b.addEventListener("click", () => {
+              $("query-input").value = text;
+              runQuery();
+              $("query-input").scrollIntoView({ block: "nearest" });
+            });
+            return el("li", {}, b, el("pre", {}, el("code", { textContent: text })));
+          })))));
       }
 
       // ---- Import / export / clear -----------------------------------------------------------
@@ -1114,11 +1531,28 @@
         $("legend").replaceChildren(
           el("span", {}, el("span", { className: "swatch sw-focus" }), C.legendFocus),
           el("span", {}, el("span", { className: "swatch sw-down" }), C.legendDown),
-          el("span", {}, el("span", { className: "swatch sw-up" }), C.legendUp)
+          el("span", {}, el("span", { className: "swatch sw-up" }), C.legendUp),
+          el("span", {}, el("span", { className: "swatch sw-match" }), C.legendMatch)
         );
 
+        $("query-title").textContent = C.queryTitle;
+        $("query-label").textContent = C.queryLabel;
+        $("query-input").placeholder = C.queryPlaceholder;
+        $("query-run").textContent = C.queryRun;
+        $("query-run").disabled = !ds;
+        $("query-clear").textContent = C.queryClear;
+        $("query-hint").textContent = C.queryHint;
+        $("query-help-title").textContent = C.queryHelpTitle;
+        $("query-examples-title").textContent = C.queryExamplesTitle;
+        renderQueryHelp();
+        $("query-form").addEventListener("submit", (event) => { event.preventDefault(); runQuery(); });
+        $("query-input").addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); runQuery(); }
+        });
+        $("query-clear").addEventListener("click", clearQuery);
+
         $("entry").addEventListener("input", renderPreview);
-        $("entry").addEventListener("focus", () => { if (compact.matches && state.selected) select(null); });
+        for (const id of ["entry", "query-input"]) $(id).addEventListener("focus", () => { if (compact.matches && state.selected) select(null); });
         $("entry").addEventListener("keydown", (event) => {
           if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); addFacts(); }
         });

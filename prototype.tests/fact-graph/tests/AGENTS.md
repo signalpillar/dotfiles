@@ -15,3 +15,7 @@ Run commands from the repository root.
   Do not hard-code user-facing strings in the spec.
 - The phone tests cover a real regression: the bottom sheet covered the Add button.
   Do not remove the check that focusing the entry closes the sheet.
+- CDN routes use `page.context().route()`, because the query worker loads DataScript with `importScripts()`.
+- The example-query test runs every example from the manifest and expects rows.
+  A new example must return rows on the seed data with `ews` selected.
+- The timeout test loads `/fact-graph-timeout.html`, which the test server serves with `timeoutMs` set to 1.
