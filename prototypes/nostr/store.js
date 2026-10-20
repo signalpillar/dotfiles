@@ -307,7 +307,12 @@
           outbox.createIndex("byApp", ["owner", "app"]);
           db.createObjectStore("meta", { keyPath: "key" });
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          const db = req.result;
+          // Another page wants to delete or upgrade the database (for example "Delete all" on about.html): let it.
+          db.onversionchange = () => { db.close(); dbPromise = null; };
+          resolve(db);
+        };
         req.onerror = () => reject(req.error);
       });
     }

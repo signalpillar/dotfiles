@@ -37,6 +37,11 @@ re-discovering the same mistake.
   It must keep working on local data without a sign-in, and from `file://`.
 - Keep filenames URL-friendly, lowercase, and hyphen-separated.
 - If there are multiple prototypes, maintain `index.html` as a simple launcher page.
+- Every page loads the shared top bar with `<script src="shell.js" defer></script>`, as the last script in `<head>`.
+  The bar links to `index.html` and to `about.html` (terms, privacy, Nostr sync, delete device data), and hosts the Nostr account badge on pages that load `nostr/account.js`.
+  Do not add a second "back to index" link or an own account badge to a prototype.
+- `about.html` is the one place for terms and privacy text.
+  When a prototype starts to load from a new third-party host, add the host to its privacy table.
 
 ## Compact list + detail
 
@@ -298,6 +303,16 @@ Read them before writing the first line, not after debugging.
 - A retry loop that sets "syncing" on every attempt makes the badge blink between "Offline" and "Syncing".
   Keep "offline" until an attempt succeeds.
 - Do not run `pkill -f` with a pattern that also matches your own shell command line; it kills the shell that runs it.
+- An open IndexedDB connection blocks `indexedDB.deleteDatabase()` from any page, for example "Delete all" on `about.html`.
+  Set `db.onversionchange = () => db.close()` on every connection you open.
+
+### Shared top bar (2026-10: `shell.js`)
+
+- Inside a shadow root, an author rule such as `a { display: inline-flex }` beats the `hidden` attribute.
+  Add `[hidden] { display: none !important }` to the shadow styles.
+- Every prototype test server must also serve `/shell.js`, or the page logs a 404 that reads as a real failure.
+- `prototype.tests/shell` loads every page twice, with and without the bar, and fails only on new overflow or new errors.
+  A page that fails on its own hides its errors from that comparison, so pages built with the bar (`about.html`, `index.html`) must have zero errors.
 
 ### Manifest-driven code
 

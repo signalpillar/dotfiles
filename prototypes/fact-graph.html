@@ -28,9 +28,6 @@
       .masthead { display: grid; gap: 0.25rem; }
       .masthead h1 { margin: 0; font-size: 1.5rem; }
       .masthead p { margin: 0; }
-      .masthead-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-inline-size: 0; }
-      .masthead-top .kicker { margin: 0; }
-      nostr-account { min-inline-size: 0; max-inline-size: 70%; }
       .kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pico-muted-color); }
       .muted { color: var(--pico-muted-color); }
       .small { font-size: 0.85rem; }
@@ -129,15 +126,14 @@
         .canvas { block-size: calc(100vh - 13rem); }
       }
     </style>
+      <!-- Shared top bar: link to all prototypes, about & terms, and the Nostr account when loaded. -->
+    <script src="shell.js" defer></script>
   </head>
 
   <body>
     <main class="shell" id="app">
       <header class="masthead">
-        <div class="masthead-top">
-          <p class="kicker" id="kicker"></p>
-          <nostr-account id="account"></nostr-account>
-        </div>
+        <p class="kicker" id="kicker"></p>
         <h1 id="title"></h1>
         <p class="muted small" id="intro"></p>
         <p class="small" id="stats" aria-live="polite"></p>
@@ -1705,7 +1701,8 @@
             renderAll();
           });
         }
-        $("account").store = store;
+        const accountBadge = document.querySelector("nostr-account"); // shell.js puts it in the top bar
+        if (accountBadge) accountBadge.store = store;
         const positions = readJson(M.localStorage.positions);
         state.positions = positions && typeof positions === "object" && !Array.isArray(positions) ? positions : {};
         rebuild();

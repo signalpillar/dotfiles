@@ -1,0 +1,11 @@
+{
+  "name": "prototype-shell-tests",
+  "private": true,
+  "scripts": {
+    "validate": "node tests/validate-about.mjs ../../prototypes/about.html",
+    "test": "npm run validate && playwright test tests/shell.spec.js --workers=1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  }
+}

@@ -141,6 +141,8 @@ document.querySelector("nostr-account").store = store; // badge shows this store
 - Encryption hides the content, not the metadata: author, time, app name and collection name stay visible.
 - Relays can drop events at any time. Export stays the backup.
 - If you use your main Nostr identity, a relay change in the drawer also changes the relay list of your other Nostr clients.
+- `about.html` explains these limits to people and has a "Delete all prototype data on this device" action.
+  The store closes its IndexedDB connection on `versionchange`, so that action is not blocked by an open prototype tab.
 
 ## Tests
 

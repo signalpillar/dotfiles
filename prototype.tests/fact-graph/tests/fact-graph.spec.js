@@ -46,6 +46,7 @@ test.beforeAll(async () => {
     const files = {
       "/fact-graph.html": [htmlPath, "text/html"],
       "/prototype-base.css": [baseCssPath, "text/css"],
+      "/shell.js": [path.join(workspace, "prototypes/shell.js"), "text/javascript"],
       "/nostr/store.js": [path.join(workspace, "prototypes/nostr/store.js"), "text/javascript"],
       "/nostr/account.js": [path.join(workspace, "prototypes/nostr/account.js"), "text/javascript"]
     };
@@ -360,11 +361,11 @@ const conversationKey = NostrTools.nip44.v2.utils.getConversationKey(SK, PK);
 const decrypt = (event) => JSON.parse(NostrTools.nip44.v2.decrypt(event.content, conversationKey));
 
 async function signIn(page) {
-  await page.locator("#account .badge").click();
-  await page.locator("#account #na-secret").fill(NSEC);
-  await page.locator("#account form button[type=submit]").first().click();
-  await expect(page.locator("#account code.npub")).toHaveText(NostrTools.nip19.npubEncode(PK));
-  await page.locator("#account").getByRole("button", { name: "Close" }).click();
+  await page.locator("nostr-account .badge").click();
+  await page.locator("nostr-account #na-secret").fill(NSEC);
+  await page.locator("nostr-account form button[type=submit]").first().click();
+  await expect(page.locator("nostr-account code.npub")).toHaveText(NostrTools.nip19.npubEncode(PK));
+  await page.locator("nostr-account").getByRole("button", { name: "Close" }).click();
 }
 
 const syncState = (page) => page.evaluate(() => `${window.factGraph.store.status.state}/${window.factGraph.store.status.pending}`);
@@ -378,7 +379,7 @@ test.describe("Nostr sync", () => {
     const ctxA = await browser.newContext();
     const a = await ctxA.newPage();
     const failuresA = await open(a, { relayUrl: relay.url });
-    await expect(a.locator("#account .badge")).toHaveText("Sign in to sync");
+    await expect(a.locator("nostr-account .badge")).toHaveText("Sign in to sync");
     await signIn(a);
     await expect.poll(() => syncState(a), { timeout: 10000 }).toBe("synced/0");
     expect(relay.eventsFor("fact-graph/log")).toHaveLength(0); // seed-* ids never upload
