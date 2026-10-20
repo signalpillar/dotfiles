@@ -7,6 +7,6 @@
   },
   "devDependencies": {
     "@playwright/test": "1.62.0",
-    "ws": "8.18.3"
+    "ws": "8.21.0"
   }
 }
