@@ -94,8 +94,19 @@
       .log li .text { flex: 1 1 12rem; min-inline-size: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .log li.retracted .text { text-decoration: line-through; color: var(--pico-muted-color); }
       .log li button { margin: 0; inline-size: auto; padding: 0.2rem 0.55rem; min-block-size: 2.5rem; font-size: 0.8rem; }
-      .log-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block: 0.5rem; }
-      .log-actions button { margin: 0; inline-size: auto; flex: 1 1 auto; min-block-size: 2.75rem; }
+      /* "More" menu: a dropdown under its button on wide screens, a bottom sheet on phones. */
+      .more-menu { margin: 0; padding: 0.5rem; border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius); background: var(--pico-card-background-color); box-shadow: 0 0.5rem 1.5rem rgba(23, 32, 51, 0.18); }
+      .more-menu:popover-open { display: grid; gap: 0.35rem; }
+      .more-menu button { margin: 0; inline-size: 100%; text-align: start; min-block-size: 2.75rem; }
+      .fab { display: none; }
+      /* Pico styles every dialog as a full-screen centered layer; this one is a bottom sheet. */
+      dialog.composer-sheet[open] { display: block; position: fixed; inset: auto 0 0 0; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; block-size: auto; min-block-size: 0; max-block-size: 85vh;
+        overflow: auto; margin: 0; padding: 0; border: 1px solid var(--pico-muted-border-color); border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0;
+        background: var(--pico-card-background-color); backdrop-filter: none; box-shadow: 0 -0.5rem 1.5rem rgba(23, 32, 51, 0.18); }
+      .composer-sheet::backdrop { background: rgba(23, 32, 51, 0.25); }
+      .composer-sheet #composer-sheet-body { padding: 0 var(--pico-spacing) calc(var(--pico-spacing) + env(safe-area-inset-bottom)); }
+      .sheet-head { display: flex; justify-content: flex-end; padding: 0.5rem var(--pico-spacing) 0; }
+      .sheet-head button { margin: 0; inline-size: auto; min-block-size: 2.75rem; }
       .query textarea { margin-block-end: 0.5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; min-block-size: 4.5rem; }
       .query-results { overflow-x: auto; }
       .query-results table { margin: 0 0 0.75rem; font-size: 0.82rem; }
@@ -115,6 +126,11 @@
 
       /* Compact: node / edge detail is a bottom sheet in the thumb zone. */
       @media (max-width: 63.99rem) {
+        .fab { display: inline-flex; position: fixed; inset-block-end: calc(1rem + env(safe-area-inset-bottom)); inset-inline-end: 1rem; z-index: 15; margin: 0; inline-size: auto; min-block-size: 3.25rem; padding: 0 1.25rem; border-radius: 999px; align-items: center; box-shadow: 0 0.5rem 1.25rem rgba(23, 32, 51, 0.25); }
+        body:has(.detail:not([hidden])) .fab { display: none; }
+        .more-menu { inset: auto 0 0 0; inline-size: 100%; border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0; padding-block-end: calc(0.5rem + env(safe-area-inset-bottom)); }
+        .shell { padding-block-end: 5rem; } /* room above the floating button */
+        prototype-shell { --prototype-toast-offset: 5.25rem; } /* toasts sit above the floating button */
         body:has(.detail:not([hidden])) .shell { padding-block-end: 55vh; }
         .detail { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 20; max-block-size: 55vh; overflow: auto; border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0; box-shadow: 0 -0.5rem 1.5rem rgba(23, 32, 51, 0.18); padding-block-end: calc(var(--pico-spacing) + env(safe-area-inset-bottom)); }
       }
@@ -154,7 +170,14 @@
         </div>
         <div class="canvas-tools">
           <div class="legend" id="legend"></div>
-          <button type="button" class="secondary outline" id="relayout"></button>
+          <button type="button" class="secondary outline" id="more" popovertarget="more-menu" aria-haspopup="menu"></button>
+        </div>
+        <div class="more-menu" id="more-menu" popover role="menu">
+          <button type="button" class="secondary outline" id="relayout" role="menuitem"></button>
+          <button type="button" class="secondary outline" id="export" role="menuitem"></button>
+          <button type="button" class="secondary outline" id="import" role="menuitem"></button>
+          <button type="button" class="secondary outline" id="clear" role="menuitem"></button>
+          <input type="file" id="import-file" accept=".json,application/json" hidden>
         </div>
         <div class="timeline">
           <label for="time"><span id="time-title"></span><span id="time-label"></span></label>
@@ -163,6 +186,7 @@
       </section>
 
       <aside class="side">
+        <div id="composer-home"></div>
         <form class="composer" id="composer">
           <label for="entry" id="entry-label"></label>
           <textarea id="entry" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
@@ -171,14 +195,14 @@
             <button type="submit" id="add" disabled></button>
             <span class="muted small" id="add-hint"></span>
           </div>
-          <details class="syntax">
+          <details class="syntax" name="side">
             <summary id="syntax-title"></summary>
             <pre id="syntax-example"></pre>
             <ul id="syntax-rules"></ul>
           </details>
         </form>
 
-        <details class="query" id="query">
+        <details class="query" id="query" name="side">
           <summary id="query-title"></summary>
           <form id="query-form">
             <label for="query-input" id="query-label"></label>
@@ -201,19 +225,20 @@
 
         <section class="detail" id="detail" hidden aria-live="polite"></section>
 
-        <details class="log" id="log">
+        <details class="log" id="log" name="side">
           <summary id="log-title"></summary>
-          <div class="log-actions">
-            <button type="button" class="secondary" id="export"></button>
-            <button type="button" class="secondary" id="import"></button>
-            <button type="button" class="secondary outline" id="clear"></button>
-            <input type="file" id="import-file" accept=".json,application/json" hidden>
-          </div>
           <ol id="log-list"></ol>
         </details>
 
         <p class="status-line" id="status" role="status"></p>
       </aside>
+
+      <!-- Phones: the composer moves into this bottom sheet, opened by the floating button. -->
+      <button type="button" class="fab" id="fab"></button>
+      <dialog class="composer-sheet" id="composer-sheet" aria-labelledby="entry-label">
+        <div class="sheet-head"><button type="button" class="secondary outline" id="composer-close"></button></div>
+        <div id="composer-sheet-body"></div>
+      </dialog>
     </main>
 
     <script type="application/json" id="fact-graph-manifest">
@@ -259,7 +284,8 @@
           "idealEdgeLength": 110,
           "fitPadding": 40,
           "nudge": 60,
-          "compactQuery": "(max-width: 63.99rem)"
+          "compactQuery": "(max-width: 63.99rem)",
+          "menuGap": 6
         },
         "graphStyle": {
           "nodeSize": 22,
@@ -441,6 +467,10 @@
           "queryHelpTips": "Tips",
           "queryInline": "Web Workers are unavailable, so queries run on the page. A query that never ends freezes the page.",
           "relayout": "Re-layout",
+          "more": "\u22ef More",
+          "moreLabel": "More actions",
+          "fab": "+ Add facts",
+          "composerClose": "Close",
           "timeTitle": "Replay",
           "timeLive": "live · all {count} entries",
           "timeStart": "before the first entry",
@@ -827,7 +857,12 @@
       // ---- Status ----------------------------------------------------------------------------
 
       let statusTimer = null;
+      // Short messages go to the shared toast in shell.js; without the shell, to the status line.
       function flash(message) {
+        if (window.PrototypeShell) {
+          window.PrototypeShell.toast(message, { timeoutMs: M.timing.statusMs });
+          return;
+        }
         $("status").textContent = message;
         clearTimeout(statusTimer);
         statusTimer = setTimeout(() => { $("status").textContent = persistentStatus(); }, M.timing.statusMs);
@@ -1239,6 +1274,7 @@
         // Keep the lines that were not added, so errors can be fixed in place.
         const keep = new Set(drafts.filter((d) => d.error).map((d) => d.line));
         $("entry").value = $("entry").value.split("\n").filter((_, i) => keep.has(i + 1)).join("\n");
+        if (!keep.size && $("composer-sheet").open) $("composer-sheet").close(); // lines with errors keep the sheet open
         const lastGraph = ready[ready.length - 1].graph;
         rebuild();
         const skipped = drafts.length - ready.length;
@@ -1570,6 +1606,7 @@
         clearTimeout(clearArmed);
         clearArmed = null;
         $("clear").textContent = C.clear;
+        closeMenu();
         state.selected = null;
         if (store && store.owner !== window.NostrPrototypes.config.anonOwner) {
           // Relays keep the synced log, so a signed-in clear retracts every active fact instead.
@@ -1593,6 +1630,36 @@
         flash(C.cleared);
       }
 
+      // ---- Compact layout: "More" menu and composer sheet -----------------------------------
+
+      function closeMenu() {
+        if ($("more-menu").matches(":popover-open")) $("more-menu").hidePopover();
+      }
+
+      // Wide screens: a dropdown under the "More" button, or above it when the space below is too small.
+      // Phones: the CSS bottom sheet.
+      function placeMenu() {
+        const menu = $("more-menu");
+        if (compact.matches) { menu.style.inset = ""; return; }
+        const gap = M.layout.menuGap;
+        const button = $("more").getBoundingClientRect();
+        const left = Math.max(gap, Math.min(button.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - gap));
+        const fitsBelow = button.bottom + gap + menu.offsetHeight <= window.innerHeight - gap;
+        const top = fitsBelow ? button.bottom + gap : Math.max(gap, button.top - gap - menu.offsetHeight);
+        menu.style.inset = `${top}px auto auto ${left}px`;
+      }
+
+      // One composer node: in the side column on wide screens, in the bottom sheet on phones.
+      function placeComposer() {
+        const form = $("composer");
+        if (compact.matches) {
+          if (form.parentElement !== $("composer-sheet-body")) $("composer-sheet-body").append(form);
+        } else {
+          if ($("composer-sheet").open) $("composer-sheet").close();
+          if (form.previousElementSibling !== $("composer-home")) $("composer-home").after(form);
+        }
+      }
+
       // ---- Boot ------------------------------------------------------------------------------
 
       function bindStatic() {
@@ -1613,6 +1680,10 @@
         $("load-sample").textContent = C.loadSample;
         $("relayout").textContent = C.relayout;
         $("relayout").hidden = !cy;
+        $("more").textContent = C.more;
+        $("more").setAttribute("aria-label", C.moreLabel);
+        $("fab").textContent = C.fab;
+        $("composer-close").textContent = C.composerClose;
         $("time-title").textContent = C.timeTitle;
         $("export").textContent = C.export;
         $("import").textContent = C.import;
@@ -1651,7 +1722,16 @@
           rebuild({ keepTime: true });
           renderAll();
         });
-        $("relayout").addEventListener("click", () => renderGraph({ relayout: true }));
+        $("relayout").addEventListener("click", () => { closeMenu(); renderGraph({ relayout: true }); });
+        $("more-menu").addEventListener("toggle", (event) => { if (event.newState === "open") placeMenu(); });
+        $("fab").addEventListener("click", () => {
+          placeComposer();
+          $("composer-sheet").showModal();
+          $("entry").focus();
+        });
+        $("composer-close").addEventListener("click", () => $("composer-sheet").close());
+        compact.addEventListener("change", placeComposer);
+        placeComposer();
         $("load-sample").addEventListener("click", () => {
           const ids = new Set(state.log.map((e) => e.id));
           const seed = seedEntries().filter((e) => !ids.has(e.id));
@@ -1677,8 +1757,8 @@
           flash(fill(C.graphCreated, { graph: name }));
         });
         $("graph-cancel").addEventListener("click", () => { $("graph-form").hidden = true; });
-        $("export").addEventListener("click", exportLog);
-        $("import").addEventListener("click", () => $("import-file").click());
+        $("export").addEventListener("click", () => { closeMenu(); exportLog(); });
+        $("import").addEventListener("click", () => { closeMenu(); $("import-file").click(); });
         $("import-file").addEventListener("change", async () => {
           const file = $("import-file").files[0];
           $("import-file").value = "";

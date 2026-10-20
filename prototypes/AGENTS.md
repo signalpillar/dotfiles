@@ -68,6 +68,24 @@ Default for new prototypes in this repo: option 3 (inline expand) on compact scr
 Use drawers / bottom sheets for secondary surfaces (filters, overlays, short inspectors), not for the primary selected-item read unless the content is deliberately sheet-sized.
 Keep Prev / Next / Back actions in the lower third of the detail when they are the primary controls.
 
+## Compact controls
+
+`fact-graph.html` is the reference for these patterns (2026-10).
+
+- **Status messages:** call `PrototypeShell.toast(message)` from `shell.js`.
+  Do not give a full line of the page to transient messages.
+  Keep an inline status line only for lasting states, such as "a library did not load".
+- **Exclusive accordion:** give related `<details>` the same `name` (for example `name="side"`), so opening one closes the others.
+  A side column then never grows longer than one open section.
+- **"More" menu:** move rare actions (Export, Import, Clear all, Re-layout) into a native `popover` opened by one "More" button with `popovertarget`.
+  It closes on Escape and on an outside click with no JavaScript.
+  On wide screens, place it under its button, or above when the space below is too small, from the `toggle` event; on phones, style it as a bottom sheet.
+  An action closes the menu; a two-step confirm keeps it open for the second tap.
+- **Floating primary action on phones:** a floating button in the thumb zone opens the composer in a bottom-sheet `<dialog>`.
+  Move the one composer node between the side column and the sheet with `matchMedia`, as in Compact list + detail.
+  Close the sheet after a clean submit; keep it open when lines with errors remain.
+  Hide the floating button while another bottom sheet is open, and lift the toast above it with `prototype-shell { --prototype-toast-offset: 5.25rem; }`.
+
 ## Visual Direction
 
 - Prefer light themes and an airy, light visual design by default.
@@ -311,6 +329,14 @@ Read them before writing the first line, not after debugging.
 - Inside a shadow root, an author rule such as `a { display: inline-flex }` beats the `hidden` attribute.
   Add `[hidden] { display: none !important }` to the shadow styles.
 - Every prototype test server must also serve `/shell.js`, or the page logs a 404 that reads as a real failure.
+- The bar scrolls away with the page and returns as a fixed bar when you scroll up.
+  The host element keeps the bar's height in the page flow, so content never jumps when the inner bar becomes fixed.
+  In tests and captures, measure the inner `nav` in the shadow root, not the host: the host stays where it was.
+- Pico styles every `<dialog>` as a full-screen centered layer (`display: flex`, `min-height: 100%`).
+  A bottom-sheet dialog needs its own `dialog.x[open]` rule that resets `display`, `inset`, the sizes and `backdrop-filter`.
+- A dropdown placed under its button runs off the bottom of the window when the button is low on the page.
+  Measure the space below and open upward when it does not fit.
+- A page that boots asynchronously (fact-graph reads IndexedDB first) needs tests that wait for an explicit ready flag after `goto` and after `reload`, not for the first rendered text.
 - `prototype.tests/shell` loads every page twice, with and without the bar, and fails only on new overflow or new errors.
   A page that fails on its own hides its errors from that comparison, so pages built with the bar (`about.html`, `index.html`) must have zero errors.
 

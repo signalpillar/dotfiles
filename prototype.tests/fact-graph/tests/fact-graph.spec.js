@@ -93,7 +93,7 @@ async function open(page, { blocked = [], aborted = [], width = 1360, file = "fa
   }
   await page.setViewportSize({ width, height: 900 });
   await page.goto(baseUrl.replace("fact-graph.html", file));
-  await expect(page.locator("#stats")).not.toBeEmpty();
+  await page.waitForFunction(() => window.factGraph && window.factGraph.ready);
   return failures;
 }
 
@@ -116,6 +116,13 @@ async function tapNode(page, slug) {
     return { x: box.left + p.x, y: box.top + p.y };
   }, slug);
   await page.mouse.click(point.x, point.y);
+}
+
+// Status messages appear in the shared toast of shell.js.
+const toast = (page) => page.locator("prototype-shell .toast");
+async function menu(page, id) {
+  if (!(await page.locator("#more-menu").evaluate((m) => m.matches(":popover-open")))) await page.locator("#more").click();
+  await page.locator(`#${id}`).click();
 }
 
 const classesOf = (page, id) => page.evaluate((x) => window.factGraph.cy.$id(x).classes(), id);
@@ -149,6 +156,7 @@ test("preview flags merges and new nodes, and Add merges into the graph", async 
   // The bad line stays in the field so it can be fixed in place.
   await expect(page.locator("#entry")).toHaveValue("broken line");
   await page.reload();
+  await page.waitForFunction(() => window.factGraph && window.factGraph.ready); // boot reads IndexedDB asynchronously
   expect(await nodeIds(page)).toContain("norad");
   expect(failures).toEqual([]);
 });
@@ -210,26 +218,26 @@ test("graph prefix creates a graph, retraction removes the edge, and replay rewi
 
 test("export, clear and import round-trip the log", async ({ page }) => {
   const failures = await open(page);
-  await page.locator("#log summary").click();
   const download = page.waitForEvent("download");
-  await page.locator("#export").click();
+  await menu(page, "export");
+  await expect(page.locator("#more-menu")).toBeHidden(); // an action closes the menu
   const file = await (await download).path();
   const exported = JSON.parse(fs.readFileSync(file, "utf8"));
   expect(exported.format).toBe(manifest.exportFile.format);
   expect(exported.entries).toHaveLength(manifest.seed.length);
 
-  await page.locator("#clear").click();
-  await expect(page.locator("#clear")).toHaveText(C.clearConfirm);
+  await menu(page, "clear");
+  await expect(page.locator("#clear")).toHaveText(C.clearConfirm); // the menu stays open for the second tap
   await page.locator("#clear").click();
   await expect(page.locator("#log-title")).toHaveText(fill(C.logTitle, { count: 0 }));
   await expect(page.locator("#load-sample")).toBeVisible();
 
   await page.locator("#import-file").setInputFiles(file);
-  await expect(page.locator("#status")).toHaveText(fill(C.imported, { added: manifest.seed.length, skipped: 0 }));
+  await expect(toast(page)).toHaveText(fill(C.imported, { added: manifest.seed.length, skipped: 0 }));
   expect(await nodeIds(page)).toHaveLength(4);
 
   await page.locator("#import-file").setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from('{"format":"fact-graph-log","entries":[{"kind":"fact"}]}') });
-  await expect(page.locator("#status")).toHaveText(fill(C.importRejected, { reason: fill(C.importMissingIdentity, { index: 1 }) }));
+  await expect(toast(page)).toHaveText(fill(C.importRejected, { reason: fill(C.importMissingIdentity, { index: 1 }) }));
   expect(failures).toEqual([]);
 });
 
@@ -242,7 +250,16 @@ for (const width of viewports) {
     const detail = page.locator("#detail");
     await expect(detail).toBeInViewport();
     expect(await overflow()).toBe(0);
-    await expect(page.locator("#add")).toBeVisible();
+    // Wide: the composer sits in the side column. Phones: the floating button opens it in a sheet.
+    if (width >= 1024) await expect(page.locator("#add")).toBeVisible();
+    else {
+      await expect(page.locator("#fab")).toBeHidden(); // never on top of the open detail sheet
+      await page.locator("#detail").getByRole("button", { name: C.detailClose }).click();
+      await expect(page.locator("#fab")).toBeInViewport();
+      await page.locator("#fab").click();
+      await expect(page.locator("#add")).toBeInViewport();
+      expect(await overflow()).toBe(0);
+    }
     expect(failures).toEqual([]);
   });
 }
@@ -255,12 +272,18 @@ test("graph library blocked: edges show as a list and detail still works", async
   await list.first().getByRole("button").first().click();
   await expect(page.locator("#detail")).toBeVisible();
   await expect(page.locator("#detail")).toContainText(C.detailAlsoIn);
-  // On a phone, focusing the entry closes the sheet so it never covers the composer.
-  await page.locator("#entry").click();
-  await expect(page.locator("#detail")).toBeHidden();
+  // On a phone the composer opens from the floating button and closes after a clean Add.
+  await page.locator("#detail").getByRole("button", { name: C.detailClose }).click();
+  await page.locator("#fab").click();
   await page.locator("#entry").fill("EWS -> monitored by -> NORAD");
   await page.locator("#add").click();
   await expect(list).toHaveCount(5);
+  await expect(page.locator("#composer-sheet")).toBeHidden();
+  await expect(toast(page)).toContainText(fill(C.added, { count: 1, graph: "news" }));
+  // The toast sits above the floating button, not over it.
+  const toastBox = await toast(page).boundingBox();
+  const fabBox = await page.locator("#fab").boundingBox();
+  expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(fabBox.y);
   expect(failures).toEqual([]);
 });
 
@@ -413,7 +436,7 @@ test.describe("Nostr sync", () => {
     expect(await nodeIds(page)).toEqual(["nato", "ukraine"]);
     expect(await page.evaluate(() => localStorage.getItem("fact-graph.log.v1"))).toBeNull();
     await page.reload();
-    await expect(page.locator("#stats")).not.toBeEmpty();
+    await page.waitForFunction(() => window.factGraph && window.factGraph.ready);
     expect(await nodeIds(page)).toEqual(["nato", "ukraine"]);
     expect(failures).toEqual([]);
   });
@@ -423,14 +446,78 @@ test.describe("Nostr sync", () => {
     await signIn(page);
     await page.locator("#entry").fill("EWS -> monitored by -> NORAD");
     await page.locator("#add").click();
-    await page.locator("#log summary").click();
+    await menu(page, "clear");
     await page.locator("#clear").click();
-    await page.locator("#clear").click();
-    await expect(page.locator("#status")).toHaveText(fill(C.retractedAll, { count: manifest.seed.filter((e) => e.kind === "fact").length + 1 }));
+    await expect(toast(page)).toHaveText(fill(C.retractedAll, { count: manifest.seed.filter((e) => e.kind === "fact").length + 1 }));
     expect(await nodeIds(page)).toEqual([]);
+    // Wait for the relay itself: right after the click the status can still read "synced" from before.
+    const retracts = () => relay.eventsFor("fact-graph/log").filter((e) => decrypt(e).value.kind === "retract").length;
+    await expect.poll(retracts, { timeout: 10000 }).toBe(manifest.seed.filter((e) => e.kind === "fact").length + 1);
     await expect.poll(() => syncState(page), { timeout: 10000 }).toBe("synced/0");
-    const kinds = relay.eventsFor("fact-graph/log").map((e) => decrypt(e).value.kind).sort();
-    expect(kinds.filter((k) => k === "retract")).toHaveLength(manifest.seed.filter((e) => e.kind === "fact").length + 1);
     expect(failures).toEqual([]);
   });
+});
+
+test("side sections form one accordion: opening one closes the others", async ({ page }) => {
+  const failures = await open(page);
+  await page.locator("#log summary").click();
+  await page.locator("#query > summary").click();
+  expect(await page.evaluate(() => [...document.querySelectorAll("details[name=side]")].filter((d) => d.open).map((d) => d.id || d.className))).toEqual(["query"]);
+  await page.locator(".syntax summary").click();
+  expect(await page.evaluate(() => [...document.querySelectorAll("details[name=side]")].filter((d) => d.open).map((d) => d.className))).toEqual(["syntax"]);
+  expect(failures).toEqual([]);
+});
+
+test("the More menu drops down under its button and closes on Escape", async ({ page }) => {
+  const failures = await open(page);
+  await page.locator("#more").click();
+  const button = await page.locator("#more").boundingBox();
+  const box = await page.locator("#more-menu").boundingBox();
+  // Below the button when it fits, else above it; never past the window edges.
+  expect(box.y >= button.y + button.height || box.y + box.height <= button.y).toBe(true);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  expect(box.x + box.width).toBeLessThanOrEqual(1360);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#more-menu")).toBeHidden();
+  // Near the bottom of the window the menu opens upward.
+  await page.setViewportSize({ width: 1360, height: 600 });
+  await page.evaluate(() => document.getElementById("more").scrollIntoView({ block: "end" }));
+  await page.locator("#more").click();
+  await expect(page.locator("#more-menu")).toBeVisible();
+  const low = await page.locator("#more-menu").boundingBox();
+  const lowButton = await page.locator("#more").boundingBox();
+  expect(low.y + low.height).toBeLessThanOrEqual(lowButton.y);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#more-menu")).toBeHidden();
+  await page.setViewportSize({ width: 1360, height: 900 });
+  await menu(page, "relayout");
+  await expect(page.locator("#more-menu")).toBeHidden();
+  expect(failures).toEqual([]);
+});
+
+test("on a phone the More menu is a bottom sheet and the composer keeps lines with errors", async ({ page }) => {
+  const failures = await open(page, { width: 390 });
+  await page.locator("#more").click();
+  const box = await page.locator("#more-menu").boundingBox();
+  expect(Math.round(box.y + box.height)).toBe(900);
+  expect(Math.round(box.width)).toBe(390);
+  await page.keyboard.press("Escape");
+  await page.locator("#fab").click();
+  // A bottom sheet: anchored to the bottom edge, full width, not the full height.
+  const sheet = await page.locator("#composer-sheet").boundingBox();
+  expect(Math.round(sheet.y + sheet.height)).toBe(900);
+  expect(Math.round(sheet.width)).toBe(390);
+  expect(sheet.y).toBeGreaterThan(100);
+  await page.locator("#entry").fill("EWS -> monitored by -> NORAD\nbroken line");
+  await page.locator("#add").click();
+  await expect(page.locator("#composer-sheet")).toBeVisible(); // the bad line waits to be fixed
+  await expect(page.locator("#entry")).toHaveValue("broken line");
+  await page.locator("#composer-close").click();
+  await expect(page.locator("#composer-sheet")).toBeHidden();
+  // Rotating to a wide screen moves the composer back into the side column.
+  await page.setViewportSize({ width: 1360, height: 900 });
+  await expect(page.locator("#add")).toBeVisible();
+  await expect(page.locator("#fab")).toBeHidden();
+  expect(failures).toEqual([]);
 });

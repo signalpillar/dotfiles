@@ -131,3 +131,44 @@ test("the bar is reachable by keyboard and goes back to the launcher", async ({ 
   await page.keyboard.press("Enter");
   await page.waitForURL(/index\.html$/);
 });
+
+test("the bar tucks away on scroll down, returns on scroll up, and the content never jumps", async ({ page }) => {
+  await load(page, "about.html", { width: 390, shell: true });
+  const h1Top = () => page.evaluate(() => document.querySelector("h1").getBoundingClientRect().top + window.scrollY);
+  const navBox = () => page.evaluate(() => document.querySelector("prototype-shell").shadowRoot.querySelector("nav").getBoundingClientRect().toJSON());
+  const state = () => page.evaluate(() => document.querySelector("prototype-shell").dataset.scroll || "top");
+  const start = await h1Top();
+  const scrollTo = async (y) => { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(300); };
+
+  await scrollTo(400);
+  await scrollTo(900);
+  expect(await state()).toBe("tucked");
+  expect((await navBox()).bottom).toBeLessThanOrEqual(0);
+  expect(await h1Top()).toBe(start);
+
+  await scrollTo(860);
+  expect(await state()).toBe("shown");
+  expect((await navBox()).top).toBe(0);
+  await expect(page.locator("prototype-shell a.about")).toBeInViewport();
+
+  await scrollTo(1000);
+  expect(await state()).toBe("tucked");
+  await scrollTo(0);
+  expect(await state()).toBe("top");
+  expect(await h1Top()).toBe(start);
+});
+
+test("PrototypeShell.toast shows one short status message, then hides it", async ({ page }) => {
+  await load(page, "about.html", { width: 320, shell: true });
+  const toast = page.locator("prototype-shell .toast");
+  await expect(toast).toHaveAttribute("role", "status");
+  await page.evaluate(() => { window.PrototypeShell.toast("First"); window.PrototypeShell.toast("Saved 3 items", { timeoutMs: 600 }); });
+  await expect(toast).toHaveText("Saved 3 items");
+  await expect(toast).toHaveClass(/visible/);
+  const box = await toast.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(320);
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  await expect(toast).not.toHaveClass(/visible/, { timeout: 2000 });
+  await expect(toast).toHaveText("");
+});
