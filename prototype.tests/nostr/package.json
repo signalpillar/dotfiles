@@ -1,0 +1,12 @@
+{
+  "name": "nostr-prototypes-tests",
+  "private": true,
+  "scripts": {
+    "fixtures": "tests/fetch-fixtures.sh",
+    "test": "playwright test tests/nostr.spec.js --workers=1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "ws": "8.18.3"
+  }
+}

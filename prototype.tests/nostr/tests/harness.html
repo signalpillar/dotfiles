@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nostr store harness</title>
+    <script src="https://cdn.jsdelivr.net/npm/nostr-tools@2.25.2/lib/nostr.bundle.js" defer></script>
+    <script src="nostr/store.js" defer></script>
+    <script src="nostr/account.js" defer></script>
+    <style>body { margin: 0; padding: 1rem; font-family: system-ui, sans-serif; } header { display: flex; justify-content: space-between; gap: .5rem; }</style>
+  </head>
+  <body>
+    <header><strong>Harness</strong><nostr-account></nostr-account></header>
+    <pre id="out"></pre>
+    <script type="application/json" id="manifest">
+      {
+        "storage": {
+          "appId": "harness",
+          "collections": {
+            "notes": { "type": "record", "fields": { "text": "string" }, "required": ["text"] },
+            "events": { "type": "log", "localOnlyIdPrefix": "sample-", "fields": { "n": "number" } }
+          }
+        }
+      }
+    </script>
+    <script type="module">
+      const manifest = JSON.parse(document.getElementById("manifest").textContent);
+      const changes = [];
+      const render = () => {
+        document.getElementById("out").textContent = JSON.stringify({ notes: store.list("notes"), events: store.list("events") }, null, 1);
+      };
+      const store = await window.NostrPrototypes.openStore(manifest.storage);
+      store.subscribe((change) => { changes.push(change); render(); });
+      document.querySelector("nostr-account").store = store;
+      render();
+      window.harness = { store, changes, ready: true };
+    </script>
+  </body>
+</html>

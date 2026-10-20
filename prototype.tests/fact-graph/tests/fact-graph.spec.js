@@ -7,6 +7,9 @@ const workspace = path.resolve(__dirname, "../../..");
 const htmlPath = path.join(workspace, "prototypes/fact-graph.html");
 const baseCssPath = path.join(workspace, "prototypes/prototype-base.css");
 const fixtures = path.join(__dirname, "fixtures");
+// The shared Nostr test kit: fake relay and the nostr-tools fixture (npm install + fetch-fixtures in prototype.tests/nostr).
+const nostrKit = path.resolve(__dirname, "../../nostr/tests");
+const { startFakeRelay, NostrTools } = require(path.join(nostrKit, "fake-relay.js"));
 const html = fs.readFileSync(htmlPath, "utf8");
 const manifest = JSON.parse(html.match(/<script type="application\/json" id="fact-graph-manifest">\s*([\s\S]*?)\s*<\/script>/)[1]);
 const C = manifest.copy;
@@ -18,7 +21,8 @@ const cdn = {
   "https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js": ["cytoscape.min.js", "text/javascript", "cytoscape"],
   "https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js": ["layout-base.js", "text/javascript", "cytoscape"],
   "https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js": ["cose-base.js", "text/javascript", "cytoscape"],
-  "https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js": ["cytoscape-fcose.js", "text/javascript", "cytoscape"]
+  "https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js": ["cytoscape-fcose.js", "text/javascript", "cytoscape"],
+  "https://cdn.jsdelivr.net/npm/nostr-tools@2.25.2/lib/nostr.bundle.js": ["nostr.bundle.js", "text/javascript", "nostr", path.join(nostrKit, "fixtures")]
 };
 const chromeCandidates = [process.env.CHROME_PATH, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"];
 const chromePath = chromeCandidates.find((candidate) => candidate && fs.existsSync(candidate));
@@ -28,8 +32,8 @@ let server;
 let baseUrl;
 
 test.beforeAll(async () => {
-  for (const [name] of Object.values(cdn)) {
-    if (!fs.existsSync(path.join(fixtures, name))) throw new Error(`Missing ${name}. Run tests/fetch-fixtures.sh first.`);
+  for (const [name, , , dir] of Object.values(cdn)) {
+    if (!fs.existsSync(path.join(dir || fixtures, name))) throw new Error(`Missing ${name}. Run tests/fetch-fixtures.sh here and in prototype.tests/nostr.`);
   }
   server = http.createServer((request, response) => {
     const pathname = new URL(request.url, "http://localhost").pathname;
@@ -39,7 +43,12 @@ test.beforeAll(async () => {
       response.end(html.replace(`"timeoutMs": ${manifest.query.timeoutMs}`, '"timeoutMs": 1'));
       return;
     }
-    const files = { "/fact-graph.html": [htmlPath, "text/html"], "/prototype-base.css": [baseCssPath, "text/css"] };
+    const files = {
+      "/fact-graph.html": [htmlPath, "text/html"],
+      "/prototype-base.css": [baseCssPath, "text/css"],
+      "/nostr/store.js": [path.join(workspace, "prototypes/nostr/store.js"), "text/javascript"],
+      "/nostr/account.js": [path.join(workspace, "prototypes/nostr/account.js"), "text/javascript"]
+    };
     const entry = files[pathname];
     if (!entry) { response.writeHead(404); response.end(); return; }
     response.writeHead(200, { "content-type": entry[1] });
@@ -53,9 +62,10 @@ test.afterAll(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-// blocked: a set of dependency groups ("pico", "datascript", "cytoscape") to abort.
+// blocked: a set of dependency groups ("pico", "datascript", "cytoscape", "nostr") to abort.
 // aborted: dependency groups whose load the page may cancel on purpose (a stopped query worker).
-async function open(page, { blocked = [], aborted = [], width = 1360, file = "fact-graph.html" } = {}) {
+// relayUrl: points the shared Nostr store at a fake relay; without it the page never signs in.
+async function open(page, { blocked = [], aborted = [], width = 1360, file = "fact-graph.html", relayUrl = null } = {}) {
   const tolerated = [...blocked, ...aborted];
   const failures = [];
   page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
@@ -73,8 +83,13 @@ async function open(page, { blocked = [], aborted = [], width = 1360, file = "fa
   await page.context().route("https://cdn.jsdelivr.net/**", (route) => {
     const dep = cdn[route.request().url()];
     if (!dep || blocked.includes(dep[2])) return route.abort();
-    return route.fulfill({ contentType: dep[1], path: path.join(fixtures, dep[0]) });
+    return route.fulfill({ contentType: dep[1], path: path.join(dep[3] || fixtures, dep[0]) });
   });
+  if (relayUrl) {
+    await page.context().addInitScript((url) => {
+      window.NOSTR_PROTOTYPES_CONFIG = { defaultRelays: [url], retryBaseMs: 300, retryMaxMs: 1000, queryWaitMs: 2000, publishTimeoutMs: 2000, publishGapMs: 5 };
+    }, relayUrl);
+  }
   await page.setViewportSize({ width, height: 900 });
   await page.goto(baseUrl.replace("fact-graph.html", file));
   await expect(page.locator("#stats")).not.toBeEmpty();
@@ -334,4 +349,87 @@ test("a query over the time limit is stopped", async ({ page }) => {
   const failures = await open(page, { file: "fact-graph-timeout.html", aborted: ["datascript"] });
   expect(await runQuery(page, "[:find ?a ?b :where [?a _ _] [?b _ _]]")).toBe(fill(C.queryTimeout, { seconds: 0.001 }));
   expect(failures).toEqual([]);
+});
+
+// ---- Nostr sync (shared store in prototypes/nostr) ----------------------------------------
+
+const SK = NostrTools.generateSecretKey();
+const PK = NostrTools.getPublicKey(SK);
+const NSEC = NostrTools.nip19.nsecEncode(SK);
+const conversationKey = NostrTools.nip44.v2.utils.getConversationKey(SK, PK);
+const decrypt = (event) => JSON.parse(NostrTools.nip44.v2.decrypt(event.content, conversationKey));
+
+async function signIn(page) {
+  await page.locator("#account .badge").click();
+  await page.locator("#account #na-secret").fill(NSEC);
+  await page.locator("#account form button[type=submit]").first().click();
+  await expect(page.locator("#account code.npub")).toHaveText(NostrTools.nip19.npubEncode(PK));
+  await page.locator("#account").getByRole("button", { name: "Close" }).click();
+}
+
+const syncState = (page) => page.evaluate(() => `${window.factGraph.store.status.state}/${window.factGraph.store.status.pending}`);
+
+test.describe("Nostr sync", () => {
+  let relay;
+  test.beforeEach(async () => { relay = await startFakeRelay(); });
+  test.afterEach(async () => { await relay.close(); });
+
+  test("facts sync between two devices; sample data stays local; retractions follow", async ({ browser }) => {
+    const ctxA = await browser.newContext();
+    const a = await ctxA.newPage();
+    const failuresA = await open(a, { relayUrl: relay.url });
+    await expect(a.locator("#account .badge")).toHaveText("Sign in to sync");
+    await signIn(a);
+    await expect.poll(() => syncState(a), { timeout: 10000 }).toBe("synced/0");
+    expect(relay.eventsFor("fact-graph/log")).toHaveLength(0); // seed-* ids never upload
+
+    await a.locator("#entry").fill("EWS -> monitored by -> NORAD");
+    await a.locator("#add").click();
+    await expect.poll(() => relay.eventsFor("fact-graph/log").length).toBe(1);
+    const uploaded = decrypt(relay.eventsFor("fact-graph/log")[0]).value;
+    expect(uploaded).toMatchObject({ kind: "fact", label: "monitored by", from: { slug: "ews" }, to: { slug: "norad" } });
+
+    const ctxB = await browser.newContext();
+    const b = await ctxB.newPage();
+    const failuresB = await open(b, { relayUrl: relay.url });
+    await signIn(b);
+    await expect.poll(() => nodeIds(b)).toContain("norad");
+
+    // B retracts the synced fact; A drops it live, without a reload.
+    await b.locator("#log summary").click();
+    await b.locator("#log-list li", { hasText: "monitored by" }).getByRole("button", { name: C.retract }).click();
+    await expect.poll(() => nodeIds(a), { timeout: 10000 }).not.toContain("norad");
+    expect(failuresA).toEqual([]);
+    expect(failuresB).toEqual([]);
+    await ctxA.close();
+    await ctxB.close();
+  });
+
+  test("a log from the localStorage version moves into the store once", async ({ page }) => {
+    const legacy = [{ id: "old-1", kind: "fact", at: "2026-10-05T10:00:00Z", graph: "news", graphTitle: "news", from: { slug: "nato", title: null, name: "NATO" }, to: { slug: "ukraine", title: null, name: "Ukraine" }, label: "supports", date: null, text: "NATO -> supports -> Ukraine" }];
+    await page.context().addInitScript((log) => { if (!sessionStorage.getItem("seeded-test")) { localStorage.setItem("fact-graph.log.v1", JSON.stringify(log)); sessionStorage.setItem("seeded-test", "1"); } }, legacy);
+    const failures = await open(page);
+    expect(await nodeIds(page)).toEqual(["nato", "ukraine"]);
+    expect(await page.evaluate(() => localStorage.getItem("fact-graph.log.v1"))).toBeNull();
+    await page.reload();
+    await expect(page.locator("#stats")).not.toBeEmpty();
+    expect(await nodeIds(page)).toEqual(["nato", "ukraine"]);
+    expect(failures).toEqual([]);
+  });
+
+  test("Clear all while signed in retracts the facts instead of deleting the synced log", async ({ page }) => {
+    const failures = await open(page, { relayUrl: relay.url });
+    await signIn(page);
+    await page.locator("#entry").fill("EWS -> monitored by -> NORAD");
+    await page.locator("#add").click();
+    await page.locator("#log summary").click();
+    await page.locator("#clear").click();
+    await page.locator("#clear").click();
+    await expect(page.locator("#status")).toHaveText(fill(C.retractedAll, { count: manifest.seed.filter((e) => e.kind === "fact").length + 1 }));
+    expect(await nodeIds(page)).toEqual([]);
+    await expect.poll(() => syncState(page), { timeout: 10000 }).toBe("synced/0");
+    const kinds = relay.eventsFor("fact-graph/log").map((e) => decrypt(e).value.kind).sort();
+    expect(kinds.filter((k) => k === "retract")).toHaveLength(manifest.seed.filter((e) => e.kind === "fact").length + 1);
+    expect(failures).toEqual([]);
+  });
 });

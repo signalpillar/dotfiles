@@ -19,3 +19,6 @@ Run commands from the repository root.
 - The example-query test runs every example from the manifest and expects rows.
   A new example must return rows on the seed data with `ews` selected.
 - The timeout test loads `/fact-graph-timeout.html`, which the test server serves with `timeoutMs` set to 1.
+- The Nostr sync tests use the shared kit in `prototype.tests/nostr/tests`: the fake relay and the `nostr-tools` fixture.
+  Run `npm install --prefix prototype.tests/nostr` and `prototype.tests/nostr/tests/fetch-fixtures.sh` first.
+- A sync test points the page at the fake relay with `open(page, { relayUrl })`. Tests never contact public relays.

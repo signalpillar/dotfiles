@@ -36,7 +36,12 @@ manifest.seed.forEach((entry, index) => {
   if (entry.kind === "fact" && entry.text.split(new RegExp(manifest.syntax.arrow)).length !== 3) errors.push(`Seed ${index + 1}: not 'A -> r -> B'`);
 });
 if (!graphs.has(manifest.defaultGraph.slug)) errors.push(`Default graph ${manifest.defaultGraph.slug} is not seeded`);
-for (const [, key] of html.matchAll(/M\.storage\.(\w+)/g)) if (!manifest.storage[key]) errors.push(`Missing storage key: ${key}`);
+for (const [, key] of html.matchAll(/M\.localStorage\.(\w+)/g)) if (!manifest.localStorage[key]) errors.push(`Missing localStorage key: ${key}`);
+// The Nostr storage block: the shared store validates it fully at runtime; check the parts fact-graph relies on.
+const logCollection = manifest.storage && manifest.storage.collections && manifest.storage.collections.log;
+if (!manifest.storage || manifest.storage.appId !== "fact-graph") errors.push("storage.appId must be fact-graph");
+if (!logCollection || logCollection.type !== "log") errors.push("storage.collections.log must be a log collection");
+if (logCollection && !manifest.seed.every((e, i) => `seed-${i + 1}`.startsWith(logCollection.localOnlyIdPrefix))) errors.push("seed ids must start with localOnlyIdPrefix");
 for (const [, key] of code.matchAll(/\bQM\.(\w+)/g)) if (manifest.query[key] === undefined) errors.push(`Missing query setting: ${key}`);
 manifest.query.examples.forEach((group) => group.items.forEach((item) => {
   const text = item.query.join("\n");

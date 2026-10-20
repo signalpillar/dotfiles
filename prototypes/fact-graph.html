@@ -15,6 +15,10 @@
     <script src="https://cdn.jsdelivr.net/npm/layout-base@2.0.1/layout-base.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/cose-base@2.2.0/cose-base.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/cytoscape-fcose@2.2.0/cytoscape-fcose.js" defer></script>
+    <!-- Shared Nostr sync (see nostr/DESIGN.md). Classic scripts, so they also load from file://. -->
+    <script src="https://cdn.jsdelivr.net/npm/nostr-tools@2.25.2/lib/nostr.bundle.js" defer></script>
+    <script src="nostr/store.js" defer></script>
+    <script src="nostr/account.js" defer></script>
 
     <style>
       /* Layout only. Pico owns type and component styling; the palette comes from the manifest. */
@@ -24,6 +28,9 @@
       .masthead { display: grid; gap: 0.25rem; }
       .masthead h1 { margin: 0; font-size: 1.5rem; }
       .masthead p { margin: 0; }
+      .masthead-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-inline-size: 0; }
+      .masthead-top .kicker { margin: 0; }
+      nostr-account { min-inline-size: 0; max-inline-size: 70%; }
       .kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pico-muted-color); }
       .muted { color: var(--pico-muted-color); }
       .small { font-size: 0.85rem; }
@@ -127,7 +134,10 @@
   <body>
     <main class="shell" id="app">
       <header class="masthead">
-        <p class="kicker" id="kicker"></p>
+        <div class="masthead-top">
+          <p class="kicker" id="kicker"></p>
+          <nostr-account id="account"></nostr-account>
+        </div>
         <h1 id="title"></h1>
         <p class="muted small" id="intro"></p>
         <p class="small" id="stats" aria-live="polite"></p>
@@ -217,10 +227,22 @@
         "intro": "Type facts as 'A -> relation -> B'. Nodes with the same slug merge across facts and graphs. Tap a node to see what it depends on and what depends on it.",
         "locale": "en-GB",
         "dateFormat": { "dateStyle": "medium", "timeStyle": "short" },
-        "storage": {
+        "localStorage": {
           "log": "fact-graph.log.v1",
           "positions": "fact-graph.positions.v1",
-          "view": "fact-graph.view.v1"
+          "view": "fact-graph.view.v1",
+          "seeded": "fact-graph.seeded.v1"
+        },
+        "storage": {
+          "appId": "fact-graph",
+          "collections": {
+            "log": {
+              "type": "log",
+              "localOnlyIdPrefix": "seed-",
+              "fields": { "id": "string", "kind": "string", "at": "string", "graph": "string", "label": "string", "target": "string", "slug": "string", "from": "object", "to": "object" },
+              "required": ["id", "kind", "at"]
+            }
+          }
         },
         "exportFile": { "format": "fact-graph-log", "version": 1, "fileName": "fact-graph-{date}.json" },
         "defaultGraph": { "slug": "news", "title": "news" },
@@ -484,6 +506,8 @@
           "clear": "Clear all",
           "clearConfirm": "Tap again to clear",
           "cleared": "Cleared the fact log.",
+          "retractedAll": "Retracted {count} fact(s). A synced log keeps its history, so this adds retractions instead of deleting.",
+          "saveFailed": "Could not save a fact: {message}",
           "imported": "Imported {added} new entries ({skipped} already present).",
           "importRejected": "Import rejected: {reason}",
           "importNotLog": "the file is not a fact-graph log",
@@ -701,13 +725,69 @@
         matches: new Set() // node slugs from the last query result
       };
 
-      function loadLog() {
-        const stored = readJson(M.storage.log);
-        if (stored === undefined) return seedEntries();
+      // ---- Persistence: the shared Nostr store (nostr/store.js) when it opens, else localStorage --------
+
+      const LOG = "log"; // collection name in M.storage.collections
+      let store = null;
+      const persisted = new Set(); // log ids the store already holds
+
+      async function openStore() {
+        if (!window.NostrPrototypes) return null;
+        try {
+          return await window.NostrPrototypes.openStore(M.storage);
+        } catch (error) {
+          console.warn(error);
+          return null;
+        }
+      }
+
+      function readLegacyLog() {
+        const stored = readJson(M.localStorage.log);
+        if (stored === undefined) return undefined;
         return Array.isArray(stored) ? stored.map(sanitizeEntry).filter(Boolean) : [];
       }
+
+      function storedLog() {
+        const entries = store.list(LOG).map(sanitizeEntry).filter(Boolean);
+        persisted.clear();
+        entries.forEach((e) => persisted.add(e.id));
+        return entries;
+      }
+
+      // Loads the log. On the first visit it seeds sample data; a log from an older version moves into the store once.
+      async function loadLog() {
+        if (!store) {
+          const legacy = readLegacyLog();
+          if (legacy !== undefined) return legacy;
+          const seed = seedEntries();
+          writeJson(M.localStorage.log, seed);
+          return seed;
+        }
+        const legacy = readLegacyLog();
+        if (legacy !== undefined) {
+          for (const entry of legacy) await store.append(LOG, entry);
+          try { localStorage.removeItem(M.localStorage.log); } catch { /* storage blocked */ }
+          writeJson(M.localStorage.seeded, true);
+        }
+        const anonymous = store.owner === window.NostrPrototypes.config.anonOwner;
+        if (!store.list(LOG).length && anonymous && !readJson(M.localStorage.seeded)) {
+          for (const entry of seedEntries()) await store.append(LOG, entry);
+          writeJson(M.localStorage.seeded, true);
+        }
+        return storedLog();
+      }
+
+      // Persists log entries that are new since the last save. The log only grows, except for Clear all.
       function saveLog() {
-        writeJson(M.storage.log, state.log);
+        if (!store) {
+          writeJson(M.localStorage.log, state.log);
+          return;
+        }
+        for (const entry of state.log) {
+          if (persisted.has(entry.id)) continue;
+          persisted.add(entry.id);
+          store.append(LOG, entry).catch((error) => flash(fill(C.saveFailed, { message: error.message })));
+        }
       }
 
       const compact = window.matchMedia(M.layout.compactQuery);
@@ -815,7 +895,7 @@
         const map = {};
         cy.nodes().forEach((n) => { map[n.id()] = { x: Math.round(n.position("x")), y: Math.round(n.position("y")) }; });
         state.positions[state.graph.slug] = { ...(state.positions[state.graph.slug] || {}), ...map };
-        writeJson(M.storage.positions, state.positions);
+        writeJson(M.localStorage.positions, state.positions);
       }
 
       function runLayout({ randomize, fixed }) {
@@ -1185,7 +1265,7 @@
 
       function switchGraph(slug, { keepSelection = false } = {}) {
         state.graph = { slug, title: graphTitle(slug) };
-        writeJson(M.storage.view, { graph: slug });
+        writeJson(M.localStorage.view, { graph: slug });
         if (!keepSelection) state.selected = null;
         renderAll({ fit: true });
         if (keepSelection && cy && state.selected && state.selected.kind === "node") {
@@ -1494,11 +1574,24 @@
         clearTimeout(clearArmed);
         clearArmed = null;
         $("clear").textContent = C.clear;
+        state.selected = null;
+        if (store && store.owner !== window.NostrPrototypes.config.anonOwner) {
+          // Relays keep the synced log, so a signed-in clear retracts every active fact instead.
+          const retracted = new Set(state.log.filter((e) => e.kind === "retract").map((e) => e.target));
+          const active = state.log.filter((e) => e.kind === "fact" && !retracted.has(e.id));
+          const now = Date.now();
+          active.forEach((e, i) => state.log.push({ id: newId(), kind: "retract", at: new Date(now + i).toISOString(), target: e.id }));
+          saveLog();
+          rebuild();
+          renderAll();
+          flash(fill(C.retractedAll, { count: active.length }));
+          return;
+        }
         state.log = [];
         state.positions = {};
-        state.selected = null;
-        saveLog();
-        writeJson(M.storage.positions, state.positions);
+        if (store) store.clearLocal(LOG).then(() => persisted.clear());
+        else saveLog();
+        writeJson(M.localStorage.positions, state.positions);
         rebuild();
         renderAll();
         flash(C.cleared);
@@ -1598,23 +1691,36 @@
         $("clear").addEventListener("click", clearLog);
       }
 
-      function boot() {
-        state.log = loadLog();
-        if (readJson(M.storage.log) === undefined) saveLog();
-        const positions = readJson(M.storage.positions);
+      async function boot() {
+        store = await openStore();
+        state.log = await loadLog();
+        if (store) {
+          // Facts from another device, or a switch of key, replace the log.
+          store.subscribe((change) => {
+            if (change.reason === "local") return;
+            const wasLive = isLive();
+            state.log = storedLog();
+            if (change.reason === "owner") state.selected = null;
+            rebuild({ keepTime: !wasLive });
+            renderAll();
+          });
+        }
+        $("account").store = store;
+        const positions = readJson(M.localStorage.positions);
         state.positions = positions && typeof positions === "object" && !Array.isArray(positions) ? positions : {};
         rebuild();
-        const view = readJson(M.storage.view);
+        const view = readJson(M.localStorage.view);
         const graphs = graphList();
         const wanted = view && typeof view.graph === "string" && graphs.find((g) => g.slug === view.graph);
         state.graph = wanted || graphs.find((g) => g.slug === M.defaultGraph.slug) || graphs[0];
         initCanvas();
         bindStatic();
         renderAll({ fit: true });
-        window.factGraph = { state, get cy() { return cy; }, datascript: ds, parseLine, select, switchGraph };
+        window.factGraph = { state, get cy() { return cy; }, get store() { return store; }, datascript: ds, parseLine, select, switchGraph };
+        window.factGraph.ready = true;
       }
 
-      boot();
+      boot().catch((error) => { console.error(error); flash(String(error.message || error)); });
     </script>
   </body>
 </html>

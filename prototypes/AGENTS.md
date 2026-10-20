@@ -32,6 +32,9 @@ re-discovering the same mistake.
 - Keep controls understandable without external documentation.
 - Include enough inline labels and stats for the prototype to explain itself while being used.
 - Avoid backend services, authentication, and analytics unless they are the thing being prototyped.
+- Exception: a prototype may opt in to sync its data between devices through the shared Nostr layer in `nostr/` (see `nostr/DESIGN.md`).
+  It declares a `storage` block in its manifest, loads `nostr/store.js` and `nostr/account.js`, and adds one `<nostr-account>` element.
+  It must keep working on local data without a sign-in, and from `file://`.
 - Keep filenames URL-friendly, lowercase, and hyphen-separated.
 - If there are multiple prototypes, maintain `index.html` as a simple launcher page.
 
@@ -279,6 +282,22 @@ Read them before writing the first line, not after debugging.
   Filter optional children before `append()` (an `appendAll` helper), not only in the element factory.
 - A fixed bottom sheet can cover primary controls lower on the page, such as a composer's submit button.
   Close the sheet when the user focuses the composer on compact screens, and pad the page by the sheet height while it is open.
+
+### Shared Nostr layer (2026-10: `nostr/`, first adopter `fact-graph`)
+
+- Load the shared files as classic `defer` scripts, not ES modules: a module import of `nostr/store.js` fails from `file://`.
+  The `nostr-tools` browser bundle (`lib/nostr.bundle.js`) also loads as a classic script and sets `window.NostrTools`.
+- In `nostr-tools@2.25.2`, `SimplePool.subscribe`, `subscribeEose` and `querySync` take one filter object, not an array.
+  `publish()` returns one promise per relay; wrap them in `Promise.any` with a time limit.
+- Public relays return at most 500 events per query (NIP-11 `max_limit`), so a first pull must page back with `until`.
+- An addressable event (kind 30000-39999) with the same `created_at` as the stored one can lose to it, because relays keep the lower id on a tie.
+  Make `created_at` grow with every write of one `d` tag.
+- A `<dialog>` that renders its content only when `dialog.open` is true must call `showModal()` before it renders, or it opens empty.
+- The store switches owner (sign-in, sign-out) asynchronously, after the account badge already updates.
+  Tests must poll the data after a sign-out, not read it once.
+- A retry loop that sets "syncing" on every attempt makes the badge blink between "Offline" and "Syncing".
+  Keep "offline" until an attempt succeeds.
+- Do not run `pkill -f` with a pattern that also matches your own shell command line; it kills the shell that runs it.
 
 ### Manifest-driven code
 
