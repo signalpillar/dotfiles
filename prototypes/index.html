@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Prototypes</title>
     <link rel="stylesheet" href="prototype-base.css">
     <style>
@@ -16,6 +16,9 @@
         --line: rgba(23, 32, 51, 0.14);
         --accent: #2563eb;
         --accent-soft: rgba(37, 99, 235, 0.1);
+        --synced: #2f9e44;
+        --browser: #1971c2;
+        --none: #868e96;
       }
 
       body {
@@ -27,108 +30,69 @@
         color: var(--ink);
       }
 
-      main {
-        width: min(44rem, 100%);
-        margin: 0 auto;
-        padding: 1.75rem 1rem 3rem;
-      }
+      main { width: min(48rem, 100%); margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+      h1, h2, p { margin-top: 0; }
+      h1 { margin-bottom: 0.25rem; font-size: clamp(1.6rem, 7vw, 2.4rem); letter-spacing: -0.04em; }
+      h2 { margin-bottom: 0.25rem; font-size: 1.05rem; letter-spacing: -0.02em; display: flex; align-items: center; gap: 0.5rem; }
+      .intro, .section-note, .stats { color: var(--muted); line-height: 1.45; }
+      .intro { margin-bottom: 0.4rem; font-size: 0.95rem; }
+      .stats { margin-bottom: 0; font-size: 0.85rem; }
 
-      .hero {
-        margin-bottom: 1.5rem;
-      }
+      .controls { display: grid; gap: 0.6rem; margin-block: 1.25rem 0.5rem; }
+      .search { position: relative; }
+      .search input { width: 100%; min-height: 2.75rem; padding: 0.5rem 0.8rem; border: 1px solid var(--line); border-radius: 0.7rem; background: var(--card); font-size: 1rem; }
+      .search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+      .chips { display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.15rem; scrollbar-width: thin; }
+      .chip-btn { flex: none; min-height: 2.5rem; padding: 0 0.85rem; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font-size: 0.85rem; cursor: pointer; }
+      .chip-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+      .chip-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .result-line { margin: 0; font-size: 0.85rem; color: var(--muted); min-height: 1.2em; }
 
-      h1,
-      h2,
-      p {
-        margin-top: 0;
-      }
+      .section { display: grid; gap: 0.6rem; margin-top: 1.5rem; }
+      .section-note { margin-bottom: 0; font-size: 0.88rem; }
+      .count { font-size: 0.75rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+      .dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; flex: none; }
+      .dot.synced { background: var(--synced); } .dot.browser { background: var(--browser); } .dot.none { background: var(--none); }
 
-      h1 {
-        margin-bottom: 0.25rem;
-        font-size: clamp(1.6rem, 7vw, 2.4rem);
-        letter-spacing: -0.04em;
-      }
+      .item-list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 0.9rem; background: color-mix(in srgb, var(--card) 82%, transparent); overflow: hidden; }
+      /* Apps are separate tiles: one column on phones, two on wide screens. */
+      .app-grid { display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr); }
+      .app { padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 0.8rem; background: color-mix(in srgb, var(--card) 88%, transparent); }
+      .app-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.6rem; }
+      .app-head a { font-weight: 700; font-size: 0.98rem; color: var(--ink); text-decoration: none; min-height: 1.75rem; display: inline-flex; align-items: center; }
+      .app-head a:hover, .app-head a:focus-visible { color: var(--accent); text-decoration: underline; outline: none; }
+      .summary { margin: 0.1rem 0 0.35rem; color: var(--muted); font-size: 0.86rem; line-height: 1.4; }
+      .tags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+      .tag { font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; background: rgba(23, 32, 51, 0.06); color: var(--ink); white-space: nowrap; }
+      .tag.need { background: #fff3db; color: #8a4b00; }
+      /* "Details" sits at the end of the tag row; open, it takes the full width below. */
+      details.more { margin-inline-start: auto; font-size: 0.84rem; }
+      details.more[open] { flex-basis: 100%; margin-inline-start: 0; }
+      details.more summary { cursor: pointer; color: var(--accent); min-height: 2.25rem; display: inline-flex; align-items: center; list-style: none; }
+      details.more summary::-webkit-details-marker { display: none; }
+      details.more summary::before { content: "\25B8"; margin-right: 0.35rem; transition: transform 0.15s; }
+      details.more[open] summary::before { transform: rotate(90deg); }
+      dl.facts { display: grid; grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr); gap: 0.3rem 0.8rem; margin: 0.2rem 0 0.3rem; }
+      dl.facts dt { color: var(--muted); }
+      dl.facts dd { margin: 0; }
 
-      h2 {
-        margin-bottom: 0.65rem;
-        font-size: 1rem;
-        letter-spacing: -0.02em;
-      }
+      .bookmark { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.6rem; padding: 0.7rem 0.9rem; color: inherit; text-decoration: none; border-block-end: 1px solid var(--line); }
+      .bookmark:last-child { border-block-end: none; }
+      .bookmark:hover, .bookmark:focus-visible { background: var(--accent-soft); outline: none; }
+      .bookmark strong { font-size: 0.94rem; }
+      .bookmark span { color: var(--muted); font-size: 0.84rem; }
 
-      .intro,
-      .section-note {
-        color: var(--muted);
-        line-height: 1.45;
+      .empty { padding: 1.25rem; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 0.9rem; margin-top: 1rem; }
+      .empty button { margin-top: 0.5rem; min-height: 2.5rem; padding: 0 1rem; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+      .footer { margin-top: 2rem; font-size: 0.85rem; color: var(--muted); }
+      .footer a { color: var(--accent); }
+      @media (min-width: 56rem) {
+        main { width: min(68rem, 100%); }
+        .app-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
       }
-
-      .intro {
-        margin-bottom: 0;
-        font-size: 0.95rem;
-      }
-
-      .section {
-        display: grid;
-        gap: 0.7rem;
-        margin-top: 1.5rem;
-      }
-
-      .item-list {
-        display: flex;
-        flex-direction: column;
-        border: 1px solid var(--line);
-        border-radius: 0.9rem;
-        background: color-mix(in srgb, var(--card) 78%, transparent);
-        overflow: hidden;
-      }
-
-      a.item-card {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 0.18rem 0.55rem;
-        padding: 0.72rem 0.9rem;
-        color: inherit;
-        text-decoration: none;
-        border-block-end: 1px solid var(--line);
-        background: transparent;
-      }
-
-      .item-list a.item-card:last-child {
-        border-block-end: none;
-      }
-
-      a.item-card:focus-visible,
-      a.item-card:hover {
-        background: var(--accent-soft);
-        outline: none;
-      }
-
-      .item-card strong {
-        flex: none;
-        font-size: 0.94rem;
-        font-weight: 700;
-        white-space: nowrap;
-      }
-
-      .item-card span {
-        flex: 1 1 14rem;
-        min-width: 0;
-        color: var(--muted);
-        font-size: 0.84rem;
-        line-height: 1.4;
-      }
-
-      .item-card .meta {
-        flex: none;
-        padding: 0.16rem 0.48rem;
-        border-radius: 999px;
-        background: var(--accent-soft);
-        color: var(--accent);
-        font-size: 0.74rem;
-        font-weight: 700;
-      }
+      @media (prefers-reduced-motion: reduce) { details.more summary::before { transition: none; } }
     </style>
-      <!-- Shared Nostr account (sign in once for every prototype) and the shared top bar. -->
+    <!-- Shared Nostr account (sign in once for every prototype) and the shared top bar. -->
     <script src="https://cdn.jsdelivr.net/npm/nostr-tools@2.25.2/lib/nostr.bundle.js" defer></script>
     <script src="nostr/store.js" defer></script>
     <script src="nostr/account.js" defer></script>
@@ -139,212 +103,346 @@
       <header class="hero">
         <h1 id="page-title"></h1>
         <p class="intro" id="page-intro"></p>
+        <p class="stats" id="stats"></p>
       </header>
 
-      <div id="sections"></div>
+      <div class="controls" role="search">
+        <div class="search">
+          <input type="search" id="search" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="chips" id="source-filter" role="group"></div>
+        <p class="result-line" id="result-line" aria-live="polite"></p>
+      </div>
+
+      <div id="groups"></div>
+      <div class="empty" id="empty" hidden>
+        <p id="empty-text"></p>
+        <button type="button" id="empty-reset"></button>
+      </div>
+      <section class="section" id="bookmarks"></section>
+      <p class="footer" id="footer"></p>
     </main>
 
     <script type="application/json" id="index-manifest">
       {
         "title": "Prototypes",
-        "intro": "Small self-contained HTML prototypes published as static GitHub Pages files.",
-        "sections": [
+        "intro": "Small one-page apps. Each one runs in your browser, and most keep your data on this device.",
+        "storageKey": "prototypes-index.view.v1",
+        "copy": {
+          "stats": "{apps} apps · {synced} sync between devices · {browser} save in this browser · {none} save nothing",
+          "searchLabel": "Search apps",
+          "searchPlaceholder": "Search apps, for example timer or graph",
+          "filterLabel": "Where the data comes from",
+          "filterAll": "All",
+          "resultAll": "Showing all {total} apps.",
+          "resultSome": "Showing {shown} of {total} apps.",
+          "emptyText": "No app matches this search.",
+          "emptyReset": "Clear search and filter",
+          "open": "Open",
+          "details": "Details",
+          "factSaves": "Saves",
+          "factData": "Data",
+          "factNeeds": "Needs",
+          "needsNothing": "Any current browser",
+          "footer": "Terms, privacy and how the Nostr sync works:",
+          "footerLink": "About & terms"
+        },
+        "groups": [
+          { "id": "synced", "title": "Syncs between your devices", "description": "Sign in with a Nostr key in the top bar, and your data follows you to your other devices, encrypted. Without a key, it stays in this browser." },
+          { "id": "browser", "title": "Saves in this browser", "description": "Your data stays on this device. Another browser or device does not see it. Use Export where an app offers it." },
+          { "id": "none", "title": "Saves nothing", "description": "Nothing you enter is kept after you close the page." }
+        ],
+        "sources": [
+          { "id": "builtin", "label": "Built-in data" },
+          { "id": "file", "label": "Your file" },
+          { "id": "typed", "label": "What you enter" }
+        ],
+        "needs": [
+          { "id": "microphone", "label": "Microphone" },
+          { "id": "webgpu", "label": "WebGPU" },
+          { "id": "download", "label": "Large model download" },
+          { "id": "location", "label": "Location (optional)" }
+        ],
+        "apps": [
           {
-            "id": "prototypes",
-            "type": "link-list",
-            "title": "Prototype apps",
-            "label": "Available prototypes",
-            "items": [
-              {
-                "title": "Mind Map Viewer",
-                "url": "mindmap-viewer.html",
-                "description": "Markdown outline rendered as a pannable, zoomable mind map."
-              },
-              {
-                "title": "Modern LLM Timelines",
-                "url": "llm-lifecycle-timelines.html",
-                "description": "Model development and inference stages as an explorable timeline."
-              },
-              {
-                "title": "Jump Rope Interval Timer",
-                "url": "jump-rope-interval-timer.html",
-                "description": "Work and break interval timer with round tracking."
-              },
-              {
-                "title": "Browser LLM Chat",
-                "url": "browser-llm-chat.html",
-                "description": "Chat with a small LLM running entirely in-browser via WebGPU."
-              },
-              {
-                "title": "Meeting Cost Meter",
-                "url": "meeting-cost-meter.html",
-                "description": "Live money burn meter for meetings, by headcount and hourly rate."
-              },
-              {
-                "title": "Context Kit",
-                "url": "context-kit.html",
-                "description": "Assemble, tag, and reorder prompt context for AI coding sessions."
-              },
-              {
-                "title": "AI Coding Playbook",
-                "url": "ai-coding-playbook.html",
-                "description": "Checklist of AI coding practices with progress tracking."
-              },
-              {
-                "title": "Voice Kit",
-                "url": "voice-kit.html",
-                "description": "In-browser speech-to-text and text-to-speech, local models only."
-              },
-              {
-                "title": "Noise Nudge",
-                "url": "noise-nudge.html",
-                "description": "Live room loudness meter that counts distracting peaks."
-              },
-              {
-                "title": "GCSE Pseudocode Tutor",
-                "url": "gcse-pseudocode-tutor.html",
-                "description": "47-day GCSE CS course as a printable tutor reference."
-              },
-              {
-                "title": "GCSE Triple Science: F1 Roadmap",
-                "url": "gcse-science-f1-roadmap.html",
-                "description": "GCSE science syllabus as a prerequisite graph, linked to Formula 1."
-              },
-              {
-                "title": "Day Mosaic",
-                "url": "day-mosaic.html",
-                "description": "Daily activity log rendered as a Mondrian-style mosaic grid."
-              },
-              {
-                "title": "FogLAMP Scan Viewer",
-                "url": "foglamp-scan-viewer.html",
-                "description": "Codebase scan JSON rendered as a local Cytoscape graph."
-              },
-              {
-                "title": "Mortgage Compass",
-                "url": "mortgage-compass.html",
-                "description": "Visualises mortgage interest vs. ownership, and buying vs. renting."
-              },
-              {
-                "title": "Scorecard Tally",
-                "url": "scorecard-tally.html",
-                "description": "Sums each player's 4x2 score grid live and shows who's leading. Entirely offline."
-              },
-              {
-                "title": "UK Income Tax and NI Visualiser",
-                "url": "uk-tax-visualizer.html",
-                "description": "Salary split across Income Tax and National Insurance bands, marginal rate shown."
-              },
-              {
-                "title": "Sixth-Form Open Events",
-                "url": "sixth-form-open-events.html",
-                "description": "Sixth-form open evenings as a timeline, with search, distance filter, and CSV refresh."
-              },
-              {
-                "title": "Event Trail",
-                "url": "event-trail.html",
-                "description": "Any day's events grouped by walkable neighbourhood and rated for a chosen audience — hand an agent the built-in spec link to generate the JSON file."
-              },
-              {
-                "title": "Fact Graph",
-                "url": "fact-graph.html",
-                "description": "Type 'A -> relation -> B' facts into several graphs; nodes merge by slug in DataScript; tap for upstream and downstream, search with text or Datalog, and sync between devices with Nostr."
-              }
-            ]
+            "id": "fact-graph", "title": "Fact Graph", "url": "fact-graph.html", "group": "synced",
+            "summary": "Type facts as 'A -> relation -> B' into several graphs. Tap a node to see what it depends on and what depends on it.",
+            "sources": ["typed", "file"], "needs": [],
+            "saves": "Your fact log. After a Nostr sign-in it syncs between your devices.",
+            "data": "Facts you type, or a log you import. Sample facts are included.",
+            "keywords": "datascript datalog nostr knowledge"
           },
           {
-            "id": "bookmarks",
-            "type": "link-list",
-            "title": "Bookmarks",
-            "label": "Saved bookmarks",
-            "note": "Useful links that do not belong to one prototype app.",
-            "items": [
-              {
-                "title": "Social Downloader",
-                "url": "https://www.socialdownloader.space/",
-                "description": "Download social media videos from a browser.",
-                "meta": "External bookmark"
-              }
-            ]
+            "id": "day-mosaic", "title": "Day Mosaic", "url": "day-mosaic.html", "group": "browser",
+            "summary": "Log your day as coloured blocks and see it as a Mondrian-style mosaic.",
+            "sources": ["typed"], "needs": [],
+            "saves": "Your categories and time blocks.",
+            "data": "The activities you log.",
+            "keywords": "time log habits"
+          },
+          {
+            "id": "scorecard-tally", "title": "Scorecard Tally", "url": "scorecard-tally.html", "group": "browser",
+            "summary": "Adds up each player's 4x2 score grid as you type and shows who is leading. Works offline.",
+            "sources": ["typed"], "needs": [],
+            "saves": "The current game and your past games.",
+            "data": "The scores you enter.",
+            "keywords": "game score points"
+          },
+          {
+            "id": "context-kit", "title": "Context Kit", "url": "context-kit.html", "group": "browser",
+            "summary": "Collect, tag and reorder prompt context for AI coding sessions.",
+            "sources": ["typed", "file"], "needs": [],
+            "saves": "Your sessions and their snippets.",
+            "data": "Snippets you paste, or a session JSON you import.",
+            "keywords": "prompt ai agent"
+          },
+          {
+            "id": "ai-coding-playbook", "title": "AI Coding Playbook", "url": "ai-coding-playbook.html", "group": "browser",
+            "summary": "A checklist of AI coding practices that tracks your progress.",
+            "sources": ["builtin"], "needs": [],
+            "saves": "The practices you ticked.",
+            "data": "The checklist is built in.",
+            "keywords": "ai agent checklist"
+          },
+          {
+            "id": "mindmap-viewer", "title": "Mind Map Viewer", "url": "mindmap-viewer.html", "group": "browser",
+            "summary": "Turns a Markdown outline into a mind map that you can pan and zoom.",
+            "sources": ["typed", "file"], "needs": [],
+            "saves": "A library of the maps you opened, and your settings.",
+            "data": "An outline you paste, or a Markdown file. An example is included.",
+            "keywords": "markdown outline map"
+          },
+          {
+            "id": "foglamp-scan-viewer", "title": "FogLAMP Scan Viewer", "url": "foglamp-scan-viewer.html", "group": "browser",
+            "summary": "Shows a codebase scan as a local graph.",
+            "sources": ["file"], "needs": [],
+            "saves": "The last scan you loaded.",
+            "data": "A scan JSON that an agent makes from a repository. The page gives the prompt.",
+            "keywords": "code repository graph cytoscape"
+          },
+          {
+            "id": "event-trail", "title": "Event Trail", "url": "event-trail.html", "group": "browser",
+            "summary": "A day's events grouped by walkable neighbourhood and rated for a chosen audience.",
+            "sources": ["builtin", "file"], "needs": [],
+            "saves": "Your imported events and the ones you marked done.",
+            "data": "A sample day is included. An agent can make your own events JSON from the spec link on the page.",
+            "keywords": "events walk city plan"
+          },
+          {
+            "id": "sixth-form-open-events", "title": "Sixth-Form Open Events", "url": "sixth-form-open-events.html", "group": "browser",
+            "summary": "Sixth-form open evenings as a timeline, with search, a map, a distance filter and CSV refresh.",
+            "sources": ["file"], "needs": ["location"],
+            "saves": "Your imported events, your home location and the schools you marked.",
+            "data": "A CSV of open events that you import.",
+            "keywords": "school college open evening map"
+          },
+          {
+            "id": "gcse-science-f1-roadmap", "title": "GCSE Triple Science: F1 Roadmap", "url": "gcse-science-f1-roadmap.html", "group": "browser",
+            "summary": "The GCSE science syllabus as a graph of prerequisites, linked to Formula 1.",
+            "sources": ["builtin", "file"], "needs": [],
+            "saves": "Your topic progress, view mode and school list.",
+            "data": "The syllabus and resources are built in. You can import progress.",
+            "keywords": "gcse physics chemistry biology revision"
+          },
+          {
+            "id": "gcse-pseudocode-tutor", "title": "GCSE Pseudocode Tutor", "url": "gcse-pseudocode-tutor.html", "group": "browser",
+            "summary": "A 47-day GCSE computer science course as a printable tutor reference.",
+            "sources": ["builtin"], "needs": [],
+            "saves": "The last lesson day you opened.",
+            "data": "The course is built in.",
+            "keywords": "gcse computer science lessons print"
+          },
+          {
+            "id": "llm-lifecycle-timelines", "title": "Modern LLM Timelines", "url": "llm-lifecycle-timelines.html", "group": "none",
+            "summary": "Model development and inference stages as a timeline that you can explore.",
+            "sources": ["builtin"], "needs": [],
+            "saves": "Nothing.",
+            "data": "The timeline is built in.",
+            "keywords": "ai llm training inference"
+          },
+          {
+            "id": "uk-tax-visualizer", "title": "UK Income Tax and NI Visualiser", "url": "uk-tax-visualizer.html", "group": "none",
+            "summary": "Splits a salary across Income Tax and National Insurance bands and shows the marginal rate.",
+            "sources": ["typed"], "needs": [],
+            "saves": "Nothing.",
+            "data": "The salary you enter. The tax rules are built in.",
+            "keywords": "salary money hmrc"
+          },
+          {
+            "id": "mortgage-compass", "title": "Mortgage Compass", "url": "mortgage-compass.html", "group": "none",
+            "summary": "Shows mortgage interest against ownership, and buying against renting.",
+            "sources": ["typed"], "needs": [],
+            "saves": "Nothing.",
+            "data": "The loan and rent figures you enter.",
+            "keywords": "house money loan rent"
+          },
+          {
+            "id": "meeting-cost-meter", "title": "Meeting Cost Meter", "url": "meeting-cost-meter.html", "group": "none",
+            "summary": "A live meter of what a meeting costs, by headcount and hourly rate.",
+            "sources": ["typed"], "needs": [],
+            "saves": "Nothing.",
+            "data": "The headcount and rate you enter.",
+            "keywords": "money time work"
+          },
+          {
+            "id": "jump-rope-interval-timer", "title": "Jump Rope Interval Timer", "url": "jump-rope-interval-timer.html", "group": "none",
+            "summary": "A work and break interval timer that counts rounds.",
+            "sources": ["typed"], "needs": [],
+            "saves": "Nothing.",
+            "data": "The intervals you set.",
+            "keywords": "sport exercise workout"
+          },
+          {
+            "id": "noise-nudge", "title": "Noise Nudge", "url": "noise-nudge.html", "group": "none",
+            "summary": "A live room loudness meter that counts loud peaks.",
+            "sources": ["typed"], "needs": ["microphone"],
+            "saves": "Nothing. The sound stays in the browser.",
+            "data": "Live sound from your microphone.",
+            "keywords": "sound classroom loud"
+          },
+          {
+            "id": "browser-llm-chat", "title": "Browser LLM Chat", "url": "browser-llm-chat.html", "group": "none",
+            "summary": "Chat with a small language model that runs entirely in your browser.",
+            "sources": ["typed"], "needs": ["webgpu", "download"],
+            "saves": "Nothing of yours. The browser caches the model download.",
+            "data": "The messages you type. They stay on your device.",
+            "keywords": "ai llm chat offline"
+          },
+          {
+            "id": "voice-kit", "title": "Voice Kit", "url": "voice-kit.html", "group": "none",
+            "summary": "Speech to text and text to speech in the browser, with local models only.",
+            "sources": ["typed"], "needs": ["microphone", "download"],
+            "saves": "Nothing of yours. The browser caches the model downloads.",
+            "data": "Your voice or the text you paste. They stay on your device.",
+            "keywords": "speech voice audio ai"
           }
-        ]
+        ],
+        "bookmarks": {
+          "title": "Bookmarks",
+          "note": "Useful links that do not belong to one app. They open other websites.",
+          "items": [
+            { "title": "Social Downloader", "url": "https://www.socialdownloader.space/", "description": "Download social media videos from a browser." }
+          ]
+        },
+        "aboutUrl": "about.html"
       }
     </script>
 
-    <script>
-      const index = JSON.parse(document.getElementById("index-manifest").textContent);
-      const renderers = {
-        "link-list": renderLinkList
+    <script type="module">
+      const M = JSON.parse(document.getElementById("index-manifest").textContent);
+      const C = M.copy;
+      const $ = (id) => document.getElementById(id);
+      const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (all, key) => (key in vars ? String(vars[key]) : all));
+      const el = (tag, props = {}, ...children) => {
+        const node = Object.assign(document.createElement(tag), props);
+        node.append(...children.filter((c) => c !== null && c !== undefined && c !== false));
+        return node;
       };
+      const labelOf = (list, id) => (list.find((x) => x.id === id) || { label: id }).label;
 
-      document.title = index.title;
-      document.getElementById("page-title").textContent = index.title;
-      document.getElementById("page-intro").textContent = index.intro;
+      // ---- View state (a per-viewer convenience; the page works without storage) ----
 
-      const sections = document.getElementById("sections");
-      index.sections.forEach((section) => {
-        const renderer = renderers[section.type];
-        if (!renderer) {
-          throw new Error(`No renderer for section type: ${section.type}`);
-        }
-        sections.append(renderer(section));
-      });
+      const view = (() => {
+        try { return { query: "", source: "all", ...JSON.parse(localStorage.getItem(M.storageKey) || "{}") }; } catch { return { query: "", source: "all" }; }
+      })();
+      if (view.source !== "all" && !M.sources.some((s) => s.id === view.source)) view.source = "all";
+      const saveView = () => { try { localStorage.setItem(M.storageKey, JSON.stringify(view)); } catch { /* storage blocked */ } };
 
-      function renderLinkList(section) {
-        const root = document.createElement("section");
-        root.className = "section";
-        root.id = section.id;
+      // ---- Rendering ----
 
-        const heading = document.createElement("h2");
-        heading.textContent = section.title;
-        root.append(heading);
-
-        if (section.note) {
-          const note = document.createElement("p");
-          note.className = "section-note";
-          note.textContent = section.note;
-          root.append(note);
-        }
-
-        const list = document.createElement("div");
-        list.className = "item-list";
-        list.setAttribute("aria-label", section.label);
-
-        section.items.forEach((item) => {
-          list.append(renderCard(item));
-        });
-
-        root.append(list);
-        return root;
-      }
-
-      function renderCard(item) {
-        const card = document.createElement("a");
-        card.className = "item-card";
-        card.href = item.url;
-
-        if (new URL(item.url, window.location.href).origin !== window.location.origin) {
-          card.target = "_blank";
-          card.rel = "noreferrer";
-        }
-
-        const title = document.createElement("strong");
-        title.textContent = item.title;
-        card.append(title);
-
-        const description = document.createElement("span");
-        description.textContent = item.description;
-        card.append(description);
-
-        if (item.meta) {
-          const meta = document.createElement("span");
-          meta.className = "meta";
-          meta.textContent = item.meta;
-          card.append(meta);
-        }
-
+      function appCard(app) {
+        const needs = app.needs.length ? app.needs.map((n) => labelOf(M.needs, n)).join(", ") : C.needsNothing;
+        const card = el("article", { className: "app", id: `app-${app.id}` },
+          el("div", { className: "app-head" }, el("a", { href: app.url, textContent: app.title })),
+          el("p", { className: "summary", textContent: app.summary }),
+          el("div", { className: "tags" },
+            ...app.sources.map((s) => el("span", { className: "tag", textContent: labelOf(M.sources, s) })),
+            ...app.needs.map((n) => el("span", { className: "tag need", textContent: labelOf(M.needs, n) })),
+            el("details", { className: "more" },
+              el("summary", { textContent: C.details }),
+              el("dl", { className: "facts" },
+                el("dt", { textContent: C.factSaves }), el("dd", { textContent: app.saves }),
+                el("dt", { textContent: C.factData }), el("dd", { textContent: app.data }),
+                el("dt", { textContent: C.factNeeds }), el("dd", { textContent: needs })))));
+        card.dataset.search = [app.title, app.summary, app.saves, app.data, app.keywords, ...app.sources.map((s) => labelOf(M.sources, s)), ...app.needs.map((n) => labelOf(M.needs, n))].join(" ").toLowerCase();
+        card.dataset.sources = app.sources.join(" ");
         return card;
       }
+
+      function renderGroups() {
+        $("groups").replaceChildren(...M.groups.map((group) => {
+          const apps = M.apps.filter((a) => a.group === group.id);
+          return el("section", { className: "section", id: `group-${group.id}` },
+            el("h2", {}, el("span", { className: `dot ${group.id}`, ariaHidden: "true" }), group.title, el("span", { className: "count" })),
+            el("p", { className: "section-note", textContent: group.description }),
+            el("div", { className: "app-grid" }, ...apps.map(appCard)));
+        }));
+      }
+
+      function renderFilter() {
+        const options = [{ id: "all", label: C.filterAll }, ...M.sources];
+        $("source-filter").setAttribute("aria-label", C.filterLabel);
+        $("source-filter").replaceChildren(...options.map((o) => {
+          const b = el("button", { type: "button", className: "chip-btn", textContent: o.label });
+          b.dataset.source = o.id;
+          b.setAttribute("aria-pressed", String(view.source === o.id));
+          b.addEventListener("click", () => { view.source = o.id; saveView(); renderFilter(); applyFilter(); });
+          return b;
+        }));
+      }
+
+      // Shows the cards that match every search word and the chosen data source; hides empty groups.
+      function applyFilter() {
+        const words = view.query.toLowerCase().split(/\s+/).filter(Boolean);
+        let shown = 0;
+        for (const section of $("groups").children) {
+          let inGroup = 0;
+          for (const card of section.querySelectorAll(".app")) {
+            const match = words.every((w) => card.dataset.search.includes(w)) && (view.source === "all" || card.dataset.sources.split(" ").includes(view.source));
+            card.hidden = !match;
+            if (match) inGroup += 1;
+          }
+          section.hidden = inGroup === 0;
+          section.querySelector(".count").textContent = String(inGroup);
+          shown += inGroup;
+        }
+        const total = M.apps.length;
+        $("result-line").textContent = shown === total ? fill(C.resultAll, { total }) : fill(C.resultSome, { shown, total });
+        $("empty").hidden = shown > 0;
+      }
+
+      function renderBookmarks() {
+        const b = M.bookmarks;
+        $("bookmarks").replaceChildren(
+          el("h2", {}, b.title),
+          el("p", { className: "section-note", textContent: b.note }),
+          el("div", { className: "item-list" }, ...b.items.map((item) => el("a", { className: "bookmark", href: item.url, target: "_blank", rel: "noreferrer" },
+            el("strong", { textContent: item.title }), el("span", { textContent: item.description })))));
+      }
+
+      document.title = M.title;
+      $("page-title").textContent = M.title;
+      $("page-intro").textContent = M.intro;
+      const counts = Object.fromEntries(M.groups.map((g) => [g.id, M.apps.filter((a) => a.group === g.id).length]));
+      $("stats").textContent = fill(C.stats, { apps: M.apps.length, ...counts });
+      $("search").placeholder = C.searchPlaceholder;
+      $("search").setAttribute("aria-label", C.searchLabel);
+      $("search").value = view.query;
+      $("search").addEventListener("input", () => { view.query = $("search").value; saveView(); applyFilter(); });
+      // "/" jumps to the search field, as on many sites.
+      document.addEventListener("keydown", (event) => {
+        const target = event.composedPath()[0];
+        const typing = target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+        if (event.key === "/" && !typing && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); $("search").focus(); }
+      });
+      $("empty-text").textContent = C.emptyText;
+      $("empty-reset").textContent = C.emptyReset;
+      $("empty-reset").addEventListener("click", () => { view.query = ""; view.source = "all"; saveView(); $("search").value = ""; renderFilter(); applyFilter(); $("search").focus(); });
+      $("footer").append(`${C.footer} `, el("a", { href: M.aboutUrl, textContent: C.footerLink }));
+      renderGroups();
+      renderFilter();
+      renderBookmarks();
+      applyFilter();
     </script>
   </body>
 </html>

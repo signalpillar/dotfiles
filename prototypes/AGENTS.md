@@ -36,7 +36,9 @@ re-discovering the same mistake.
   It declares a `storage` block in its manifest, loads `nostr/store.js` and `nostr/account.js`, and adds one `<nostr-account>` element.
   It must keep working on local data without a sign-in, and from `file://`.
 - Keep filenames URL-friendly, lowercase, and hyphen-separated.
-- If there are multiple prototypes, maintain `index.html` as a simple launcher page.
+- If there are multiple prototypes, maintain `index.html` as the launcher app.
+  Each prototype has one entry in its manifest: group (`synced`, `browser` or `none`, by where the app keeps data), data sources, needs, a summary, what it saves and where its data comes from.
+  `prototype.tests/index` fails when a page is missing from the manifest, or when an entry's group, microphone or WebGPU need does not match the page code.
 - Every page loads the shared top bar with `<script src="shell.js" defer></script>`, as the last script in `<head>`.
   The bar links to `index.html` and to `about.html` (terms, privacy, Nostr sync, delete device data), and hosts the Nostr account badge on pages that load `nostr/account.js`.
   Do not add a second "back to index" link or an own account badge to a prototype.
