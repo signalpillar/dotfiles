@@ -28,7 +28,8 @@ test.beforeAll(async () => {
       "/llm-lifecycle-timelines.html": [htmlPath, "text/html"],
       "/llm-lifecycle-timelines.yaml": [yamlPath, "text/yaml; charset=utf-8"],
       "/prototype-base.css": [baseCssPath, "text/css; charset=utf-8"],
-      "/prototype-jelly.css": [jellyCssPath, "text/css; charset=utf-8"]
+      "/prototype-jelly.css": [jellyCssPath, "text/css; charset=utf-8"],
+      "/shell.js": [path.join(path.dirname(baseCssPath), "shell.js"), "text/javascript; charset=utf-8"]
     };
     const entry = files[pathname];
     if (!entry) {

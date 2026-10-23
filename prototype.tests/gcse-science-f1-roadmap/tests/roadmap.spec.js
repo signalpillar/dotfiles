@@ -32,6 +32,11 @@ test.beforeAll(async () => {
       response.end(fs.readFileSync(baseCssPath));
       return;
     }
+    if (pathname === "/shell.js") {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" });
+      response.end(fs.readFileSync(path.join(path.dirname(baseCssPath), "shell.js")));
+      return;
+    }
     if (pathname === "/prototype-jelly.css") {
       response.writeHead(200, { "content-type": "text/css; charset=utf-8" });
       response.end(fs.readFileSync(jellyCssPath));

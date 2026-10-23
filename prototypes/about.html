@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>About these prototypes</title>
+
+    <!-- Pico: class-light CSS only, no JavaScript, no build step. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css">
+    <link rel="stylesheet" href="prototype-base.css">
+    <!-- Shared Nostr account (sign in once for every prototype) and the shared top bar. -->
+    <script src="https://cdn.jsdelivr.net/npm/nostr-tools@2.25.2/lib/nostr.bundle.js" defer></script>
+    <script src="nostr/store.js" defer></script>
+    <script src="nostr/account.js" defer></script>
+    <script src="shell.js" defer></script>
+
+    <style>
+      /* Layout only. Pico owns type and component styling. */
+      body { background: var(--pico-background-color); }
+      main { inline-size: min(46rem, 100%); margin-inline: auto; padding: var(--pico-spacing); }
+      .kicker { margin-block-end: 0; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--pico-muted-color); }
+      h1 { margin-block: 0.25rem 0.5rem; }
+      .lead { color: var(--pico-muted-color); }
+      nav.toc ul { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding: 0; margin: 0; }
+      nav.toc li { list-style: none; padding: 0; }
+      section { margin-block: 2rem; }
+      section h2 { margin-block-end: 0.5rem; font-size: 1.25rem; }
+      section ul { padding-inline-start: 1.1rem; }
+      section li { margin-block-end: 0.35rem; }
+      .table-wrap { overflow-x: auto; }
+      table { font-size: 0.9rem; }
+      .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .actions button { inline-size: auto; margin: 0; }
+      .status-line { font-size: 0.9rem; color: var(--pico-muted-color); min-block-size: 1.3em; margin-block-start: 0.5rem; }
+      .updated { font-size: 0.85rem; color: var(--pico-muted-color); }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <p class="kicker" id="kicker"></p>
+      <h1 id="title"></h1>
+      <p class="lead" id="lead"></p>
+      <nav class="toc" aria-label="On this page"><ul id="toc"></ul></nav>
+      <div id="sections"></div>
+      <p class="updated" id="updated"></p>
+    </main>
+
+    <script type="application/json" id="about-manifest">
+      {
+        "kicker": "Prototypes",
+        "title": "About these prototypes",
+        "lead": "Plain-language terms, what happens to your data, and how the optional Nostr sync works. This page covers every prototype on this site.",
+        "updated": "Last updated: 20 October 2026",
+        "repoUrl": "https://github.com/signalpillar/dotfiles",
+        "sections": [
+          {
+            "id": "what",
+            "type": "text",
+            "title": "What these are",
+            "paragraphs": [
+              "These are small experiments. Each one is a single web page, built quickly, often with an AI coding assistant.",
+              "A prototype can change, break or disappear without notice. Treat it as a sketch, not as a product."
+            ]
+          },
+          {
+            "id": "terms",
+            "type": "list",
+            "title": "Terms of use",
+            "items": [
+              "You use the prototypes at your own risk. They come with no warranty of any kind.",
+              "Results can be wrong. A calculator, a timeline or a plan here is an estimate, not financial, legal, medical or educational advice.",
+              "Do not make decisions with real consequences on a prototype alone. Check the result with a proper source.",
+              "Do not type secrets into a prototype: passwords, bank details, health records or other people's personal data.",
+              "The source code is public in the GitHub repository below. Linked websites and their content belong to their owners.",
+              "These terms can change. The date at the bottom of this page shows the last change."
+            ]
+          },
+          {
+            "id": "privacy",
+            "type": "list",
+            "title": "Privacy",
+            "items": [
+              "There are no user accounts on this site, no analytics, no adverts and no tracking cookies.",
+              "What you type stays in this browser, on this device, in browser storage (localStorage and IndexedDB). It does not reach the site owner.",
+              "Some prototypes run an AI model inside your browser. The model downloads from Hugging Face once; your text stays on your device.",
+              "A map shows tiles from OpenStreetMap. A place search sends the place name to the OpenStreetMap Nominatim service.",
+              "The pages load code and fonts from the third parties in the table below. Each of them receives your IP address and the name of the file, like any web request.",
+              "GitHub Pages hosts the site, so GitHub can log requests. The GitHub privacy statement applies to that."
+            ],
+            "hosts": [
+              { "host": "cdn.jsdelivr.net", "why": "Libraries: Pico CSS, DataScript, Cytoscape, nostr-tools and others" },
+              { "host": "unpkg.com", "why": "Libraries: Open Props, Leaflet and others" },
+              { "host": "jelly-ui.com", "why": "The Jelly UI component library" },
+              { "host": "esm.run, esm.sh", "why": "JavaScript modules for the in-browser AI prototypes" },
+              { "host": "fonts.googleapis.com", "why": "A web font in one prototype" },
+              { "host": "huggingface.co", "why": "AI model files for the in-browser chat and voice prototypes" },
+              { "host": "openstreetmap.org", "why": "Map tiles and place search" },
+              { "host": "Nostr relays", "why": "Only when you sign in to Nostr sync (see below)" }
+            ]
+          },
+          {
+            "id": "nostr",
+            "type": "list",
+            "title": "Nostr sync (optional)",
+            "items": [
+              "Some prototypes can sync your data between your devices through Nostr, an open network of relays. Those prototypes show a sync badge in the top bar.",
+              "You sign in with a Nostr key. One sign-in works for every prototype on this site. Use the badge in the top bar of this page to sign in, back up your key, change relays or sign out.",
+              "Before your data leaves the browser, it is encrypted to your own key (NIP-44). Relays cannot read it.",
+              "Relays can still see your public key, the time of each change, and the names of the prototype and the data collection.",
+              "Relays belong to third parties. A relay can drop data at any time, and a relay does not have to delete data when you ask. Export your data if it matters to you.",
+              "A key that you create or paste here stays in this browser. Anyone with access to this browser profile can read it. A Nostr browser extension keeps the key out of the page and is safer.",
+              "If you sign in with your main Nostr identity, a relay change here also changes the relay list that your other Nostr apps use."
+            ],
+            "link": { "text": "Technical design of the sync", "url": "https://github.com/signalpillar/dotfiles/blob/master/prototypes/nostr/DESIGN.md" }
+          },
+          {
+            "id": "device",
+            "type": "action",
+            "title": "Your data on this device",
+            "paragraphs": [
+              "Each prototype keeps its data in this browser. You can delete all of it here, for every prototype on this site at once.",
+              "This also signs you out of Nostr sync and removes a stored key. Back up your key first. Data that already synced stays on the relays."
+            ],
+            "button": "Delete all prototype data on this device",
+            "confirm": "Tap again to delete everything",
+            "done": "Deleted: {local} stored setting(s), {databases} database(s) and {caches} cache(s). Reload a prototype to start fresh.",
+            "failed": "Could not delete everything: {message}"
+          },
+          {
+            "id": "contact",
+            "type": "text",
+            "title": "Contact",
+            "paragraphs": [
+              "Questions, problems or a request to remove something: open an issue in the GitHub repository."
+            ],
+            "link": { "text": "github.com/signalpillar/dotfiles", "url": "https://github.com/signalpillar/dotfiles/issues" }
+          }
+        ],
+        "hostHeaders": ["Host", "Why the pages load it"],
+        "confirmMs": 3000
+      }
+    </script>
+
+    <script type="module">
+      const M = JSON.parse(document.getElementById("about-manifest").textContent);
+      const $ = (id) => document.getElementById(id);
+      const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (all, key) => (key in vars ? String(vars[key]) : all));
+      const el = (tag, props = {}, ...children) => {
+        const node = Object.assign(document.createElement(tag), props);
+        node.append(...children.filter((c) => c !== null && c !== undefined));
+        return node;
+      };
+
+      const paragraphs = (s) => (s.paragraphs || []).map((text) => el("p", { textContent: text }));
+      const link = (s) => (s.link ? el("p", {}, el("a", { href: s.link.url, textContent: s.link.text, rel: "noopener" })) : null);
+      function hostTable(s) {
+        if (!s.hosts) return null;
+        const head = el("tr", {}, ...M.hostHeaders.map((h) => el("th", { scope: "col", textContent: h })));
+        const rows = s.hosts.map((h) => el("tr", {}, el("td", {}, el("code", { textContent: h.host })), el("td", { textContent: h.why })));
+        return el("div", { className: "table-wrap" }, el("table", {}, el("thead", {}, head), el("tbody", {}, ...rows)));
+      }
+
+      // Deletes localStorage, every IndexedDB database and every Cache Storage entry of this origin.
+      async function deleteAll() {
+        const local = (() => { try { const n = localStorage.length; localStorage.clear(); return n; } catch { return 0; } })();
+        let databases = 0;
+        if (indexedDB.databases) {
+          for (const db of await indexedDB.databases()) {
+            await new Promise((resolve) => { const req = indexedDB.deleteDatabase(db.name); req.onsuccess = req.onerror = req.onblocked = resolve; });
+            databases += 1;
+          }
+        }
+        let caches = 0;
+        if (window.caches) {
+          for (const key of await window.caches.keys()) { await window.caches.delete(key); caches += 1; }
+        }
+        if (window.NostrPrototypes) window.NostrPrototypes.account.signOut();
+        return { local, databases, caches };
+      }
+
+      function actionSection(s) {
+        const button = el("button", { type: "button", className: "secondary", id: "delete-all", textContent: s.button });
+        const status = el("p", { className: "status-line", role: "status", id: "delete-status" });
+        let armed = null;
+        button.addEventListener("click", async () => {
+          if (!armed) {
+            button.textContent = s.confirm;
+            armed = setTimeout(() => { armed = null; button.textContent = s.button; }, M.confirmMs);
+            return;
+          }
+          clearTimeout(armed);
+          armed = null;
+          button.textContent = s.button;
+          try {
+            status.textContent = fill(s.done, await deleteAll());
+          } catch (error) {
+            status.textContent = fill(s.failed, { message: error.message });
+          }
+        });
+        return [el("div", { className: "actions" }, button), status];
+      }
+
+      const renderers = {
+        text: (s) => [...paragraphs(s), link(s)],
+        list: (s) => [el("ul", {}, ...s.items.map((text) => el("li", { textContent: text }))), hostTable(s), link(s)],
+        action: (s) => [...paragraphs(s), ...actionSection(s)]
+      };
+
+      $("kicker").textContent = M.kicker;
+      $("title").textContent = M.title;
+      $("lead").textContent = M.lead;
+      $("updated").textContent = M.updated;
+      $("toc").replaceChildren(...M.sections.map((s) => el("li", {}, el("a", { href: `#${s.id}`, textContent: s.title }))));
+      $("sections").replaceChildren(...M.sections.map((s) => el("section", { id: s.id },
+        el("h2", { textContent: s.title }),
+        ...renderers[s.type](s))));
+    </script>
+  </body>
+</html>

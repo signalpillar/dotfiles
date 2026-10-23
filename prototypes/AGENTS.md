@@ -32,8 +32,18 @@ re-discovering the same mistake.
 - Keep controls understandable without external documentation.
 - Include enough inline labels and stats for the prototype to explain itself while being used.
 - Avoid backend services, authentication, and analytics unless they are the thing being prototyped.
+- Exception: a prototype may opt in to sync its data between devices through the shared Nostr layer in `nostr/` (see `nostr/DESIGN.md`).
+  It declares a `storage` block in its manifest, loads `nostr/store.js` and `nostr/account.js`, and adds one `<nostr-account>` element.
+  It must keep working on local data without a sign-in, and from `file://`.
 - Keep filenames URL-friendly, lowercase, and hyphen-separated.
-- If there are multiple prototypes, maintain `index.html` as a simple launcher page.
+- If there are multiple prototypes, maintain `index.html` as the launcher app.
+  Each prototype has one entry in its manifest: group (`synced`, `browser` or `none`, by where the app keeps data), data sources, needs, a summary, what it saves and where its data comes from.
+  `prototype.tests/index` fails when a page is missing from the manifest, or when an entry's group, microphone or WebGPU need does not match the page code.
+- Every page loads the shared top bar with `<script src="shell.js" defer></script>`, as the last script in `<head>`.
+  The bar links to `index.html` and to `about.html` (terms, privacy, Nostr sync, delete device data), and hosts the Nostr account badge on pages that load `nostr/account.js`.
+  Do not add a second "back to index" link or an own account badge to a prototype.
+- `about.html` is the one place for terms and privacy text.
+  When a prototype starts to load from a new third-party host, add the host to its privacy table.
 
 ## Compact list + detail
 
@@ -59,6 +69,24 @@ Canonical options we considered (Android Adaptive / Material list-detail, SAP Fi
 Default for new prototypes in this repo: option 3 (inline expand) on compact screens, with a side-by-side or sticky detail pane on wide screens.
 Use drawers / bottom sheets for secondary surfaces (filters, overlays, short inspectors), not for the primary selected-item read unless the content is deliberately sheet-sized.
 Keep Prev / Next / Back actions in the lower third of the detail when they are the primary controls.
+
+## Compact controls
+
+`fact-graph.html` is the reference for these patterns (2026-10).
+
+- **Status messages:** call `PrototypeShell.toast(message)` from `shell.js`.
+  Do not give a full line of the page to transient messages.
+  Keep an inline status line only for lasting states, such as "a library did not load".
+- **Exclusive accordion:** give related `<details>` the same `name` (for example `name="side"`), so opening one closes the others.
+  A side column then never grows longer than one open section.
+- **"More" menu:** move rare actions (Export, Import, Clear all, Re-layout) into a native `popover` opened by one "More" button with `popovertarget`.
+  It closes on Escape and on an outside click with no JavaScript.
+  On wide screens, place it under its button, or above when the space below is too small, from the `toggle` event; on phones, style it as a bottom sheet.
+  An action closes the menu; a two-step confirm keeps it open for the second tap.
+- **Floating primary action on phones:** a floating button in the thumb zone opens the composer in a bottom-sheet `<dialog>`.
+  Move the one composer node between the side column and the sheet with `matchMedia`, as in Compact list + detail.
+  Close the sheet after a clean submit; keep it open when lines with errors remain.
+  Hide the floating button while another bottom sheet is open, and lift the toast above it with `prototype-shell { --prototype-toast-offset: 5.25rem; }`.
 
 ## Visual Direction
 
@@ -252,6 +280,67 @@ Read them before writing the first line, not after debugging.
   taper's own effect for free and stays correct if a threshold value changes later. Used this to
   add the combined Income Tax plus National Insurance marginal rate to the tax visualiser, and it
   reproduced the well-known 62% figure in the £100k-£125,140 band without a single special case.
+
+### DataScript and Cytoscape (2026-10: `fact-graph`)
+
+- Inline `<script defer>` is ignored: the inline code runs before the deferred CDN scripts and sees no library globals.
+  Use an inline `<script type="module">`; modules join the same ordered queue as `defer` scripts and still work from `file://`.
+- The DataScript JS API (`datascript@1.8.1`, global `datascript`) takes attribute names as plain strings without the leading colon (`"node/slug"`).
+  Schema values and tx functions keep the colon: `{":db/unique": ":db.unique/identity"}`, `[":db.fn/retractEntity", ["edge/id", id]]`.
+- A `:db.unique/identity` slug gives node merging for free: two facts that name `ews` upsert into one entity.
+  This also holds inside one transaction: two tempids with the same new slug resolve to one entity, so a self-loop needs no special case.
+- Do not load `datascript.js` into a Node `vm` context to test it: cross-realm objects fail with `No protocol method IKVReduce.-kv-reduce`.
+  `require()` it directly instead.
+- `cytoscape-fcose` needs `layout-base` then `cose-base` loaded before it, as plain script tags.
+  Keep node positions per graph and pass the known ones as `fixedNodeConstraint`, so adding a fact does not reshuffle the graph.
+- A recursive DataScript rule loops forever on a cyclic graph when its recursive body calls another rule (`(link ?a ?m) (reaches ?m ?b)`).
+  It stops when the recursive body uses plain patterns (`[?e "edge/from" ?a] [?e "edge/to" ?m] (reaches ?m ?b)`).
+  A non-recursive wrapper rule around the safe form, such as a slug lookup, also stops.
+- `ds.q` is synchronous, so a query that never ends freezes the tab.
+  Run user-typed queries in a Web Worker built from a Blob, `importScripts()` the library there, send the db as `ds.serializable(db)`, and `terminate()` the worker at a time limit.
+  This also works from `file://`.
+- DataScript has `clojure.string/includes?` and `str` but no `clojure.string/lower-case`.
+  For case-insensitive search, store a lowercase search attribute when you transact.
+- `page.route()` does not cover `importScripts()` inside a dedicated worker.
+  Use `page.context().route()` to serve CDN fixtures to workers in tests.
+- `Node.append(null)` inserts the text "null".
+  Filter optional children before `append()` (an `appendAll` helper), not only in the element factory.
+- A fixed bottom sheet can cover primary controls lower on the page, such as a composer's submit button.
+  Close the sheet when the user focuses the composer on compact screens, and pad the page by the sheet height while it is open.
+
+### Shared Nostr layer (2026-10: `nostr/`, first adopter `fact-graph`)
+
+- Load the shared files as classic `defer` scripts, not ES modules: a module import of `nostr/store.js` fails from `file://`.
+  The `nostr-tools` browser bundle (`lib/nostr.bundle.js`) also loads as a classic script and sets `window.NostrTools`.
+- In `nostr-tools@2.25.2`, `SimplePool.subscribe`, `subscribeEose` and `querySync` take one filter object, not an array.
+  `publish()` returns one promise per relay; wrap them in `Promise.any` with a time limit.
+- Public relays return at most 500 events per query (NIP-11 `max_limit`), so a first pull must page back with `until`.
+- An addressable event (kind 30000-39999) with the same `created_at` as the stored one can lose to it, because relays keep the lower id on a tie.
+  Make `created_at` grow with every write of one `d` tag.
+- A `<dialog>` that renders its content only when `dialog.open` is true must call `showModal()` before it renders, or it opens empty.
+- The store switches owner (sign-in, sign-out) asynchronously, after the account badge already updates.
+  Tests must poll the data after a sign-out, not read it once.
+- A retry loop that sets "syncing" on every attempt makes the badge blink between "Offline" and "Syncing".
+  Keep "offline" until an attempt succeeds.
+- Do not run `pkill -f` with a pattern that also matches your own shell command line; it kills the shell that runs it.
+- An open IndexedDB connection blocks `indexedDB.deleteDatabase()` from any page, for example "Delete all" on `about.html`.
+  Set `db.onversionchange = () => db.close()` on every connection you open.
+
+### Shared top bar (2026-10: `shell.js`)
+
+- Inside a shadow root, an author rule such as `a { display: inline-flex }` beats the `hidden` attribute.
+  Add `[hidden] { display: none !important }` to the shadow styles.
+- Every prototype test server must also serve `/shell.js`, or the page logs a 404 that reads as a real failure.
+- The bar scrolls away with the page and returns as a fixed bar when you scroll up.
+  The host element keeps the bar's height in the page flow, so content never jumps when the inner bar becomes fixed.
+  In tests and captures, measure the inner `nav` in the shadow root, not the host: the host stays where it was.
+- Pico styles every `<dialog>` as a full-screen centered layer (`display: flex`, `min-height: 100%`).
+  A bottom-sheet dialog needs its own `dialog.x[open]` rule that resets `display`, `inset`, the sizes and `backdrop-filter`.
+- A dropdown placed under its button runs off the bottom of the window when the button is low on the page.
+  Measure the space below and open upward when it does not fit.
+- A page that boots asynchronously (fact-graph reads IndexedDB first) needs tests that wait for an explicit ready flag after `goto` and after `reload`, not for the first rendered text.
+- `prototype.tests/shell` loads every page twice, with and without the bar, and fails only on new overflow or new errors.
+  A page that fails on its own hides its errors from that comparison, so pages built with the bar (`about.html`, `index.html`) must have zero errors.
 
 ### Manifest-driven code
 

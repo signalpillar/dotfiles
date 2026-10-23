@@ -1,0 +1,11 @@
+{
+  "name": "prototype-index-tests",
+  "private": true,
+  "scripts": {
+    "validate": "node tests/validate-index.mjs ../../prototypes",
+    "test": "npm run validate && playwright test tests/index.spec.js --workers=1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  }
+}
