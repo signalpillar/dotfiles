@@ -34,6 +34,7 @@ brew "tldr"
 brew "cloc"
 brew "entr"
 brew "git"
+brew "git-lfs"
 brew "restic"
 brew "difftastic"
 brew "delta"
@@ -84,6 +85,7 @@ cask "antigravity-cli"
 cask "opensuperwhisper"
 cask "tinycast" # https://github.com/abue-ammar/tinycast
 cask "nikitabobko/tap/aerospace" # tiling window manager, https://github.com/nikitabobko/AeroSpace
+cask "simplenote" # Electron build; the App Store build updates less often
 
 # Fonts
 cask "font-jetbrains-mono-nerd-font"

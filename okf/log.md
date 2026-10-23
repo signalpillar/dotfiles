@@ -1,5 +1,13 @@
 # Bundle Update Log
 
+## 2026-10-23
+
+* **Update**: `Brewfile` installs the `simplenote` cask (Electron build). The `overview` concept needs no change.
+
+## 2026-10-16
+
+* **Update**: `Brewfile` installs `git-lfs`. `dot_gitconfig.tmpl` already sets the `lfs` filter, so a new host without the binary fails on LFS checkouts. The `overview` concept needs no change.
+
 ## 2026-10-09
 
 * **Update**: `overview`. Removed Starship from the terminal stack. The zsh prompt is now the zsh default.
