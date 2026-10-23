@@ -229,6 +229,7 @@ Separate the stderr owner from the command owner.
 | Observation | Owner | Action |
 | --- | --- | --- |
 | `not found in mise tool registry` | `hook-env` + `[tools]` | Use an explicit backend, or upgrade mise until `mise registry NAME` works |
+| `no asset found: <old name>` after an upstream release | stale aqua registry row in mise | Use `github:owner/repo`, check the picked asset with `MISE_VERBOSE=1 mise install` |
 | `command not found: eza` | zsh alias + Homebrew | Install `eza`, or stop the alias |
 | `/bin/ls` works, `ls` fails | alias only | Do not debug the kernel `ls` |
 | Brewfile lists a formula, `brew info` says not installed | chezmoi onchange / `brew bundle` | Apply the brew onchange script, or `brew install` that formula |

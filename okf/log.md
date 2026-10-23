@@ -3,6 +3,7 @@
 ## 2026-10-23
 
 * **Update**: `Brewfile` installs the `simplenote` cask (Electron build). The `overview` concept needs no change.
+* **Update**: `dot_config/mise/config.toml` installs DuckDB through `github:duckdb/duckdb`. DuckDB 2.0.0 renamed `duckdb_cli-*.zip` to `duckdb-cli-*.tar.gz`, and the aqua registry in mise 2026.10.17 still asks for the old name. Added the row to `investigations/eza-ls-mise-registry` Part 2.
 
 ## 2026-10-16
 
