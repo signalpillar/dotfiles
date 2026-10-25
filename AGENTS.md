@@ -44,6 +44,12 @@ Do not switch to a casual register unless the user asks.
   Instruction packets, loop packets, channel rules, and CLI help live in that profile.
   Read them with `pi-job instruction`, `pi-job loop`, `pi-job channels`, and `pi-job <cmd> --help`.
   Do not restate them here.
+- When you build an HTML artifact (Lavish or other), use a light editorial theme.
+ Do not use dark themes, dark sections, or the DaisyUI `luxury` default.
+ Use plain CSS with these tokens: canvas `#F3EFE8`, paper `#FBF9F5`, ink `#121212`, muted ink `#57524A`, rule `#CFC8BC`, accent `#5B2EFF`.
+ Status colours: red `#8A2D1C`, amber `#6A4A00`, green `#1F6B3A`, shown as outlined pill tags with a text label.
+ Headings use a serif display font (`"Iowan Old Style", Palatino, Georgia, serif`); body uses the system sans stack.
+ Tables use hairline `--rule` borders and uppercase muted column headers.
 - Before showing anyone a Mermaid diagram, validate it with the `mermaid` skill (`~/.agents/skills/mermaid`, `mermaid-validate <file>`) instead of eyeballing the syntax.
 - Before showing anyone a BPMN diagram for demo.bpmn.io, follow the `bpmn-js` skill (`~/.agents/skills/bpmn-js`).
 - Never use the em dash "—".
