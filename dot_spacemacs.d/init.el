@@ -766,6 +766,16 @@ If you are unsure, try setting them in `dotspacemacs/user-config' first."
   ;; any package, hence here rather than `user-config'.
   (setenv "COPYFILE_DISABLE" "1")
 
+  ;; paper-theme writes the background into `defconst' when the file loads.
+  ;; This function runs before `spacemacs/load-default-theme', so the advice
+  ;; is active while those constants are built. `paper-grey' is `#FAFAFA',
+  ;; near white. `#F3EFE8' is the warm paper tone.
+  (defun my/paper-colour-warm (orig identifier)
+    (if (eq identifier 'paper-grey)
+        "#F3EFE8"
+      (funcall orig identifier)))
+  (advice-add 'paper-colour :around #'my/paper-colour-warm)
+
   ;; Ubuntu 25.10 ships uutils coreutils, so `ls' is the Rust rewrite and
   ;; prints no "GNU" in --version. Dired's --dired, --group-directories-first,
   ;; and `dired-quick-sort' all need GNU ls. GNU builds keep prefixed names:
