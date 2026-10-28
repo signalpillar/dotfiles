@@ -1103,6 +1103,19 @@ before packages are loaded."
     (setf (alist-get 'sig_type tree-sitter-hl-face-mapping-alist)
           'my/ts-signature-type-face))
 
+  ;; Built-in treesit (Emacs 29+) is separate from the old
+  ;; tree-sitter package above. python-pytest uses built-in
+  ;; treesit and needs the Python grammar in
+  ;; ~/.emacs.d/tree-sitter/. That path lives in the Spacemacs
+  ;; clone, so chezmoi does not track the .dylib. Ensure it
+  ;; here so fresh machines self-heal.
+  (when (fboundp 'treesit-language-available-p)
+    (when (boundp 'treesit-language-source-alist)
+      (add-to-list 'treesit-language-source-alist
+                   '(python "https://github.com/tree-sitter/tree-sitter-python")))
+    (unless (treesit-language-available-p 'python)
+      (treesit-install-language-grammar 'python)))
+
   ;; -----
   ;; TTY frames cannot render :box (GUI-only, pixel based). Use a light
   ;; yellow background instead, so function names/defs stand out in terminal.

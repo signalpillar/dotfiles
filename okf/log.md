@@ -8,6 +8,9 @@
 ## 2026-10-16
 
 * **Update**: `Brewfile` installs `git-lfs`. `dot_gitconfig.tmpl` already sets the `lfs` filter, so a new host without the binary fails on LFS checkouts. The `overview` concept needs no change.
+* **Fix**: `dot_spacemacs.d/init.el` auto-installs the built-in treesit Python grammar when missing.
+  `python-pytest` takes the treesit path on Emacs 29+, then fails without the grammar in `~/.emacs.d/tree-sitter/`.
+  Chezmoi does not track that `.dylib` because `~/.emacs.d` is a Spacemacs clone, so `user-config` runs `treesit-install-language-grammar`.
 
 ## 2026-10-09
 
