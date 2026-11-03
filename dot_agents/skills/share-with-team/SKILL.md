@@ -23,7 +23,7 @@ metadata:
 - If you are on `main`/`master` (or any non-feature branch), create a feature branch BEFORE committing.
   - Use `feat/` for feature work and `bug/` for fixes.
   - Include the ticket key in the branch name.
-  - Example: `bug/TICKET-10010-fix-injection-message`
+  - Example: `bug/TICKET-10010-fix-signup-message`
 - Review the diff and keep the scope tight (avoid committing local-only files like `.envrc` and unrelated edits).
 - Assume the user stages the intended changes; if anything is unclear about what should be included, ask.
 - Ensure changes are tested/linted.
@@ -138,7 +138,7 @@ Keep both in the lead.
 
 1. What the system did before this PR, or what behaviour stays.
    For a linter or a refactor, name the unenforced convention.
-   Do not invent a member when the change is a tool or a refactor.
+   Do not invent a user when the change is a tool or a refactor.
 2. The change in the author's words.
    When the work adds a linter rule, the sentence says **linter rule**.
    Do not translate that into a user journey.
@@ -204,9 +204,9 @@ C  (unchanged / next slice)
 This PR owns **B**. It does not own **C**.
 
 ### 4. Contract (omit only when there is no state, field, or error map)
-| CarePlan state | Programme status |
+| Order state | Display status |
 |---|---|
-| `active` | `ActiveProgrammeStatus` |
+| `active` | `ActiveOrderStatus` |
 
 | slug | when |
 |---|---|
@@ -218,9 +218,49 @@ A field list under the table is fine when the cells need a short note.
 ### 5. Tests / limit
 - Tests: <kind + contract>
 - Not in this PR: <follow-up>
+
+## Merge Danger
+
+**Door:** <one-way | two-way>
+
+<What a revert restores. What data the PR writes, migrates, or exposes to clients, or "No data is written".>
+
+**Blast Radius:** <the surface that changes, in a few words>
+
+<Which requests or users see a difference, and which do not. New calls, their failure mode, and any visible change in output.>
 ````
 
 Name A/B/C as real systems or services, not placeholders. Mark the changed node with `<--- this PR`. Name the follow-up on C when work is split across slices.
+
+**Merge Danger** is the last section of every PR body.
+Always include it, also for a pure refactor.
+It tells the reviewer the cost of a wrong merge.
+
+- **Door: two-way** - a plain revert restores the previous behaviour.
+  Nothing persists from the merged code.
+- **Door: one-way** - a revert does not undo the effect.
+  Examples: a data migration, a write in a new shape, a public API or schema field, an event that clients consume.
+  Name the irreversible part and the recovery step.
+- **Blast Radius** - name the surface in a few words after the label, for example `order summary` or `checkout price label`.
+  In the paragraph, state who sees a difference and who does not.
+  Name each new outbound call and what happens when it fails.
+  For a pure refactor, write `none - no behavior change`.
+
+Example:
+
+```
+## Merge Danger
+
+**Door:** two-way
+
+Reverting restores the current order summary. No data is written and nothing is exposed to clients.
+
+**Blast Radius:** order summary
+
+Every order summary query now makes one more settings service GET (`key=delivery-day`), in parallel with the existing order reads.
+A failure there is logged and ignored.
+Customers who did not change their delivery day see no difference, because no setting exists for them.
+```
 
 **What makes a good PR description:**
 - **Always hybrid** - do not ask repository, full, or hybrid.
@@ -237,6 +277,7 @@ Name A/B/C as real systems or services, not placeholders. Mark the changed node 
 - **Surface quirks explicitly** - if you discovered a system bug or gap and worked around it, say so. Hiding it makes the workaround look like a design choice.
 - **Tables stay in the hybrid body.** A state map or an error-slug map is a markdown table in §4. Do not drop it to keep the lead short. A schema that did not change can still need the table. Omit §4 only when there is no map.
 - **Known limitations are not failures** - be explicit about what is deferred and why; it signals intentional scoping.
+- **Merge Danger always closes the body** - state the door (one-way or two-way) and the blast radius. Never omit it.
 
 ## When to use me
 
