@@ -356,6 +356,24 @@ Read them before writing the first line, not after debugging.
 - Test image checks with negative cases, not only a good sample.
   Mutate the loaded canvas (blur, dark overlay, half-frame shadow, white or green background) and confirm each check fails.
 
+- MediaPipe Face Landmarker (`@mediapipe/tasks-vision@1.2.2`) loads with a dynamic `import()` from a classic script, so it works from `file://`.
+  The 1.2.2 package has `wasm/vision_wasm_internal.*` only, with no `nosimd` files.
+  Load the model on first use, not at page load, and keep a manual path for when it does not load.
+- One landmarker serves both modes.
+  Call `await setOptions({ runningMode })` before switching between `IMAGE` and `VIDEO`.
+- Blendshape names are the subject's own left and right.
+  A mirrored image swaps them, so run the model on the unmirrored frame and mirror only the display.
+- The transformation matrix is column-major.
+  Read `r[row][col]` as `data[col * 4 + row]`, and use `atan2` forms so a uniform scale cancels.
+- The landmarks have no crown point.
+  Estimate it above landmark 10 (forehead) at 0.30 of the forehead-to-chin distance, and keep the markers draggable.
+- To test with a real face offline, `pip install scikit-image` in a venv and save `skimage.data.astronaut()`.
+  Chromium plays a local video through `--use-fake-device-for-media-stream --use-file-for-fake-video-capture=face.y4m`.
+  `ffmpeg -loop 1 -i face.png -t 3 -r 10 -pix_fmt yuv420p face.y4m` makes the file.
+- Route the library, wasm and model files with `context.route()`, and add `access-control-allow-origin: *` to each response.
+  The model host logs an `INFO: Created TensorFlow Lite XNNPACK delegate` line as a console error.
+  Filter it out in tests.
+
 ### Manifest-driven code
 
 - The manifest is the schema, so sanitise anything read from `localStorage` or an imported file against it.

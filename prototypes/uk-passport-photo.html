@@ -35,7 +35,13 @@
       .grid2 > * { min-inline-size: 0; }
       .stage { position: relative; background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
       .stage video, .stage canvas { display: block; inline-size: 100%; block-size: auto; }
-      #video { transform: scaleX(-1); aspect-ratio: 4 / 3; object-fit: cover; background: var(--ink); }
+      .mirror { position: relative; transform: scaleX(-1); }
+      #video { background: var(--ink); }
+      .stage #live-overlay { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; pointer-events: none; }
+      #countdown { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--serif); font-size: 6rem; color: var(--paper); text-shadow: 0 0 10px var(--ink); pointer-events: none; }
+      #live-headline { margin: 0; }
+      .check.live { grid-template-columns: auto 1fr; padding-block: 0.35rem; }
+      .check.live .msg { grid-column: 2; }
       #guide { position: absolute; border: 2px dashed var(--paper); border-radius: 50%; box-shadow: 0 0 0 1px var(--ink); pointer-events: none; }
       #mark { touch-action: none; cursor: crosshair; }
       .result-wrap { position: relative; inline-size: min(100%, 22rem); }
@@ -87,9 +93,15 @@
         <div class="grid2">
           <div style="display:grid;gap:var(--gap)">
             <div class="stage" id="camera-stage" hidden>
-              <video id="video" playsinline muted></video>
+              <div class="mirror">
+                <video id="video" playsinline muted></video>
+                <canvas id="live-overlay"></canvas>
+              </div>
               <div id="guide"></div>
+              <div id="countdown" aria-hidden="true"></div>
             </div>
+            <p class="summary" id="live-headline" role="status" hidden></p>
+            <ul class="plain" id="live-list" hidden></ul>
             <div class="row">
               <button id="btn-camera" class="primary" type="button" data-t="copy.photo.startCamera"></button>
               <button id="btn-capture" class="primary" type="button" hidden data-t="copy.photo.capture"></button>
@@ -121,7 +133,7 @@
             </fieldset>
             <p class="muted" data-t="copy.mark.keys"></p>
             <div class="row">
-              <button id="btn-detect" type="button" hidden data-t="copy.mark.detect"></button>
+              <button id="btn-detect" type="button" data-t="copy.mark.detect"></button>
               <button id="btn-reset" type="button" data-t="copy.mark.reset"></button>
             </div>
           </div>
@@ -192,7 +204,43 @@
   "camera": { "facingMode": "user", "idealWidth": 1920, "idealHeight": 1440, "guide": { "left": 27, "top": 8, "width": 46, "height": 70 } },
   "image": { "maxSide": 3000 },
   "markers": { "radius": 9, "hitRadius": 48, "lineWidth": 2, "crown": "#5B2EFF", "chin": "#1F6B3A", "cropLine": "#5B2EFF", "keyStep": 0.005, "default": { "crown": { "x": 0.5, "y": 0.18 }, "chin": { "x": 0.5, "y": 0.62 } } },
-  "detector": { "crownExtra": 0.28, "chinExtra": 0.02 },
+  "vision": {
+    "module": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2/vision_bundle.mjs",
+    "wasm": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2/wasm",
+    "model": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    "delegates": ["GPU", "CPU"], "loadTimeoutMs": 45000, "numFaces": 2, "minConfidence": 0.5,
+    "index": { "chin": 152, "forehead": 10, "cheekLeft": 234, "cheekRight": 454, "nose": 1 },
+    "crownExtra": 0.3, "faceBoxInset": 0.12,
+    "blend": {
+      "blink": ["eyeBlinkLeft", "eyeBlinkRight"], "jaw": ["jawOpen"], "smile": ["mouthSmileLeft", "mouthSmileRight"],
+      "gaze": ["eyeLookInLeft", "eyeLookInRight", "eyeLookOutLeft", "eyeLookOutRight", "eyeLookUpLeft", "eyeLookUpRight", "eyeLookDownLeft", "eyeLookDownRight"]
+    },
+    "limits": { "yaw": [8, 15], "pitch": [10, 18], "roll": [6, 12], "blink": [0.45, 0.7], "jaw": [0.12, 0.3], "smile": [0.35, 0.6], "gaze": [0.45, 0.7] }
+  },
+  "live": {
+    "countdownSeconds": 3,
+    "overlay": { "ok": "#1F6B3A", "bad": "#8A2D1C", "lineWidth": 3, "dot": 6 },
+    "rows": { "face": "One face", "size": "Distance and position", "level": "Head straight", "eyes": "Eyes open", "mouth": "Mouth closed", "gaze": "Looking at the camera" },
+    "messages": {
+      "loading": "Loading the face model. You can take a photo now, without live guides.",
+      "waiting": "Looking for your face.",
+      "ready": "Ready. Hold still and press Take photo.",
+      "faceNone": "No face found. Face the camera in good light.",
+      "faceMany": "More than one face. Only you can be in the picture.",
+      "faceOk": "One face found.",
+      "cameraLow": "This camera gives too few pixels. Use Choose photo with your phone camera.",
+      "sizeSmall": "Move closer to the camera.",
+      "sizeTop": "Your head is too high in the frame. Tilt the camera up or move back.",
+      "sizeBottom": "Too little space below your chin. Tilt the camera down or move back.",
+      "sizeSide": "Move to the centre of the frame.",
+      "sizeOk": "Distance and position are right.",
+      "levelBad": "Face the camera straight on and keep your head level.",
+      "levelOk": "Your head is straight.",
+      "eyesBad": "Open your eyes wide.", "eyesOk": "Your eyes are open.",
+      "mouthBad": "Close your mouth and relax your face.", "mouthOk": "Your mouth is closed.",
+      "gazeBad": "Look straight at the lens.", "gazeOk": "You look at the camera."
+    }
+  },
   "thresholds": {
     "srcMinHeight": 750, "srcGoodHeight": 900,
     "outOfBoundsFail": 0.005,
@@ -226,7 +274,10 @@
     "detectDone": "Markers placed from the detected face. Check them and move them if needed.",
     "saved": "Saved. Upload this file in your passport application.",
     "saveDeclined": "The file was not saved.",
-    "encoding": "Preparing the file."
+    "encoding": "Preparing the file.",
+    "modelLoading": "Loading the face model (about 4 MB).",
+    "modelReady": "Face model ready. The live guides are on.",
+    "modelFailed": "The face model did not load. You can still place the markers by hand."
   },
   "copy": {
     "eyebrow": "Prototype - United Kingdom",
@@ -316,6 +367,25 @@
       "pass": "Your head is tilted {deg} degrees. The page straightens it.",
       "warn": "Your head is tilted {deg} degrees. Keep your head upright when you retake it.",
       "fail": "Your head is tilted {deg} degrees. Retake the photo with your head upright." },
+    { "id": "faceFound", "title": "One face",
+      "pass": "One face found in the photo.",
+      "fail": "The page found {count} faces. The photo must show one person." },
+    { "id": "facing", "title": "Facing the camera",
+      "pass": "Your face points at the camera.",
+      "warn": "Your face turns a little away from the camera. Face it straight on.",
+      "fail": "Your face turns away from the camera. Retake the photo facing it straight on." },
+    { "id": "gaze", "title": "Looking at the camera",
+      "pass": "You look at the camera.",
+      "warn": "Your eyes look a little to one side. Look straight at the lens.",
+      "fail": "Your eyes look away from the camera. Look straight at the lens." },
+    { "id": "eyes", "title": "Eyes open",
+      "pass": "Your eyes are open.",
+      "warn": "Your eyes look partly closed. Open them fully.",
+      "fail": "Your eyes look closed. Retake the photo with your eyes open." },
+    { "id": "mouth", "title": "Mouth closed, plain expression",
+      "pass": "Your mouth is closed and your expression is plain.",
+      "warn": "Your mouth is slightly open or you smile a little. Use a plain expression.",
+      "fail": "Your mouth is open or you smile. Use a plain expression with your mouth closed." },
     { "id": "headSize", "title": "Head size",
       "pass": "Chin to crown measures {mm} mm on a 45 mm photo. The print range is {min} to {max} mm." },
     { "id": "bgColour", "title": "Background colour",
@@ -401,7 +471,7 @@
       });
 
       // ---- state ----
-      const state = { src: null, markers: null, active: "crown", stream: null, result: null, blob: null, checks: [] };
+      const state = { src: null, markers: null, active: "crown", stream: null, result: null, blob: null, checks: [], face: null, model: null, mode: null, token: 0 };
       const resultCanvas = $("result");
       resultCanvas.width = out.width;
       resultCanvas.height = out.height;
@@ -417,8 +487,8 @@
       }
 
       // ---- geometry: map the two markers onto the output photo ----
-      function geometry() {
-        const { crown, chin } = state.markers;
+      function geometry(markers = state.markers) {
+        const { crown, chin } = markers;
         const dx = chin.x - crown.x;
         const dy = chin.y - crown.y;
         const head = Math.hypot(dx, dy);
@@ -434,7 +504,14 @@
             y: crown.y - x * Math.sin(theta) + y * Math.cos(theta)
           };
         };
-        return { head, theta, scale, cropH, cropW, toSrc };
+        const fwd = (p) => {
+          const x = p.x - crown.x, y = p.y - crown.y;
+          return {
+            x: out.width / 2 + scale * (x * Math.cos(theta) - y * Math.sin(theta)),
+            y: spec.crownTopRatio * out.height + scale * (x * Math.sin(theta) + y * Math.cos(theta))
+          };
+        };
+        return { head, theta, scale, cropH, cropW, toSrc, fwd };
       }
 
       function render() {
@@ -515,6 +592,7 @@
         add("framing", holeFraction > T.outOfBoundsFail ? "fail" : "pass", { pct: (holeFraction * 100).toFixed(1) });
         const tilt = Math.abs(g.theta * DEG);
         add("tilt", tilt > T.tiltFailDeg ? "fail" : tilt > T.tiltWarnDeg ? "warn" : "pass", { deg: tilt.toFixed(1) });
+        for (const c of faceChecks(state.face)) results.push(c);
         add("headSize", "pass", { mm: (targetRatio * spec.photoMm.h).toFixed(1), min: spec.headMm.min, max: spec.headMm.max });
 
         const left = regionStats(pixels, R.bgLeft), right = regionStats(pixels, R.bgRight), top = regionStats(pixels, R.bgTop);
@@ -531,15 +609,15 @@
         const evenA = grade(spread, T.bgStdWarn, T.bgStdFail, false), evenB = grade(side, T.bgSideWarn, T.bgSideFail, false);
         add("bgEven", rank[evenA] >= rank[evenB] ? evenA : evenB);
 
-        const face = regionStats(pixels, R.face);
+        const { box: faceBox, mid } = faceRegion(g);
+        const face = regionStats(pixels, faceBox);
         add("light", face.luma < T.faceMinLuma || face.luma > T.faceMaxLuma ? "fail" : "pass");
-        const mid = (R.face[0] + R.face[2]) / 2;
-        const fl = regionStats(pixels, [R.face[0], R.face[1], mid, R.face[3]]), fr = regionStats(pixels, [mid, R.face[1], R.face[2], R.face[3]]);
+        const fl = regionStats(pixels, [faceBox[0], faceBox[1], mid, faceBox[3]]), fr = regionStats(pixels, [mid, faceBox[1], faceBox[2], faceBox[3]]);
         const balance = Math.abs(fl.luma - fr.luma) / Math.max(1, face.luma);
         add("lightEven", grade(balance, T.faceSideWarn, T.faceSideFail, false));
 
         let bright = 0, count = 0;
-        const [fx0, fy0, fx1, fy1] = R.face;
+        const [fx0, fy0, fx1, fy1] = faceBox;
         for (let y = Math.floor(fy0 * out.height); y < Math.floor(fy1 * out.height); y++) {
           for (let x = Math.floor(fx0 * out.width); x < Math.floor(fx1 * out.width); x++) {
             count++;
@@ -547,7 +625,7 @@
           }
         }
         add("glare", grade(bright / count, T.clipWarn, T.clipFail, false));
-        add("sharp", grade(sharpness(pixels, R.face), T.sharpWarn, T.sharpFail, true));
+        add("sharp", grade(sharpness(pixels, faceBox), T.sharpWarn, T.sharpFail, true));
         add("file", "manual");
         return results;
       }
@@ -719,30 +797,117 @@
       }
       $("btn-reset").addEventListener("click", () => { if (state.src) { resetMarkers(); requestRender(); } });
 
-      // ---- face detector (only where the browser has one) ----
-      if ("FaceDetector" in window) $("btn-detect").hidden = false;
-      $("btn-detect").addEventListener("click", async () => {
-        if (!state.src) return;
-        try {
-          const faces = await new window.FaceDetector({ fastMode: false, maxDetectedFaces: 3 }).detect(state.src);
-          if (!faces.length) return toast("detectNone");
-          if (faces.length > 1) return toast("detectMany");
-          const b = faces[0].boundingBox;
-          const cx = b.x + b.width / 2;
+      // ---- face model (MediaPipe Face Landmarker, loaded when first needed) ----
+      const V = M.vision;
+      const maxOf = (scores, names) => Math.max(0, ...names.map((n) => scores[n] || 0));
+      let modelPromise = null;
+
+      function ensureModel() {
+        if (modelPromise) return modelPromise;
+        say("modelLoading");
+        const timeout = new Promise((_, bad) => setTimeout(() => bad(new Error("timeout")), V.loadTimeoutMs));
+        const load = (async () => {
+          const mod = await import(V.module);
+          const fileset = await mod.FilesetResolver.forVisionTasks(V.wasm);
+          let lastError;
+          for (const delegate of V.delegates) {
+            try {
+              const landmarker = await mod.FaceLandmarker.createFromOptions(fileset, {
+                baseOptions: { modelAssetPath: V.model, delegate },
+                runningMode: "IMAGE", numFaces: V.numFaces,
+                minFaceDetectionConfidence: V.minConfidence, minFacePresenceConfidence: V.minConfidence, minTrackingConfidence: V.minConfidence,
+                outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true
+              });
+              state.mode = "IMAGE";
+              return landmarker;
+            } catch (error) { lastError = error; }
+          }
+          throw lastError;
+        })();
+        modelPromise = Promise.race([load, timeout]).then(
+          (landmarker) => { state.model = landmarker; say("modelReady"); return landmarker; },
+          () => { modelPromise = null; toast("modelFailed"); return null; });
+        return modelPromise;
+      }
+      async function setMode(mode) {
+        if (state.mode !== mode) { await state.model.setOptions({ runningMode: mode }); state.mode = mode; }
+      }
+
+      function describeFace(result, W, H) {
+        const count = result.faceLandmarks.length;
+        if (count !== 1) return { count };
+        const I = V.index, lm = result.faceLandmarks[0];
+        const P = (i) => ({ x: lm[i].x * W, y: lm[i].y * H });
+        const chin = P(I.chin), top = P(I.forehead);
+        const crown = { x: top.x + (top.x - chin.x) * V.crownExtra, y: top.y + (top.y - chin.y) * V.crownExtra };
+        const scores = {};
+        for (const c of (result.faceBlendshapes[0] ? result.faceBlendshapes[0].categories : [])) scores[c.categoryName] = c.score;
+        const m = result.facialTransformationMatrixes[0] ? result.facialTransformationMatrixes[0].data : null;
+        const angles = m
+          ? { yaw: Math.atan2(-m[2], Math.hypot(m[6], m[10])) * DEG, pitch: Math.atan2(m[6], m[10]) * DEG, roll: Math.atan2(m[1], m[0]) * DEG }
+          : { yaw: 0, pitch: 0, roll: 0 };
+        const b = V.blend;
+        return {
+          count, crown, chin, pts: { top, chin, cheekL: P(I.cheekLeft), cheekR: P(I.cheekRight), nose: P(I.nose) },
+          ...angles, blink: maxOf(scores, b.blink), jaw: maxOf(scores, b.jaw), smile: maxOf(scores, b.smile), gaze: maxOf(scores, b.gaze)
+        };
+      }
+
+      const gradePair = (value, [pass, warn]) => (value <= pass ? "pass" : value <= warn ? "warn" : "fail");
+      const worst = (...list) => list.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), "pass");
+      const RANK = { pass: 0, warn: 1, fail: 2 };
+
+      function faceChecks(info) {
+        if (!info) return [];
+        if (info.count !== 1) return [{ id: "faceFound", status: "fail", vars: { count: info.count } }];
+        const L = V.limits;
+        return [
+          { id: "faceFound", status: "pass", vars: {} },
+          { id: "facing", status: worst(gradePair(Math.abs(info.yaw), L.yaw), gradePair(Math.abs(info.pitch), L.pitch)), vars: {} },
+          { id: "gaze", status: gradePair(info.gaze, L.gaze), vars: {} },
+          { id: "eyes", status: gradePair(info.blink, L.blink), vars: {} },
+          { id: "mouth", status: worst(gradePair(info.jaw, L.jaw), gradePair(info.smile, L.smile)), vars: {} }
+        ];
+      }
+
+      // The face box in output coordinates comes from the landmarks when a face was found.
+      function faceRegion(g) {
+        const info = state.face;
+        if (!info || info.count !== 1) {
+          const f = M.regions.face;
+          return { box: f, mid: (f[0] + f[2]) / 2 };
+        }
+        const pts = Object.fromEntries(Object.entries(info.pts).map(([k, p]) => [k, g.fwd(p)]));
+        const x0 = Math.min(pts.cheekL.x, pts.cheekR.x) / out.width, x1 = Math.max(pts.cheekL.x, pts.cheekR.x) / out.width;
+        const y0 = pts.top.y / out.height, y1 = pts.chin.y / out.height;
+        const ix = (x1 - x0) * V.faceBoxInset, iy = (y1 - y0) * V.faceBoxInset;
+        const box = [clamp(x0 + ix, 0, 1), clamp(y0 + iy, 0, 1), clamp(x1 - ix, 0, 1), clamp(y1 - iy, 0, 1)];
+        return { box, mid: clamp(pts.nose.x / out.width, box[0], box[2]) };
+      }
+
+      async function autoDetect(token, place, announce) {
+        const landmarker = await ensureModel();
+        if (!landmarker || token !== state.token || !state.src) return;
+        await setMode("IMAGE");
+        const info = describeFace(landmarker.detect(state.src), state.src.width, state.src.height);
+        state.face = info;
+        if (info.count === 1 && place) {
           state.markers = {
-            crown: { x: cx, y: Math.max(0, b.y - b.height * M.detector.crownExtra) },
-            chin: { x: cx, y: Math.min(state.src.height, b.y + b.height * (1 + M.detector.chinExtra)) }
+            crown: { x: clamp(info.crown.x, 0, state.src.width), y: clamp(info.crown.y, 0, state.src.height) },
+            chin: { x: clamp(info.chin.x, 0, state.src.width), y: clamp(info.chin.y, 0, state.src.height) }
           };
           toast("detectDone");
-          requestRender();
-        } catch (error) {
-          toast("detectNone");
-        }
-      });
+        } else if (info.count === 0 && announce) toast("detectNone");
+        else if (info.count > 1) toast("detectMany");
+        requestRender();
+      }
+      $("btn-detect").addEventListener("click", () => { if (state.src) autoDetect(state.token, true, true); });
 
       // ---- getting a photo in ----
-      function useSource(canvas, markerOverride) {
+      function useSource(canvas, markerOverride, detect = true) {
         state.src = canvas;
+        state.face = null;
+        state.token = (state.token || 0) + 1;
         if (markerOverride) {
           state.markers = {
             crown: { x: markerOverride.crown.x * canvas.width, y: markerOverride.crown.y * canvas.height },
@@ -759,6 +924,7 @@
         state.blob = null;
         toast("loaded");
         requestRender();
+        if (detect) autoDetect(state.token, !markerOverride, true);
         $("sec-mark").scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
 
@@ -815,10 +981,15 @@
           img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
         }
         g.putImageData(img, 0, 0);
-        useSource(c, S.markers);
+        useSource(c, S.markers, false);
       });
 
-      // ---- camera ----
+      // ---- camera with live guides ----
+      const L = M.live;
+      const overlay = $("live-overlay");
+      const octx = overlay.getContext("2d");
+      let liveSignature = "";
+
       $("btn-camera").addEventListener("click", async () => {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast("cameraDenied");
         say("cameraStarting");
@@ -833,27 +1004,130 @@
           $("btn-capture").hidden = false;
           $("btn-stop").hidden = false;
           $("btn-camera").hidden = true;
+          $("live-headline").hidden = false;
+          $("live-list").hidden = false;
+          $("live-headline").textContent = L.messages.loading;
           say("cameraLive");
+          const landmarker = await ensureModel();
+          if (landmarker && state.stream) {
+            await setMode("VIDEO");
+            $("guide").hidden = true;
+            liveTick();
+          }
         } catch (error) {
+          stopCamera();
           toast("cameraDenied");
         }
       });
+
+      function liveTick() {
+        const v = $("video");
+        if (!state.stream) return;
+        if (v.readyState >= 2 && v.currentTime !== state.lastVideoTime) {
+          state.lastVideoTime = v.currentTime;
+          updateLive(describeFace(state.model.detectForVideo(v, performance.now()), v.videoWidth, v.videoHeight), v);
+        }
+        state.raf = requestAnimationFrame(liveTick);
+      }
+
+      function updateLive(info, v) {
+        const T = M.thresholds, lim = V.limits, msg = L.messages;
+        const rows = [];
+        const row = (id, ok, badKey) => rows.push({ id, ok, text: msg[ok ? `${id}Ok` : badKey] });
+        let corners = null;
+        if (info.count !== 1) {
+          row("face", false, info.count ? "faceMany" : "faceNone");
+          for (const id of ["size", "level", "eyes", "mouth", "gaze"]) rows.push({ id, ok: false, text: msg.waiting });
+        } else {
+          row("face", true);
+          const g = geometry({ crown: info.crown, chin: info.chin });
+          corners = [[0, 0], [out.width, 0], [out.width, out.height], [0, out.height]].map(([u, w]) => g.toSrc(u, w));
+          const beyond = (test) => corners.some(test);
+          let sizeKey = null;
+          if (v.videoHeight < T.srcMinHeight) sizeKey = "cameraLow";
+          else if (g.cropH < T.srcMinHeight) sizeKey = "sizeSmall";
+          else if (beyond((c) => c.y < 0)) sizeKey = "sizeTop";
+          else if (beyond((c) => c.y > v.videoHeight)) sizeKey = "sizeBottom";
+          else if (beyond((c) => c.x < 0 || c.x > v.videoWidth)) sizeKey = "sizeSide";
+          row("size", !sizeKey, sizeKey);
+          row("level", Math.abs(info.yaw) <= lim.yaw[0] && Math.abs(info.pitch) <= lim.pitch[0] && Math.abs(info.roll) <= lim.roll[0], "levelBad");
+          row("eyes", info.blink <= lim.blink[0], "eyesBad");
+          row("mouth", info.jaw <= lim.jaw[0] && info.smile <= lim.smile[0], "mouthBad");
+          row("gaze", info.gaze <= lim.gaze[0], "gazeBad");
+        }
+        const ready = rows.every((r) => r.ok);
+        state.liveReady = ready;
+        drawOverlay(info, corners, ready, v);
+        const signature = JSON.stringify(rows);
+        if (signature === liveSignature) return;
+        liveSignature = signature;
+        const bad = rows.find((r) => !r.ok);
+        $("live-headline").textContent = bad ? bad.text : msg.ready;
+        $("btn-capture").dataset.ready = ready ? "1" : "0";
+        $("live-list").replaceChildren(...rows.map((r) => el("li", { className: "check live" },
+          el("span", { className: `pill ${r.ok ? "pass" : "fail"}`, textContent: M.statusLabels[r.ok ? "pass" : "fail"] }),
+          el("span", { className: "title", textContent: `${L.rows[r.id]}: ${r.text}` }))));
+      }
+
+      function drawOverlay(info, corners, ready, v) {
+        const w = v.clientWidth, h = v.clientHeight;
+        if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h; }
+        octx.clearRect(0, 0, w, h);
+        if (!corners) return;
+        const k = w / v.videoWidth, O = L.overlay;
+        octx.strokeStyle = octx.fillStyle = ready ? O.ok : O.bad;
+        octx.lineWidth = O.lineWidth;
+        octx.beginPath();
+        corners.forEach((c, i) => (i ? octx.lineTo(c.x * k, c.y * k) : octx.moveTo(c.x * k, c.y * k)));
+        octx.closePath();
+        octx.stroke();
+        for (const p of [info.crown, info.chin]) {
+          octx.beginPath();
+          octx.arc(p.x * k, p.y * k, O.dot, 0, Math.PI * 2);
+          octx.fill();
+        }
+      }
+
       function stopCamera() {
+        cancelAnimationFrame(state.raf);
+        clearTimeout(state.timer);
+        state.counting = false;
         if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
         state.stream = null;
+        liveSignature = "";
         $("video").srcObject = null;
         $("camera-stage").hidden = true;
+        $("guide").hidden = false;
+        $("countdown").textContent = "";
+        $("live-headline").hidden = true;
+        $("live-list").hidden = true;
         $("btn-capture").hidden = true;
+        $("btn-capture").disabled = false;
         $("btn-stop").hidden = true;
         $("btn-camera").hidden = false;
       }
       $("btn-stop").addEventListener("click", () => { stopCamera(); say("idle"); });
-      $("btn-capture").addEventListener("click", () => {
+
+      function grabFrame() {
         const v = $("video");
         if (!v.videoWidth) return;
         const c = toCanvas(v, v.videoWidth, v.videoHeight);
         stopCamera();
         useSource(c);
+      }
+      $("btn-capture").addEventListener("click", () => {
+        if (state.counting) return;
+        state.counting = true;
+        $("btn-capture").disabled = true;
+        let n = L.countdownSeconds;
+        const step = () => {
+          if (!state.stream) return;
+          $("countdown").textContent = n > 0 ? n : "";
+          if (n === 0) return grabFrame();
+          n--;
+          state.timer = setTimeout(step, 1000);
+        };
+        step();
       });
 
       // ---- encode and save ----
