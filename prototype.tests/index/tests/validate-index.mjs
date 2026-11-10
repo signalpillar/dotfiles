@@ -38,7 +38,8 @@ for (const app of M.apps) {
   const actual = syncs ? "synced" : saves ? "browser" : "none";
   if (actual !== app.group) errors.push(`${where}: listed as '${app.group}', but the page code is '${actual}'`);
   if (app.needs.includes("microphone") && !source.includes("getUserMedia")) errors.push(`${where}: needs a microphone, but the page never asks for one`);
-  if (source.includes("getUserMedia") && !app.needs.includes("microphone")) errors.push(`${where}: the page asks for the microphone; add the need`);
+  if (app.needs.includes("camera") && !source.includes("getUserMedia")) errors.push(`${where}: needs a camera, but the page never asks for one`);
+  if (source.includes("getUserMedia") && !app.needs.includes("microphone") && !app.needs.includes("camera")) errors.push(`${where}: the page asks for the microphone or camera; add the need`);
   if (source.includes("navigator.gpu") !== app.needs.includes("webgpu")) errors.push(`${where}: WebGPU need does not match the page`);
 }
 if (html.includes("\u2014")) errors.push("Em dash found; use a plain dash");

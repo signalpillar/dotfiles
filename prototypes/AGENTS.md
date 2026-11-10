@@ -342,6 +342,20 @@ Read them before writing the first line, not after debugging.
 - `prototype.tests/shell` loads every page twice, with and without the bar, and fails only on new overflow or new errors.
   A page that fails on its own hides its errors from that comparison, so pages built with the bar (`about.html`, `index.html`) must have zero errors.
 
+### Camera and image analysis (2026-11: `uk-passport-photo`)
+
+- A page that calls `getUserMedia` needs the `camera` or `microphone` need in the index manifest.
+  `prototype.tests/index` accepts either need for a `getUserMedia` page.
+- Cloud artifact viewers refuse the camera without a prompt.
+  Keep a `Choose photo` file input next to `Start camera` so the flow works with no camera.
+- Do not mirror the capture.
+  Mirror only the live `<video>` with CSS, and draw the frame to the canvas unmirrored.
+- Read uploaded photos with `createImageBitmap(file, { imageOrientation: "from-image" })`, or phone photos arrive rotated.
+- A JSON object with the same key twice parses without error and the last key wins.
+  A sample block had `mouth` as a colour and as a box, and the colour was lost silently.
+- Test image checks with negative cases, not only a good sample.
+  Mutate the loaded canvas (blur, dark overlay, half-frame shadow, white or green background) and confirm each check fails.
+
 ### Manifest-driven code
 
 - The manifest is the schema, so sanitise anything read from `localStorage` or an imported file against it.
