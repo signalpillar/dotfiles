@@ -1,6 +1,6 @@
 ---
 key: wait-for-feedback
-order: 11
+order: 10
 title: "Wait for team feedback: loop on PR review until merged"
 owner: "orchestrator"
 requires_user_decision: false

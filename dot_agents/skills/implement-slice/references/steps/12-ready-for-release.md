@@ -1,6 +1,6 @@
 ---
 key: ready-for-release
-order: 13
+order: 12
 title: "Mark the ticket Ready for Release"
 owner: "orchestrator"
 requires_user_decision: false

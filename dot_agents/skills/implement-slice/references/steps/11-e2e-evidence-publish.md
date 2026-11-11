@@ -1,6 +1,6 @@
 ---
 key: e2e-evidence-publish
-order: 12
+order: 11
 title: "Provide e2e/acceptance evidence after publish, or record the gap"
 owner: "orchestrator"
 requires_user_decision: true

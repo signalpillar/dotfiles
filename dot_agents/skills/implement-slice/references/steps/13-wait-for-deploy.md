@@ -1,6 +1,6 @@
 ---
 key: wait-for-deploy
-order: 14
+order: 13
 title: "Wait for deploy to the target environment"
 owner: "orchestrator"
 requires_user_decision: true

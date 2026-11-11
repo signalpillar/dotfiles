@@ -1,6 +1,6 @@
 ---
 key: e2e-evidence-deploy
-order: 15
+order: 14
 title: "Provide e2e/acceptance evidence after deploy, or record the gap"
 owner: "orchestrator"
 requires_user_decision: true

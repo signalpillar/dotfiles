@@ -97,41 +97,36 @@ Do not start the next todo while the current todo is `in_progress`.
    Write the PR from its hybrid template.
    Read `references/steps/09-share-with-team.md`.
 
-10. `update-task-file`
-
-    Update the task record with what changed.
-    Read `references/steps/10-update-task-file.md`.
-
-11. `wait-for-feedback`
+10. `wait-for-feedback`
 
     Stay on this todo until the PR merges or you abandon it.
     Classify each review before you edit.
-    Read `references/steps/11-wait-for-feedback.md`.
+    Read `references/steps/10-wait-for-feedback.md`.
 
-12. `e2e-evidence-publish`
+11. `e2e-evidence-publish`
 
     After the PR merges, run the acceptance cases.
     Write the QA report from the step file.
-    Read `references/steps/12-e2e-evidence-publish.md`.
+    Read `references/steps/11-e2e-evidence-publish.md`.
 
-13. `ready-for-release`
+12. `ready-for-release`
 
     Move the Jira ticket to Ready for Release.
     Cancel this todo when the slice has no ticket.
-    Read `references/steps/13-ready-for-release.md`.
+    Read `references/steps/12-ready-for-release.md`.
 
-14. `wait-for-deploy`
+13. `wait-for-deploy`
 
     Wait until the change reaches the target env.
     Do not edit code on this step.
-    Read `references/steps/14-wait-for-deploy.md`.
+    Read `references/steps/13-wait-for-deploy.md`.
 
-15. `e2e-evidence-deploy`
+14. `e2e-evidence-deploy`
 
     Run the same acceptance cases on the target env.
     A red result here is a live incident.
     Notify the team with [share-with-team](references/skills/share-with-team/SKILL.md).
-    Read `references/steps/15-e2e-evidence-deploy.md`.
+    Read `references/steps/14-e2e-evidence-deploy.md`.
 
 ## Templates
 
@@ -166,6 +161,8 @@ The source is `dot_local/share/pi-job-harness/profile.yaml`.
 The slice kind is `implement`.
 The step order follows `slice_kinds.implement.step_template`.
 The feedback step is omitted.
+The task-file step is omitted.
+The todo list holds the session state.
 Each step file copies that step's guidance.
 Each named skill is copied under `references/skills/`.
 Each skill mention in a step is a markdown link to that file.
