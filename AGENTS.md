@@ -36,6 +36,8 @@ Do not switch to a casual register unless the user asks.
   Do not route around a stale binary with `python -m pi_job_harness.cli`; other sessions call plain `pi-job` and fail the same way.
   Edits to pi-job-harness store, task models, or CLI behaviour need coordinated doc updates (docs-with-model-cuts).
   Update the pi-job skill, harness README, and this file in the same change.
+  When you change an implement step in `profile.yaml`, update the `implement-slice` skill in the same change.
+  A harness test compares its step keys with the profile; list a dropped step under `omitted_steps` in that skill.
   If you need a machine-local profile change, write `$XDG_CONFIG_HOME/pi-job/profile.overlay.yaml`.
   `PI_JOB_PROFILE_OVERLAY` selects another overlay file.
   Missing overlay files are a no-op.

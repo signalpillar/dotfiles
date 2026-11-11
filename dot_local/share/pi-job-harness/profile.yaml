@@ -1632,6 +1632,8 @@ slice_kinds:
         exceptions:
           - trivial-single-file-edit
           - user-explicitly-requests-orchestrator
+    # dot_agents/skills/implement-slice mirrors these steps for a session without pi-job.
+    # When you change this list or a step's guidance, update that skill in the same change.
     step_template:
       - map-current-state
       - create-plan

@@ -10641,6 +10641,34 @@ def test_run_unsets_pi_job_owner() -> None:
         assert_not_contains(leaked.stderr, "no active claim for owner")
 
 
+def implement_slice_skill_path() -> Path:
+    """Source tree: dot_agents/skills; applied home: .agents/skills."""
+    home = HARNESS_PKG.parents[2]
+    for candidate in (
+        home / "dot_agents" / "skills" / "implement-slice" / "SKILL.md",
+        home / ".agents" / "skills" / "implement-slice" / "SKILL.md",
+    ):
+        if candidate.exists():
+            return candidate
+    raise AssertionError(f"implement-slice skill not found under {home}")
+
+
+def test_implement_slice_skill_matches_profile_steps() -> None:
+    """The implement-slice skill lists the shipped implement steps in order, minus `omitted_steps`."""
+    profile = yaml.safe_load((HARNESS_PKG / "profile.yaml").read_text(encoding="utf-8"))
+    template = profile["slice_kinds"]["implement"]["step_template"]
+
+    text = implement_slice_skill_path().read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(text.split("---", 2)[1])
+    omitted = frontmatter["metadata"]["omitted_steps"]
+    unknown = sorted(set(omitted) - set(template))
+    assert not unknown, f"omitted_steps not in the profile: {unknown}"
+
+    expected = [key for key in template if key not in omitted]
+    listed = re.findall(r"^\d+\. `([a-z0-9-]+)`", text, flags=re.MULTILINE)
+    assert listed == expected, f"implement-slice steps {listed} != profile {expected}"
+
+
 def main() -> None:
     test_profiled_task()
     test_uninitialized_task_requires_orchestration()
@@ -11356,6 +11384,7 @@ if __name__ == "__main__":
     test_set_worktree_help_mentions_worktree_convention()
     test_pi_job_binary_is_package_local()
     test_run_unsets_pi_job_owner()
+    test_implement_slice_skill_matches_profile_steps()
     test_missing_task_never_tracebacks()
     test_missing_task_message_is_actionable()
     test_task_optional_commands_run_without_task()

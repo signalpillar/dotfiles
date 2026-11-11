@@ -1,171 +1,228 @@
 ---
 name: implement-slice
 description: >-
-  Run one implement slice as a TODO list.
-  Use this skill only when the prompt attaches it for one slice.
-  The session plans, edits, reviews, and opens one ticket and one PR.
-  Create one todo per step in this file.
-  Open the named step file and the named template files.
+  Run one implement slice as a todo list: map, plan, grill, edit, verify, review,
+  share as one ticket and one PR, then follow it to release.
+  Use this skill when a prompt attaches it to one slice of work.
+metadata:
+  profile_slice_kind: implement
+  omitted_steps:
+    - update-task-file
+    - pi-job-feedback
 ---
 
 # Implement one slice
 
 This session owns one slice.
 The prompt states the goal.
-Do not add another slice.
-Do not run setup work.
-Do not run closing work.
+Do not start a second slice.
 
-The files under `references/` are compiled from the shipped profile.
-Follow those files.
-Do not rewrite them during the slice.
-
-## First action
+## Todos
 
 When the session has no todos, create the list below with the todo tool.
-When a todo id already matches a step key, keep that todo.
-Set `map-current-state` to `in_progress` when you create the list.
-Set every other new todo to `pending`.
 Use the step key as the todo id.
-Use the sentence block as the todo content.
+Use the step title as the todo content.
+Set the first todo to `in_progress` and the others to `pending`.
+When a todo with a step key already exists, keep it.
 
-Work in step-number order.
-When a todo is in progress, read its step file and follow that file.
-Mark the todo `completed` only after that work is done.
-Cancel a todo only when the step file states a skip rule.
-Write the skip reason into the todo content.
-Do not skip a todo in silence.
-Do not start the next todo while the current todo is `in_progress`.
+Work in step order.
+Keep one todo `in_progress` at a time.
+When you complete a todo, add one line of evidence to its content.
+Cancel a todo only for the skip reason in its step.
+Write that reason into the todo content.
 
-1. `map-current-state`
+When a step returns you to an earlier step, set that earlier todo to `in_progress` again.
 
-   Map how it works now.
-   Record current behaviour, dependents, repos searched, and repos not searched.
-   Read `references/steps/01-map-current-state.md`.
+## Plan file
 
-2. `create-plan`
+The plan file is the contract for the current increment.
+When the prompt names a plan file, use it.
+Otherwise write `.plans/<slice>.md` at the root of the repo you edit.
+Add `.plans/` to `.git/info/exclude`.
+Do not commit the plan file.
+Keep one plan file for the slice.
+Revise it in place for each increment.
 
-   Write one plan file for this increment.
-   The step file lists the required sections.
-   The step file links [grill-me](references/skills/grill-me/SKILL.md), [share-with-team](references/skills/share-with-team/SKILL.md), and [decision-review-deck](references/skills/decision-review-deck/SKILL.md).
-   Read `references/steps/02-create-plan.md`.
+## Links
 
-3. `grill-plan`
+Each skill link is relative to this file.
+When you read this file from a URL, resolve each link against that URL.
+When a step names a skill, open that skill and follow it in full.
+When this file and that skill disagree, the skill wins.
+Do not write a ticket, a PR body, or a deck from this file.
 
-   Grill the plan file with [grill-me](references/skills/grill-me/SKILL.md).
-   Ask one question at a time.
-   The step file also links [share-with-team](references/skills/share-with-team/SKILL.md) and [decision-review-deck](references/skills/decision-review-deck/SKILL.md).
-   Read `references/steps/03-grill-plan.md`.
+## Subagents
 
-4. `plan-acceptance`
+You choose whether a step runs in a subagent.
 
-   Ask the user for the target env.
-   Write the acceptance cases in the plan file.
-   Read `references/steps/04-plan-acceptance.md`.
+## Steps
 
-5. `edit-code`
+1. `map-current-state` - Map how it works now
 
-   Before the first edit, follow [share-with-team](references/skills/share-with-team/SKILL.md).
-   When the user accepts, follow [decision-review-deck](references/skills/decision-review-deck/SKILL.md).
-   Follow [volod-style](references/skills/volod-style/SKILL.md) before the first edit.
-   Edit only the current micro-contract in a worktree.
-   Read `references/steps/05-edit-code.md`.
+   Read the code, manifests, APIs, and docs that the slice touches.
+   Write **How it works now** in the plan file with four facts:
+   current behaviour, who depends on it, repos searched, and repos not searched, with a date.
+   Each arrow in a flow is a real call or trigger, not a time order.
+   Record an evidence gap instead of a guess.
+   When e2e cases exist, or a thin case is cheap, run them against current behaviour.
+   Record pass or fail.
+   Give the user a short reading order before you plan.
 
-6. `verify`
+2. `create-plan` - Write the plan file
 
-   Run the Verification command from the plan file.
-   Keep the raw tool output.
-   Read `references/steps/06-verify.md`.
+   Write these sections:
+   - **How it works now** from step 1.
+   - **How it should work**: one indented call stack for this increment, for example `handler -> service -> store`.
+   - **Assertion**: one failing test, or one behaviour a person can check in seconds.
+   - **Must-not**: the boundaries this increment does not cross.
+   - **Verification**: the exact command that proves this increment.
+   - **Acceptance**: step 4 fills it.
 
-7. `code-review`
+   Do not restate the slice goal.
+   Do not add sections for brief, intent, touch surface, or open questions.
+   Plan only the current increment, not the full slice.
 
-   Review the diff in a separate pass.
-   Follow [volod-style](references/skills/volod-style/SKILL.md) on that diff.
-   When tests changed, follow [test-audit](references/skills/test-audit/SKILL.md).
-   Read `references/steps/07-code-review.md`.
+3. `grill-plan` - Grill the plan file
 
-8. `vulnerability-scan`
+   Follow [grill-me](../grill-me/SKILL.md).
+   Challenge each section of the plan file.
+   This step stays open while any of the four facts in **How it works now** is a placeholder.
+   Revise the plan file and grill again until it survives.
+   Skip only when the user declines the grill.
 
-   Ask whether this slice needs a vulnerability scan.
-   On a decline, cancel this todo and record the reason.
-   Read `references/steps/08-vulnerability-scan.md`.
+4. `plan-acceptance` - Plan the acceptance checks
 
-9. `share-with-team`
+   Ask the user for the target env: dev or staging.
+   Wait for the answer.
+   List acceptance cases in product language under **Acceptance**.
+   For each case, name the affected users and the error symptom.
+   These cases run on a deployed env after merge.
+   The repo test suite is pre-merge verification, not acceptance.
+   Skip only for a trivial single-file edit.
 
-   Open [share-with-team](references/skills/share-with-team/SKILL.md) and follow it.
-   Write the ticket from its ticket template.
-   Write the PR from its hybrid template.
-   Read `references/steps/09-share-with-team.md`.
+5. `edit-code` - Edit the code
 
-10. `wait-for-feedback`
+   Before the first edit, follow the section "Share decisions early" in [share-with-team](../share-with-team/SKILL.md).
+   Ask, and wait for the answer.
+   When the user says yes, follow [decision-review-deck](../decision-review-deck/SKILL.md).
+   Before the first edit, read [volod-style](../volod-style/SKILL.md) and write to that bar.
 
-    Stay on this todo until the PR merges or you abandon it.
-    Classify each review before you edit.
-    Read `references/steps/10-wait-for-feedback.md`.
+   When **How it works now** lacks one of its four facts, fill it and go back to `grill-plan`.
+   When the assertion does not exist yet, write it first.
+   Change only what the current increment needs.
+   Stop when the **Verification** command passes.
+   When the slice goal has more work, revise the plan file for the next increment.
+   Then go back to `grill-plan`.
+   Use a separate worktree only when you edit a repo other than the current one.
 
-11. `e2e-evidence-publish`
+6. `verify` - Verify
 
-    After the PR merges, run the acceptance cases.
-    Write the QA report from the step file.
-    Read `references/steps/11-e2e-evidence-publish.md`.
+   Run the **Verification** command.
+   Keep the exact compiler, type-check, or test output.
+   Do not keep a summary instead.
+   When no command can prove the increment, record that gap.
 
-12. `ready-for-release`
+7. `code-review` - Review the finished diff
 
-    Move the Jira ticket to Ready for Release.
-    Cancel this todo when the slice has no ticket.
-    Read `references/steps/12-ready-for-release.md`.
+   Review the diff after `verify`, as a separate pass.
+   Following volod-style while you code does not satisfy this step.
+   Follow the review section of [volod-style](../volod-style/SKILL.md) on `git diff origin/main...HEAD`.
+   When the diff adds or changes tests, follow the authoring gate in [test-audit](../test-audit/SKILL.md).
+   When you delete or merge a test, name the test that remains.
+   Prove that the remaining test fails for the same regression:
+   snapshot the file, mutate the production line, run the test, then restore from the snapshot.
+   Confirm that `git status --short` shows only the intended changes.
+   Apply every recommendation.
+   A severity label does not permit a skip.
+   When a recommendation conflicts with the plan file, stop and ask the user.
+   Run `verify` again after the edits.
+   Skip only for a trivial single-file edit.
 
-13. `wait-for-deploy`
+8. `vulnerability-scan` - Scan for vulnerabilities
 
-    Wait until the change reaches the target env.
-    Do not edit code on this step.
-    Read `references/steps/13-wait-for-deploy.md`.
+   Ask the user whether this slice needs a vulnerability scan.
+   Wait for the answer.
+   When the user declines, cancel this todo with that reason.
+   When the user accepts, review the changed code for vulnerabilities, insecure defaults, authorization gaps, injection, secrets, and unsafe trust boundaries.
+   Resolve each finding, or record the risk the user accepts, before `share-with-team`.
 
-14. `e2e-evidence-deploy`
+9. `share-with-team` - Open the ticket and the PR
 
-    Run the same acceptance cases on the target env.
-    A red result here is a live incident.
-    Notify the team with [share-with-team](references/skills/share-with-team/SKILL.md).
-    Read `references/steps/14-e2e-evidence-deploy.md`.
+   Follow [share-with-team](../share-with-team/SKILL.md) in full.
+   It owns the branch name, the commit message, the ticket, and the PR body.
+   Write one ticket and one PR for each repo you changed.
+   When the user gives a ticket key, use that ticket.
+   Do not create GitHub Issues.
+   After the first push of a new branch, run `gh pr create --head <branch>`.
+   Do not open a PR before this step.
 
-## Templates
+10. `wait-for-feedback` - Follow the PR until it merges
 
-A step file links each skill it names.
-Open that link and follow the file.
-The ticket template and the hybrid PR template live in [share-with-team](references/skills/share-with-team/SKILL.md).
-Do not write a ticket or a PR body from memory.
-Do not shorten those templates.
-The decision deck lives in [decision-review-deck](references/skills/decision-review-deck/SKILL.md).
-Do not write a deck from the share-with-team summary.
+    This todo stays `in_progress` until the PR merges or the user abandons it.
+    For each check, run `git fetch` and `gh pr view`.
+    Classify the state in one line: nit, contract, extract, merged, or abandoned.
+    - **nit**: apply the change, verify, push, and wait again.
+      Do not grill a nit.
+    - **contract** or **scope**: grill the change with the user first.
+      Then apply it, verify, push, and wait again.
+    - **extract**: a reviewer asks to split the PR.
+      Grill the split with the user, and capture the new ticket title and parent epic.
+      A split is a new slice.
+      Stop and ask the user how to run it.
+    - **merged**: write the merge commit into the todo content.
+    - **abandoned**: cancel the remaining todos with that reason.
 
-## One plan file
+    Before each push, run `git fetch`.
+    Never force push.
+    When the remote branch moved, run `git pull --no-rebase`, then verify again.
+    When the PR is approved, do not push cleanup commits to it.
+    Put them in a follow-up PR, unless the user decides otherwise.
+    When this session cannot wait for the review, stop.
+    Tell the user the PR URL and the current class.
 
-When the prompt gives a plan path, use that file.
-When the prompt gives no plan path, write `plans/<slice>.md` in the repo you edit.
-Revise that same file for every later increment.
-Do not create a second plan file.
-Write each recorded fact in that plan file.
+11. `e2e-evidence-publish` - Run acceptance after merge
 
-## Edit execution
+    Ask the user which env runs the merged code before rollout: dev, local, or CI.
+    Wait for the answer.
+    Run each **Acceptance** case on that env.
+    Record pass or fail.
+    Capture a repeatable artifact for each case, or record the gap.
+    Repo unit or integration suites do not count as e2e evidence.
+    Write the report in the format in [qa-report](references/qa-report.md).
+    Ask the user before you post the report as a ticket comment.
+    When a case is red, do not move the ticket to Ready for Release, unless the gap names the blocker.
+    Skip only when this slice needs no e2e evidence.
+    Write why.
 
-Run the edit-code work in a subagent.
-Prefer a lower-power model for that subagent.
-Review the result in this session.
-Keep a trivial single-file edit in this session.
-When the user asks this session to edit, edit here.
+12. `ready-for-release` - Move the ticket to Ready for Release
 
-## Source
+    Move the ticket to Ready for Release.
+    Add a short testing note to the ticket when it helps.
+    Skip when the slice has no ticket, or the ticket is already Ready for Release or Done.
 
-This copy was compiled by hand on 2026-11-11.
-The source is `dot_local/share/pi-job-harness/profile.yaml`.
-The slice kind is `implement`.
-The step order follows `slice_kinds.implement.step_template`.
-The feedback step is omitted.
-The task-file step is omitted.
-The todo list holds the session state.
-Each step file copies that step's guidance.
-Each named skill is copied under `references/skills/`.
-Each skill mention in a step is a markdown link to that file.
-A home path `~/.agents/skills/<name>/SKILL.md` is rewritten into that link.
-Regenerate `references/` when `profile.yaml` changes.
-Do not hand-edit `references/` after the compiler exists.
+13. `wait-for-deploy` - Wait for the deploy
+
+    Ask the user which env is the real target, unless **Acceptance** names it.
+    Watch until the merged change reaches that env.
+    Do not comment, review, or change code in this step.
+    When the user abandons the deploy, or it has no date, cancel this todo with that reason.
+    Write the same reason on the ticket.
+    Skip when the slice has no deploy step separate from the merge.
+
+14. `e2e-evidence-deploy` - Run acceptance after deploy
+
+    Run the same cases as `e2e-evidence-publish`, or more, on the target env.
+    Write a new run in the format in [qa-report](references/qa-report.md).
+    A red case here is a live incident, because the release shipped.
+    Record the blocker in the report.
+    Tell the team, as [share-with-team](../share-with-team/SKILL.md) describes.
+    Do not complete this todo until the blocker is fixed, or the user accepts it as a tracked follow-up.
+    Skip only when this slice needs no e2e evidence.
+    Write why.
+
+## Maintenance
+
+The step keys follow `slice_kinds.implement.step_template` in `dot_local/share/pi-job-harness/profile.yaml`.
+`metadata.omitted_steps` lists the profile steps that this skill leaves out.
+A harness test fails when the step keys and the profile do not match.
+When you change an implement step in the profile, update this file in the same change.
