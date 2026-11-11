@@ -1,0 +1,1207 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>UK Passport Photo</title>
+    <link rel="stylesheet" href="https://unpkg.com/open-props@1.7.14/open-props.min.css">
+    <link rel="stylesheet" href="prototype-base.css">
+    <style>
+      :root {
+        color-scheme: light;
+        --gap: var(--size-3, 0.75rem);
+        --gap-lg: var(--size-5, 1.5rem);
+        --radius: var(--radius-2, 5px);
+        --serif: "Iowan Old Style", Palatino, Georgia, serif;
+        --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      body { background: var(--canvas); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+      main { width: min(64rem, 100%); margin: 0 auto; padding: var(--gap-lg) max(1rem, env(safe-area-inset-right)) calc(var(--gap-lg) * 2) max(1rem, env(safe-area-inset-left)); display: grid; gap: var(--gap-lg); }
+      h1, h2 { font-family: var(--serif); font-weight: 600; line-height: 1.15; margin: 0; text-wrap: balance; }
+      h1 { font-size: clamp(1.9rem, 6vw, 2.8rem); }
+      h2 { font-size: 1.35rem; }
+      p { margin: 0; max-width: 65ch; }
+      .muted { color: var(--muted); }
+      .lede { font-size: 1.05rem; }
+      section { background: var(--paper); border: 1px solid var(--rule); border-radius: var(--radius); padding: var(--gap-lg) var(--gap); display: grid; gap: var(--gap); min-inline-size: 0; }
+      .row { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; }
+      button, .btn { appearance: none; font: inherit; min-block-size: 2.75rem; padding: 0 1.1rem; border: 1px solid var(--ink); border-radius: var(--radius); background: var(--paper); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+      button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      button:focus-visible, .btn:focus-within, canvas:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+      .btn input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+      .btn { position: relative; }
+      .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); gap: var(--gap-lg); align-items: start; }
+      .grid2 > * { min-inline-size: 0; }
+      .stage { position: relative; background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+      .stage video, .stage canvas { display: block; inline-size: 100%; block-size: auto; }
+      .mirror { position: relative; transform: scaleX(-1); }
+      #video { background: var(--ink); }
+      .stage #live-overlay { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; pointer-events: none; }
+      #countdown { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--serif); font-size: 6rem; color: var(--paper); text-shadow: 0 0 10px var(--ink); pointer-events: none; }
+      #live-headline { margin: 0; }
+      .check.live { grid-template-columns: auto 1fr; padding-block: 0.35rem; }
+      .check.live .msg { grid-column: 2; }
+      #guide { position: absolute; border: 2px dashed var(--paper); border-radius: 50%; box-shadow: 0 0 0 1px var(--ink); pointer-events: none; }
+      #mark { touch-action: none; cursor: crosshair; }
+      .result-wrap { position: relative; inline-size: min(100%, 22rem); }
+      .result-wrap canvas { inline-size: 100%; block-size: auto; display: block; border: 1px solid var(--rule); background: var(--canvas); }
+      .overlay { position: absolute; inset: 0; pointer-events: none; }
+      .overlay .line { position: absolute; inset-inline: 0; border-top: 1px solid var(--accent); }
+      .overlay .vline { position: absolute; inset-block: 0; border-left: 1px dashed var(--accent); inset-inline-start: 50%; }
+      .overlay .band { position: absolute; inset-inline: 0; background: var(--accent); opacity: 0.16; }
+      .overlay .tag { position: absolute; inset-inline-start: 4px; font-size: 0.7rem; color: var(--accent); background: var(--paper); padding: 0 3px; }
+      ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+      ul.tips { margin: 0; padding-inline-start: 1.2rem; display: grid; gap: 0.35rem; }
+      .check { display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; align-items: start; padding-block: 0.6rem; border-top: 1px solid var(--rule); }
+      .check:first-child { border-top: 0; }
+      .check .title { font-weight: 600; }
+      .check .msg { grid-column: 2; color: var(--muted); font-size: 0.92rem; }
+      .pill { display: inline-block; min-inline-size: 5.2rem; text-align: center; padding: 0.05rem 0.6rem; border: 1px solid currentColor; border-radius: 999px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; background: var(--paper); }
+      .pill.pass { color: var(--green); }
+      .pill.warn { color: var(--amber); }
+      .pill.fail { color: var(--red); }
+      .pill.manual { color: var(--muted); }
+      .eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+      .summary { font-family: var(--serif); font-size: 1.15rem; }
+      label.manual { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem; align-items: start; min-block-size: 2.5rem; }
+      label.manual input { inline-size: 1.25rem; block-size: 1.25rem; margin-block-start: 0.2rem; accent-color: var(--accent); }
+      fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
+      fieldset legend { padding: 0; margin-block-end: 0.35rem; color: var(--muted); font-size: 0.9rem; }
+      fieldset label { display: inline-flex; gap: 0.4rem; align-items: center; min-block-size: 2.5rem; }
+      table { border-collapse: collapse; inline-size: 100%; }
+      th { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.72rem; color: var(--muted); text-align: start; font-weight: 600; }
+      th, td { border-bottom: 1px solid var(--rule); padding: 0.4rem 0.5rem 0.4rem 0; }
+      .table-wrap { overflow-x: auto; }
+      #status { min-block-size: 1.5rem; color: var(--muted); font-size: 0.92rem; }
+      .sheet-preview { inline-size: min(100%, 24rem); block-size: auto; border: 1px solid var(--rule); }
+      a { color: var(--accent); }
+    </style>
+    <script src="shell.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header class="grid" style="display:grid;gap:var(--gap)">
+        <span class="eyebrow" data-t="copy.eyebrow"></span>
+        <h1 data-t="copy.title"></h1>
+        <p class="lede" data-t="copy.lede"></p>
+        <p class="muted" data-t="copy.privacy"></p>
+      </header>
+
+      <section aria-labelledby="h-photo">
+        <h2 id="h-photo" data-t="copy.photo.heading"></h2>
+        <div class="grid2">
+          <div style="display:grid;gap:var(--gap)">
+            <div class="stage" id="camera-stage" hidden>
+              <div class="mirror">
+                <video id="video" playsinline muted></video>
+                <canvas id="live-overlay"></canvas>
+              </div>
+              <div id="guide"></div>
+              <div id="countdown" aria-hidden="true"></div>
+            </div>
+            <p class="summary" id="live-headline" role="status" hidden></p>
+            <ul class="plain" id="live-list" hidden></ul>
+            <div class="row">
+              <button id="btn-camera" class="primary" type="button" data-t="copy.photo.startCamera"></button>
+              <button id="btn-capture" class="primary" type="button" hidden data-t="copy.photo.capture"></button>
+              <button id="btn-stop" type="button" hidden data-t="copy.photo.stopCamera"></button>
+              <label class="btn"><span data-t="copy.photo.choose"></span><input id="file" type="file" accept="image/*"></label>
+              <button id="btn-sample" type="button" data-t="copy.photo.sample"></button>
+            </div>
+            <p id="status" role="status"></p>
+          </div>
+          <div style="display:grid;gap:var(--gap)">
+            <h3 style="margin:0;font-size:1rem" data-t="copy.photo.tipsHeading"></h3>
+            <ul class="tips" id="tips"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-mark" id="sec-mark" hidden>
+        <h2 id="h-mark" data-t="copy.mark.heading"></h2>
+        <p data-t="copy.mark.body"></p>
+        <div class="grid2">
+          <div style="display:grid;gap:var(--gap)">
+            <div class="stage"><canvas id="mark" tabindex="0" aria-label=""></canvas></div>
+          </div>
+          <div style="display:grid;gap:var(--gap)">
+            <fieldset>
+              <legend data-t="copy.mark.active"></legend>
+              <label><input type="radio" name="active" value="crown" checked><span id="lbl-crown"></span></label>
+              <label><input type="radio" name="active" value="chin"><span id="lbl-chin"></span></label>
+            </fieldset>
+            <p class="muted" data-t="copy.mark.keys"></p>
+            <div class="row">
+              <button id="btn-detect" type="button" data-t="copy.mark.detect"></button>
+              <button id="btn-reset" type="button" data-t="copy.mark.reset"></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-check" id="sec-check" hidden>
+        <h2 id="h-check" data-t="copy.check.heading"></h2>
+        <div class="grid2">
+          <div style="display:grid;gap:var(--gap)">
+            <div class="result-wrap" id="result-wrap">
+              <canvas id="result" aria-label=""></canvas>
+              <div class="overlay" id="overlay" hidden></div>
+            </div>
+            <label class="manual"><input id="toggle-guides" type="checkbox" checked><span data-t="copy.check.guides"></span></label>
+          </div>
+          <div style="display:grid;gap:var(--gap)">
+            <p class="summary" id="summary" role="status"></p>
+            <ul class="plain" id="checks"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-manual" id="sec-manual" hidden>
+        <h2 id="h-manual" data-t="copy.manual.heading"></h2>
+        <p data-t="copy.manual.body"></p>
+        <ul class="plain" id="manual-list"></ul>
+      </section>
+
+      <section aria-labelledby="h-save" id="sec-save" hidden>
+        <h2 id="h-save" data-t="copy.save.heading"></h2>
+        <div class="row">
+          <button id="btn-save" class="primary" type="button" data-t="copy.save.digital"></button>
+          <button id="btn-sheet" type="button" data-t="copy.save.sheet"></button>
+        </div>
+        <p class="muted" id="save-info"></p>
+        <canvas id="sheet" class="sheet-preview" aria-label="" hidden></canvas>
+        <p class="muted" data-t="copy.save.printNote"></p>
+      </section>
+
+      <section aria-labelledby="h-rules">
+        <h2 id="h-rules" data-t="copy.rules.heading"></h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr id="rules-head"></tr></thead>
+            <tbody id="rules-body"></tbody>
+          </table>
+        </div>
+        <p class="muted"><span data-t="copy.rules.source"></span> <a id="rules-link" rel="noopener" target="_blank"></a></p>
+      </section>
+    </main>
+
+    <script type="application/json" id="manifest">
+{
+  "storageNone": true,
+  "theme": {
+    "canvas": "#F3EFE8", "paper": "#FBF9F5", "ink": "#121212", "muted": "#57524A",
+    "rule": "#CFC8BC", "accent": "#5B2EFF", "red": "#8A2D1C", "amber": "#6A4A00", "green": "#1F6B3A"
+  },
+  "spec": {
+    "photoMm": { "w": 35, "h": 45 },
+    "headMm": { "min": 29, "max": 34, "target": 31.5 },
+    "crownTopRatio": 0.11,
+    "output": { "width": 700, "height": 900, "jpegQuality": 0.92, "qualityStep": 0.03, "qualityFloor": 0.5, "minBytes": 51200, "maxBytes": 10485760, "fill": "#E4E1DA", "filename": "uk-passport-photo.jpg" },
+    "sheet": { "width": 1800, "height": 1200, "cols": 4, "rows": 2, "gap": 24, "photoWidth": 413, "photoHeight": 531, "background": "#FFFFFF", "cutLine": "#B8B8B8", "filename": "uk-passport-photo-sheet-6x4.jpg", "quality": 0.92 },
+    "minPixels": { "w": 600, "h": 750 }
+  },
+  "camera": { "facingMode": "user", "idealWidth": 1920, "idealHeight": 1440, "guide": { "left": 27, "top": 8, "width": 46, "height": 70 } },
+  "image": { "maxSide": 3000 },
+  "markers": { "radius": 9, "hitRadius": 48, "lineWidth": 2, "crown": "#5B2EFF", "chin": "#1F6B3A", "cropLine": "#5B2EFF", "keyStep": 0.005, "default": { "crown": { "x": 0.5, "y": 0.18 }, "chin": { "x": 0.5, "y": 0.62 } } },
+  "vision": {
+    "module": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2/vision_bundle.mjs",
+    "wasm": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2/wasm",
+    "model": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    "delegates": ["GPU", "CPU"], "loadTimeoutMs": 45000, "numFaces": 2, "minConfidence": 0.5,
+    "index": { "chin": 152, "forehead": 10, "cheekLeft": 234, "cheekRight": 454, "nose": 1 },
+    "crownExtra": 0.3, "faceBoxInset": 0.12,
+    "blend": {
+      "blink": ["eyeBlinkLeft", "eyeBlinkRight"], "jaw": ["jawOpen"], "smile": ["mouthSmileLeft", "mouthSmileRight"],
+      "gaze": ["eyeLookInLeft", "eyeLookInRight", "eyeLookOutLeft", "eyeLookOutRight", "eyeLookUpLeft", "eyeLookUpRight", "eyeLookDownLeft", "eyeLookDownRight"]
+    },
+    "limits": { "yaw": [8, 15], "pitch": [10, 18], "roll": [6, 12], "blink": [0.45, 0.7], "jaw": [0.12, 0.3], "smile": [0.35, 0.6], "gaze": [0.45, 0.7] }
+  },
+  "live": {
+    "countdownSeconds": 3,
+    "overlay": { "ok": "#1F6B3A", "bad": "#8A2D1C", "lineWidth": 3, "dot": 6 },
+    "rows": { "face": "One face", "size": "Distance and position", "level": "Head straight", "eyes": "Eyes open", "mouth": "Mouth closed", "gaze": "Looking at the camera" },
+    "messages": {
+      "loading": "Loading the face model. You can take a photo now, without live guides.",
+      "waiting": "Looking for your face.",
+      "ready": "Ready. Hold still and press Take photo.",
+      "faceNone": "No face found. Face the camera in good light.",
+      "faceMany": "More than one face. Only you can be in the picture.",
+      "faceOk": "One face found.",
+      "cameraLow": "This camera gives too few pixels. Use Choose photo with your phone camera.",
+      "sizeSmall": "Move closer to the camera.",
+      "sizeTop": "Your head is too high in the frame. Tilt the camera up or move back.",
+      "sizeBottom": "Too little space below your chin. Tilt the camera down or move back.",
+      "sizeSide": "Move to the centre of the frame.",
+      "sizeOk": "Distance and position are right.",
+      "levelBad": "Face the camera straight on and keep your head level.",
+      "levelOk": "Your head is straight.",
+      "eyesBad": "Open your eyes wide.", "eyesOk": "Your eyes are open.",
+      "mouthBad": "Close your mouth and relax your face.", "mouthOk": "Your mouth is closed.",
+      "gazeBad": "Look straight at the lens.", "gazeOk": "You look at the camera."
+    }
+  },
+  "thresholds": {
+    "srcMinHeight": 750, "srcGoodHeight": 900,
+    "outOfBoundsFail": 0.005,
+    "tiltWarnDeg": 6, "tiltFailDeg": 12,
+    "bgMinLuma": 150, "bgWhiteLuma": 246, "bgMaxSaturation": 0.22,
+    "bgStdWarn": 12, "bgStdFail": 22, "bgSideWarn": 14, "bgSideFail": 30,
+    "faceMinLuma": 85, "faceMaxLuma": 205,
+    "faceSideWarn": 0.18, "faceSideFail": 0.32,
+    "clipLuma": 250, "clipWarn": 0.03, "clipFail": 0.08,
+    "sharpWarn": 40, "sharpFail": 20
+  },
+  "regions": {
+    "bgLeft": [0, 0, 0.08, 0.5], "bgRight": [0.92, 0, 1, 0.5], "bgTop": [0.2, 0, 0.8, 0.06],
+    "face": [0.3, 0.3, 0.7, 0.75]
+  },
+  "sample": {
+    "width": 1600, "height": 1200, "background": "#CFCBC2", "shoulder": "#3D4A63", "skin": "#D9A787", "hair": "#2B2018", "eye": "#1B1B1B", "mouthColour": "#8C3B35",
+    "shoulderBox": [0.5, 1.02, 0.36, 0.2], "neckBox": [0.5, 0.74, 0.07, 0.1], "headBox": [0.5, 0.45, 0.17, 0.27], "hairBox": [0.5, 0.25, 0.165, 0.09],
+    "eyes": [[0.44, 0.42, 0.018, 0.012], [0.56, 0.42, 0.018, 0.012]], "mouth": [0.5, 0.58, 0.04, 0.008], "noise": 14,
+    "markers": { "crown": { "x": 0.5, "y": 0.176 }, "chin": { "x": 0.5, "y": 0.72 } }
+  },
+  "status": {
+    "idle": "Add a photo to begin.",
+    "cameraStarting": "Starting the camera.",
+    "cameraLive": "Camera is on. Fit your face inside the dashed oval.",
+    "cameraDenied": "The camera is not available here. Use Choose photo to upload or take a picture instead.",
+    "loaded": "Photo loaded. Move the two markers to the top of your head and to your chin.",
+    "loadError": "This file is not an image the browser can read. Try a JPEG or PNG.",
+    "detectNone": "No face found. Place the markers by hand.",
+    "detectMany": "More than one face found. Only one person can be in the photo.",
+    "detectDone": "Markers placed from the detected face. Check them and move them if needed.",
+    "saved": "Saved. Upload this file in your passport application.",
+    "saveDeclined": "The file was not saved.",
+    "encoding": "Preparing the file.",
+    "modelLoading": "Loading the face model (about 4 MB).",
+    "modelReady": "Face model ready. The live guides are on.",
+    "modelFailed": "The face model did not load. You can still place the markers by hand."
+  },
+  "copy": {
+    "eyebrow": "Prototype - United Kingdom",
+    "title": "UK passport photo",
+    "lede": "Take or choose a photo. This page crops it to the passport shape and checks it against the GOV.UK rules before you save it.",
+    "privacy": "The photo stays in your browser. Nothing is uploaded or stored.",
+    "photo": {
+      "heading": "1. Add a photo",
+      "startCamera": "Start camera", "capture": "Take photo", "stopCamera": "Stop camera",
+      "choose": "Choose photo", "sample": "Use a sample drawing",
+      "tipsHeading": "Before you take the photo",
+      "tips": [
+        "Stand 1 metre in front of a plain light grey or cream wall.",
+        "Face a window or a lamp so the light falls evenly on both sides of your face.",
+        "Keep your head and shoulders in the frame. Hold the camera level with your eyes.",
+        "Look straight at the camera with a plain expression and your mouth closed.",
+        "Do not use flash, filters or beauty modes. Keep objects and other people out of the frame."
+      ]
+    },
+    "mark": {
+      "heading": "2. Mark your head",
+      "body": "Tap or drag to place the two markers. The page crops and straightens the photo from them.",
+      "active": "Marker to move",
+      "crown": "Top of head (crown)", "chin": "Bottom of chin",
+      "keys": "With the picture selected, use the arrow keys to move the chosen marker in small steps.",
+      "detect": "Find face automatically", "reset": "Reset markers",
+      "canvasLabel": "Your photo with two markers. Drag the markers to the top of your head and to your chin."
+    },
+    "check": {
+      "heading": "3. Check the result",
+      "guides": "Show guide lines",
+      "resultLabel": "Preview of the cropped passport photo",
+      "guideCrown": "crown", "guideChin": "chin",
+      "guideBand": "Head size range",
+      "summary": "{fail} to fix, {warn} to review, {manual} to confirm yourself.",
+      "summaryOk": "All automatic checks pass. Confirm the items below yourself."
+    },
+    "manual": {
+      "heading": "Checks you confirm yourself",
+      "body": "A browser page cannot judge these. Tick each one only when it is true for your photo.",
+      "items": [
+        "My eyes are open and clearly visible. No hair covers them.",
+        "My mouth is closed and my expression is plain.",
+        "I look straight at the camera and my head is not tilted.",
+        "I wear no glasses. If I must wear them, there is no glare or shadow and the frames do not cover my eyes.",
+        "I wear no hat or head covering, or only for religious or medical reasons. Nothing covers my face.",
+        "There are no red eyes, no shadows on my face or behind me, and no other people or objects.",
+        "I took this photo in the last month and applied no filter or retouching."
+      ]
+    },
+    "save": {
+      "heading": "4. Save",
+      "digital": "Save digital photo (JPEG)",
+      "sheet": "Make 6x4 inch print sheet",
+      "info": "File: {width} x {height} px, {kb} KB.",
+      "printNote": "Print the sheet at 100 percent size on 6x4 inch (10x15 cm) photo paper. Cut along the grey lines. Each photo measures 35 mm by 45 mm. A paper application needs plain white photographic paper and 2 identical photos.",
+      "sheetLabel": "Print sheet with eight passport photos"
+    },
+    "rules": {
+      "heading": "What this page checks",
+      "headers": ["Rule", "GOV.UK says", "This page"],
+      "source": "Source:",
+      "link": "https://www.gov.uk/photos-for-passports",
+      "linkHref": "https://www.gov.uk/photos-for-passports",
+      "rows": [
+        ["Size in pixels (digital)", "At least 600 wide and 750 tall", "Checks and outputs 700 x 900 px"],
+        ["File size (digital)", "50 KB to 10 MB", "Checks the saved file"],
+        ["Print size", "45 mm high, 35 mm wide", "Crops to 35:45 and builds a 6x4 inch sheet"],
+        ["Head size (print)", "29 mm to 34 mm, chin to crown", "Sets 31.5 mm from your two markers"],
+        ["Background", "Plain, light, in clear contrast. Cream or light grey for print.", "Checks colour, evenness and side shadows"],
+        ["Focus and light", "Clear, in focus, no shadows or glare", "Checks sharpness, brightness, side balance and bright spots"],
+        ["Face, eyes, mouth, glasses, head covering, age of photo", "See the rules on GOV.UK", "You confirm each one by hand"]
+      ],
+      "note": "GOV.UK does the final check. This page cannot promise that your application is accepted."
+    }
+  },
+  "statusLabels": { "pass": "Pass", "warn": "Review", "fail": "Fix", "manual": "You check" },
+  "checks": [
+    { "id": "resolution", "title": "Photo detail",
+      "pass": "The crop is {px} px tall. This is enough detail.",
+      "warn": "The crop is {px} px tall. It works, but the picture looks soft. Take it closer or at higher quality.",
+      "fail": "The crop is only {px} px tall. The minimum is {min} px. Take a larger photo." },
+    { "id": "framing", "title": "Space around head",
+      "pass": "The photo has enough room above and around your head.",
+      "fail": "{pct} percent of the crop is outside the photo. Move back, or place the markers lower." },
+    { "id": "tilt", "title": "Head straight",
+      "pass": "Your head is tilted {deg} degrees. The page straightens it.",
+      "warn": "Your head is tilted {deg} degrees. Keep your head upright when you retake it.",
+      "fail": "Your head is tilted {deg} degrees. Retake the photo with your head upright." },
+    { "id": "faceFound", "title": "One face",
+      "pass": "One face found in the photo.",
+      "fail": "The page found {count} faces. The photo must show one person." },
+    { "id": "facing", "title": "Facing the camera",
+      "pass": "Your face points at the camera.",
+      "warn": "Your face turns a little away from the camera. Face it straight on.",
+      "fail": "Your face turns away from the camera. Retake the photo facing it straight on." },
+    { "id": "gaze", "title": "Looking at the camera",
+      "pass": "You look at the camera.",
+      "warn": "Your eyes look a little to one side. Look straight at the lens.",
+      "fail": "Your eyes look away from the camera. Look straight at the lens." },
+    { "id": "eyes", "title": "Eyes open",
+      "pass": "Your eyes are open.",
+      "warn": "Your eyes look partly closed. Open them fully.",
+      "fail": "Your eyes look closed. Retake the photo with your eyes open." },
+    { "id": "mouth", "title": "Mouth closed, plain expression",
+      "pass": "Your mouth is closed and your expression is plain.",
+      "warn": "Your mouth is slightly open or you smile a little. Use a plain expression.",
+      "fail": "Your mouth is open or you smile. Use a plain expression with your mouth closed." },
+    { "id": "headSize", "title": "Head size",
+      "pass": "Chin to crown measures {mm} mm on a 45 mm photo. The print range is {min} to {max} mm." },
+    { "id": "bgColour", "title": "Background colour",
+      "pass": "The background is a light neutral shade.",
+      "warn": "The background looks white. GOV.UK asks for light grey or cream, with clear contrast to your face and hair.",
+      "fail": "The background is too dark or too colourful. Use a plain light grey or cream wall." },
+    { "id": "bgEven", "title": "Background plain",
+      "pass": "The background is even. It has no visible pattern or side shadow.",
+      "warn": "The background is slightly uneven. Check for shadows or a pattern.",
+      "fail": "The background is uneven. Remove shadows, patterns and objects." },
+    { "id": "light", "title": "Face brightness",
+      "pass": "The light on your face is balanced.",
+      "fail": "Your face is too dark or too bright. Take the photo in even daylight." },
+    { "id": "lightEven", "title": "Light on both sides",
+      "pass": "Both sides of your face have similar light.",
+      "warn": "One side of your face is a little darker. Face the light source straight on.",
+      "fail": "One side of your face is much darker. Face the light source straight on to remove the shadow." },
+    { "id": "glare", "title": "Glare and bright spots",
+      "pass": "No large bright spots on the face.",
+      "warn": "Some bright spots on the face. Check for glare or a flash reflection.",
+      "fail": "Large bright spots on the face. Turn off flash and avoid glare." },
+    { "id": "sharp", "title": "Focus",
+      "pass": "The face is in focus.",
+      "warn": "The face is slightly soft. Hold the camera still and let it focus.",
+      "fail": "The face is blurred. Retake the photo in better light and hold the camera still." },
+    { "id": "file", "title": "Digital file",
+      "pass": "JPEG {width} x {height} px, {kb} KB. This meets the digital size rules.",
+      "fail": "The file is {kb} KB. The allowed range is {minKb} KB to {maxKb} KB." }
+  ],
+  "errors": { "boot": "The page could not start. The manifest is not valid JSON." }
+}
+    </script>
+
+    <script>
+      "use strict";
+      let M;
+      try {
+        M = JSON.parse(document.getElementById("manifest").textContent);
+      } catch (error) {
+        document.body.textContent = "The page could not start. The manifest is not valid JSON.";
+        throw error;
+      }
+
+      const $ = (id) => document.getElementById(id);
+      const el = (tag, props = {}, ...kids) => {
+        const node = Object.assign(document.createElement(tag), props);
+        for (const kid of kids) if (kid != null) node.append(kid);
+        return node;
+      };
+      const get = (obj, path) => path.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
+      const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`));
+      const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+      const DEG = 180 / Math.PI;
+
+      // ---- static copy and theme from the manifest ----
+      for (const [name, value] of Object.entries(M.theme)) document.documentElement.style.setProperty(`--${name}`, value);
+      for (const node of document.querySelectorAll("[data-t]")) node.textContent = get(M, node.dataset.t);
+      $("tips").append(...M.copy.photo.tips.map((t) => el("li", { textContent: t })));
+      $("lbl-crown").textContent = M.copy.mark.crown;
+      $("lbl-chin").textContent = M.copy.mark.chin;
+      $("mark").setAttribute("aria-label", M.copy.mark.canvasLabel);
+      $("result").setAttribute("aria-label", M.copy.check.resultLabel);
+      $("sheet").setAttribute("aria-label", M.copy.save.sheetLabel);
+      $("rules-head").append(...M.copy.rules.headers.map((h) => el("th", { scope: "col", textContent: h })));
+      $("rules-body").append(...M.copy.rules.rows.map((r) => el("tr", {}, ...r.map((c) => el("td", { textContent: c })))));
+      $("rules-link").textContent = M.copy.rules.link;
+      $("rules-link").href = M.copy.rules.linkHref;
+      const guide = $("guide").style;
+      guide.left = `${M.camera.guide.left}%`; guide.top = `${M.camera.guide.top}%`;
+      guide.width = `${M.camera.guide.width}%`; guide.height = `${M.camera.guide.height}%`;
+
+      const spec = M.spec;
+      const out = spec.output;
+      const targetRatio = spec.headMm.target / spec.photoMm.h;
+      const minRatio = spec.headMm.min / spec.photoMm.h;
+      const maxRatio = spec.headMm.max / spec.photoMm.h;
+      const manualBoxes = [];
+      M.copy.manual.items.forEach((text, i) => {
+        const box = el("input", { type: "checkbox", id: `manual-${i}` });
+        box.addEventListener("change", refreshSummary);
+        manualBoxes.push(box);
+        $("manual-list").append(el("li", {}, el("label", { className: "manual", htmlFor: box.id }, box, el("span", { textContent: text }))));
+      });
+
+      // ---- state ----
+      const state = { src: null, markers: null, active: "crown", stream: null, result: null, blob: null, checks: [], face: null, model: null, mode: null, token: 0 };
+      const resultCanvas = $("result");
+      resultCanvas.width = out.width;
+      resultCanvas.height = out.height;
+      const rctx = resultCanvas.getContext("2d", { willReadFrequently: true });
+
+      function say(key) {
+        const text = M.status[key] || key;
+        $("status").textContent = text;
+      }
+      function toast(key) {
+        say(key);
+        if (window.PrototypeShell && typeof window.PrototypeShell.toast === "function") window.PrototypeShell.toast(M.status[key]);
+      }
+
+      // ---- geometry: map the two markers onto the output photo ----
+      function geometry(markers = state.markers) {
+        const { crown, chin } = markers;
+        const dx = chin.x - crown.x;
+        const dy = chin.y - crown.y;
+        const head = Math.hypot(dx, dy);
+        const theta = Math.atan2(dx, dy);
+        const scale = (out.height * targetRatio) / head;
+        const cropH = out.height / scale;
+        const cropW = out.width / scale;
+        const toSrc = (u, v) => {
+          const x = (u - out.width / 2) / scale;
+          const y = (v - spec.crownTopRatio * out.height) / scale;
+          return {
+            x: crown.x + x * Math.cos(theta) + y * Math.sin(theta),
+            y: crown.y - x * Math.sin(theta) + y * Math.cos(theta)
+          };
+        };
+        const fwd = (p) => {
+          const x = p.x - crown.x, y = p.y - crown.y;
+          return {
+            x: out.width / 2 + scale * (x * Math.cos(theta) - y * Math.sin(theta)),
+            y: spec.crownTopRatio * out.height + scale * (x * Math.sin(theta) + y * Math.cos(theta))
+          };
+        };
+        return { head, theta, scale, cropH, cropW, toSrc, fwd };
+      }
+
+      function render() {
+        if (!state.src) return;
+        const g = geometry();
+        rctx.setTransform(1, 0, 0, 1, 0, 0);
+        rctx.clearRect(0, 0, out.width, out.height);
+        rctx.imageSmoothingEnabled = true;
+        rctx.imageSmoothingQuality = "high";
+        rctx.translate(out.width / 2, spec.crownTopRatio * out.height);
+        rctx.scale(g.scale, g.scale);
+        rctx.rotate(g.theta);
+        rctx.translate(-state.markers.crown.x, -state.markers.crown.y);
+        rctx.drawImage(state.src, 0, 0);
+        rctx.setTransform(1, 0, 0, 1, 0, 0);
+        const px = rctx.getImageData(0, 0, out.width, out.height);
+        let hole = 0;
+        for (let i = 3; i < px.data.length; i += 4) if (px.data[i] < 250) hole++;
+        rctx.globalCompositeOperation = "destination-over";
+        rctx.fillStyle = out.fill;
+        rctx.fillRect(0, 0, out.width, out.height);
+        rctx.globalCompositeOperation = "source-over";
+        const pixels = rctx.getImageData(0, 0, out.width, out.height);
+        state.checks = analyse(g, pixels, hole / (out.width * out.height));
+        drawMarkCanvas(g);
+        drawChecks();
+        refreshSummary();
+        scheduleEncode();
+      }
+
+      // ---- analysis ----
+      const luma = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+
+      function regionStats(pixels, box) {
+        const [x0, y0, x1, y1] = box;
+        const w = pixels.width;
+        const d = pixels.data;
+        let n = 0, sr = 0, sg = 0, sb = 0, sl = 0, sl2 = 0;
+        for (let y = Math.floor(y0 * pixels.height); y < Math.floor(y1 * pixels.height); y++) {
+          for (let x = Math.floor(x0 * w); x < Math.floor(x1 * w); x++) {
+            const i = (y * w + x) * 4;
+            const l = luma(d, i);
+            n++; sr += d[i]; sg += d[i + 1]; sb += d[i + 2]; sl += l; sl2 += l * l;
+          }
+        }
+        const mean = sl / n;
+        return { n, r: sr / n, g: sg / n, b: sb / n, luma: mean, std: Math.sqrt(Math.max(0, sl2 / n - mean * mean)) };
+      }
+
+      function sharpness(pixels, box) {
+        const [x0, y0, x1, y1] = box;
+        const w = pixels.width;
+        const d = pixels.data;
+        const ax = Math.floor(x0 * w), bx = Math.floor(x1 * w), ay = Math.floor(y0 * pixels.height), by = Math.floor(y1 * pixels.height);
+        let n = 0, s = 0, s2 = 0;
+        for (let y = ay + 1; y < by - 1; y++) {
+          for (let x = ax + 1; x < bx - 1; x++) {
+            const i = (y * w + x) * 4;
+            const v = 4 * luma(d, i) - luma(d, i - 4) - luma(d, i + 4) - luma(d, i - w * 4) - luma(d, i + w * 4);
+            n++; s += v; s2 += v * v;
+          }
+        }
+        const mean = s / n;
+        return s2 / n - mean * mean;
+      }
+
+      function grade(value, warnAt, failAt, higherIsBetter) {
+        if (higherIsBetter) return value >= warnAt ? "pass" : value >= failAt ? "warn" : "fail";
+        return value <= warnAt ? "pass" : value <= failAt ? "warn" : "fail";
+      }
+
+      function analyse(g, pixels, holeFraction) {
+        const T = M.thresholds, R = M.regions, results = [];
+        const add = (id, status, vars = {}) => results.push({ id, status, vars });
+
+        const px = Math.round(g.cropH);
+        add("resolution", px < T.srcMinHeight ? "fail" : px < T.srcGoodHeight ? "warn" : "pass", { px, min: T.srcMinHeight });
+        add("framing", holeFraction > T.outOfBoundsFail ? "fail" : "pass", { pct: (holeFraction * 100).toFixed(1) });
+        const tilt = Math.abs(g.theta * DEG);
+        add("tilt", tilt > T.tiltFailDeg ? "fail" : tilt > T.tiltWarnDeg ? "warn" : "pass", { deg: tilt.toFixed(1) });
+        for (const c of faceChecks(state.face)) results.push(c);
+        add("headSize", "pass", { mm: (targetRatio * spec.photoMm.h).toFixed(1), min: spec.headMm.min, max: spec.headMm.max });
+
+        const left = regionStats(pixels, R.bgLeft), right = regionStats(pixels, R.bgRight), top = regionStats(pixels, R.bgTop);
+        const bg = { r: (left.r + right.r + top.r) / 3, g: (left.g + right.g + top.g) / 3, b: (left.b + right.b + top.b) / 3, luma: (left.luma + right.luma + top.luma) / 3 };
+        const hi = Math.max(bg.r, bg.g, bg.b), lo = Math.min(bg.r, bg.g, bg.b);
+        const sat = hi === 0 ? 0 : (hi - lo) / hi;
+        let colour = "pass";
+        if (bg.luma < T.bgMinLuma || sat > T.bgMaxSaturation) colour = "fail";
+        else if (bg.luma >= T.bgWhiteLuma) colour = "warn";
+        add("bgColour", colour);
+        const spread = Math.max(left.std, right.std, top.std);
+        const side = Math.abs(left.luma - right.luma);
+        const rank = { pass: 0, warn: 1, fail: 2 };
+        const evenA = grade(spread, T.bgStdWarn, T.bgStdFail, false), evenB = grade(side, T.bgSideWarn, T.bgSideFail, false);
+        add("bgEven", rank[evenA] >= rank[evenB] ? evenA : evenB);
+
+        const { box: faceBox, mid } = faceRegion(g);
+        const face = regionStats(pixels, faceBox);
+        add("light", face.luma < T.faceMinLuma || face.luma > T.faceMaxLuma ? "fail" : "pass");
+        const fl = regionStats(pixels, [faceBox[0], faceBox[1], mid, faceBox[3]]), fr = regionStats(pixels, [mid, faceBox[1], faceBox[2], faceBox[3]]);
+        const balance = Math.abs(fl.luma - fr.luma) / Math.max(1, face.luma);
+        add("lightEven", grade(balance, T.faceSideWarn, T.faceSideFail, false));
+
+        let bright = 0, count = 0;
+        const [fx0, fy0, fx1, fy1] = faceBox;
+        for (let y = Math.floor(fy0 * out.height); y < Math.floor(fy1 * out.height); y++) {
+          for (let x = Math.floor(fx0 * out.width); x < Math.floor(fx1 * out.width); x++) {
+            count++;
+            if (luma(pixels.data, (y * out.width + x) * 4) >= T.clipLuma) bright++;
+          }
+        }
+        add("glare", grade(bright / count, T.clipWarn, T.clipFail, false));
+        add("sharp", grade(sharpness(pixels, faceBox), T.sharpWarn, T.sharpFail, true));
+        add("file", "manual");
+        return results;
+      }
+
+      // ---- result list ----
+      function messageFor(check) {
+        const def = M.checks.find((c) => c.id === check.id);
+        return { def, text: fill(def[check.status] || "", check.vars) };
+      }
+
+      function drawChecks() {
+        const list = $("checks");
+        list.replaceChildren();
+        for (const check of state.checks) {
+          if (check.status === "manual") continue;
+          const { def, text } = messageFor(check);
+          list.append(el("li", { className: "check" },
+            el("span", { className: `pill ${check.status}`, textContent: M.statusLabels[check.status] }),
+            el("span", { className: "title", textContent: def.title }),
+            el("span", { className: "msg", textContent: text })));
+        }
+        if (state.blob) list.append(fileRow());
+      }
+
+      function fileRow() {
+        const kb = state.blob.size / 1024;
+        const ok = state.blob.size >= out.minBytes && state.blob.size <= out.maxBytes;
+        const def = M.checks.find((c) => c.id === "file");
+        const vars = { width: out.width, height: out.height, kb: kb.toFixed(0), minKb: out.minBytes / 1024, maxKb: out.maxBytes / 1048576 * 1024 };
+        const status = ok ? "pass" : "fail";
+        state.fileStatus = status;
+        return el("li", { className: "check" },
+          el("span", { className: `pill ${status}`, textContent: M.statusLabels[status] }),
+          el("span", { className: "title", textContent: def.title }),
+          el("span", { className: "msg", textContent: fill(def[status], vars) }));
+      }
+
+      function refreshSummary() {
+        const counts = { fail: 0, warn: 0 };
+        for (const c of state.checks) if (counts[c.status] !== undefined) counts[c.status]++;
+        if (state.blob && state.fileStatus === "fail") counts.fail++;
+        const manual = manualBoxes.filter((b) => !b.checked).length;
+        const text = counts.fail || counts.warn || manual
+          ? fill(M.copy.check.summary, { fail: counts.fail, warn: counts.warn, manual })
+          : M.copy.check.summaryOk;
+        $("summary").textContent = text;
+        $("summary").dataset.fail = counts.fail;
+      }
+
+      // ---- overlay guides on the result ----
+      (function buildOverlay() {
+        const o = $("overlay");
+        const pct = (r) => `${(r * 100).toFixed(2)}%`;
+        const crownY = spec.crownTopRatio;
+        o.append(
+          el("div", { className: "band", style: `top:${pct(crownY + minRatio)};height:${pct(maxRatio - minRatio)}` }),
+          el("div", { className: "line", style: `top:${pct(crownY)}` }),
+          el("div", { className: "line", style: `top:${pct(crownY + targetRatio)}` }),
+          el("div", { className: "vline" }),
+          el("span", { className: "tag", style: `top:${pct(crownY)}`, textContent: M.copy.check.guideCrown }),
+          el("span", { className: "tag", style: `top:${pct(crownY + targetRatio)}`, textContent: M.copy.check.guideChin }));
+        o.hidden = false;
+        $("toggle-guides").addEventListener("change", (e) => { o.hidden = !e.target.checked; });
+      })();
+
+      // ---- marker canvas ----
+      const markCanvas = $("mark");
+      const mctx = markCanvas.getContext("2d");
+
+      function drawMarkCanvas(g) {
+        const src = state.src;
+        const w = markCanvas.parentElement.clientWidth || 320;
+        const k = w / src.width;
+        markCanvas.width = Math.round(src.width * k);
+        markCanvas.height = Math.round(src.height * k);
+        mctx.drawImage(src, 0, 0, markCanvas.width, markCanvas.height);
+        const m = M.markers;
+        const corners = [[0, 0], [out.width, 0], [out.width, out.height], [0, out.height]].map(([u, v]) => g.toSrc(u, v));
+        mctx.lineWidth = m.lineWidth;
+        mctx.strokeStyle = m.cropLine;
+        mctx.beginPath();
+        corners.forEach((p, i) => (i ? mctx.lineTo(p.x * k, p.y * k) : mctx.moveTo(p.x * k, p.y * k)));
+        mctx.closePath();
+        mctx.stroke();
+        mctx.beginPath();
+        mctx.moveTo(state.markers.crown.x * k, state.markers.crown.y * k);
+        mctx.lineTo(state.markers.chin.x * k, state.markers.chin.y * k);
+        mctx.stroke();
+        for (const name of ["crown", "chin"]) {
+          const p = state.markers[name];
+          mctx.beginPath();
+          mctx.arc(p.x * k, p.y * k, m.radius, 0, Math.PI * 2);
+          mctx.fillStyle = m[name];
+          mctx.fill();
+          mctx.lineWidth = m.lineWidth;
+          mctx.strokeStyle = M.theme.paper;
+          mctx.stroke();
+          if (name === state.active) {
+            mctx.beginPath();
+            mctx.arc(p.x * k, p.y * k, m.radius + 5, 0, Math.PI * 2);
+            mctx.strokeStyle = m[name];
+            mctx.stroke();
+          }
+        }
+        markCanvas.dataset.scale = k;
+      }
+
+      let frame = 0;
+      function requestRender() {
+        if (frame) return;
+        frame = requestAnimationFrame(() => { frame = 0; render(); });
+      }
+
+      function pointerToSource(e) {
+        const rect = markCanvas.getBoundingClientRect();
+        const k = rect.width / state.src.width;
+        return { x: clamp((e.clientX - rect.left) / k, 0, state.src.width), y: clamp((e.clientY - rect.top) / k, 0, state.src.height), k };
+      }
+
+      let dragging = false;
+      markCanvas.addEventListener("pointerdown", (e) => {
+        if (!state.src) return;
+        const p = pointerToSource(e);
+        let best = null, bestD = Infinity;
+        for (const name of ["crown", "chin"]) {
+          const d = Math.hypot(state.markers[name].x - p.x, state.markers[name].y - p.y) * p.k;
+          if (d < bestD) { best = name; bestD = d; }
+        }
+        setActive(best);
+        state.markers[best] = { x: p.x, y: p.y };
+        dragging = true;
+        markCanvas.setPointerCapture(e.pointerId);
+        markCanvas.focus({ preventScroll: true });
+        requestRender();
+      });
+      markCanvas.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        const p = pointerToSource(e);
+        state.markers[state.active] = { x: p.x, y: p.y };
+        requestRender();
+      });
+      const endDrag = () => { dragging = false; };
+      markCanvas.addEventListener("pointerup", endDrag);
+      markCanvas.addEventListener("pointercancel", endDrag);
+      markCanvas.addEventListener("keydown", (e) => {
+        const step = M.markers.keyStep;
+        const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+        if (!d || !state.src) return;
+        e.preventDefault();
+        const p = state.markers[state.active];
+        state.markers[state.active] = {
+          x: clamp(p.x + d[0] * step * state.src.height, 0, state.src.width),
+          y: clamp(p.y + d[1] * step * state.src.height, 0, state.src.height)
+        };
+        requestRender();
+      });
+      function setActive(name) {
+        state.active = name;
+        for (const r of document.querySelectorAll('input[name="active"]')) r.checked = r.value === name;
+      }
+      for (const r of document.querySelectorAll('input[name="active"]')) r.addEventListener("change", () => { setActive(r.value); requestRender(); });
+
+      function resetMarkers() {
+        const d = M.markers.default;
+        state.markers = {
+          crown: { x: d.crown.x * state.src.width, y: d.crown.y * state.src.height },
+          chin: { x: d.chin.x * state.src.width, y: d.chin.y * state.src.height }
+        };
+      }
+      $("btn-reset").addEventListener("click", () => { if (state.src) { resetMarkers(); requestRender(); } });
+
+      // ---- face model (MediaPipe Face Landmarker, loaded when first needed) ----
+      const V = M.vision;
+      const maxOf = (scores, names) => Math.max(0, ...names.map((n) => scores[n] || 0));
+      let modelPromise = null;
+
+      function ensureModel() {
+        if (modelPromise) return modelPromise;
+        say("modelLoading");
+        const timeout = new Promise((_, bad) => setTimeout(() => bad(new Error("timeout")), V.loadTimeoutMs));
+        const load = (async () => {
+          const mod = await import(V.module);
+          const fileset = await mod.FilesetResolver.forVisionTasks(V.wasm);
+          let lastError;
+          for (const delegate of V.delegates) {
+            try {
+              const landmarker = await mod.FaceLandmarker.createFromOptions(fileset, {
+                baseOptions: { modelAssetPath: V.model, delegate },
+                runningMode: "IMAGE", numFaces: V.numFaces,
+                minFaceDetectionConfidence: V.minConfidence, minFacePresenceConfidence: V.minConfidence, minTrackingConfidence: V.minConfidence,
+                outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true
+              });
+              state.mode = "IMAGE";
+              return landmarker;
+            } catch (error) { lastError = error; }
+          }
+          throw lastError;
+        })();
+        modelPromise = Promise.race([load, timeout]).then(
+          (landmarker) => { state.model = landmarker; say("modelReady"); return landmarker; },
+          () => { modelPromise = null; toast("modelFailed"); return null; });
+        return modelPromise;
+      }
+      async function setMode(mode) {
+        if (state.mode !== mode) { await state.model.setOptions({ runningMode: mode }); state.mode = mode; }
+      }
+
+      function describeFace(result, W, H) {
+        const count = result.faceLandmarks.length;
+        if (count !== 1) return { count };
+        const I = V.index, lm = result.faceLandmarks[0];
+        const P = (i) => ({ x: lm[i].x * W, y: lm[i].y * H });
+        const chin = P(I.chin), top = P(I.forehead);
+        const crown = { x: top.x + (top.x - chin.x) * V.crownExtra, y: top.y + (top.y - chin.y) * V.crownExtra };
+        const scores = {};
+        for (const c of (result.faceBlendshapes[0] ? result.faceBlendshapes[0].categories : [])) scores[c.categoryName] = c.score;
+        const m = result.facialTransformationMatrixes[0] ? result.facialTransformationMatrixes[0].data : null;
+        const angles = m
+          ? { yaw: Math.atan2(-m[2], Math.hypot(m[6], m[10])) * DEG, pitch: Math.atan2(m[6], m[10]) * DEG, roll: Math.atan2(m[1], m[0]) * DEG }
+          : { yaw: 0, pitch: 0, roll: 0 };
+        const b = V.blend;
+        return {
+          count, crown, chin, pts: { top, chin, cheekL: P(I.cheekLeft), cheekR: P(I.cheekRight), nose: P(I.nose) },
+          ...angles, blink: maxOf(scores, b.blink), jaw: maxOf(scores, b.jaw), smile: maxOf(scores, b.smile), gaze: maxOf(scores, b.gaze)
+        };
+      }
+
+      const gradePair = (value, [pass, warn]) => (value <= pass ? "pass" : value <= warn ? "warn" : "fail");
+      const worst = (...list) => list.reduce((a, b) => (RANK[b] > RANK[a] ? b : a), "pass");
+      const RANK = { pass: 0, warn: 1, fail: 2 };
+
+      function faceChecks(info) {
+        if (!info) return [];
+        if (info.count !== 1) return [{ id: "faceFound", status: "fail", vars: { count: info.count } }];
+        const L = V.limits;
+        return [
+          { id: "faceFound", status: "pass", vars: {} },
+          { id: "facing", status: worst(gradePair(Math.abs(info.yaw), L.yaw), gradePair(Math.abs(info.pitch), L.pitch)), vars: {} },
+          { id: "gaze", status: gradePair(info.gaze, L.gaze), vars: {} },
+          { id: "eyes", status: gradePair(info.blink, L.blink), vars: {} },
+          { id: "mouth", status: worst(gradePair(info.jaw, L.jaw), gradePair(info.smile, L.smile)), vars: {} }
+        ];
+      }
+
+      // The face box in output coordinates comes from the landmarks when a face was found.
+      function faceRegion(g) {
+        const info = state.face;
+        if (!info || info.count !== 1) {
+          const f = M.regions.face;
+          return { box: f, mid: (f[0] + f[2]) / 2 };
+        }
+        const pts = Object.fromEntries(Object.entries(info.pts).map(([k, p]) => [k, g.fwd(p)]));
+        const x0 = Math.min(pts.cheekL.x, pts.cheekR.x) / out.width, x1 = Math.max(pts.cheekL.x, pts.cheekR.x) / out.width;
+        const y0 = pts.top.y / out.height, y1 = pts.chin.y / out.height;
+        const ix = (x1 - x0) * V.faceBoxInset, iy = (y1 - y0) * V.faceBoxInset;
+        const box = [clamp(x0 + ix, 0, 1), clamp(y0 + iy, 0, 1), clamp(x1 - ix, 0, 1), clamp(y1 - iy, 0, 1)];
+        return { box, mid: clamp(pts.nose.x / out.width, box[0], box[2]) };
+      }
+
+      async function autoDetect(token, place, announce) {
+        const landmarker = await ensureModel();
+        if (!landmarker || token !== state.token || !state.src) return;
+        await setMode("IMAGE");
+        const info = describeFace(landmarker.detect(state.src), state.src.width, state.src.height);
+        state.face = info;
+        if (info.count === 1 && place) {
+          state.markers = {
+            crown: { x: clamp(info.crown.x, 0, state.src.width), y: clamp(info.crown.y, 0, state.src.height) },
+            chin: { x: clamp(info.chin.x, 0, state.src.width), y: clamp(info.chin.y, 0, state.src.height) }
+          };
+          toast("detectDone");
+        } else if (info.count === 0 && announce) toast("detectNone");
+        else if (info.count > 1) toast("detectMany");
+        requestRender();
+      }
+      $("btn-detect").addEventListener("click", () => { if (state.src) autoDetect(state.token, true, true); });
+
+      // ---- getting a photo in ----
+      function useSource(canvas, markerOverride, detect = true) {
+        state.src = canvas;
+        state.face = null;
+        state.token = (state.token || 0) + 1;
+        if (markerOverride) {
+          state.markers = {
+            crown: { x: markerOverride.crown.x * canvas.width, y: markerOverride.crown.y * canvas.height },
+            chin: { x: markerOverride.chin.x * canvas.width, y: markerOverride.chin.y * canvas.height }
+          };
+        } else {
+          resetMarkers();
+        }
+        setActive("crown");
+        for (const b of manualBoxes) b.checked = false;
+        for (const id of ["sec-mark", "sec-check", "sec-manual", "sec-save"]) $(id).hidden = false;
+        $("sheet").hidden = true;
+        $("save-info").textContent = "";
+        state.blob = null;
+        toast("loaded");
+        requestRender();
+        if (detect) autoDetect(state.token, !markerOverride, true);
+        $("sec-mark").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+
+      function toCanvas(source, w, h) {
+        const scale = Math.min(1, M.image.maxSide / Math.max(w, h));
+        const c = el("canvas");
+        c.width = Math.round(w * scale);
+        c.height = Math.round(h * scale);
+        c.getContext("2d").drawImage(source, 0, 0, c.width, c.height);
+        return c;
+      }
+
+      $("file").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        e.target.value = "";
+        if (!file) return;
+        try {
+          let bitmap;
+          try { bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+          catch (inner) {
+            const url = URL.createObjectURL(file);
+            bitmap = await new Promise((ok, bad) => { const img = new Image(); img.onload = () => ok(img); img.onerror = bad; img.src = url; });
+          }
+          const w = bitmap.width || bitmap.naturalWidth, h = bitmap.height || bitmap.naturalHeight;
+          useSource(toCanvas(bitmap, w, h));
+        } catch (error) {
+          toast("loadError");
+        }
+      });
+
+      $("btn-sample").addEventListener("click", () => {
+        const S = M.sample;
+        const c = el("canvas");
+        c.width = S.width; c.height = S.height;
+        const g = c.getContext("2d");
+        const ell = (box, color) => {
+          g.fillStyle = color;
+          g.beginPath();
+          g.ellipse(box[0] * S.width, box[1] * S.height, box[2] * S.width, box[3] * S.height, 0, 0, Math.PI * 2);
+          g.fill();
+        };
+        g.fillStyle = S.background; g.fillRect(0, 0, S.width, S.height);
+        ell(S.shoulderBox, S.shoulder);
+        ell(S.neckBox, S.skin);
+        ell(S.hairBox, S.hair);
+        ell(S.headBox, S.skin);
+        g.fillStyle = S.hair; g.beginPath();
+        g.ellipse(S.headBox[0] * S.width, (S.headBox[1] - S.headBox[3] * 0.62) * S.height, S.headBox[2] * S.width * 0.97, S.headBox[3] * S.height * 0.42, 0, Math.PI, 0); g.fill();
+        for (const eye of S.eyes) ell(eye, S.eye);
+        ell(S.mouth, S.mouthColour);
+        const img = g.getImageData(0, 0, S.width, S.height);
+        for (let i = 0; i < img.data.length; i += 4) {
+          const n = (Math.random() - 0.5) * S.noise;
+          img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+        }
+        g.putImageData(img, 0, 0);
+        useSource(c, S.markers, false);
+      });
+
+      // ---- camera with live guides ----
+      const L = M.live;
+      const overlay = $("live-overlay");
+      const octx = overlay.getContext("2d");
+      let liveSignature = "";
+
+      $("btn-camera").addEventListener("click", async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return toast("cameraDenied");
+        say("cameraStarting");
+        try {
+          state.stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: M.camera.facingMode, width: { ideal: M.camera.idealWidth }, height: { ideal: M.camera.idealHeight } },
+            audio: false
+          });
+          $("video").srcObject = state.stream;
+          await $("video").play();
+          $("camera-stage").hidden = false;
+          $("btn-capture").hidden = false;
+          $("btn-stop").hidden = false;
+          $("btn-camera").hidden = true;
+          $("live-headline").hidden = false;
+          $("live-list").hidden = false;
+          $("live-headline").textContent = L.messages.loading;
+          say("cameraLive");
+          const landmarker = await ensureModel();
+          if (landmarker && state.stream) {
+            await setMode("VIDEO");
+            $("guide").hidden = true;
+            liveTick();
+          }
+        } catch (error) {
+          stopCamera();
+          toast("cameraDenied");
+        }
+      });
+
+      function liveTick() {
+        const v = $("video");
+        if (!state.stream) return;
+        if (v.readyState >= 2 && v.currentTime !== state.lastVideoTime) {
+          state.lastVideoTime = v.currentTime;
+          updateLive(describeFace(state.model.detectForVideo(v, performance.now()), v.videoWidth, v.videoHeight), v);
+        }
+        state.raf = requestAnimationFrame(liveTick);
+      }
+
+      function updateLive(info, v) {
+        const T = M.thresholds, lim = V.limits, msg = L.messages;
+        const rows = [];
+        const row = (id, ok, badKey) => rows.push({ id, ok, text: msg[ok ? `${id}Ok` : badKey] });
+        let corners = null;
+        if (info.count !== 1) {
+          row("face", false, info.count ? "faceMany" : "faceNone");
+          for (const id of ["size", "level", "eyes", "mouth", "gaze"]) rows.push({ id, ok: false, text: msg.waiting });
+        } else {
+          row("face", true);
+          const g = geometry({ crown: info.crown, chin: info.chin });
+          corners = [[0, 0], [out.width, 0], [out.width, out.height], [0, out.height]].map(([u, w]) => g.toSrc(u, w));
+          const beyond = (test) => corners.some(test);
+          let sizeKey = null;
+          if (v.videoHeight < T.srcMinHeight) sizeKey = "cameraLow";
+          else if (g.cropH < T.srcMinHeight) sizeKey = "sizeSmall";
+          else if (beyond((c) => c.y < 0)) sizeKey = "sizeTop";
+          else if (beyond((c) => c.y > v.videoHeight)) sizeKey = "sizeBottom";
+          else if (beyond((c) => c.x < 0 || c.x > v.videoWidth)) sizeKey = "sizeSide";
+          row("size", !sizeKey, sizeKey);
+          row("level", Math.abs(info.yaw) <= lim.yaw[0] && Math.abs(info.pitch) <= lim.pitch[0] && Math.abs(info.roll) <= lim.roll[0], "levelBad");
+          row("eyes", info.blink <= lim.blink[0], "eyesBad");
+          row("mouth", info.jaw <= lim.jaw[0] && info.smile <= lim.smile[0], "mouthBad");
+          row("gaze", info.gaze <= lim.gaze[0], "gazeBad");
+        }
+        const ready = rows.every((r) => r.ok);
+        state.liveReady = ready;
+        drawOverlay(info, corners, ready, v);
+        const signature = JSON.stringify(rows);
+        if (signature === liveSignature) return;
+        liveSignature = signature;
+        const bad = rows.find((r) => !r.ok);
+        $("live-headline").textContent = bad ? bad.text : msg.ready;
+        $("btn-capture").dataset.ready = ready ? "1" : "0";
+        $("live-list").replaceChildren(...rows.map((r) => el("li", { className: "check live" },
+          el("span", { className: `pill ${r.ok ? "pass" : "fail"}`, textContent: M.statusLabels[r.ok ? "pass" : "fail"] }),
+          el("span", { className: "title", textContent: `${L.rows[r.id]}: ${r.text}` }))));
+      }
+
+      function drawOverlay(info, corners, ready, v) {
+        const w = v.clientWidth, h = v.clientHeight;
+        if (overlay.width !== w || overlay.height !== h) { overlay.width = w; overlay.height = h; }
+        octx.clearRect(0, 0, w, h);
+        if (!corners) return;
+        const k = w / v.videoWidth, O = L.overlay;
+        octx.strokeStyle = octx.fillStyle = ready ? O.ok : O.bad;
+        octx.lineWidth = O.lineWidth;
+        octx.beginPath();
+        corners.forEach((c, i) => (i ? octx.lineTo(c.x * k, c.y * k) : octx.moveTo(c.x * k, c.y * k)));
+        octx.closePath();
+        octx.stroke();
+        for (const p of [info.crown, info.chin]) {
+          octx.beginPath();
+          octx.arc(p.x * k, p.y * k, O.dot, 0, Math.PI * 2);
+          octx.fill();
+        }
+      }
+
+      function stopCamera() {
+        cancelAnimationFrame(state.raf);
+        clearTimeout(state.timer);
+        state.counting = false;
+        if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+        state.stream = null;
+        liveSignature = "";
+        $("video").srcObject = null;
+        $("camera-stage").hidden = true;
+        $("guide").hidden = false;
+        $("countdown").textContent = "";
+        $("live-headline").hidden = true;
+        $("live-list").hidden = true;
+        $("btn-capture").hidden = true;
+        $("btn-capture").disabled = false;
+        $("btn-stop").hidden = true;
+        $("btn-camera").hidden = false;
+      }
+      $("btn-stop").addEventListener("click", () => { stopCamera(); say("idle"); });
+
+      function grabFrame() {
+        const v = $("video");
+        if (!v.videoWidth) return;
+        const c = toCanvas(v, v.videoWidth, v.videoHeight);
+        stopCamera();
+        useSource(c);
+      }
+      $("btn-capture").addEventListener("click", () => {
+        if (state.counting) return;
+        state.counting = true;
+        $("btn-capture").disabled = true;
+        let n = L.countdownSeconds;
+        const step = () => {
+          if (!state.stream) return;
+          $("countdown").textContent = n > 0 ? n : "";
+          if (n === 0) return grabFrame();
+          n--;
+          state.timer = setTimeout(step, 1000);
+        };
+        step();
+      });
+
+      // ---- encode and save ----
+      const toBlob = (canvas, type, q) => new Promise((ok) => canvas.toBlob(ok, type, q));
+      let encodeTimer = 0;
+      function scheduleEncode() {
+        clearTimeout(encodeTimer);
+        encodeTimer = setTimeout(encode, 250);
+      }
+      async function encode() {
+        let q = out.jpegQuality;
+        let blob = await toBlob(resultCanvas, "image/jpeg", q);
+        while (blob && blob.size < out.minBytes && q < 1) { q = Math.min(1, q + out.qualityStep); blob = await toBlob(resultCanvas, "image/jpeg", q); }
+        q = out.jpegQuality;
+        while (blob && blob.size > out.maxBytes && q > out.qualityFloor) { q -= out.qualityStep; blob = await toBlob(resultCanvas, "image/jpeg", q); }
+        state.blob = blob;
+        if (blob) {
+          $("save-info").textContent = fill(M.copy.save.info, { width: out.width, height: out.height, kb: (blob.size / 1024).toFixed(0) });
+          drawChecks();
+          refreshSummary();
+        }
+      }
+
+      async function saveBlob(blob, filename) {
+        try {
+          const claude = window.claude;
+          const downloads = claude && claude.use ? await claude.use("downloads") : null;
+          if (downloads) { await downloads.save({ filename, data: blob }); return toast("saved"); }
+        } catch (error) {
+          return toast("saveDeclined");
+        }
+        const url = URL.createObjectURL(blob);
+        const a = el("a", { href: url, download: filename });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        toast("saved");
+      }
+
+      $("btn-save").addEventListener("click", async () => {
+        await encode();
+        if (state.blob) saveBlob(state.blob, out.filename);
+      });
+
+      $("btn-sheet").addEventListener("click", async () => {
+        const S = spec.sheet;
+        const c = $("sheet");
+        c.width = S.width; c.height = S.height;
+        c.hidden = false;
+        const g = c.getContext("2d");
+        g.fillStyle = S.background; g.fillRect(0, 0, S.width, S.height);
+        g.imageSmoothingQuality = "high";
+        const totalW = S.cols * S.photoWidth + (S.cols - 1) * S.gap;
+        const totalH = S.rows * S.photoHeight + (S.rows - 1) * S.gap;
+        const x0 = (S.width - totalW) / 2, y0 = (S.height - totalH) / 2;
+        for (let r = 0; r < S.rows; r++) {
+          for (let col = 0; col < S.cols; col++) {
+            g.drawImage(resultCanvas, x0 + col * (S.photoWidth + S.gap), y0 + r * (S.photoHeight + S.gap), S.photoWidth, S.photoHeight);
+          }
+        }
+        g.strokeStyle = S.cutLine; g.lineWidth = 1;
+        for (let r = 0; r < S.rows; r++) {
+          for (let col = 0; col < S.cols; col++) {
+            g.strokeRect(x0 + col * (S.photoWidth + S.gap) - 0.5, y0 + r * (S.photoHeight + S.gap) - 0.5, S.photoWidth + 1, S.photoHeight + 1);
+          }
+        }
+        const blob = await toBlob(c, "image/jpeg", S.quality);
+        if (blob) saveBlob(blob, S.filename);
+      });
+
+      window.addEventListener("resize", () => { if (state.src) requestRender(); });
+      say("idle");
+      document.documentElement.dataset.ready = "1";
+    </script>
+  </body>
+</html>

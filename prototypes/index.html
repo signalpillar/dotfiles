@@ -159,6 +159,7 @@
         ],
         "needs": [
           { "id": "microphone", "label": "Microphone" },
+          { "id": "camera", "label": "Camera (optional)" },
           { "id": "webgpu", "label": "WebGPU" },
           { "id": "download", "label": "Large model download" },
           { "id": "location", "label": "Location (optional)" }
@@ -291,6 +292,14 @@
             "saves": "Nothing.",
             "data": "The intervals you set.",
             "keywords": "sport exercise workout"
+          },
+          {
+            "id": "uk-passport-photo", "title": "UK Passport Photo", "url": "uk-passport-photo.html", "group": "none",
+            "summary": "Live camera guides, then a crop to the UK passport shape and checks against the GOV.UK rules. A face model runs in your browser.",
+            "sources": ["typed", "file"], "needs": ["camera"],
+            "saves": "Nothing, unless you save the finished JPEG. The photo stays in the browser.",
+            "data": "A picture from your camera or a file you choose. The page downloads a face model, and your photo is not uploaded.",
+            "keywords": "passport photo gov.uk id camera crop"
           },
           {
             "id": "noise-nudge", "title": "Noise Nudge", "url": "noise-nudge.html", "group": "none",
