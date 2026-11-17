@@ -22,6 +22,14 @@ metadata:
 - When the diff earns it, name one ✅ practice per review.
 - When the caller names focus areas, weigh those areas first.
 
+## Review method
+
+- **Review from the diff, not from memory of writing it.** Start from `git diff` and go hunk by hunk. A pass made in the author's own context only repeats the author's assumptions.
+- **Look at what the change touches, not only what it adds.** For every identifier or concept the diff widens, narrows or renames, search the codebase for the old wording and its siblings. Docs, comments, error messages and tests that still describe the old scope are findings.
+- **Check that each guard is tested.** For every line that exists to prevent a failure (a copy, an ordering, a validation, a fallback), ask "which test fails if I remove this?" If none does, add one in the realistic combined shape, not only the isolated case.
+- **State where a rule is enforced, and test it there.** A comment or doc about a rule names the layer that enforces it. The test sits at that layer.
+- **Name the follow-ups the change creates.** If the change leaves the system inconsistent for a time (partial rollout, a known gap), the PR names the tracking item and what depends on it.
+
 ## Architecture and design principles
 
 - **Single responsibility boundaries**: define one service as the source of truth for each domain decision (e.g., policy/rule resolution), and make downstream code consume that output.
@@ -71,6 +79,19 @@ When using this skill for review, also ask:
 - Did new throws copy this package's error class and log level, or invent a parallel convention? Request a grep of sibling throws.
 - Does a child row repeat a parent field? Request it live once on the parent.
 - Do two reason codes or flags name the same event? Request they fold.
+
+### Domain model review checklist
+
+When a change makes an existing model hold a new case (a second instance of something assumed to be singular, a new scope, a new split), first state the problem formally: which assumption broke, the requirements, the constraints, and the invariant. Then ask:
+
+- **Is the structure needed at all?** Check where the API is heading. If consumers are moving to another root or query, request the smaller change there instead of growing the one being phased out.
+- **Is the split computed once?** If several methods each derive "which part is this" by their own rules, request one partition function that the rest derive from. Before accepting an exception to that rule, check whether redefining the rule removes the exception.
+- **Does one concept map to one set?** Flag two sets that describe the same entity but can differ (what a unit reads vs what it claims as its own). Someone will eventually read the wrong one.
+- **Is per-subtree state carried in a typed parent?** Request-wide context is shared by every resolver in the request, so it cannot tell subtrees apart. Request a typed parent (for example codegen mappers) with the field required. Flag `unknown` casts, hidden fields and `?? context` fallbacks: a missed hand-off must fail the build, not silently read request-wide data.
+- **Does one fact travel one way?** Flag a second hidden channel added next to an existing one for the same fact. Request one carrier, or a ticket to fold the old one.
+- **Are records attributed by ownership?** Records belong to the entity their reference points at, with a stated home for unowned ones. Flag a boolean that encodes the caller's position ("main or other") instead of what owns the record.
+- **Is every read classified as global or scoped?** Name the reads that must stay request-wide and check that scoping does not reach them.
+- **Is a new gate backed by proof?** When behaviour depends on a data invariant ("this id is always set"), request a link to the code that guarantees it, or a test. For a narrow seam (a lookup by id), check what an unknown or wrong input returns: a silent fallback to the default hides client bugs.
 
 ### HTTP / Zod review checklist
 
