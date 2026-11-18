@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Dedupe",
+  "version": "1.0.0",
+  "description": "Focuses the already-open tab instead of opening the same URL twice.",
+  "permissions": [
+    "tabs",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}

@@ -1,0 +1,22 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tab Dedupe</title>
+<style>
+  body { font: 14px system-ui; max-width: 560px; margin: 2em auto; }
+  label { display: block; margin: .6em 0; }
+  textarea { width: 100%; height: 5em; font-family: monospace; }
+  #status { color: green; margin-left: .5em; }
+</style>
+<h1>Tab Dedupe</h1>
+<label><input type="checkbox" id="enabled"> Enabled</label>
+<label>Scope
+  <select id="scope"><option value="all">All windows</option><option value="window">Same window only</option></select>
+</label>
+<label><input type="checkbox" id="dedupeOnNavigation"> Also dedupe when an existing tab navigates to an already-open URL</label>
+<label><input type="checkbox" id="stripHash"> Ignore #fragment</label>
+<label><input type="checkbox" id="stripWww"> Ignore leading www.</label>
+<label><input type="checkbox" id="ignoreTrailingSlash"> Ignore trailing slash</label>
+<label>Ignored query parameters (one per line, * wildcard)<textarea id="stripParams"></textarea></label>
+<label>Excluded URLs (one regex per line, never deduped)<textarea id="excludePatterns"></textarea></label>
+<button id="save">Save</button><span id="status"></span>
+<script type="module" src="options.js"></script>
