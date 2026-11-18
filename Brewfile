@@ -61,6 +61,10 @@ brew "broot"
 brew "mc"
 brew "gdu"
 brew "kubectl"
+# Local dev orchestration: tilt.dev binary and the temporal CLI.
+# Do not `brew services start temporal`; run `temporal server start-dev` on demand.
+brew "tilt"
+brew "temporal"
 brew "ctop"
 brew "hadolint"
 brew "pngpaste"
@@ -86,6 +90,7 @@ cask "opensuperwhisper"
 cask "tinycast" # https://github.com/abue-ammar/tinycast
 cask "nikitabobko/tap/aerospace" # tiling window manager, https://github.com/nikitabobko/AeroSpace
 cask "simplenote" # Electron build; the App Store build updates less often
+cask "rancher" # Rancher Desktop (container engine); set the container engine to dockerd (moby), not containerd
 
 # Fonts
 cask "font-jetbrains-mono-nerd-font"
