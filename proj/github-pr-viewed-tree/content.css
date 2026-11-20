@@ -1,0 +1,24 @@
+/* Viewed file rows: dim + trailing check mark. Pure CSS on the row's first
+   child so nothing is inserted into GitHub's React-managed DOM. */
+[role="treeitem"][data-prv="viewed"] > :first-child {
+  opacity: 0.55;
+}
+[role="treeitem"][data-prv="viewed"] > :first-child:hover {
+  opacity: 1;
+}
+[role="treeitem"][data-prv="viewed"] > :first-child::after {
+  content: "\2713";
+  margin-left: auto;
+  padding: 0 8px 0 4px;
+  color: var(--fgColor-success, #1a7f37);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Folders whose rendered files are all viewed. */
+[role="treeitem"][aria-expanded]:has([data-prv="viewed"]):not(
+    :has([role="treeitem"]:not([aria-expanded]):not([data-prv="viewed"]))
+  )
+  > :first-child {
+  opacity: 0.55;
+}
