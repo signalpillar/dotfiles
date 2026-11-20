@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "GitHub PR Viewed Tree",
+  "version": "0.1.0",
+  "description": "Marks files you ticked as Viewed in the GitHub pull request file tree. No API token.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*"],
+      "js": ["page-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://github.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_start"
+    }
+  ]
+}
