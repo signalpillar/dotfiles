@@ -70,7 +70,7 @@ test("groups apps by where their data lives, with counts from the manifest", asy
 
 test("a card shows its data tags and opens details inline", async ({ page }) => {
   const errors = await open(page, 390);
-  const app = M.apps.find((a) => a.id === "voice-kit");
+  const app = M.apps.find((a) => a.id === "noise-nudge");
   const card = page.locator(`#app-${app.id}`);
   await expect(card.locator(".tag")).toHaveText([...app.sources.map((s) => M.sources.find((x) => x.id === s).label), ...app.needs.map((n) => M.needs.find((x) => x.id === n).label)]);
   await card.locator("summary").click();
@@ -83,9 +83,10 @@ test("a card shows its data tags and opens details inline", async ({ page }) => 
 test("search and the data-source filter narrow the list, hide empty groups and survive a reload", async ({ page }) => {
   const errors = await open(page);
   await page.locator("#search").fill("microphone");
-  await expect(visibleCards(page)).toHaveCount(M.apps.filter((a) => a.needs.includes("microphone")).length);
+  const withMicrophone = M.apps.filter((a) => a.needs.includes("microphone"));
+  await expect(visibleCards(page)).toHaveCount(withMicrophone.length);
   await expect(page.locator("#group-browser")).toBeHidden();
-  await expect(page.locator("#result-line")).toHaveText(fill(C.resultSome, { shown: 2, total: M.apps.length }));
+  await expect(page.locator("#result-line")).toHaveText(fill(C.resultSome, { shown: withMicrophone.length, total: M.apps.length }));
 
   await page.locator("#search").fill("");
   await page.locator("#source-filter").getByRole("button", { name: "Your file" }).click();
