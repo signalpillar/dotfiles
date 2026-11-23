@@ -59,6 +59,18 @@ metadata:
 - **Parent-level facts once**: if every child row shares one value, put it on the parent result, not on each child. Do not hardcode a copy of a field that already exists on the parent.
 - **Fold same-event flags**: two reason codes or two booleans that describe one business event become one name. Extra codes are extra branches in every facade.
 - **Key vs id**: an internal catalog/config key is `*Key`. An external provider identifier is `*Id`. Do not name a key `Id`. External identifier systems follow the same split.
+- **No flattened optional-chaining ternary.** Do not fold a type guard into `const x = isFoo(d) ? d.foo.bar : undefined;` then branch on `x?.bar ? a : b`. Narrow with the guard in an `if` and return/branch inside it — one fact, one place, no synthetic intermediate `undefined`.
+  ```ts
+  // Avoid
+  const quantityDef = isQuantityObservationDefinition(definition) ? definition.fhir.value.quantity : undefined;
+  return quantityDef?.integer ? Math.round(value) : value;
+
+  // Prefer
+  if (isQuantityObservationDefinition(definition) && definition.fhir.value.quantity.integer) {
+    return Math.round(value);
+  }
+  return value;
+  ```
 
 ### Architecture review checklist
 
