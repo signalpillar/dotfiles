@@ -12,6 +12,7 @@ export const DEFAULTS = {
   standingSince: null,
   standingMsToday: 0,
   breaksToday: 0,
+  movedSecToday: 0,
   day: "",
 };
 

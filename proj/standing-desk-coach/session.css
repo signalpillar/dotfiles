@@ -66,4 +66,5 @@ body { min-height: 100vh; display: flex; flex-direction: column; }
 .plan li { counter-increment: p; display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--rule); }
 .plan li::before { content: counter(p, decimal-leading-zero); font: 600 11px/2 var(--sans); color: var(--accent); }
 .plan li span { margin-left: auto; color: var(--muted); }
+.evidence { margin: 0 0 18px; padding-top: 12px; border-top: 1px solid var(--rule); font-size: 13.5px; line-height: 1.55; color: var(--muted); }
 .hint { color: var(--muted); font-style: italic; margin: 0 0 18px; }

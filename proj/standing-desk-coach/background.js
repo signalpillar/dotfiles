@@ -11,7 +11,7 @@ const STAND_SNOOZE_MIN = 10;
 async function rollDay(s) {
   const day = todayKey();
   if (s.day === day) return s;
-  const patch = { day, breaksToday: 0, standingMsToday: 0 };
+  const patch = { day, breaksToday: 0, standingMsToday: 0, movedSecToday: 0 };
   if (s.standing) patch.standingSince = Date.now();
   await set(patch);
   return { ...s, ...patch };
@@ -174,9 +174,13 @@ const handlers = {
   start({ all }) {
     return openSession(all);
   },
-  async sessionDone({ advance }) {
+  async sessionDone({ advance, seconds = 0 }) {
     const s = await rollDay(await get());
-    await set({ breaksToday: s.breaksToday + 1, rotation: (s.rotation + advance) % 6 });
+    await set({
+      breaksToday: s.breaksToday + 1,
+      movedSecToday: s.movedSecToday + seconds,
+      rotation: (s.rotation + advance) % 6,
+    });
     if (s.standing) await schedule(s.intervalMin);
   },
 };

@@ -1,5 +1,5 @@
 import { DEFAULTS, send } from "./state.js";
-import { ARTICLE, ARRIVE, EXERCISES, RETURN } from "./exercises.js";
+import { ARTICLE, ARRIVE, EVIDENCE, EXERCISES, RETURN } from "./exercises.js";
 import { expandLaps, formatClock, pickExercises, totalSeconds } from "./laps.js";
 
 const $ = (id) => document.getElementById(id);
@@ -186,7 +186,7 @@ function finish() {
   $("remaining").textContent = "0:00";
   $("doneTitle").textContent = `${formatClock(total)} of movement`;
   $("done").hidden = false;
-  send({ type: "sessionDone", advance: all ? 0 : picked.length });
+  send({ type: "sessionDone", advance: all ? 0 : picked.length, seconds: Math.round(total) });
 }
 
 function begin() {
@@ -209,6 +209,7 @@ $("introList").replaceChildren(
 $("voice").textContent = voice ? "Voice on" : "Voice off";
 $("remaining").textContent = formatClock(total);
 
+$("evidence").replaceChildren(EVIDENCE.claim + " ", link(EVIDENCE.citation + " ↗", EVIDENCE.url));
 $("begin").onclick = begin;
 $("pause").onclick = togglePause;
 $("skip").onclick = skipLap;

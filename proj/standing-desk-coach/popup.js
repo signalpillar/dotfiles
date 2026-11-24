@@ -1,9 +1,11 @@
 import { getState, send, INTERVALS, PER_BREAK, SIT_INTERVALS } from "./state.js";
 import { minutesLeft, todayKey } from "./laps.js";
-import { ARTICLE } from "./exercises.js";
+import { ARTICLE, EVIDENCE } from "./exercises.js";
 
 const $ = (id) => document.getElementById(id);
 $("article").href = ARTICLE.url;
+const ev = Object.assign(document.createElement("a"), { href: EVIDENCE.url, target: "_blank", rel: "noopener", textContent: "Loprinzi & Cardinal, 2013" });
+$("evidence").replaceChildren("Short bursts count: activity in bouts under 10 minutes was linked to the same health markers as longer bouts — ", ev, ".");
 
 function segment(el, values, fmt, key) {
   if (!el.children.length) el.innerHTML = values.map((v) => `<button data-v="${v}">${fmt(v)}</button>`).join("");
@@ -48,6 +50,7 @@ async function render() {
   const live = s.standing && s.standingSince ? Date.now() - s.standingSince : 0;
   const mins = Math.round(((today ? s.standingMsToday : 0) + live) / 60000);
   $("breaks").textContent = today ? s.breaksToday : 0;
+  $("moved").textContent = `${Math.round((today ? s.movedSecToday : 0) / 60)} min`;
   $("stood").textContent = mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
 }
 

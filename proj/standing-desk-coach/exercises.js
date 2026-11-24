@@ -105,6 +105,14 @@ export const EXERCISES = [
   },
 ];
 
+// Why short breaks are worth it.
+export const EVIDENCE = {
+  claim:
+    "Short bursts count. In 6,321 adults wearing accelerometers, activity done in bouts under 10 minutes was linked to the same health markers (e.g. metabolic syndrome, triglycerides) as longer bouts.",
+  citation: "Loprinzi & Cardinal, American Journal of Health Promotion, 2013",
+  url: "https://journals.sagepub.com/doi/abs/10.4278/ajhp.110916-QUAN-348",
+};
+
 // Mindful bookends (not from the article).
 export const ARRIVE = {
   id: "arrive",

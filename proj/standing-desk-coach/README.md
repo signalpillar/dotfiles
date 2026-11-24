@@ -13,6 +13,13 @@ MV3 extension (Brave / Chrome) for mindful, hands-free movement breaks while you
 
 Exercises and illustrations: [Work From Home Desks NZ — 6 Exercises You Can Do At Your Standing Desk](https://www.workfromhomedesks.co.nz/blogs/blog/standing-desk-exercises).
 
+## Why short breaks
+
+Loprinzi & Cardinal (Am J Health Promot, 2013; NHANES, n = 6,321, accelerometry) found activity accumulated in
+bouts under 10 minutes was associated with health markers as strongly as ≥ 10-minute bouts. Cross-sectional, so an
+association, not proof — but it supports many small breaks over one long session.
+[doi:10.4278/ajhp.110916-QUAN-348](https://journals.sagepub.com/doi/abs/10.4278/ajhp.110916-QUAN-348)
+
 ## Why no automatic stand/sit detection
 
 Browsers expose motion sensors (`DeviceOrientationEvent`, Generic Sensor `Accelerometer`) only on hardware that
