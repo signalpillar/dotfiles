@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Movement break</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="session.css">
+</head>
+<body>
+  <header class="mast">
+    <p class="kicker">Movement break <em>·</em> <span id="remaining" class="num">0:00</span> left</p>
+    <div class="overall"><i id="overallBar"></i></div>
+  </header>
+
+  <main class="spread">
+    <figure class="plate">
+      <img id="img" alt="" hidden>
+      <div id="breath" class="breath" hidden><i></i></div>
+      <figcaption id="credit"></figcaption>
+    </figure>
+
+    <article class="copy">
+      <p class="kicker" id="position"></p>
+      <h1 id="title"></h1>
+
+      <div class="now">
+        <span id="count" class="count num">0</span>
+        <div>
+          <p id="lap" class="lap"></p>
+          <p id="meta" class="meta num"></p>
+        </div>
+      </div>
+      <div class="lapbar"><i id="lapBar"></i></div>
+      <p id="next" class="next"></p>
+
+      <hr>
+      <p id="instructions" class="body"></p>
+      <p id="benefit" class="benefit"></p>
+      <p id="links" class="links"></p>
+    </article>
+  </main>
+
+  <footer class="controls">
+    <button id="pause">Pause</button>
+    <button id="skip" class="quiet">Skip lap</button>
+    <button id="skipEx" class="quiet">Next exercise</button>
+    <button id="voice" class="quiet">Voice on</button>
+    <span class="spacer"></span>
+    <span class="keys"><kbd>Space</kbd> pause <kbd>→</kbd> skip <kbd>N</kbd> next</span>
+    <button id="end" class="quiet">End</button>
+  </footer>
+
+  <section id="intro" class="overlay">
+    <div class="card">
+      <p class="kicker">Time to move</p>
+      <h2 id="introTitle">A short break</h2>
+      <ol id="introList" class="plan"></ol>
+      <p class="hint">Fully timed with voice and chime cues — press Begin, step back from the keyboard and follow along.</p>
+      <button id="begin" class="primary">Begin</button>
+    </div>
+  </section>
+
+  <section id="done" class="overlay" hidden>
+    <div class="card">
+      <p class="kicker">Well done</p>
+      <h2 id="doneTitle">Break complete</h2>
+      <p class="hint">Carry the stillness back with you. One thing at a time.</p>
+      <button id="close" class="primary">Back to work</button>
+    </div>
+  </section>
+
+  <script type="module" src="session.js"></script>
+</body>
+</html>

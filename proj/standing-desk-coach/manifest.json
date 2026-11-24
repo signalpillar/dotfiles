@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Standing Desk Coach",
+  "version": "1.0.0",
+  "description": "Hands-free, timed movement breaks while you work at a standing desk.",
+  "permissions": ["alarms", "storage", "notifications", "idle"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Standing Desk Coach"
+  },
+  "commands": {
+    "toggle-standing": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Toggle standing / sitting"
+    }
+  }
+}

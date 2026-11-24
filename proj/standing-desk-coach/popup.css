@@ -1,0 +1,27 @@
+body { width: 340px; padding: 18px 20px 14px; }
+
+.mast { border-bottom: 2px solid var(--ink); padding-bottom: 8px; margin-bottom: 16px; }
+
+.hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hero h1 { font-size: 28px; line-height: 1.1; }
+.status { margin: 4px 0 0; color: var(--muted); font-style: italic; }
+
+.next { margin-top: 16px; }
+.big { margin: 2px 0 0; font-size: 54px; line-height: 1; color: var(--accent); }
+.big small { font-size: 17px; color: var(--muted); }
+
+.actions { display: flex; gap: 8px; margin-top: 18px; }
+.actions .primary { flex: 1; }
+
+.settings { display: grid; gap: 12px; }
+.row { display: grid; gap: 6px; }
+.row.inline { display: flex; align-items: center; justify-content: space-between; }
+.switch.small { width: 40px; height: 24px; }
+.switch.small span::after { width: 18px; height: 18px; }
+.switch.small input:checked + span::after { transform: translateX(16px); }
+
+.note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+.foot { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.foot p { margin: 0; }
+.credit { margin: 8px 0 0; font: 11px/1.4 var(--sans); color: var(--muted); }

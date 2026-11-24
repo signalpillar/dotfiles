@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="mast">
+    <p class="kicker">The Standing Desk <em>·</em> Mindful movement</p>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1 id="posture">You're sitting</h1>
+      <p id="status" class="status">Breaks are off.</p>
+    </div>
+    <label class="switch" title="Standing (Alt+Shift+S)">
+      <input id="standing" type="checkbox" aria-label="Standing">
+      <span></span>
+    </label>
+  </section>
+
+  <section class="next" id="nextBlock" hidden>
+    <p class="kicker" id="nextLabel">Next break in</p>
+    <p class="big num"><span id="mins">30</span><small> min</small></p>
+  </section>
+
+  <div class="actions">
+    <button id="startNow" class="primary">Break now</button>
+    <button id="startAll" class="quiet">Full routine · 6</button>
+  </div>
+
+  <hr>
+
+  <section class="settings">
+    <div class="row">
+      <p class="kicker">Every</p>
+      <div class="seg" id="interval"></div>
+    </div>
+    <div class="row">
+      <p class="kicker">Sitting · remind me to stand after</p>
+      <div class="seg" id="sitRemind"></div>
+    </div>
+    <div class="row">
+      <p class="kicker">Exercises per break</p>
+      <div class="seg" id="perBreak"></div>
+    </div>
+    <div class="row">
+      <p class="kicker">When it's time</p>
+      <div class="seg" id="delivery">
+        <button data-v="notify">Notify</button>
+        <button data-v="open">Open session</button>
+      </div>
+    </div>
+    <div class="row inline">
+      <p class="kicker">Voice cues</p>
+      <label class="switch small"><input id="voice" type="checkbox" aria-label="Voice cues"><span></span></label>
+    </div>
+  </section>
+
+  <p class="note">
+    Ergonomics guidance (e.g. Cornell's 20–8–2 rhythm) suggests changing posture and moving at least every
+    30 minutes. Locking your screen pauses the timers.
+  </p>
+
+  <hr>
+
+  <footer class="foot">
+    <p class="num"><span id="breaks">0</span> breaks · <span id="stood">0 min</span> standing today</p>
+    <p><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>S</kbd> toggles</p>
+  </footer>
+  <p class="credit">Exercises &amp; illustrations: <a id="article" target="_blank" rel="noopener">Work From Home Desks NZ</a></p>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
