@@ -3,6 +3,12 @@
   "name": "Standing Desk Coach",
   "version": "1.0.0",
   "description": "Hands-free, timed movement breaks while you work at a standing desk.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": ["alarms", "storage", "notifications", "idle"],
   "background": {
     "service_worker": "background.js",

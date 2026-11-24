@@ -32,6 +32,14 @@ with the desk doesn't change its orientation anyway. The keyboard shortcut is th
 2. *Load unpacked* → select this folder.
 3. Optional: pin the icon. The badge shows minutes to the next break.
 
+## Icon
+
+`icon.svg` is the source. Regenerate the PNGs with:
+
+```sh
+for n in 16 32 48 128; do rsvg-convert -w $n -h $n icon.svg -o icons/icon$n.png; done
+```
+
 ## Test
 
 ```sh

@@ -114,17 +114,17 @@ function drawIcon(size, on) {
   g.roundRect(1, 1, 30, 30, 7);
   g.fill();
   g.fillStyle = g.strokeStyle = "#f6f2ea";
-  g.lineWidth = 2.6;
+  g.lineWidth = on ? 2.4 : 2.6;
   g.lineCap = g.lineJoin = "round";
   g.beginPath();
-  g.arc(on ? 16 : 13, 7.5, 3.2, 0, Math.PI * 2);
+  g.arc(on ? 16 : 13, on ? 8.25 : 7.5, on ? 2.9 : 3.2, 0, Math.PI * 2);
   g.fill();
   g.beginPath();
   if (on) {
-    g.moveTo(16, 12); g.lineTo(16, 20);
-    g.moveTo(16, 20); g.lineTo(13, 27);
-    g.moveTo(16, 20); g.lineTo(19, 27);
-    g.moveTo(11, 15); g.lineTo(21, 15);
+    // Matches icon.svg: arms raised in a stretch.
+    g.moveTo(16, 13); g.lineTo(16, 20.5);
+    g.moveTo(11, 9.5); g.lineTo(16, 14.5); g.lineTo(21, 9.5);
+    g.moveTo(13, 26.25); g.lineTo(16, 20.5); g.lineTo(19, 26.25);
   } else {
     g.moveTo(13, 12); g.lineTo(13, 20); g.lineTo(21, 20); g.lineTo(21, 27);
     g.moveTo(9, 13); g.lineTo(9, 27);
