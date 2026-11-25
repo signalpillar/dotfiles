@@ -1,0 +1,40 @@
+#!/bin/bash
+# Non-interactive org-capture, used by the Raycast scripts in
+# ~/.local/share/raycast-scripts. Mirrors the capture templates in
+# ~/.spacemacs.d/init.el. Uses the running Emacs server when there is one so
+# open buffers stay in sync, otherwise a throwaway batch Emacs.
+#
+#   org-quick-capture todo|journal|work TEXT
+
+set -euo pipefail
+export PATH="/opt/homebrew/bin:$PATH"
+
+kind=${1:-}
+text="${2:-}"
+text="${text//$'\n'/ }"
+[ -n "${text// /}" ] || { echo "Empty entry" >&2; exit 1; }
+
+today='"~/gsync-docs/today.org"'
+weekly='(expand-file-name (format-time-string "%Y-%W.org") "~/Documents/work-journal/")'
+
+case "$kind" in
+  todo) target="(file+headline ,$today \"Tasks\")" tpl='"* TODO %i\nEntered on %U"' opts='' ;;
+  journal) target="(file+datetree ,$today)" tpl='"* %i"' opts='' ;;
+  work) target="(file+headline ,$weekly \"Weekly\")" tpl='"* %i"' opts=':prepend t' ;;
+  *) echo "usage: org-quick-capture todo|journal|work TEXT" >&2; exit 2 ;;
+esac
+
+esc=${text//\\/\\\\}
+esc=${esc//\"/\\\"}
+form="(progn
+  (require 'org-capture)
+  (let ((org-capture-templates
+         \`((\"q\" \"Quick\" entry $target $tpl :immediate-finish t $opts))))
+    (org-capture-string \"$esc\" \"q\")
+    (org-save-all-org-buffers)))"
+
+if emacsclient -e t >/dev/null 2>&1; then
+  emacsclient -e "$form" >/dev/null
+else
+  emacs -Q --batch --eval "$form" 2>/dev/null
+fi
