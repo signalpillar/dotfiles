@@ -70,6 +70,7 @@ brew "hadolint"
 brew "pngpaste"
 brew "aspell"
 brew "yazi"
+brew "imagemagick"
 
 # Languages (Mise handles these better, but some are good here)
 brew "go"
